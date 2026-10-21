@@ -1,7 +1,9 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
+import { productJsonLd } from '../../data/software-jsonld';
 import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
 const rows = [
@@ -84,21 +86,12 @@ const rows = [
 ];
 
 const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': ['Product', 'SoftwareApplication'],
-    name: 'mod_pagespeed 2.1',
-    alternateName: 'ModPageSpeed',
-    image: 'https://modpagespeed.com/og-default.png?v=2',
-    applicationCategory: 'WebApplication',
-    operatingSystem: ['Linux', 'Windows', 'macOS'],
+  await productJsonLd({
+    image: OG_DEFAULT_IMAGE_URL,
     description:
       'ShortPixel is a WordPress image-optimization plugin plus an Adaptive Images CDN/API. mod_pagespeed runs at the server layer (nginx/Apache), is CMS-independent, and optimizes the full HTML/CSS/JS pipeline at your origin.',
-    url: 'https://modpagespeed.com/',
-    brand: { '@type': 'Brand', name: 'mod_pagespeed 2.1' },
-    publisher: { '@id': 'https://we-amp.com/#organization' },
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-  },
+  }),
 ];
 ---
 

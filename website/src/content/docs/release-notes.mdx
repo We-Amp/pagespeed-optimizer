@@ -3,7 +3,7 @@ title: 'Release notes'
 description: 'mod_pagespeed 2.1 release notes: the current release, the notes of every line, every release in one list, security updates and what changed since upstream.'
 order: 70
 group: 'Reference'
-lastUpdated: 2026-10-19
+lastUpdated: 2026-10-20
 ---
 
 mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together, and since 2.5.0 one version number covers both: the native packages, the container images, the NuGet packages and the Helm chart's application version of the current release all carry 2.5.0. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](#security-updates) we have published and [what has changed since the last upstream release](#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
@@ -339,11 +339,11 @@ the release entry says so.
 | 10 | none | memory corruption, image spriting | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 11 | none | denial of service, statistics admin page | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 12 | none | crashes and truncated responses, IIS module and Windows shared memory | the IIS module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows | [mod_pagespeed 2.5.0](/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows, on the product version (2.5.x) | [mod_pagespeed 2.5.0](/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 14 | — | missing security headers — cached responses, nginx module | the nginx module in the container images and Helm chart, in releases up to and including 2.3.0 | [mod_pagespeed 2.4.0](/docs/release-notes-2-4/#v2-4-0) | Recommended; cached responses regain the headers as they expire, or purge the cache after upgrading to restore them at once |
 | 15 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
 | 16 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](/docs/release-notes-2-3/#v2-3-0) | Recommended |
-| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3 | [mod_pagespeed 2.3.0](/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
+| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; the next sidecar package (2.5.x) carries a current nginx | [mod_pagespeed 2.3.0](/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
 | 18 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 19 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 20 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
@@ -538,8 +538,9 @@ Docker images, and as a Helm chart. See
 [Deployment](/docs/deployment/) for production rollouts.
 
 The Apache packages install the configuration that points the module at the
-optimizer worker. The native nginx module runs on its own; to use the optimizer
-worker with nginx, run the reverse-proxy deployment.
+optimizer worker. The native nginx module uses the worker once two directives
+point it there: install `pagespeed-optimizer` first, as its own command, then
+follow the [nginx install steps](/docs/installation-module/#native-nginx-module).
 
 The IIS package ships as a signed installer on the mod_pagespeed GitHub release.
 

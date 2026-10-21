@@ -82,6 +82,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Convert PNG to JPEG (convert_png_to_jpeg)](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Converts PNG to JPEG when no transparency.
 - [Deduplicate inlined images (dedup_inlined_images)](https://modpagespeed.com/docs/filters/dedup_inlined_images/): Replaces repeated inlined images with JS reference.
 - [Defer JavaScript (defer_javascript)](https://modpagespeed.com/docs/filters/defer_javascript/): Defers JS execution until after page load.
+- [In-place browser optimization (in_place_optimize_for_browser)](https://modpagespeed.com/docs/filters/in_place_optimize_for_browser/): Browser-specific in-place optimization.
 - [Inline CSS (inline_css)](https://modpagespeed.com/docs/filters/inline_css/): Inlines small external CSS into HTML.
 - [Inline images (inline_images)](https://modpagespeed.com/docs/filters/inline_images/): Inlines small images as data: URIs.
 - [Inline JavaScript (inline_javascript)](https://modpagespeed.com/docs/filters/inline_javascript/): Inlines small external JS into HTML.
@@ -195,7 +196,11 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Our seccomp soak passed. Then Chrome called mincore](https://modpagespeed.com/blog/our-seccomp-soak-passed-then-chrome-called-mincore/): 2026-10-20. A log-only systemd soak cannot see calls your filter subtracts, or a call that fires less often than the soak runs. Headless Chrome hit both.
 - [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
+- [55 of 150 AI crawler operators publish Web Bot Auth keys](https://modpagespeed.com/blog/which-ai-crawlers-sign-their-requests/): 2026-10-19. We asked 150 AI crawler operators for their Web Bot Auth key directory on 19 October 2026. 55 served one. The script, the data, and what to do with it.
+- [Most mod_pagespeed sites run a release from 2020 or earlier](https://modpagespeed.com/blog/mod-pagespeed-sites-run-2020-or-earlier/): 2026-10-17. HTTP Archive, September 2026: 99.9% of PageSpeed origins that report a version run a release from 2020 or earlier. The queries are public.
+- [JPEG XL in the Accept header, and your CDN image cache](https://modpagespeed.com/blog/jpeg-xl-accept-header-and-your-cdn-image-cache/): 2026-10-14. Chrome 155 and Firefox 158 now send image/jxl on desktop and Android. What that does to a cache keyed on Accept, and four curl commands to check yours.
 - [The state of the PageSpeed installed base, 2026](https://modpagespeed.com/blog/pagespeed-installed-base-2026/): 2026-10-10. HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.
 - [Cyclone as an LLM KV-cache tier: eight rounds to match LMDB](https://modpagespeed.com/blog/cyclone-kv-cache-tier-vs-lmdb/): 2026-10-08. How Cyclone became an LLM KV-cache offload tier: eight rounds against LMDB and file-per-block, from 0.06 GB/s cold reads to ahead of LMDB.
 - [mod_pagespeed 2.1: one product again](https://modpagespeed.com/blog/mod-pagespeed-2-1-one-product-again/): 2026-09-17. The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.

@@ -21,7 +21,6 @@ import SupportTiers from '../components/SupportTiers.astro';
 import Icon from '../components/Icon.astro';
 import { faqSupport } from '../data/faq-support';
 import { stripHtml } from '../data/faq-shared';
-import { getRelease } from '../lib/release';
 import {
   PRODUCT_NAME,
   CURRENT_LINE,
@@ -29,24 +28,37 @@ import {
   LICENSE_CLAUSE,
   LICENSING_TERMS_URL,
   PRICING_LINE,
+  LEGACY_1X_KEY,
+  RELEASE_KEY,
+  RELEASE_KEY_PAGE_URL,
+  RELEASE_VERIFY_URL,
+  REPOSITORY_KEY,
+  formatFingerprint,
   RESPONSE_TARGETS_LINE,
   SOURCE_PUBLICATION,
 } from '../data/product-facts.mjs';
 
 const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
-const rel21 = await getRelease('2.1');
-const GPG_KEY_URL = rel21.urls.gpg_key;
-// The repository signing key (RSA 4096). Same fingerprint the download page
-// and the apt/yum page show.
-const KEY_FINGERPRINT = 'DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0';
+// Two keys, each labelled by what it signs (product-facts.mjs): the repository
+// key for apt/dnf, the release key for SHA256SUMS.asc on GitHub releases.
+// Same fingerprints the download page and the apt/yum page show.
+const KEY_FINGERPRINT = formatFingerprint(REPOSITORY_KEY.fingerprint);
+const RELEASE_FINGERPRINT = formatFingerprint(RELEASE_KEY.fingerprint);
+const LEGACY_1X_FINGERPRINT = formatFingerprint(LEGACY_1X_KEY.fingerprint);
 const SBOM_URL = 'https://github.com/We-Amp/pagespeed-optimizer/tree/main/sbom';
 const CONSULTING_URL = 'https://we-amp.com/consulting/';
 
 const verifyRecipe = [
-  `curl -fsSL ${GPG_KEY_URL} -o modpagespeed.asc`,
+  `# apt and dnf repositories: the repository signing key`,
+  `curl -fsSL ${REPOSITORY_KEY.public_url} -o modpagespeed.asc`,
   `gpg --show-keys --with-fingerprint modpagespeed.asc   # expect ${KEY_FINGERPRINT}`,
   `gpg --dearmor < modpagespeed.asc | sudo tee /usr/share/keyrings/modpagespeed.gpg > /dev/null   # apt: deb [signed-by=/usr/share/keyrings/modpagespeed.gpg] ...`,
-  `sha256sum --check --ignore-missing SHA256SUMS   # release assets downloaded from GitHub`,
+  `# files from a mod_pagespeed GitHub release (2.5.0 on): the release signing key`,
+  `curl -fsSLO ${RELEASE_KEY.public_url}`,
+  `gpg --show-keys --with-fingerprint RELEASE-SIGNING-KEY.asc   # expect ${RELEASE_FINGERPRINT}`,
+  // A keyring holding only this key: gpg --verify against the normal keyring
+  // would accept a good signature from any key in it.
+  `gpg --dearmor < RELEASE-SIGNING-KEY.asc > release.gpg && gpgv --keyring ./release.gpg SHA256SUMS.asc SHA256SUMS && sha256sum --check --ignore-missing SHA256SUMS   # macOS: shasum -a 256 --check --ignore-missing SHA256SUMS`,
 ].join('\n');
 
 const jsonLd = [
@@ -200,16 +212,32 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
               <Icon name="key-round" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
               <span>
                 The apt and yum repositories at{' '}
-                <code class="text-xs">packages.modpagespeed.com</code> are GPG-signed (RSA 4096,
-                fingerprint <code class="text-xs break-all">{KEY_FINGERPRINT}</code>); apt and dnf
-                verify what they install against that key.
+                <code class="text-xs">packages.modpagespeed.com</code> are GPG-signed with the
+                repository signing key (RSA 4096, fingerprint{' '}
+                <code class="text-xs break-all">{KEY_FINGERPRINT}</code>); apt and dnf verify what
+                they install against that key.
               </span>
             </li>
             <li class="flex gap-2">
               <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
               <span>
                 Every release asset on GitHub is listed in a <code class="text-xs">SHA256SUMS</code>{' '}
-                file published with the release.
+                file published with the release. On the module's releases (from 2.5.0 on),{' '}
+                <code class="text-xs">SHA256SUMS.asc</code> signs that file with a separate key, the{' '}
+                <a
+                  href={RELEASE_KEY_PAGE_URL}
+                  class="text-interactive hover:text-interactive-hover underline"
+                >
+                  release signing key
+                </a>{' '}
+                (fingerprint <code class="text-xs break-all">{RELEASE_FINGERPRINT}</code>; steps in{' '}
+                <a
+                  href={RELEASE_VERIFY_URL}
+                  class="text-interactive hover:text-interactive-hover underline"
+                >
+                  Verifying a Release
+                </a>
+                ). The Windows installer is also Authenticode-signed by We-Amp B.V.
               </span>
             </li>
             <li class="flex gap-2">
@@ -281,8 +309,11 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
       <div id="verify" class="mt-10">
         <h3 class="font-semibold text-text-body">Verify what you install today</h3>
         <p class="mt-2 text-sm text-text-muted max-w-3xl">
-          Four lines: fetch the repository key, check its fingerprint, pin apt to it, and check the
-          checksums of anything downloaded from a release page.
+          Two keys for two jobs. For the repositories: fetch the repository key, check its
+          fingerprint and pin apt to it. For files downloaded from a mod_pagespeed GitHub release:
+          fetch the release signing key, check its fingerprint, verify the signature on{' '}
+          <code>SHA256SUMS</code> against a keyring that holds only that key, then check the files
+          against it.
         </p>
         <pre class="mt-4 overflow-x-auto rounded-lg bg-bg-recessed p-4 text-xs text-text-body"><code>{verifyRecipe}</code></pre>
         <p class="mt-3 text-xs text-text-annotation">
@@ -294,6 +325,12 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             repository file
           </a>{' '}
           sets <code>gpgcheck=1</code> against the same key.
+        </p>
+        <p class="mt-3 text-xs text-text-annotation">
+          An older key, fingerprint <code class="break-all">{LEGACY_1X_FINGERPRINT}</code>, signed
+          the 1.x direct downloads (per-file <code>.asc</code>) and the source tags v2.1.0 to
+          v2.4.0. It signs nothing new from 20 October 2026 and is being revoked: use it only to
+          check those older signatures, and treat any signature it made after that date as not ours.
         </p>
       </div>
     </div>

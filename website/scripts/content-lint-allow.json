@@ -1,4 +1,7 @@
 {
+  "/blog/mod-pagespeed-2-1-one-product-again/": {
+    "retired-product-label": "the dated announcement of the 2.1.0 convergence, published under the label it announced"
+  },
   "/demos/blog/": {
     "h1-count": "static demo fixture site (public/demos/, noindex): its fixture markup has no h1 by design"
   },
@@ -12,7 +15,8 @@
     "term-drift-daemon": "\"time daemon\" is ntpd, not the optimizer worker"
   },
   "/docs/release-notes-2-1/": {
-    "term-drift-daemon": "\"daemon paths\" refers to the DaemonSocketPath/DaemonVolumePath directive names"
+    "term-drift-daemon": "\"daemon paths\" refers to the DaemonSocketPath/DaemonVolumePath directive names",
+    "retired-product-label": "the 2.1.0 release notes: a record of what shipped under the \"2.1\" label, on the date it shipped"
   },
   "/docs/release-notes-2-3/": {
     "term-drift-daemon": "the release note for the packaged unit description names the compatibility names that keep the word daemon (pagespeed_daemon.conf, command-line flags, API paths, metric names)"

@@ -82,6 +82,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Convert PNG to JPEG (convert_png_to_jpeg)](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Converts PNG to JPEG when no transparency.
 - [Deduplicate inlined images (dedup_inlined_images)](https://modpagespeed.com/docs/filters/dedup_inlined_images/): Replaces repeated inlined images with JS reference.
 - [Defer JavaScript (defer_javascript)](https://modpagespeed.com/docs/filters/defer_javascript/): Defers JS execution until after page load.
+- [In-place browser optimization (in_place_optimize_for_browser)](https://modpagespeed.com/docs/filters/in_place_optimize_for_browser/): Browser-specific in-place optimization.
 - [Inline CSS (inline_css)](https://modpagespeed.com/docs/filters/inline_css/): Inlines small external CSS into HTML.
 - [Inline images (inline_images)](https://modpagespeed.com/docs/filters/inline_images/): Inlines small images as data: URIs.
 - [Inline JavaScript (inline_javascript)](https://modpagespeed.com/docs/filters/inline_javascript/): Inlines small external JS into HTML.
@@ -195,7 +196,11 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Our seccomp soak passed. Then Chrome called mincore](https://modpagespeed.com/blog/our-seccomp-soak-passed-then-chrome-called-mincore/): 2026-10-20. A log-only systemd soak cannot see calls your filter subtracts, or a call that fires less often than the soak runs. Headless Chrome hit both.
 - [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
+- [55 of 150 AI crawler operators publish Web Bot Auth keys](https://modpagespeed.com/blog/which-ai-crawlers-sign-their-requests/): 2026-10-19. We asked 150 AI crawler operators for their Web Bot Auth key directory on 19 October 2026. 55 served one. The script, the data, and what to do with it.
+- [Most mod_pagespeed sites run a release from 2020 or earlier](https://modpagespeed.com/blog/mod-pagespeed-sites-run-2020-or-earlier/): 2026-10-17. HTTP Archive, September 2026: 99.9% of PageSpeed origins that report a version run a release from 2020 or earlier. The queries are public.
+- [JPEG XL in the Accept header, and your CDN image cache](https://modpagespeed.com/blog/jpeg-xl-accept-header-and-your-cdn-image-cache/): 2026-10-14. Chrome 155 and Firefox 158 now send image/jxl on desktop and Android. What that does to a cache keyed on Accept, and four curl commands to check yours.
 - [The state of the PageSpeed installed base, 2026](https://modpagespeed.com/blog/pagespeed-installed-base-2026/): 2026-10-10. HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.
 - [Cyclone as an LLM KV-cache tier: eight rounds to match LMDB](https://modpagespeed.com/blog/cyclone-kv-cache-tier-vs-lmdb/): 2026-10-08. How Cyclone became an LLM KV-cache offload tier: eight rounds against LMDB and file-per-block, from 0.06 GB/s cold reads to ahead of LMDB.
 - [mod_pagespeed 2.1: one product again](https://modpagespeed.com/blog/mod-pagespeed-2-1-one-product-again/): 2026-09-17. The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.
@@ -337,10 +342,11 @@ Installing with a coding agent? [Install with a coding agent](https://modpagespe
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 # 2. Install the module (apt-get on Debian/Ubuntu, dnf on Enterprise Linux)
 sudo apt-get install mod-pagespeed             # Apache: also installs pagespeed-optimizer
-sudo apt-get install nginx-module-pagespeed    # nginx
+sudo apt-get install pagespeed-optimizer       # nginx: the worker first,
+sudo apt-get install nginx-module-pagespeed    #   then the module
 # 3. Restart the web server
 sudo systemctl restart apache2                 # httpd on Enterprise Linux
-sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
 ```
 
 Apache optimizes immediately: the package enables the module, its default
@@ -352,17 +358,29 @@ add a `load_module` line: nginx refuses to load the module twice.
 shows the line the package added. Only a module you built or copied in by hand
 needs `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
 `load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) at the top of
-`nginx.conf`. Then turn the module on in a `server` block:
+`nginx.conf`. Then turn the module on in a `server` block, pointed at the
+worker:
 
 ```nginx
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
+pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
+pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 ```
 
-Then [verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). The
-[module install guide](https://modpagespeed.com/docs/installation-module/) has the distribution matrix,
-the nginx compatibility table and the two directives that hand nginx's in-place
-optimization to the worker.
+Restart nginx again
+(`sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx`),
+then
+[verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). Install the worker and the module as two separate
+commands, worker first, as above: the module package adds the nginx user to the
+worker's `pagespeed` group only if that group already exists. If the module
+went in first or in the same command, run
+`sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx. The
+[nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module) are the
+full path: the shared settings for every server block, the admin console (nginx
+serves none until you set its path) and its access restriction, and the check
+that the worker is in use.
 
 ## Quickstart: Docker reverse proxy
 
@@ -495,7 +513,7 @@ Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module a
 
 **Does the native nginx module need the optimizer worker?**
 
-No. It optimizes on its own. To hand in-place optimization to the worker, install the `pagespeed-optimizer` package of the same release and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block. The Apache packages install that wiring for you.
+It runs without it, on its own filters only; the install path installs the worker too. Install the `pagespeed-optimizer` package first, then `nginx-module-pagespeed`, and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block so the module hands in-place optimization to the worker. The Apache packages install that wiring for you.
 
 **What are the prerequisites?**
 
@@ -704,21 +722,175 @@ distribution matrix (including the yum packages) and the nginx module.
 
 ## Native nginx module
 
-The signed repository at `packages.modpagespeed.com` ships the nginx module
-(`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses — for
-Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9 and
-10. Each build is pinned to that distribution's stock nginx (1.18 through
-1.26), so there is no version to match by hand:
+The signed repository at `packages.modpagespeed.com` ships the native nginx
+module (`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses —
+for Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9
+and 10. It is the ngx_pagespeed port of mod_pagespeed, built from the
+mod_pagespeed source, and it loads into the nginx your distribution ships.
+Each build is pinned to that distribution's stock nginx (1.18 through 1.26),
+so there is no version to match by hand.
 
-```bash
-curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
-sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
-sudo dnf install nginx-module-pagespeed       # AlmaLinux/RHEL/Rocky
-```
+> **Two nginx modules, one file name**
+>
+> Two different nginx modules install a file named `ngx_pagespeed_module.so`.
+> The **native nginx module** on this page comes from the `nginx-module-pagespeed`
+> package, runs inside your own nginx, and takes the `pagespeed <Directive>`
+> surface from the [configuration reference](https://modpagespeed.com/docs/configuration/)
+> (`pagespeed FileCachePath`, `pagespeed EnableFilters`, …); it answers with an
+> `X-Page-Speed` header. The **thin nginx module** ships only inside the
+> `pagespeed-nginx` and `pagespeed-combined` container images of the
+> [Docker / nginx reverse proxy](https://modpagespeed.com/docs/installation-module/#docker--nginx-reverse-proxy), runs in the nginx
+> bundled there, and takes the `pagespeed_…` directives from the
+> [worker and reverse-proxy configuration](https://modpagespeed.com/docs/worker-configuration/)
+> (`pagespeed_cache_path`, …); it answers with `X-PageSpeed: MISS`, then `HIT`.
+> Apart from `pagespeed on;`, the directives of one are not valid in the other.
 
-The native nginx module runs on its own by default. To have it use the
-optimizer worker, set the two directives described in
-[Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+The steps below install the module the way the Apache packages install the
+Apache module: with the `pagespeed-optimizer` worker beside it. With the worker
+paired, the module records each eligible CSS, JavaScript and image response
+into the worker's cache, the worker builds the optimized variants off the
+request path, and the module serves the variant that fits each client. The
+module's own filters also work without the worker: leave out step 2 and the
+`DaemonSocketPath` and `DaemonVolumePath` lines in step 5 to run it alone.
+
+1. **Add the repository.**
+
+   ```bash
+   curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+   ```
+
+2. **Install the optimizer worker, before the module.**
+
+   ```bash
+   sudo apt-get install pagespeed-optimizer   # Debian/Ubuntu
+   sudo dnf install pagespeed-optimizer       # AlmaLinux/RHEL/Rocky
+   ```
+
+   The package creates the `pagespeed` user and group, and enables and starts
+   `pagespeed-optimizer.service`. These steps are for a host that runs
+   systemd; in a container, use the [Docker images](https://modpagespeed.com/docs/installation-docker/).
+
+   Install the worker on its own, before the module, never both in one
+   command: the module package adds the nginx user to the `pagespeed` group
+   only if that group already exists when its install script runs, and in a
+   single transaction dnf runs the module's script first. On a host where the
+   module went in first or alongside, add the user yourself and restart nginx:
+   `sudo usermod -a -G pagespeed www-data` on Debian and Ubuntu,
+   `sudo usermod -a -G pagespeed nginx` on Enterprise Linux.
+
+3. **Install the module.**
+
+   ```bash
+   sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
+   sudo dnf install nginx-module-pagespeed       # AlmaLinux/RHEL/Rocky
+   ```
+
+   The package loads the module itself (through `/etc/nginx/modules-enabled/`
+   on Debian and Ubuntu, `/usr/share/nginx/modules/` on Enterprise Linux), so
+   add no `load_module` line.
+
+4. **Set the shared settings.** Create `/etc/nginx/conf.d/pagespeed.conf`;
+   the stock `nginx.conf` of every supported distribution includes
+   `conf.d/*.conf` inside its `http` block:
+
+   ```nginx
+   # Off in every server block that does not turn it on.
+   pagespeed standby;
+   pagespeed FileCachePath /var/cache/ngx_pagespeed;
+   # The admin console; step 5 restricts it.
+   pagespeed GlobalAdminPath /pagespeed_global_admin;
+   ```
+
+   `GlobalAdminPath` can only be set in the `http` block, and a
+   `FileCachePath` there covers every server block. Leave out
+   `pagespeed standby;` and the module is on in every server block, including
+   the default server.
+
+5. **Turn it on for your site.** Create the restriction for the admin pages,
+   `/etc/nginx/snippets/pagespeed_admin_restrict.conf` (localhost only; add,
+   for example, `allow 10.0.0.0/8;` before `deny all;` for your operations
+   network). Enterprise Linux has no `snippets` directory, so create it first:
+
+   ```bash
+   sudo mkdir -p /etc/nginx/snippets
+   sudo tee /etc/nginx/snippets/pagespeed_admin_restrict.conf >/dev/null <<'EOF'
+   # PageSpeed admin pages, localhost only.
+   location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
+   location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
+   location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
+   location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+   EOF
+   ```
+
+   From the next release, the `nginx-module-pagespeed` package installs the
+   same four `location` lines as
+   `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
+   the file above by hand, under this name: the package leaves a hand-made
+   `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
+   packaged name makes the package upgrade stop and ask on Debian and Ubuntu
+   (on Enterprise Linux, rpm keeps the hand-made file and saves the packaged
+   copy beside it as `.rpmnew`). Include one of the
+   two files, not both: nginx rejects the duplicate `location` blocks.
+
+   Then, in each `server` block that should be optimized:
+
+   ```nginx
+   server {
+       listen 80;
+       server_name <your-domain>;
+
+       pagespeed on;
+       # The optimizer worker: its notification socket and its cache volume.
+       pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
+       pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
+       # Every server block with `pagespeed on` serves the admin console.
+       include /etc/nginx/snippets/pagespeed_admin_restrict.conf;
+   }
+   ```
+
+   On Enterprise Linux the stock server in `/etc/nginx/nginx.conf` includes
+   `/etc/nginx/default.d/*.conf`; to turn the module on there, put
+   `pagespeed on;`, the `DaemonSocketPath` and `DaemonVolumePath` lines and the
+   `include` line in a file in that directory. That stock server has no
+   `default_server`, and `conf.d/*.conf` is included before it, so a server
+   you add in `conf.d` that listens on the same port becomes the default
+   server.
+
+6. **Restart nginx.**
+
+   ```bash
+   sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
+   ```
+
+   `enable` matters on Enterprise Linux, where the nginx that `dnf` pulled in
+   does not start at boot otherwise. Restarting also applies the nginx user's
+   new `pagespeed` group membership.
+
+7. **Check it.**
+
+   ```bash
+   curl -s -o /dev/null -D - -H 'Host: <your-domain>' http://127.0.0.1/ | grep -i '^x-page-speed'
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: <your-domain>' http://127.0.0.1/pagespeed_global_admin/
+   ```
+
+   Run them on the server. The first prints `X-Page-Speed: <version>`, the
+   second `200`. The same admin URL requested from another machine answers
+   `403`. To open the console from your workstation, tunnel to the server
+   (`ssh -L 8080:127.0.0.1:80 <you>@<server>`), point `<your-domain>` at
+   `127.0.0.1` in the workstation's hosts file for the session, and browse to
+   `http://<your-domain>:8080/pagespeed_global_admin/`: the request reaches
+   nginx from `127.0.0.1` and selects your server block by its name. For a site
+   that redirects port 80 to HTTPS, tunnel port 443 instead
+   (`ssh -L 8443:127.0.0.1:443 <you>@<server>`) and browse to
+   `https://<your-domain>:8443/pagespeed_global_admin/`. Its
+   Statistics page shows whether the worker is in use: see
+   [Check that it works](https://modpagespeed.com/docs/installation-module/#check-that-it-works).
+
+The [admin console guide](https://modpagespeed.com/docs/admin-console/#setup) covers the other handler
+paths (`AdminPath`, `StatisticsPath`, …) and their restrictions, and
+[Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx)
+the details of the pairing: other paths, start order, upgrades, and what happens
+when the worker is not available.
 
 See [Install from packages.modpagespeed.com](https://modpagespeed.com/download/apt-yum/) for the full
 distribution matrix (including the yum packages) and the Apache module. The
@@ -740,7 +912,7 @@ proxy brings its own nginx inside the image.
 | Native module on Ubuntu 24.04 noble                                            | 1.24.0                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on AlmaLinux / RHEL / Rocky 9                                    | 1.20.1                          | the distribution's stock nginx (x86_64 + aarch64)  |
 | Native module on AlmaLinux / RHEL / Rocky 10                                   | the distribution's stock nginx  | the distribution's stock nginx (x86_64)            |
-| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.4                        | bundled in the image                               |
+| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.6                        | bundled in the image                               |
 
 nginx refuses to load a module built for a different version, and
 `--with-compat` does not relax that check, so the native module follows your
@@ -768,10 +940,10 @@ optimization works exactly as before.
   shared configuration are open to members of the `pagespeed` group only. When
   `nginx-module-pagespeed` is installed or upgraded and that group exists, the
   package adds the nginx user to it (`www-data` on Debian and Ubuntu, `nginx`
-  on the RHEL family). If you installed the module before the optimizer, or
-  nginx runs as another user, add the user yourself, for example
-  `sudo usermod -a -G pagespeed www-data`. Restart nginx afterwards; the new
-  group membership takes effect only in a restarted nginx.
+  on the RHEL family). If you installed the module before the optimizer or in
+  the same command, or nginx runs as another user, add the user yourself, for
+  example `sudo usermod -a -G pagespeed www-data`, then restart nginx; the
+  restart also applies the new group membership.
 - **Find the two paths.** The packaged optimizer's defaults are
   `/run/pagespeed-optimizer/notify.sock` for the notification socket and
   `/var/cache/pagespeed-optimizer/v3/cache` for the cache volume. If you
@@ -797,6 +969,9 @@ server {
 }
 ```
 
+- `FileCachePath` works in either place: in the `server` block as above, or
+  once in the `http` block as in [step 4](https://modpagespeed.com/docs/installation-module/#native-nginx-module), which then
+  covers every server block.
 - Set the two together. With only one of them set, in-place optimization is
   off and the error log says that both are needed.
 - Keep `DaemonVolumePath` on a different path from `FileCachePath`. The
@@ -879,8 +1054,12 @@ read the optimizer's management API through the separate
 ## Docker / nginx reverse proxy
 
 The [Docker / nginx reverse proxy](https://modpagespeed.com/docs/installation-docker/) runs the same
-optimization core in front of any HTTP origin. It uses a dynamic nginx
-module (`ngx_pagespeed_module.so`) paired with the optimizer worker:
+optimization core in front of any HTTP origin. It uses the thin nginx module,
+bundled in its own nginx inside the `pagespeed-nginx` and `pagespeed-combined`
+images and paired with the optimizer worker. The thin module's file is also
+named `ngx_pagespeed_module.so`, but it is a different module from the native
+one above (see [Two nginx modules, one file name](https://modpagespeed.com/docs/installation-module/#native-nginx-module)). The
+pair provides
 [image transcoding](https://modpagespeed.com/blog/nginx-image-optimization-module/),
 CSS/JS minification, critical CSS, and zero-copy serving from the Cyclone
 shared-memory cache.
@@ -897,7 +1076,7 @@ Yes. The native Apache and nginx module ships from the signed packages.modpagesp
 
 **How do I run mod_pagespeed on nginx today?**
 
-Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. The native nginx module runs on its own by default; to use the optimizer worker with it, install the pagespeed-optimizer package of the same release and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block.
+Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.
 
 ---
 
@@ -1044,6 +1223,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module bundled in the image. The native module from the
+# nginx-module-pagespeed package has the same file name but is a different
+# module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {
@@ -1250,11 +1432,14 @@ curl -s -o /dev/null -D - http://localhost:8080/<your-image>.jpg -H 'Accept: ima
 # Content-Type: image/avif   — smaller
 ```
 
-WebP and AVIF are typically smaller than the original; the exact `Content-Length`
-depends on the image. Every response carries `Vary: Accept, Save-Data, User-Agent`
-so caches keep the variants apart. If the WebP and AVIF responses still match the
-original size, the worker may not have finished — wait a moment and retry. If they
-stay the same, see
+WebP and AVIF are typically smaller than the original; the exact
+`Content-Length` depends on the image. Every response carries
+`Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR` so caches keep the variants
+apart. A request with `Accept: */*` (curl's default), `image/*` or no `Accept`
+header gets WebP; see
+[Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation).
+If the WebP and AVIF responses still match the original size, the worker may
+not have finished — wait a moment and retry. If they stay the same, see
 [Worker Not Processing Content](https://modpagespeed.com/docs/troubleshooting/#worker-not-processing-content)
 and [Images Not Converting to WebP/AVIF](https://modpagespeed.com/docs/troubleshooting/#images-not-converting-to-webpavif).
 
@@ -1656,7 +1841,7 @@ Canonical URL: https://modpagespeed.com/docs/cpanel/
 
 mod_pagespeed ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today.
 
-EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The module pairs with the `pagespeed-optimizer` worker on EL9 and EL10; on EL8, the module runs without the optimizer worker.
+EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The EA4 package runs without the `pagespeed-optimizer` worker on every EL major: there is no EA4 optimizer package, so in-place optimization through the worker is not available on cPanel.
 
 On CloudLinux 8/9, mod_pagespeed is an Apache output filter and runs on the standard EA4 Apache (including hosts using `mod_lsapi` as the PHP handler — `mod_lsapi` is an Apache handler, not LiteSpeed Web Server). It does not apply to LiteSpeed Web Server (LSWS), which is a separate, non-Apache server. The EL8 build is validated on AlmaLinux 8 / Rocky 8 stock EA4; if you run CloudLinux's `cl-ea4`-patched Apache and hit anything unexpected, [let us know](https://modpagespeed.com/contact/).
 
@@ -1676,15 +1861,29 @@ gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 ```
 
-`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with key `rsa4096/F50D6054F10712A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
+`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
-### 2. Install the module
+### 2. Remove mod_ruid2 if it is installed
+
+mod_pagespeed and `mod_ruid2` cannot run together. Check first:
+
+```bash
+rpm -q ea-apache24-mod_ruid2
+```
+
+If it is installed, the next step fails: the package declares `Conflicts: ea-apache24-mod_ruid2`, so `dnf` stops with a conflict and installs nothing. Remove mod_ruid2 first, either with `sudo dnf remove ea-apache24-mod_ruid2` or by unticking it in WHM → _EasyApache 4_ → _Customize_ → _Apache Modules_ and provisioning.
+
+Why the two do not mix: mod_ruid2 switches each request's Apache process to the uid and gid of the cPanel account that owns the site. mod_pagespeed keeps one cache for the whole server, `/var/cache/mod_pagespeed`, which the package creates owned by `nobody:nobody` (the EA4 Apache user) with mode `0750`, and its shared-memory cache and locks are set up by the Apache parent process for every child. A process running as an account user cannot read or write that cache, and the package is not built or tested for that setup, so it refuses to install beside mod_ruid2 rather than run half-working.
+
+If you used mod_ruid2 to run PHP as each account's user, PHP-FPM (WHM → _MultiPHP Manager_) does that per account without changing the user Apache itself runs as. `mod_mpm_itk`, which also runs each virtual host under its own uid, is not tested with mod_pagespeed and the package does not declare a conflict with it; the same cache-ownership problem applies, so do not combine them.
+
+### 3. Install the module
 
 ```bash
 sudo dnf install --enablerepo=ea4 ea-apache24-mod_pagespeed
 ```
 
-### 3. Turn it on in WHM
+### 4. Turn it on in WHM
 
 The RPM drops the module file but does not flip it on. Apache loads `mod_pagespeed` only after you tick the box in WHM and rebuild:
 
@@ -1695,7 +1894,7 @@ The RPM drops the module file but does not flip it on. Apache loads `mod_pagespe
 
 The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting started](https://modpagespeed.com/docs/getting-started/) for the directive reference.
 
-### 4. Open the admin console
+### 5. Open the admin console
 
 The global admin console lives at:
 
@@ -1832,10 +2031,21 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads) from the Download
    page's Windows installer link.
-2. Run it on the Windows Server host. The installer registers the module in
+2. Check it. On Windows, the MSI's Authenticode signature is the check for
+   the installer itself: its publisher must be "We-Amp B.V."
+   (`Get-AuthenticodeSignature .\pagespeed-iis-<version>-win-x64.msi` reports
+   `Valid`, with a signer certificate subject starting `CN=We-Amp B.V.`). The release also carries `SHA256SUMS` and
+   `SHA256SUMS.asc`, a GPG signature of the checksum file made with the
+   [release signing key](https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc),
+   fingerprint `411D EFDB 5713 51D2 B25A  EFCC 9C02 B5BD CCE7 5313`: the
+   signature verifies `SHA256SUMS`, and `SHA256SUMS` then verifies the MSI.
+   The steps are in
+   [Verifying a Release](https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release).
+   This key is not the one that signs the apt and dnf repositories.
+3. Run it on the Windows Server host. The installer registers the module in
    IIS as a native HTTP module and creates the default cache directory at
    `%ProgramData%\We-Amp\PageSpeed\Cache`.
-3. Run `iisreset`.
+4. Run `iisreset`.
 
 The module reads `pagespeed.config`. A site is optimized only when its own
 physical root holds one; the server-level file at
@@ -1905,7 +2115,9 @@ The application pools reach the pipe and the cache with the permissions the
 installer sets; no extra access rules are needed. Start the service before the
 application pools: the module attaches to the optimizer when a pool starts, so
 if the service was stopped then, or you start or restart it later, run
-`iisreset` again for the module to use it. To turn the optimizer off, remove the
+`iisreset` again for the module to use it (the module does not reattach on its
+own yet; tracked in
+[mod_pagespeed#104](https://github.com/We-Amp/mod_pagespeed/issues/104)). To turn the optimizer off, remove the
 two lines and run `iisreset`; the module goes back to optimizing on its own.
 
 ### IIS Express
@@ -2301,6 +2513,8 @@ inlining and extracting critical CSS, and rewriting HTML for Core Web Vitals on 
 Requests that can't be optimized — and any request while the optimizer isn't running — pass straight
 through your app un-optimized.
 
+The current package is 1.17.0; the next sidecar release moves to the product version (2.5.x).
+
 ```csharp
 builder.Services.AddPageSpeed(builder.Configuration);
 // ...
@@ -2426,10 +2640,15 @@ Source `AdminAuth.Token` from a secret store or environment variable — do not 
 
 ### Sidecar container & runtime requirements
 
-The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor, so they run on
-Debian 11/12, Ubuntu 20.04+, RHEL/Alma 9, and Amazon Linux 2023. `libstdc++` is statically linked
-and the build has no OpenSSL dependency, so there is no libstdc++ or libssl/libcrypto host
-requirement. The binaries link a small set of host shared libraries:
+The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. The bundled
+nginx links `libpcre.so.3`, the Debian/Ubuntu name of the PCRE library from the `libpcre3`
+package, so it runs on the Debian and Ubuntu releases that still ship that package: Debian 11 and
+12, Ubuntu 20.04 to 24.04. Debian 13 and Ubuntu 26.04 no longer ship `libpcre3` and are not
+supported. Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported either:
+they ship PCRE as `libpcre.so.1`. (`libcrypt.so.1`, which the nginx also links, is available
+there from `libxcrypt-compat`; PCRE is the blocker.) `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
+no libstdc++ or libssl/libcrypto host requirement. The binaries link a small set of host shared
+libraries:
 
 | Host library    | Provided by | Notes                                                      |
 | --------------- | ----------- | ---------------------------------------------------------- |
@@ -2987,10 +3206,13 @@ sudo dnf upgrade nginx-module-pagespeed    # nginx
 ```
 
 The `mod-pagespeed` package depends on `pagespeed-optimizer` at the exact same
-version, so the Apache upgrade pulls the worker in. On nginx the worker is
-optional: `sudo apt-get install pagespeed-optimizer` (or `dnf install`) adds
-it, and two directives hand nginx's in-place optimization to it; see
-[Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+version, so the Apache upgrade pulls the worker in. The nginx package does
+not: `sudo apt-get install pagespeed-optimizer` (or `dnf install`), as its own
+command, adds it, and two directives hand nginx's in-place optimization to it;
+see [Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+A worker installed after the module leaves the nginx user outside its group:
+run `sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx.
 
 Then start things in order:
 
@@ -3622,6 +3844,11 @@ Edit that file, or put directives in a virtual host, a `<Directory>` or
 `<Location>` block, or `.htaccess`; every directive is written as
 `ModPagespeedName value`.
 
+On cPanel / EasyApache 4 the file is `/etc/apache2/conf.d/pagespeed.conf`, and
+the module cannot run beside `mod_ruid2`, which switches each request to the
+site owner's uid while the module's cache belongs to the Apache user: remove
+mod_ruid2 first, as [the cPanel page](https://modpagespeed.com/docs/cpanel/#mod-ruid2) explains.
+
 <!-- platform: iis -->
 
 **IIS**
@@ -3896,7 +4123,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (31) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (42) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (9) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (10) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (46) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (2) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (11) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (28).
+Generated from the mod_pagespeed source at tag [`v2.5.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.5.0): 323 directives.
+
+Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (4) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (31) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (43) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (9) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (10) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (46) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (2) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (11) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (28).
 
 ### Enabling and filter selection
 
@@ -4001,7 +4230,7 @@ Time to wait for resource optimization (per flush window) beforefalling back to 
 #### RewriteLevel
 
 - **Syntax:** `ModPagespeedRewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters` (Apache) · `pagespeed RewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters;` (nginx)
-- **Default:** `PassThrough`
+- **Default:** `CoreFilters`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Base level of rewriting (PassThrough, CoreFilters)
@@ -4727,6 +4956,48 @@ Keep this on a different path from `FileCachePath`. The worker creates the
 volume under its `--cache-dir`; see
 [Worker and reverse-proxy configuration](https://modpagespeed.com/docs/worker-configuration/#--cache-dir).
 
+### Rule packs
+
+[`RulePackFile`](https://modpagespeed.com/docs/configuration/#rulepackfile), [`RulePackMode`](https://modpagespeed.com/docs/configuration/#rulepackmode), [`RulePackRequireSigned`](https://modpagespeed.com/docs/configuration/#rulepackrequiresigned), [`RulePackTrustKey`](https://modpagespeed.com/docs/configuration/#rulepacktrustkey)
+
+#### RulePackFile
+
+- **Syntax:** `ModPagespeedRulePackFile value` (Apache) · `pagespeed RulePackFile value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Path of the rule pack file the rule_packs filter applies.
+
+Repeatable: each line adds a pack file, up to eight per server or virtual host
+(a ninth is a configuration error, and two lines naming the same path count
+once). The packs run in the order of the lines. A virtual host that sets
+`RulePackFile` uses its own list instead of the server-wide one. See
+[Rule packs](https://modpagespeed.com/docs/rule-packs/#enable).
+
+#### RulePackMode
+
+- **Syntax:** `ModPagespeedRulePackMode report|enforce` (Apache) · `pagespeed RulePackMode report|enforce;` (nginx)
+- **Default:** `report`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Mode of the rule_packs filter: report (default) records what the rules would do; enforce lets enforcing rules change the page.
+
+#### RulePackRequireSigned
+
+- **Syntax:** `ModPagespeedRulePackRequireSigned on|off` (Apache) · `pagespeed RulePackRequireSigned on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Refuse rule packs that are not signed with a key listed by RulePackTrustKey.
+
+#### RulePackTrustKey
+
+- **Syntax:** `ModPagespeedRulePackTrustKey key_id base64_public_key` (Apache) · `pagespeed RulePackTrustKey key_id base64_public_key;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Trust rule packs signed with this key: &lt;key id&gt; &lt;base64 Ed25519 public key&gt;
+
 ### Bot authentication and licensing
 
 [`RslCapDirectoryHost`](https://modpagespeed.com/docs/configuration/#rslcapdirectoryhost), [`RslCapEnforcement`](https://modpagespeed.com/docs/configuration/#rslcapenforcement), [`RslCapIssuer`](https://modpagespeed.com/docs/configuration/#rslcapissuer), [`RslCapKeyDirectoryAllowlist`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryallowlist), [`RslCapKeyDirectoryFile`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryfile), [`RslCapKeyDirectoryRefreshSec`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryrefreshsec), [`RslCapKeyDirectoryUrl`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryurl), [`RslCapRequestedLicense`](https://modpagespeed.com/docs/configuration/#rslcaprequestedlicense), [`RslCapRequestedScope`](https://modpagespeed.com/docs/configuration/#rslcaprequestedscope), [`WebBotAuth`](https://modpagespeed.com/docs/configuration/#webbotauth), [`WebBotAuthBotDetection`](https://modpagespeed.com/docs/configuration/#webbotauthbotdetection), [`WebBotAuthDirectoryHost`](https://modpagespeed.com/docs/configuration/#webbotauthdirectoryhost), [`WebBotAuthKeyDirectoryAllowlist`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryallowlist), [`WebBotAuthKeyDirectoryFile`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryfile), [`WebBotAuthKeyDirectoryRefreshSec`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryrefreshsec), [`WebBotAuthKeyDirectoryUrl`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryurl), [`WebBotAuthPublicCounter`](https://modpagespeed.com/docs/configuration/#webbotauthpubliccounter), [`WebBotAuthTelemetry`](https://modpagespeed.com/docs/configuration/#webbotauthtelemetry), [`WebBotAuthVerifiedBots`](https://modpagespeed.com/docs/configuration/#webbotauthverifiedbots)
@@ -5173,7 +5444,7 @@ If true, keep track of statistics per VHost and not just globally
 
 ### Images
 
-[`AvifAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](https://modpagespeed.com/docs/configuration/#avifqualityforsavedata), [`AvifRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](https://modpagespeed.com/docs/configuration/#aviftimeoutms), [`CriticalImagesBeaconEnabled`](https://modpagespeed.com/docs/configuration/#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#cssimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](https://modpagespeed.com/docs/configuration/#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](https://modpagespeed.com/docs/configuration/#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitresizeareapercent), [`ImageMaxRewritesAtOnce`](https://modpagespeed.com/docs/configuration/#imagemaxrewritesatonce), [`ImageProvenanceCarry`](https://modpagespeed.com/docs/configuration/#imageprovenancecarry), [`ImageRecompressionQuality`](https://modpagespeed.com/docs/configuration/#imagerecompressionquality), [`ImageResolutionLimitBytes`](https://modpagespeed.com/docs/configuration/#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](https://modpagespeed.com/docs/configuration/#inlineonlycriticalimages), [`JpegQualityForSaveData`](https://modpagespeed.com/docs/configuration/#jpegqualityforsavedata), [`JpegRecompressionQuality`](https://modpagespeed.com/docs/configuration/#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](https://modpagespeed.com/docs/configuration/#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](https://modpagespeed.com/docs/configuration/#lazyloadimagesblankurl), [`LazyloadImagesMode`](https://modpagespeed.com/docs/configuration/#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](https://modpagespeed.com/docs/configuration/#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](https://modpagespeed.com/docs/configuration/#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](https://modpagespeed.com/docs/configuration/#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](https://modpagespeed.com/docs/configuration/#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](https://modpagespeed.com/docs/configuration/#preserveimageprovenance), [`ProgressiveJpegMinBytes`](https://modpagespeed.com/docs/configuration/#progressivejpegminbytes), [`ResponsiveImageDensities`](https://modpagespeed.com/docs/configuration/#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](https://modpagespeed.com/docs/configuration/#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](https://modpagespeed.com/docs/configuration/#webpqualityforsavedata), [`WebpRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](https://modpagespeed.com/docs/configuration/#webptimeoutms)
+[`AvifAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](https://modpagespeed.com/docs/configuration/#avifqualityforsavedata), [`AvifRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](https://modpagespeed.com/docs/configuration/#aviftimeoutms), [`CriticalImagesBeaconEnabled`](https://modpagespeed.com/docs/configuration/#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#cssimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](https://modpagespeed.com/docs/configuration/#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](https://modpagespeed.com/docs/configuration/#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitresizeareapercent), [`ImageMaxAnimatedFrames`](https://modpagespeed.com/docs/configuration/#imagemaxanimatedframes), [`ImageMaxRewritesAtOnce`](https://modpagespeed.com/docs/configuration/#imagemaxrewritesatonce), [`ImageProvenanceCarry`](https://modpagespeed.com/docs/configuration/#imageprovenancecarry), [`ImageRecompressionQuality`](https://modpagespeed.com/docs/configuration/#imagerecompressionquality), [`ImageResolutionLimitBytes`](https://modpagespeed.com/docs/configuration/#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](https://modpagespeed.com/docs/configuration/#inlineonlycriticalimages), [`JpegQualityForSaveData`](https://modpagespeed.com/docs/configuration/#jpegqualityforsavedata), [`JpegRecompressionQuality`](https://modpagespeed.com/docs/configuration/#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](https://modpagespeed.com/docs/configuration/#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](https://modpagespeed.com/docs/configuration/#lazyloadimagesblankurl), [`LazyloadImagesMode`](https://modpagespeed.com/docs/configuration/#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](https://modpagespeed.com/docs/configuration/#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](https://modpagespeed.com/docs/configuration/#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](https://modpagespeed.com/docs/configuration/#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](https://modpagespeed.com/docs/configuration/#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](https://modpagespeed.com/docs/configuration/#preserveimageprovenance), [`ProgressiveJpegMinBytes`](https://modpagespeed.com/docs/configuration/#progressivejpegminbytes), [`ResponsiveImageDensities`](https://modpagespeed.com/docs/configuration/#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](https://modpagespeed.com/docs/configuration/#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](https://modpagespeed.com/docs/configuration/#webpqualityforsavedata), [`WebpRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](https://modpagespeed.com/docs/configuration/#webptimeoutms)
 
 #### AvifAnimatedRecompressionQuality
 
@@ -5287,6 +5558,14 @@ Limit on percentage of rendered image wxh to the original image wxh that should 
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Consider resizing images whose area in pixels is less than the given percent of original image area; 100 means replace if smaller.
+
+#### ImageMaxAnimatedFrames
+
+- **Syntax:** `ModPagespeedImageMaxAnimatedFrames number` (Apache) · `pagespeed ImageMaxAnimatedFrames number;` (nginx)
+- **Default:** `200`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Maximum number of frames in an animated image that will be converted. Animations with more frames are served unconverted. 0 or a negative value disables the limit.
 
 #### ImageMaxRewritesAtOnce
 
@@ -7203,7 +7482,7 @@ package rows from the signed repository's distribution matrix.
 
 | Shape                                                                               | nginx version                                                    | Configuration surface |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------- |
-| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.4, bundled in the image                               | Thin module + worker  |
+| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.6, bundled in the image                               | Thin module + worker  |
 | Native module package, Debian 12 bookworm                                           | nginx 1.22.1 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Debian 13 trixie                                             | nginx 1.26.3 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Ubuntu 22.04 jammy                                           | nginx 1.18.0 (the distribution's stock nginx; exact-version pin) | Native module         |
@@ -9499,8 +9778,10 @@ different optimized variants to be served to different clients.
 
 The nginx module determines these values from request headers:
 
-- **Image Format:** Parsed from the `Accept` header. If the client advertises
-  `image/webp`, WebP variants are preferred. Similarly for `image/avif`.
+- **Image Format:** Parsed from the `Accept` header. `image/avif` selects
+  AVIF; otherwise `image/webp`, `image/*`, `*/*` or no `Accept` header at all
+  selects WebP; any other value selects the original format. See
+  [Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation).
 - **Viewport Class:** Derived from the `Sec-CH-Viewport-Width` client hint or
   `User-Agent` heuristics (mobile vs. desktop).
 - **Pixel Density:** From `Sec-CH-DPR` client hint or device heuristics.
@@ -9561,6 +9842,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module, as the pagespeed-nginx image bundles it. The native
+# module from the nginx-module-pagespeed package has the same file name but is
+# a different module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {
@@ -10266,13 +10550,27 @@ pagespeed RedisTimeoutUs 50000
 
 #### Flush the entire cache
 
-Touch a `cache.flush` file in the cache directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`):
+Touch a `cache.flush` file in the `FileCachePath` directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`; a name that does not start with `/` is relative to `FileCachePath`). Use the cache directory your configuration names. The Apache package's `pagespeed.conf` sets `/var/cache/mod_pagespeed/`; the nginx package's sample configuration uses `/var/cache/ngx_pagespeed`:
+
+<!-- platform: nginx -->
+
+**nginx**
 
 ```bash
-sudo touch /var/cache/pagespeed/cache.flush
+sudo touch /var/cache/ngx_pagespeed/cache.flush
 ```
 
-mod_pagespeed checks for this file every `CacheFlushPollIntervalSec` seconds (default 5). All entries cached before the file's modification time are treated as expired.
+<!-- platform: apache -->
+
+**Apache**
+
+```bash
+sudo touch /var/cache/mod_pagespeed/cache.flush
+```
+
+mod_pagespeed checks the file's modification time every `CacheFlushPollIntervalSec` seconds (default 5). All entries cached before that time are treated as expired.
+
+This works only while `EnableCachePurge` is off (the default). With `EnableCachePurge on` the module keeps its purge records in `cache.purge` instead (or in the file `CacheFlushFilename` names) and reads no timestamp from `cache.flush`, so touching a file does nothing: purge everything through the [global admin page](https://modpagespeed.com/docs/cache-modes/#purge-via-admin-page) (`purge=*`).
 
 #### Purge via admin page
 
@@ -10470,11 +10768,18 @@ mod_pagespeed serves different optimized variants at the same URL based on clien
 capabilities (image format support, viewport class, pixel density, encoding).
 To tell downstream caches about this, it emits Vary headers:
 
-| Content type | Vary header                     |
-| ------------ | ------------------------------- |
-| Images       | `Accept, Save-Data, User-Agent` |
-| HTML         | `Accept-Encoding, User-Agent`   |
-| CSS / JS     | `Accept-Encoding`               |
+| Content type                                  | Vary header                                 |
+| --------------------------------------------- | ------------------------------------------- |
+| Images (optimizer's nginx module, containers) | `Accept, Save-Data, User-Agent, Sec-CH-DPR` |
+| Images (ASP.NET Core middleware)              | `Accept, Save-Data, User-Agent`             |
+| HTML                                          | `Accept-Encoding, User-Agent`               |
+| CSS / JS                                      | `Accept-Encoding`                           |
+
+The native Apache, nginx and IIS modules with the optimizer worker attached
+send a shorter line on images: `Vary: Accept` on an optimized copy chosen from
+the request's `Accept` header (with `Accept-Encoding` where compression
+applies). A response that carries the origin's own bytes, such as the first
+request for a URL, carries no `Vary: Accept` unless the origin sent one.
 
 Internally, mod_pagespeed classifies User-Agent strings into a small number of
 capability dimensions: 3 viewport classes (mobile, tablet, desktop) × 2 pixel
@@ -10491,47 +10796,152 @@ capability classes that mod_pagespeed actually uses.
 - **Browser caching** works correctly regardless. The same browser always sends
   the same User-Agent, so resources stay cached within a session.
 - **CDN edge caching** is impaired for images and HTML. The CDN stores many
-  near-identical variants, reducing hit rates.
+  near-identical variants, reducing hit rates. A CDN that ignores
+  `Vary: User-Agent` (Cloudflare does, by default) can do worse on the
+  optimizer's nginx module: it caches the viewport-sized copy the first
+  visitor got and serves it to every device class.
 - **CSS/JS** is unaffected — it uses only `Vary: Accept-Encoding`, which CDNs
   handle well.
+
+## Image format and the Accept header
+
+An image keeps its URL; the format of the body is chosen per request from the
+`Accept` header. For a `.jpg` or `.png` URL, once the optimizer has written the
+copies:
+
+| The request's `Accept`                                            | Body served                              |
+| ----------------------------------------------------------------- | ---------------------------------------- |
+| names `image/avif`                                                | AVIF                                     |
+| names `image/webp`, or contains `image/*` or `*/*` (but not AVIF) | WebP                                     |
+| is absent or empty                                                | WebP: treated exactly like `*/*`         |
+| anything else, for example `image/jpeg` or `image/png` only       | the original format, optimized in place |
+
+So a client that sends `Accept: */*`, `Accept: image/*` or no `Accept` header at
+all receives WebP for a `.jpg` URL. That includes `curl`, `wget` and most HTTP
+libraries, which send `Accept: */*` by default. This is deliberate: under RFC
+9110 §12.5.1, `*/*` and `image/*` say the client takes any image type, and a
+request with no `Accept` header means the same thing. Some browsers rely on it:
+Chrome on iOS, for example, sends `Accept: */*` for images without naming WebP.
+AVIF is served only when the request names `image/avif`; a wildcard never
+selects it.
+
+Two details of the matching: quality values are not weighed, so a listed type
+counts even with `;q=0`, and a wildcard anywhere in the header wins over the
+specific types next to it, so `Accept: image/jpeg, */*` still gets WebP. When no
+copy in the negotiated format exists at the client's size class (not written
+yet, or declined by the quality check), the request gets the original format
+at that size; a client that names `image/avif` is never given WebP instead. On the native modules without the
+optimizer worker (the module's own in-place path), none of this applies: an
+image optimized in place is the same bytes for every client and carries no
+`Vary: Accept`.
+
+A response whose format was chosen this way carries `Vary: Accept` (see the
+table above), so a cache that honours `Vary` keeps the formats apart. A CDN
+that ignores `Vary: Accept` caches whichever format the first visitor got, and
+can hand an AVIF or WebP body to a client that cannot decode it.
+
+To cache images at the edge, key them on `Accept`, normalized with the same
+mapping the optimizer uses, so the edge holds three copies per URL instead of
+one per distinct `Accept` string:
+
+- `avif` when `Accept` contains `image/avif`;
+- `webp` when it contains `image/webp`, `image/*` or `*/*`, or is absent;
+- `original` otherwise.
+
+Forward the normalized value as the request's `Accept` (for example
+`image/avif`, `image/webp` or `image/jpeg`), so the origin answers for the
+class the edge cached it under. If you cannot do that, do not cache images at
+the edge.
+
+**The native modules need more than `Accept` today.** Behind the native
+Apache, nginx or IIS module with the optimizer worker attached, the copy is
+also chosen by device class and pixel density (from `User-Agent`) and by
+`Save-Data`, but the response names only `Accept` in `Vary`
+([mod_pagespeed#102](https://github.com/We-Amp/mod_pagespeed/issues/102)).
+Until that is fixed, a shared cache keyed on `Accept` alone can hand one
+device class's or Save-Data copy to another client. Bypass the edge cache for
+images there, or key on a `User-Agent` device class and `Save-Data` as well.
+
+If a non-browser client must receive the original format:
+
+- **Send an `Accept` header that names only that format**, with no `*/*` or
+  `image/*`, for example `Accept: image/jpeg`. This is the per-request switch;
+  there is no setting that serves the original format to wildcard requests.
+- **On the native Apache, nginx and IIS modules, append `?PageSpeed=off`** to
+  the URL to get the response as the origin serves it. The Docker reverse proxy
+  does not read this parameter.
+- **Exclude the URLs from optimization** with
+  [`pagespeed_disallow`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_disallow) on the
+  Docker reverse proxy, or [`Disallow`](https://modpagespeed.com/docs/configuration/#disallow) on the
+  native modules. This applies to every client.
+- **Turn off image transcoding** in the optimizer worker with
+  [`--disable-image`](https://modpagespeed.com/docs/worker-configuration/#--disable-image). This also
+  applies to every client and stops all image optimization.
 
 ## Per-CDN recommendations
 
 ### Cloudflare
 
-Cloudflare ignores `Vary: User-Agent` by default on most plan tiers. It caches
-one variant regardless of User-Agent, using its own device classification for
-mobile/desktop decisions.
+Cloudflare does not key its cache on `Vary: Accept` or `Vary: User-Agent`
+unless you configure it to: by default an image is cached once, for every
+client. For images, choose one of:
 
-**Recommendation:** mod_pagespeed's safe mode (short TTLs + `must-revalidate`)
-is a good fit. If image variant accuracy is critical, consider Enterprise tier
-with custom cache keys.
+- **The Vary setting in a Cache Rule** (all plans): give the `Accept` header
+  the `normalize` action, and Cloudflare keeps a copy per normalized `Accept`
+  value for responses that send `Vary: Accept`. Leave its media type list
+  empty: narrowing it can put a request with no `Accept` header (served WebP)
+  and one that names only `image/jpeg` (served the original) under one key.
+- **Vary for Images** (Pro, Business and Enterprise plans, configured through
+  the API only): declare that `.jpg`, `.jpeg` and `.png` have `image/avif` and
+  `image/webp` variants, and Cloudflare caches each format separately.
+  Requests with `Accept: */*` or no `Accept` header bypass that cache, because
+  the origin answers them with WebP for a `.jpg` URL rather than the original
+  type; they are served correctly, just not from the edge.
+- **A custom cache key on the `Accept` header** (Enterprise plans).
+- **Bypass the edge cache for images** with a Cache Rule.
+
+See Cloudflare's [Vary](https://developers.cloudflare.com/cache/concepts/vary/)
+and
+[Vary for Images](https://developers.cloudflare.com/cache/advanced-configuration/vary-for-images/)
+documentation for the current setup. For HTML, mod_pagespeed's safe mode
+(short TTLs + `must-revalidate`) is a good fit.
 
 ### AWS CloudFront
 
-CloudFront does not vary on User-Agent by default. To enable device-aware
-caching, whitelist CloudFront's built-in device headers in your cache policy:
+CloudFront caches separate copies only for the request headers named in the
+cache policy, and does not act on the origin's `Vary: Accept`. A header that is
+not in the policy is not forwarded as sent: CloudFront removes `Accept`, and
+replaces `User-Agent` with `Amazon CloudFront`. So with no `Accept` in the
+cache policy, every client gets WebP (an absent `Accept` counts as `*/*`) and
+none gets AVIF.
 
-- `CloudFront-Is-Mobile-Viewer`
-- `CloudFront-Is-Tablet-Viewer`
-- `CloudFront-Is-Desktop-Viewer`
+Add `Accept` to the cache policy for images, and normalize it first with a
+CloudFront Function on the viewer request (the mapping above), so the cache
+key holds three values instead of every browser's `Accept` string. Do not add
+the `CloudFront-Is-*-Viewer` device headers for images: mod_pagespeed does not
+read them, so they split the cache without changing the bytes.
 
-These headers are derived from User-Agent by CloudFront itself and produce a
-manageable number of cache variants.
-
-**Recommendation:** Use CloudFront's device headers for images. Leave CSS/JS
+**Recommendation:** Key images on the normalized `Accept` alone. Leave CSS/JS
 caching as-is.
 
 ### Fastly
 
 Fastly (Varnish-based) respects `Vary` faithfully, creating separate cache
-entries per unique Vary combination. With `Vary: User-Agent`, this creates
-thousands of variants per URL. Fastly limits variants to 256 per URL, after
-which it evicts aggressively.
+entries per unique Vary combination. With `Vary: User-Agent`, this means one
+variant per User-Agent string, and Fastly limits the number of variants per
+object; its `vcl_hash` reference recommends moving the variation into the cache
+key instead when there are many.
 
-**Recommendation:** Use custom VCL to normalize User-Agent into capability
-classes, or strip User-Agent from Vary and rely on mod_pagespeed's internal
-classification.
+`Vary: Accept` is honoured the same way: every distinct `Accept` string gets
+its own cache entry.
+
+**Recommendation:** Use custom VCL to normalize `req.http.Accept` into the
+three classes above (`image/avif`, `image/webp`, the original type) and
+`User-Agent` into capability classes, and add both to the cache key in
+`vcl_hash`, or bypass the cache for images. Do not strip `User-Agent` from
+`Vary` and rely on mod_pagespeed's classification: the origin only classifies
+on a cache miss, so Fastly would serve the first device class's copy to
+everyone.
 
 ### Other CDNs / no CDN
 
@@ -12764,7 +13174,9 @@ pagespeed EnableFilters sprite_images;
 
 ### What it does
 
-`in_place_optimize_for_browser` is retired. It used to vary in-place optimized images by the browser's `Accept` header and add `Vary: Accept`; in-place optimization no longer produces browser-dependent bytes, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
+`in_place_optimize_for_browser` is retired. It used to make the module's own in-place path vary images by the browser's `Accept` header and add `Vary: Accept`; that path now optimizes an image identically for every client, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
+
+The filter does not control format negotiation at the original URL. When the optimizer worker is attached (`DaemonSocketPath` and `DaemonVolumePath`, which the Apache packages built to depend on `pagespeed-optimizer` set in `pagespeed_daemon.conf`), in-place images are served from the optimizer's cache in the format the request's `Accept` header selects, with `Vary: Accept`: WebP for `*/*`, `image/*` or no `Accept` header, the original format for a request that names only that format. See [Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation) for the full rule and how to get the original format for a non-browser client.
 
 ### Directives
 
@@ -12782,8 +13194,7 @@ pagespeed EnableFilters in_place_optimize_for_browser;
 
 ### Risks
 
-- The `Vary: Accept` header can reduce CDN cache hit rates. Many CDNs handle `Vary` correctly, but verify with your provider.
-- Some proxy servers do not respect `Vary` headers and may serve the wrong format to clients.
+- None from the filter itself: it has no effect. The `Vary: Accept` considerations for images served from the worker's cache are on the [CDN integration page](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation).
 
 ## Cache extension for images: extend_cache_images
 
@@ -13871,6 +14282,7 @@ mod_pagespeed 2.1 includes filters that optimize HTML structure, cut unnecessary
 | [`decode_rewritten_urls`](https://modpagespeed.com/docs/html-filters/#decode_rewritten_urls)         | No   | Restores original resource URLs      | Test first         |
 | [`compute_statistics`](https://modpagespeed.com/docs/html-filters/#compute_statistics)               | No   | HTML statistics for the console      | Test first         |
 | [`experiment_http2`](https://modpagespeed.com/docs/html-filters/#experiment_http2)                   | No   | HTTP/2 features in development       | Experimental       |
+| [`rule_packs`](https://modpagespeed.com/docs/html-filters/#rule_packs)                               | No   | Applies a rule pack to the head      | Test first         |
 | [`insert_ga`](https://modpagespeed.com/docs/html-filters/#insert_ga)                                 | No   | Inserts the retired ga.js snippet    | Deprecated         |
 
 ## IIS syntax
@@ -14262,6 +14674,19 @@ pagespeed EnableFilters experiment_http2;
 
 Inserts the Google Analytics snippet for the account in `AnalyticsID` into every page. Deprecated: the snippet it inserts is the retired `ga.js`, and `AnalyticsID` itself only targets Universal Analytics, which was discontinued. Add your analytics in your templates instead.
 
+## Rule packs
+
+### rule_packs
+
+[Full guide →](https://modpagespeed.com/docs/filters/rule_packs/)
+
+Applies the rules of a rule pack, a JSON file named by `RulePackFile`, to the canonical link, title, meta description, hreflang cluster and JSON-LD of your pages. It is off by default and in no rewrite level: it is in the dangerous set, so `RewriteLevel AllFilters` does not enable it either. A pack starts in report mode (`RulePackMode report`, the default) and records what it would change without changing anything. See [Rule packs](https://modpagespeed.com/docs/rule-packs/) for the pack format, enforce mode and signed packs.
+
+```nginx
+pagespeed EnableFilters rule_packs;
+pagespeed RulePackFile /etc/pagespeed/packs/example.com.json;
+```
+
 ## Deprecated and dangerous filters
 
 The names below are still accepted so that an existing configuration keeps loading, with a warning. The deprecated ones do nothing at all; `fix_reflows` and `mobilize` are in the dangerous set, which `RewriteLevel AllFilters` never enables, and exist for experiments rather than production. Remove them from your configuration.
@@ -14361,7 +14786,7 @@ The filter does nothing without a pack file, and a pack starts in report mode: i
 
 - It handles five kinds of head element: `canonical`, `title`, `description`, `hreflang` and `jsonld`, and, when a rule asks for it, the `Link` response header for the canonical. It does not edit anything else in the page.
 - Applying a pack fetches nothing over the network. The pack is data, not code.
-- One pack file per server (virtual host or site). The pack id must be `edge-seo`; the loader rejects any other id.
+- Up to eight pack files per server (virtual host or site): repeat `RulePackFile` for each, and a ninth is a configuration error. Packs run in configuration order, and every pack on a server needs its own id (1 to 64 lowercase letters, digits or `-`); a file whose id an earlier file already uses is refused.
 - A host that is not listed in the pack is never touched.
 - It is designed not to fail a response. A pack that does not load, a page it cannot parse or edit safely, or an internal error means the page is served as the origin sent it.
 - It only sees responses the module rewrites: status 200, HTML, not already marked `X-Mod-Pagespeed`.
@@ -14370,7 +14795,7 @@ Changes are made in the head, with three exceptions: a JSON-LD block the pack ad
 
 ## Enable it
 
-`RulePackFile` names the pack file. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
+`RulePackFile` names a pack file. Repeat it to load more than one pack (at most eight per server or virtual host; two lines naming the same path count once); the packs run in the order of the lines, and the first pack whose rule applies to a kind of element claims it. A virtual host that sets `RulePackFile` uses its own list and ignores the server-wide one; one that sets none inherits it. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
 
 Both directives are server-scoped. They cannot be set in `.htaccess`, `<Directory>`, an nginx `location` block or an IIS match block. In `.htaccess` Apache answers 500 for that directory; `<Directory>` and nginx `location` fail at configuration load; IIS warns and continues without the setting. `DisableFilters rule_packs` turns the filter off for a directory or location.
 
@@ -14434,7 +14859,7 @@ A minimal pack:
 
 `pack`, `sites` and `rules` are required; `defaults` and `tables` are optional. Unknown keys, repeated keys and unknown placeholders are load errors, so a typo cannot quietly become a different rule.
 
-- **`pack`**: `id` (must be `edge-seo`) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](https://modpagespeed.com/docs/rule-packs/#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
+- **`pack`**: `id` (1 to 64 lowercase letters, digits or `-`, unique among the server's packs) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](https://modpagespeed.com/docs/rule-packs/#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
 - **`sites`**: a list of `{ "host", "mode" }`. `host` is a lowercase host name or `*.suffix`; `*.example.com` matches subdomains, not `example.com` itself. `mode` is `report` (default) or `enforce`.
 - **`defaults`**: `paths` and `exclude_paths` (glob lists), used by a rule that names none of its own. The fallback is per list: a rule's own `exclude_paths` replaces the defaults. Without `defaults`, paths are `/**`.
 - **`tables`**: named maps of per-URL values for rules to look up, and the `hreflang` table of language clusters.
@@ -14627,7 +15052,7 @@ ed25519 <key id> <base64 signature>
 
 The key id is lowercase letters, digits and `-` (1 to 64 characters) and must equal the pack's `publisher`.
 
-- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. There is no built-in key: a server trusts only the keys you list.
+- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. The We-Amp publisher key (key id `we-amp`) is built in, so packs it signed verify without a `RulePackTrustKey` line; a key you list with the id `we-amp` replaces it.
 - `RulePackRequireSigned on|off` (default `off`) decides what happens to a pack that fails the check.
 
 The server runs these checks in order; the first one that fails names the reason:
@@ -14635,7 +15060,7 @@ The server runs these checks in order; the first one that fails names the reason
 1. `unsigned`: there is no `.sig` file.
 2. `signature unreadable`: the sidecar cannot be read or is not in the format above.
 3. `publisher mismatch`: the key id in the sidecar is not the pack's `publisher`.
-4. `unknown key`: no `RulePackTrustKey` for that key id.
+4. `unknown key`: no `RulePackTrustKey` (and not the built-in `we-amp` key) for that key id.
 5. `bad signature`: the signature does not match the pack's bytes and that key.
 
 A pack that passes all five is verified. With `RulePackRequireSigned off`, every pack that loads is used: a verified pack logs `rule pack loaded signed`, any other pack logs the `rule pack loaded unsigned` warning, and only when a `.sig` file exists but fails one of the checks 2 to 5 does a second warning give the reason. With `on`, a pack that fails any check is refused: an earlier accepted version of the same file stays in use, otherwise the filter is off for that server or virtual host.
@@ -15005,12 +15430,15 @@ the `pagespeed` group.
 
 The images are signed with [keyless cosign](https://docs.sigstore.dev/) and
 carry an SBOM attestation and SLSA build provenance. The signing identity is
-the `We-Amp/modpagespeed-images` publish workflow. To verify a pull:
+one workflow on one branch: `publish-images.yml` on `main` of
+`We-Amp/modpagespeed-images`. Check that exact identity, not a pattern that
+would also accept another workflow or branch of the repository. To verify a
+pull:
 
 ```bash
 # Signature (keyless — no public key to manage)
 cosign verify \
-  --certificate-identity-regexp '^https://github.com/We-Amp/modpagespeed-images/' \
+  --certificate-identity https://github.com/We-Amp/modpagespeed-images/.github/workflows/publish-images.yml@refs/heads/main \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   ghcr.io/we-amp/pagespeed-combined:latest
 
@@ -15562,7 +15990,9 @@ The console opens on the Overview page by default; the other pages are reached f
 
 **nginx**
 
-Set the handler paths you want, then restrict each of them with nginx `location` blocks. `AdminPath`, `StatisticsPath`, `MessagesPath` and `ConsolePath` can be set in a `server` block. `GlobalAdminPath` and `GlobalStatisticsPath` can only be set in the `http` block, and a path set in the `http` block is served by **every** `server` block, including the default server. Each `server` block that serves a path needs its restriction; a path set inside one `server` block needs it in that block only.
+On nginx the console is off until you set a handler path: the module sets none by default, so `/pagespeed_global_admin` answers like any other URL after a fresh install. The [nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module) turn the global console on with its restriction; this section covers every handler path.
+
+Set the handler paths you want, then restrict each of them with nginx `location` blocks. `AdminPath`, `StatisticsPath`, `MessagesPath` and `ConsolePath` can be set in a `server` block. `GlobalAdminPath` and `GlobalStatisticsPath` can only be set in the `http` block, and a path set in the `http` block is served by **every** `server` block in which the module is on. With `pagespeed on` or a `FileCachePath` in the `http` block, and no `pagespeed standby;` or `pagespeed off;` there, that is every `server` block, including the default server. Each `server` block that serves a path needs its restriction; a path set inside one `server` block needs it in that block only.
 
 ```nginx
 http {
@@ -15612,7 +16042,14 @@ http {
 - **Block order does not matter for these paths.** `=` and `^~` blocks are chosen ahead of any regular-expression location, such as the one for `.pagespeed.` resources.
 - **These pages are reached by their own paths only.** A request that nginx rewrites (`rewrite`) or redirects internally to one of these paths is not served by the admin, statistics, console or message pages.
 
-The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block, including the default server.
+The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself (`sudo mkdir -p /etc/nginx/snippets` first on Enterprise Linux). From the next release the package installs the same four lines itself as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`; include one of the two files, not both:
+
+```nginx
+location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
+location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
+location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
+location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+```
 
 **Upgrading from 1.16.0 or earlier:** after updating, replace your access rules for these pages with the blocks above, in every `server` block that serves them. The update does not change rules that are already in your configuration. Enforce the restriction in nginx itself, not in a filter in front of it; see [URL-path ACLs are brittle](https://modpagespeed.com/docs/admin-console/#url-path-acls-are-brittle).
 
@@ -16086,7 +16523,7 @@ Click a URL to open the inspector detail view:
 - **Device simulation** -- build a capability mask by choosing format, viewport,
   density, Save-Data, and encoding (or use a device preset), then click
   "Simulate Selection" to see which alternate the cache selector would serve.
-  The scoring breakdown shows exactly how format match (+1000), viewport (+80),
+  The scoring breakdown shows exactly how viewport (+2000), format match (+1000),
   encoding (+60), density (+40), and Save-Data (+20) contribute.
 - **Actions** -- Purge (delete all variants), Reprocess (purge + re-queue),
   Add to Group
@@ -17771,8 +18208,8 @@ Verify that the configuration options match between the HTML-serving VHost and t
 
 **Fix:**
 
-- Flush the cache: `curl 'http://yoursite.com/pagespeed_admin/cache?purge=*'`
-- Or touch the cache.flush file (legacy method).
+- With `EnableCachePurge on`, purge everything from the global admin page (a `POST` with the `X-Requested-With` header; a plain `GET` answers `405`, and the per-vhost `/pagespeed_admin` page refuses `*`): `curl -X POST -H 'X-Requested-With: XMLHttpRequest' 'http://yoursite.com/pagespeed_global_admin/cache?purge=*'`. Send it from a client the [admin access rules](https://modpagespeed.com/docs/admin-console/#setup) allow.
+- With `EnableCachePurge` off (the default), touch `cache.flush` in the `FileCachePath` directory: `sudo touch /var/cache/mod_pagespeed/cache.flush` on Apache, `sudo touch /var/cache/ngx_pagespeed/cache.flush` on nginx (the path in the Apache package's `pagespeed.conf` and in the nginx package's sample configuration; use the path your configuration names). See [Cache flushing and purging](https://modpagespeed.com/docs/cache-modes/#cache-flushing-and-purging).
 - If resources are loaded from disk via `LoadFromFile`, changes are picked up after `LoadFromFileCacheTtlMs` expires (default: same as ImplicitCacheTtlMs, 5 minutes).
 - For immediate pickup, set a shorter `ImplicitCacheTtlMs` or purge the specific URL.
 
@@ -17788,13 +18225,23 @@ Verify that the configuration options match between the HTML-serving VHost and t
 
 ### SELinux blocks mod_pagespeed
 
-**Cause:** SELinux policy prevents the web server from writing to the cache directory.
+**Cause:** SELinux policy prevents the web server from writing to the cache directory. On Enterprise Linux both Apache and nginx run in the `httpd_t` domain, which can write files labelled `httpd_cache_t` but not the `httpd_sys_content_t` (read-only content) or generic `var_t` labels.
+
+**Check:** `ls -Zd` on your `FileCachePath` shows its label, and `sudo ausearch -m avc -ts recent` lists the denials.
 
 **Fix:**
 
-```bash
-sudo chcon -R -t httpd_sys_content_t /var/cache/pagespeed/
-```
+- **Apache:** the stock targeted policy already labels `/var/cache/mod_pagespeed`, the package's cache directory, `httpd_cache_t`. If the label is wrong (a directory copied in from elsewhere), restore it with `sudo restorecon -Rv /var/cache/mod_pagespeed`.
+- **nginx:** the stock policy has no rule for `/var/cache/ngx_pagespeed`, so it is labelled `var_t` and nginx cannot write to it. Add a persistent rule and apply it (`semanage` is in the `policycoreutils-python-utils` package):
+
+  ```bash
+  sudo semanage fcontext -a -t httpd_cache_t '/var/cache/ngx_pagespeed(/.*)?'
+  sudo restorecon -Rv /var/cache/ngx_pagespeed
+  ```
+
+- **A cache directory you chose yourself:** the same two commands with your path. Do not use `chcon`: its label is lost at the next `restorecon` or file-system relabel.
+- **Fetching:** the module fetches subresources over HTTP, including from the server itself over loopback, and the stock policy denies the web server outbound connections. Without the boolean below, resources are served unoptimized: `sudo setsebool -P httpd_can_network_connect 1`.
+- **The optimizer worker:** the Apache module RPM installs the `pagespeed-optimizer` SELinux policy module and relabels `/var/cache/pagespeed-optimizer` and `/run/pagespeed-optimizer` itself; `sudo semodule -l | grep pagespeed-optimizer` confirms it is loaded. If the install could not load it, the package printed the retry command: `sudo semodule -i /usr/share/selinux/targeted/pagespeed-optimizer.pp`. The nginx module RPM does not ship this policy module, so on a host with only the nginx module nothing installs it: with SELinux enforcing, nginx cannot reach the worker's cache volume and notify socket, and in-place optimization through the worker stays off.
 
 ### Beacons causing unexpected POST requests
 
@@ -17976,7 +18423,7 @@ No. Rendering, cleaning, caching, and serving all happen on your own server. Ser
 
 **Does this work with the module alone, or does it need the optimizer worker?**
 
-Yes. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.
+It needs the optimizer worker. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.
 
 **What is the synthesized /llms.txt, and is it your /llms.txt?**
 
@@ -20945,11 +21392,11 @@ the release entry says so.
 | 10 | none | memory corruption, image spriting | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 11 | none | denial of service, statistics admin page | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 12 | none | crashes and truncated responses, IIS module and Windows shared memory | the IIS module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows, on the product version (2.5.x) | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 14 | — | missing security headers — cached responses, nginx module | the nginx module in the container images and Helm chart, in releases up to and including 2.3.0 | [mod_pagespeed 2.4.0](https://modpagespeed.com/docs/release-notes-2-4/#v2-4-0) | Recommended; cached responses regain the headers as they expire, or purge the cache after upgrading to restore them at once |
 | 15 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
 | 16 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended |
-| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3 | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
+| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; the next sidecar package (2.5.x) carries a current nginx | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
 | 18 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 19 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 20 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
@@ -21142,8 +21589,9 @@ Docker images, and as a Helm chart. See
 [Deployment](https://modpagespeed.com/docs/deployment/) for production rollouts.
 
 The Apache packages install the configuration that points the module at the
-optimizer worker. The native nginx module runs on its own; to use the optimizer
-worker with nginx, run the reverse-proxy deployment.
+optimizer worker. The native nginx module uses the worker once two directives
+point it there: install `pagespeed-optimizer` first, as its own command, then
+follow the [nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module).
 
 The IIS package ships as a signed installer on the mod_pagespeed GitHub release.
 
@@ -21307,7 +21755,7 @@ Security: resource exhaustion, image optimization. Some animated images could ti
 
 Security: dependency update, Envoy filter. The Envoy filter builds against Envoy 1.37.6, which fixes the Envoy security advisories published on 2026-08-26. Affected: the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older, which lack these fixes. Update recommended.
 
-Security: the nginx bundled with the NuGet sidecar package is updated to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean.
+Security: the sidecar's build recipe moves the nginx bundled with the NuGet sidecar package to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean. Correction: no sidecar package was published with this release. The current `WeAmp.PageSpeed.Sidecar` 1.17.0 bundles nginx 1.30.4; the next sidecar package, which moves to the product version (2.5.x), carries a current nginx.
 
 **Before you upgrade**
 
@@ -21332,7 +21780,7 @@ Added: rule packs. The new `rule_packs` filter applies a rule pack, a JSON file 
 - Signed packs. A pack file may carry an Ed25519 signature in a `.sig` sidecar; `RulePackTrustKey` names a trusted publisher key and `RulePackRequireSigned` (off by default) refuses a pack without a valid signature. With `RulePackRequireSigned` off, a pack without a valid signature still loads and logs a warning once per file version per server process; a second warning gives the reason when a signature file is present but fails its check. Six `rule_pack_*` statistics count the outcomes, and `tools/rule-packs/sign-pack.sh` in the source tree signs and verifies packs. See [Signed packs](https://modpagespeed.com/docs/rule-packs/#signed-packs). `RulePackTrustKey` is not available on Envoy.
 - Licence fields. The `pack` object may carry a `license` object with an `entitlement` name, an `expires` date (`YYYY-MM-DD`) and a `terms` URL (`https://`). The module checks their format and writes them to the server log (at info level) once per pack version per server process, when that version is first used; they are informational and do not change what the pack does. The top-level key `signature` is reserved; a pack that uses it does not load.
 
-Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, for the `rule_packs` filter of mod_pagespeed 1.18.0 and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
+Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, for the `rule_packs` filter of mod_pagespeed 2.3.0 (packages 1.18.0) and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
 
 **Optimizer worker**
 
@@ -21412,7 +21860,7 @@ Changed (all servers): the optimizer worker's cache directory moves from `/var/c
 
 Changed (version pins): see "One version number" above. Nothing else in the configuration changes.
 
-Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately).
+Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately, as `WeAmp.PageSpeed.Sidecar` 2.5.x on the product version).
 
 ---
 
@@ -24925,7 +25373,7 @@ The image, CSS, JavaScript, HTML, and caching filters, what each one does, and w
 
 Canonical URL: https://modpagespeed.com/docs/filters/
 
-A PageSpeed filter is one named optimization that mod_pagespeed, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the server serves it. The tables list every filter mod_pagespeed 2.1 accepts: 94 filters and 4 compound names that expand to several. Core means the filter is in CoreFilters, the default RewriteLevel. OFB means it is in OptimizeForBandwidth. Each name links to the entry that explains what the filter changes, when to use it and what can go wrong.
+A PageSpeed filter is one named optimization that mod_pagespeed, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the server serves it. The tables list every filter mod_pagespeed 2.1 accepts: 95 filters and 4 compound names that expand to several. Core means the filter is in CoreFilters, the default RewriteLevel. OFB means it is in OptimizeForBandwidth. Each name links to the entry that explains what the filter changes, when to use it and what can go wrong.
 
 ## Image filters
 
@@ -24943,7 +25391,7 @@ A PageSpeed filter is one named optimization that mod_pagespeed, the in-process 
 | [`dedup_inlined_images`](https://modpagespeed.com/docs/filters/dedup_inlined_images/) | - | - | Generally safe | Replaces repeated inlined images with JS reference |
 | [`experiment_collect_mob_image_info`](https://modpagespeed.com/docs/image-filters/#experiment_collect_mob_image_info) | - | - | Dangerous | Experiment: collects image information for mobilization |
 | [`extend_cache_images`](https://modpagespeed.com/docs/image-filters/#extend_cache_images) | Yes | - | Generally safe | Content-hashed URLs with a 1-year browser cache for images |
-| [`in_place_optimize_for_browser`](https://modpagespeed.com/docs/image-filters/#in_place_optimize_for_browser) | - | - | - | Browser-specific in-place optimization |
+| [`in_place_optimize_for_browser`](https://modpagespeed.com/docs/filters/in_place_optimize_for_browser/) | - | - | - | Browser-specific in-place optimization |
 | [`inline_images`](https://modpagespeed.com/docs/filters/inline_images/) | Yes | - | Generally safe | Inlines small images as data: URIs |
 | [`inline_preview_images`](https://modpagespeed.com/docs/filters/inline_preview_images/) | - | - | Test first | Inserts low-quality image placeholders |
 | [`insert_image_dimensions`](https://modpagespeed.com/docs/filters/insert_image_dimensions/) | - | - | Generally safe | Adds width and height attributes to `<img>` tags |
@@ -25039,6 +25487,7 @@ A PageSpeed filter is one named optimization that mod_pagespeed, the in-process 
 | [`pedantic`](https://modpagespeed.com/docs/html-filters/#pedantic) | - | - | Generally safe | Adds type attributes for HTML4 validation |
 | [`remove_comments`](https://modpagespeed.com/docs/filters/remove_comments/) | - | - | Generally safe | Strips HTML comments |
 | [`remove_quotes`](https://modpagespeed.com/docs/html-filters/#remove_quotes) | - | - | Generally safe | Removes unnecessary attribute quotes |
+| [`rule_packs`](https://modpagespeed.com/docs/html-filters/#rule_packs) | - | - | Dangerous | Applies a rule pack's rules for the canonical, title, description, hreflang and JSON-LD of a page |
 | [`split_html`](https://modpagespeed.com/docs/html-filters/#split_html) | - | - | Dangerous | Deprecated no-op: accepted for compatibility, does nothing |
 | [`split_html_helper`](https://modpagespeed.com/docs/html-filters/#split_html_helper) | - | - | Dangerous | Deprecated no-op: accepted for compatibility, does nothing |
 | [`trim_urls`](https://modpagespeed.com/docs/filters/trim_urls/) | - | - | Generally safe | Shortens URLs relative to base URL |
@@ -25981,6 +26430,87 @@ Add `ModPagespeedEnableFilters defer_javascript` on Apache or `pagespeed EnableF
 - [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minify external JavaScript
 
 This page is drawn from the [defer_javascript entry on JavaScript filters](https://modpagespeed.com/docs/javascript-filters/#defer_javascript). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
+
+---
+
+# In-place browser optimization (in_place_optimize_for_browser)
+
+Browser-specific in-place optimization. The in_place_optimize_for_browser filter: what it does, its risks and the Apache, nginx and IIS directives.
+
+Canonical URL: https://modpagespeed.com/docs/filters/in_place_optimize_for_browser/
+
+- Category: Image
+- CoreFilters: No
+- OptimizeForBandwidth: No
+- Risk: Not rated
+
+`in_place_optimize_for_browser` is retired. It used to make the module's own in-place path vary images by the browser's `Accept` header and add `Vary: Accept`; that path now optimizes an image identically for every client, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`.
+
+## How it works
+
+Remove it from your configuration.
+
+The filter does not control format negotiation at the original URL. When the optimizer worker is attached (`DaemonSocketPath` and `DaemonVolumePath`, which the Apache packages built to depend on `pagespeed-optimizer` set in `pagespeed_daemon.conf`), in-place images are served from the optimizer's cache in the format the request's `Accept` header selects, with `Vary: Accept`: WebP for `*/*`, `image/*` or no `Accept` header, the original format for a request that names only that format. See [Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation) for the full rule and how to get the original format for a non-browser client.
+
+## When to use it
+
+- Not in CoreFilters: it runs only when you enable it by name.
+- Retired: the name is still accepted (with a warning) but has no effect, because the module's own in-place path optimizes an image identically for every client. It does not control format negotiation: with the optimizer worker attached, in-place images are still served in the format the request's Accept header selects, with Vary: Accept.
+
+## Risks
+
+- None from the filter itself: it has no effect. The `Vary: Accept` considerations for images served from the worker's cache are on the [CDN integration page](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation).
+
+## Configuration
+
+Enable it in the module configuration, at server, virtual-host or location scope:
+
+**Apache**
+
+```apache
+ModPagespeedEnableFilters in_place_optimize_for_browser
+```
+
+**nginx**
+
+```nginx
+pagespeed EnableFilters in_place_optimize_for_browser;
+```
+
+**IIS (pagespeed.config)**
+
+```text
+pagespeed EnableFilters in_place_optimize_for_browser
+```
+
+Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](https://modpagespeed.com/docs/filter-selection/).
+
+## Frequently asked questions
+
+**What does the in_place_optimize_for_browser filter do?**
+
+`in_place_optimize_for_browser` is retired. It used to make the module's own in-place path vary images by the browser's `Accept` header and add `Vary: Accept`; that path now optimizes an image identically for every client, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`.
+
+**Is in_place_optimize_for_browser enabled by default?**
+
+No. `in_place_optimize_for_browser` is not in CoreFilters, the default RewriteLevel; it runs only when you enable it by name with `EnableFilters`.
+
+**How do I enable in_place_optimize_for_browser on Apache and nginx?**
+
+Add `ModPagespeedEnableFilters in_place_optimize_for_browser` on Apache or `pagespeed EnableFilters in_place_optimize_for_browser;` on nginx. On IIS, add `pagespeed EnableFilters in_place_optimize_for_browser` to pagespeed.config.
+
+## Related filters
+
+- [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
+- [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
+- [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Animated AVIF
+- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/): Lossless AVIF
+- [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/): Animated WebP
+
+This page is drawn from the [in_place_optimize_for_browser entry on Image filters](https://modpagespeed.com/docs/image-filters/#in_place_optimize_for_browser). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
 ---
 

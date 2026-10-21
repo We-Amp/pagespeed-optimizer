@@ -2,7 +2,7 @@
 title: 'Server-side critical CSS for nginx, any backend'
 description: 'Extract and inline critical CSS at the nginx layer for any backend: PHP, Rails, Django, ASP.NET, Go. No WordPress plugin, headless browser or Node build.'
 date: 2026-05-20
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 author: 'Otto van der Schaaf'
 tags: ['critical-css', 'nginx', 'core-web-vitals', 'lcp']
 draft: false
@@ -323,14 +323,21 @@ side-by-side comparison.
 
 ## Installing it
 
-The native nginx module runs on its own; to use the optimizer worker with
-nginx, run the reverse-proxy deployment. The packaged install for the native
-nginx module is the fastest:
+The native nginx module pairs with the worker for CSS, JavaScript and image
+variants; the worker's critical CSS needs the reverse-proxy deployment. The
+packaged install for the native nginx module is the fastest. Install the
+worker first, as its own command, then the module:
 
 ```bash
-curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
-sudo apt install nginx-module-pagespeed
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo apt-get install pagespeed-optimizer
+sudo apt-get install nginx-module-pagespeed
 ```
+
+Keep the two installs separate commands, worker first: the module package adds
+the nginx user to the worker's `pagespeed` group only if that group already
+exists. The [nginx install steps](/docs/installation-module/#native-nginx-module)
+have the configuration that points the module at the worker.
 
 For the ASP.NET Core middleware:
 

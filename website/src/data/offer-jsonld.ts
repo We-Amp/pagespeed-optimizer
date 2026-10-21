@@ -82,7 +82,11 @@ export function supportTierOffersJsonLd(opts: { url?: string } = {}) {
     '@type': 'Offer',
     name: t.name,
     availability: 'https://schema.org/InStock',
-    // A "from" price is a minimum, never a flat price.
+    // Every Offer carries `price` (Google's Product checks require it). A
+    // "from" price is a minimum: it says so in priceSpecification.minPrice
+    // and in the description, never as a flat price on its own.
+    price: t.prices.annualEur,
+    priceCurrency: 'EUR',
     ...(t.prices.from
       ? {
           priceSpecification: {
@@ -91,7 +95,7 @@ export function supportTierOffersJsonLd(opts: { url?: string } = {}) {
             priceCurrency: 'EUR',
           },
         }
-      : { price: t.prices.annualEur, priceCurrency: 'EUR' }),
+      : {}),
     priceValidUntil: PRICE_VALID_UNTIL,
     url: t.cta.external ? t.cta.href : `${pageUrl}#tiers`,
     description:

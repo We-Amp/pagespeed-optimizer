@@ -5,7 +5,7 @@ date: 2026-02-10
 author: 'Otto van der Schaaf'
 tags: ['migration', 'guide', 'nginx']
 draft: false
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-20
 product: '2.0'
 faq:
   - q: "Can I run the archived 1.13.x and 2.0 side by side?"
@@ -193,9 +193,11 @@ curl -H "Accept: image/webp,*/*" -o /dev/null -w "%{content_type}" http://localh
 # Expected: image/webp
 
 # Request original
-curl -H "Accept: */*" -o /dev/null -w "%{content_type}" http://localhost/image.jpg
+curl -H "Accept: image/jpeg" -o /dev/null -w "%{content_type}" http://localhost/image.jpg
 # Expected: image/jpeg
 ```
+
+`Accept: */*` (curl's default) and a request with no `Accept` header get WebP, not the original: a wildcard says the client takes any image type. See [Image format and the Accept header](/docs/cdn-integration/#image-format-negotiation).
 
 **Confirm CSS and JS minification.** Compare content lengths between the origin and the optimized responses. The worker only writes a variant if minification actually reduced the size, so the optimized version should always be smaller or equal.
 

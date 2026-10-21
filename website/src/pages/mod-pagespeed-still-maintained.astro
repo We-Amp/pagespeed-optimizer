@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
 import {
@@ -10,6 +11,7 @@ import {
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
 } from '../data/product-facts.mjs';
+import { productRef } from '../data/software-jsonld';
 
 // Answers the literal query "is mod_pagespeed still maintained / dead /
 // deprecated". Captures the P0#1 maintained-successor / orphan-capture cluster:
@@ -49,9 +51,10 @@ const articleJsonLd = {
   about: [
     { '@type': 'Thing', name: 'mod_pagespeed' },
     { '@type': 'Thing', name: 'ngx_pagespeed' },
-    { '@type': 'Thing', name: 'mod_pagespeed 2.1' },
+    // The maintained product, by the shared node's @id.
+    await productRef(),
   ],
-  image: 'https://modpagespeed.com/og-default.png?v=2',
+  image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
     '@type': 'Organization',

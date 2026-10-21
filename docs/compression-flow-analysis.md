@@ -44,7 +44,7 @@ CLIENT (Accept-Encoding: gzip, br)
    uncompressed bytes.
 
 2. **Alternate selection includes encoding**: `PageSpeedSelector` scores by
-   format (+1000), viewport (+80), encoding (+60 exact, +5 identity fallback),
+   viewport (+2000), format (+1000), encoding (+60 exact, +5 identity fallback),
    density (+40), save-data (+20). Mismatched non-identity encoding is a hard
    disqualification (score 0). This enables pre-compressed cache alternates
    (Phase 4.4+) while ensuring identity fallback always works.

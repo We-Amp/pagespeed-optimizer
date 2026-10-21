@@ -31,9 +31,12 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -17130,23 +17133,27 @@ TEST_F(WorkerTest, OriginRefreshedChangedImageStillPurgesAndRebuilds) {
 // =============================================================================
 
 TEST_F(WorkerTest, IncompleteMatrixAllowsReprocessing) {
-  // Enable proactive image variants. Use a tiny image where some format
-  // conversions may not reduce size. The key behavior: if the proactive
-  // loop writes fewer variants than expected, the URL should NOT be marked
-  // as processed (allowing retry on next notification).
+  // If the proactive loop writes fewer variants than expected, the URL must
+  // NOT be marked as processed, so the next notification fills the gap.
+  // One variant write is failed through the test seam, which makes the
+  // matrix incomplete on every run; the format matrix alone is enough to
+  // exercise the path, so the viewport/density/save-data fan-out is off.
   WorkerConfig config;
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
-  // Enable all proactive variant types to maximize variant count.
   config.proactive_image_variants = true;
-  config.proactive_viewport_variants = true;
-  config.proactive_savedata_variants = true;
-  config.proactive_density_variants = true;
+  config.proactive_viewport_variants = false;
+  config.proactive_savedata_variants = false;
+  config.proactive_density_variants = false;
 
   NullMessageHandler handler;
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
+  std::atomic<bool> fail_next_write{true};
+  worker.test_hook_fail_image_variant_write_ = [&fail_next_write]() {
+    return fail_next_write.exchange(false);
+  };
 
   std::string url = "http://example.com/incomplete-retry.jpg";
   std::string image_data = ReadTestFile("jpeg/quality100.jpg");
@@ -17169,33 +17176,24 @@ TEST_F(WorkerTest, IncompleteMatrixAllowsReprocessing) {
           .Encode();
 
   SendNotification(notification);
-  for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().images_processed.load() >= 1) break;
-  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_FALSE(fail_next_write.load()) << "no image variant write attempted";
   EXPECT_GE(worker.stats().images_processed.load(), 1u)
       << "Image should be processed";
+  ASSERT_EQ(worker.stats().image_incomplete_matrices.load(), 1u)
+      << "the failed write should leave the matrix incomplete";
 
-  // images_processed moves before the in-flight entry is erased.  Drain first
-  // so the conditional re-send below is not rejected by the in-flight guard.
-  WaitForWorkerIdle(worker);
-
-  uint64_t incomplete = worker.stats().image_incomplete_matrices.load();
-  if (incomplete > 0) {
-    // If an incomplete matrix was detected, the URL is NOT dedup-marked.
-    // Re-sending should trigger re-processing (not dedup skip).
-    uint64_t processed_before = worker.stats().images_processed.load();
-    SendNotification(notification);
-    for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      if (worker.stats().images_processed.load() > processed_before) break;
-    }
-    EXPECT_GT(worker.stats().images_processed.load(), processed_before)
-        << "Incomplete matrix should allow re-processing on retry";
-  }
-  // Whether or not incomplete was triggered, the counter should be
-  // a non-negative value (sanity check).
-  EXPECT_GE(incomplete, 0u);
+  // The URL is NOT dedup-marked, so re-sending re-processes it and writes
+  // the variant that failed the first time.
+  uint64_t processed_before = worker.stats().images_processed.load();
+  SendNotification(notification);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  EXPECT_GT(worker.stats().images_processed.load(), processed_before)
+      << "Incomplete matrix should allow re-processing on retry";
+  EXPECT_EQ(worker.stats().image_incomplete_matrices.load(), 1u)
+      << "the retry should complete the matrix";
 
   worker.Shutdown();
   worker_thread.join();
@@ -20670,6 +20668,398 @@ TEST_F(WorkerTest, DecodeFailingImageKeepsOriginBytesAtTheOriginalFormatId) {
 TEST(WorkerConfigTest, ExtractorSmallSheetThresholdMatchesTheWorkers) {
   EXPECT_EQ(CriticalCssConfig{}.inline_limit_min_sheet_bytes,
             WorkerConfig{}.async_css_min_deferred_bytes);
+}
+
+// =============================================================================
+// Variant sizes per client: the selection and the size gates together.
+// =============================================================================
+
+// Width x height of a JPEG, WebP or AVIF variant, read from its own bytes
+// ({0, 0} when the bytes are none of those).
+std::pair<uint32_t, uint32_t> VariantDimensions(const std::string& b) {
+  auto u8 = [&](size_t i) {
+    return static_cast<uint32_t>(static_cast<unsigned char>(b[i]));
+  };
+  if (b.size() > 4 && u8(0) == 0xFF && u8(1) == 0xD8) {
+    size_t i = 2;
+    while (i + 9 < b.size() && u8(i) == 0xFF) {
+      const uint32_t marker = u8(i + 1);
+      const size_t len = (u8(i + 2) << 8) | u8(i + 3);
+      if (marker == 0xC0 || marker == 0xC1 || marker == 0xC2) {
+        return {(u8(i + 7) << 8) | u8(i + 8), (u8(i + 5) << 8) | u8(i + 6)};
+      }
+      i += 2 + len;
+    }
+    return {0, 0};
+  }
+  if (b.size() > 30 && b.compare(0, 4, "RIFF") == 0 &&
+      b.compare(8, 4, "WEBP") == 0) {
+    if (b.compare(12, 4, "VP8 ") == 0) {
+      return {((u8(27) << 8) | u8(26)) & 0x3FFF,
+              ((u8(29) << 8) | u8(28)) & 0x3FFF};
+    }
+    if (b.compare(12, 4, "VP8L") == 0) {
+      const uint32_t bits =
+          u8(21) | (u8(22) << 8) | (u8(23) << 16) | (u8(24) << 24);
+      return {(bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1};
+    }
+    if (b.compare(12, 4, "VP8X") == 0) {
+      return {(u8(24) | (u8(25) << 8) | (u8(26) << 16)) + 1,
+              (u8(27) | (u8(28) << 8) | (u8(29) << 16)) + 1};
+    }
+    return {0, 0};
+  }
+  avifDecoder* decoder = avifDecoderCreate();
+  std::pair<uint32_t, uint32_t> dims{0, 0};
+  if (decoder != nullptr &&
+      avifDecoderSetIOMemory(decoder,
+                             reinterpret_cast<const uint8_t*>(b.data()),
+                             b.size()) == AVIF_RESULT_OK &&
+      avifDecoderParse(decoder) == AVIF_RESULT_OK) {
+    dims = {decoder->image->width, decoder->image->height};
+  }
+  if (decoder != nullptr) avifDecoderDestroy(decoder);
+  return dims;
+}
+
+// End-to-end reproduction of the per-client variant sizes: the request
+// sequence of the bug reports (desktop and phone, Accept image/jpeg vs
+// WebP-only vs AVIF, Save-Data on and off) replayed as the notifications a
+// front end sends for it, against the worker's stock image configuration
+// and a stored 1200x800 high-quality noisy photo, then read back through the
+// production selector for each client.  The fixture is a seeded
+// diamond-square plasma (three channels, roughness 0.9) saved at JPEG
+// quality 95 -- the same class of content as the reports' fractal plasma,
+// at half their size, which still resizes for a phone (960 px target).
+//
+// Invariants, for every client:
+//   * a phone is never served the desktop-size image when a phone-size one
+//     exists (here: the phone JPEG), whatever format it negotiated;
+//   * a converted (WebP/AVIF) variant is never larger than the
+//     original-format variant it replaces for that client;
+//   * a Save-Data variant is never larger than the variant the same client
+//     gets without Save-Data.
+// The byte table is printed so a run documents the sizes it saw.
+// Shared by the variant-size tests below: the reported request mix, the
+// storage layouts of the two front-end families, and the per-slot size check.
+class VariantSizeTest : public WorkerTest {
+ protected:
+  // How a front end records the origin's bytes: the Apache module and the
+  // .NET middleware keep them as the durable original (0x0C); the nginx
+  // module records them at the identity slot (0x08), the same id the
+  // optimized desktop original-format variant lives at.
+  enum class Layout : std::uint8_t { kDurableOriginal, kIdentitySlot };
+
+  void StoreOriginal(Worker& worker, const std::string& url,
+                     const std::string& bytes, Layout layout) {
+    if (layout == Layout::kIdentitySlot) {
+      CacheOriginal(worker.cache(), url, bytes);
+    } else {
+      CacheDurableOriginal(worker.cache(), url, bytes, "image/jpeg",
+                           ContentType::kImage,
+                           static_cast<uint32_t>(std::time(nullptr)), 3600);
+    }
+  }
+
+  // Every stored converted variant is smaller than the original-format
+  // variant of its slot, and every stored Save-Data variant is smaller than
+  // the same format and size without Save-Data.
+  void ExpectStoredSlotsSmallerThanFallback(Worker& worker,
+                                            const std::string& url) {
+    auto alts =
+        worker.cache()->ListAlternates(StripSchemeAuthority(url), "", "https");
+    ASSERT_TRUE(alts.has_value());
+    std::map<uint8_t, uint64_t> sizes;
+    for (const auto& a : *alts) {
+      if (!IsSentinel(static_cast<uint8_t>(a.id))) {
+        sizes[static_cast<uint8_t>(a.id)] = a.content_length;
+      }
+    }
+    ASSERT_FALSE(sizes.empty());
+    for (const auto& [id, size] : sizes) {
+      if ((id & 0x03) != 0) {  // WebP or AVIF: compare with the JPEG slot
+        auto orig = sizes.find(static_cast<uint8_t>(id & ~0x03));
+        if (orig != sizes.end()) {
+          EXPECT_LT(size, orig->second) << "slot 0x" << std::hex << int{id};
+        }
+      }
+      if ((id & 0x20) != 0) {  // Save-Data: compare with the normal slot
+        auto normal = sizes.find(static_cast<uint8_t>(id & ~0x20));
+        if (normal != sizes.end()) {
+          EXPECT_LT(size, normal->second) << "slot 0x" << std::hex << int{id};
+        }
+      }
+    }
+  }
+
+  void ReplayReportedClients(Layout layout);
+};
+
+void VariantSizeTest::ReplayReportedClients(Layout layout) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/big.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  StoreOriginal(worker, url, jpeg, layout);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  struct Client {
+    const char* name;
+    uint32_t mask;
+  };
+  // Masks as CapabilityMask::FromHeaders derives them from the reports'
+  // requests: desktop Chrome is Desktop/1x (0x08), the Pixel 8 is Mobile/2x
+  // (0x10); Accept picks the format, Save-Data sets 0x20.
+  const Client clients[] = {
+      {"desktop  image/jpeg       ", 0x08},
+      {"phone    image/jpeg       ", 0x10},
+      {"desktop  image/jpeg  SD   ", 0x28},
+      {"desktop  AVIF+WebP        ", 0x0A},
+      {"desktop  AVIF+WebP   SD   ", 0x2A},
+      {"desktop  WebP, no AVIF    ", 0x09},
+      {"phone    WebP, no AVIF    ", 0x11},
+  };
+  uint64_t sent = 0;
+  for (const Client& c : clients) {
+    CacheNotification n;
+    n.url = url;
+    n.scheme = "https";
+    n.content_type = ContentType::kImage;
+    n.capability_mask = c.mask;
+    SendNotification(n);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, ++sent, kWorkerStallBudget));
+  }
+
+  std::map<uint32_t, std::string> served;
+  std::cout << "\nclient                       bytes      size\n";
+  for (const Client& c : clients) {
+    served[c.mask] =
+        ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(c.mask));
+    const auto [w, h] = VariantDimensions(served[c.mask]);
+    std::cout << c.name << std::setw(9) << served[c.mask].size() << "  " << w
+              << "x" << h << "\n";
+    ASSERT_FALSE(served[c.mask].empty()) << c.name;
+  }
+
+  // A phone gets a phone-size image, whatever format it negotiated.
+  EXPECT_EQ(VariantDimensions(served[0x11]), VariantDimensions(served[0x10]))
+      << "the WebP-only phone was served another size than the phone JPEG";
+  EXPECT_LE(VariantDimensions(served[0x11]).first, 960u);
+  EXPECT_LE(served[0x11].size(), served[0x10].size());
+  // A converted format never costs more than the JPEG it replaces.
+  EXPECT_LE(served[0x09].size(), served[0x08].size());
+  EXPECT_LE(served[0x0A].size(), served[0x08].size());
+  // Save-Data never costs more than the same client without it.
+  EXPECT_LE(served[0x28].size(), served[0x08].size());
+  EXPECT_LE(served[0x2A].size(), served[0x0A].size());
+  // The desktop original-format client gets the optimized encode, never
+  // the upload, on either layout.
+  EXPECT_LT(served[0x08].size(), jpeg.size());
+
+  ExpectStoredSlotsSmallerThanFallback(worker, url);
+
+  if (layout == Layout::kIdentitySlot) {
+    // The upload replaced at the identity slot is kept as the durable
+    // original, so change detection keeps reading the origin's bytes: a
+    // second pass does not mistake the optimized encode for a new origin.
+    auto durable = worker.cache()->ReadOriginalAlternate(
+        StripSchemeAuthority(url), "", "https");
+    EXPECT_TRUE(durable.has_value()) << "the upload was not kept";
+    if (durable.has_value()) {
+      auto span = durable->content();
+      EXPECT_EQ(
+          std::string(reinterpret_cast<const char*>(span.data()), span.size()),
+          jpeg);
+      durable->release();
+    }
+    CacheNotification again;
+    again.url = url;
+    again.scheme = "https";
+    again.content_type = ContentType::kImage;
+    again.capability_mask = 0x14;  // tablet: a slot not built yet
+    SendNotification(again);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, ++sent, kWorkerStallBudget));
+    EXPECT_EQ(worker.stats().content_hash_stale.load(), 0u)
+        << "the worker's own encode was read as an origin change";
+  }
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+TEST_F(VariantSizeTest, ReportedClientsDurableOriginalLayout) {
+  ReplayReportedClients(Layout::kDurableOriginal);
+}
+
+// The nginx layout: the upload sits at the identity slot.  The desktop
+// original-format variant must still be built over it (it used to be served
+// raw), and the size gates must compare with that optimized encode.
+TEST_F(VariantSizeTest, ReportedClientsIdentitySlotLayout) {
+  ReplayReportedClients(Layout::kIdentitySlot);
+}
+
+// The warmup (hot URL) matrix writes variants through its own path; it
+// keeps the same size rules.
+TEST_F(VariantSizeTest, WarmupMatrixKeepsTheSizeRules) {
+  for (Layout layout : {Layout::kDurableOriginal, Layout::kIdentitySlot}) {
+    SCOPED_TRACE(layout == Layout::kIdentitySlot ? "identity slot"
+                                                 : "durable original");
+    TearDown();
+    SetUp();
+    WorkerConfig config;
+    config.socket_path = socket_path_;
+    config.cache_path = cache_path_;
+    config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+    config.enable_warmup = true;
+    // Desktop 1x with and without Save-Data: enough to exercise both gates
+    // without the full viewport matrix.
+    config.proactive_viewport_variants = false;
+    config.proactive_density_variants = false;
+    config.proactive_savedata_variants = true;
+
+    NullMessageHandler handler;
+    Worker worker(config, &handler);
+    ASSERT_TRUE(worker.Initialize());
+    const std::string url = "http://example.com/warm.jpg";
+    const std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
+    ASSERT_FALSE(jpeg.empty());
+    StoreOriginal(worker, url, jpeg, layout);
+
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CacheNotification warm;
+    warm.url = url;
+    warm.scheme = "https";
+    warm.content_type = ContentType::kImage;
+    warm.capability_mask = kWarmupSentinel;
+    SendNotification(warm);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, 1, kWorkerStallBudget));
+    EXPECT_GT(worker.stats().variants_written.load(), 0u);
+
+    ExpectStoredSlotsSmallerThanFallback(worker, url);
+    const std::string desktop_jpeg =
+        ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x08));
+    EXPECT_LT(desktop_jpeg.size(), jpeg.size());
+    EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x0A))
+                  .size(),
+              desktop_jpeg.size());
+    EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x28))
+                  .size(),
+              desktop_jpeg.size());
+
+    worker.Shutdown();
+    worker_thread.join();
+  }
+}
+
+// An identity slot that already holds a worker variant is not the origin's
+// bytes: it is never copied into the durable original.
+TEST_F(VariantSizeTest, WorkerVariantAtIdentitySlotIsNotKeptAsTheOriginal) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(16 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/processed.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg, "",
+                AlternateMetadata::kFlagWorkerProcessed);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kImage;
+  n.capability_mask = 0x08;
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  auto durable = worker.cache()->ReadOriginalAlternate(
+      StripSchemeAuthority(url), "", "https");
+  EXPECT_FALSE(durable.has_value())
+      << "a worker variant was kept as the durable original";
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+// The image dedup key is the full (format, viewport, density, save-data)
+// slot.  One pass decides every format of its slot, so a notification for
+// another format of the same slot is answered by that decision (a refused
+// format is not re-run on every request), while a different size or a
+// different Save-Data setting is new work.
+TEST_F(WorkerTest, ImageDedupKeyIsTheFullSlot) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(16 * 1024 * 1024);
+  config.mobile_width = 160;  // sjpeg4 is 512 wide: the phone slot resizes
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/slot.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  uint64_t sent = 0;
+  auto notify = [&](uint32_t mask) {
+    CacheNotification n;
+    n.url = url;
+    n.scheme = "https";
+    n.content_type = ContentType::kImage;
+    n.capability_mask = mask;
+    SendNotification(n);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, ++sent, kWorkerStallBudget));
+  };
+  auto skipped = [&] {
+    return worker.stats().notifications_skipped_dedup.load();
+  };
+
+  ASSERT_NO_FATAL_FAILURE(notify(0x10));  // phone, original format
+  const uint64_t s0 = skipped();
+  ASSERT_NO_FATAL_FAILURE(notify(0x11));  // same slot, WebP
+  ASSERT_NO_FATAL_FAILURE(notify(0x12));  // same slot, AVIF
+  ASSERT_NO_FATAL_FAILURE(notify(0x10));  // same slot, original again
+  EXPECT_EQ(skipped(), s0 + 3)
+      << "every format of a decided slot is answered by its decision";
+
+  const uint64_t written = worker.stats().variants_written.load();
+  ASSERT_NO_FATAL_FAILURE(notify(0x31));  // phone + Save-Data, WebP
+  ASSERT_NO_FATAL_FAILURE(notify(0x01));  // phone 1x, WebP
+  ASSERT_NO_FATAL_FAILURE(notify(0x09));  // desktop, WebP
+  EXPECT_EQ(skipped(), s0 + 3)
+      << "another Save-Data setting, density or viewport is a new slot";
+  EXPECT_GT(worker.stats().variants_written.load(), written);
+
+  worker.Shutdown();
+  worker_thread.join();
 }
 
 }  // namespace

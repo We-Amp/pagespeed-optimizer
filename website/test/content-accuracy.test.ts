@@ -353,6 +353,18 @@ type DenyRule = {
   // Each entry is asserted to be flagged. This is what turns "the exemption is
   // too broad" from a silent hole into a red test.
   exemptionMustNotDisarm?: string[];
+  // A RATCHET for a rule that lands before the copy it forbids is gone: the
+  // known hits, as {file: count}, that the scan reports as warnings instead
+  // of failures while a separate change removes them. A file with MORE hits
+  // than listed fails (new text), a file that is not listed fails, and a
+  // listed file with FEWER hits fails too, naming the count to lower it to,
+  // so the list only shrinks and cannot outlive the copy it was written for.
+  pending?: Record<string, number>;
+  // EXACT-LINE exemptions: one line of one file, matched character for
+  // character, with the reason. Narrower than exemptIf (no other line, and
+  // no edit of this one, is covered) and pinned by a test that each entry
+  // still occurs exactly once in its file.
+  exemptLines?: Array<{ file: string; line: string; why: string }>;
 };
 
 // A gap INSIDE a rule regex that stops at a clause boundary instead of running
@@ -361,13 +373,13 @@ type DenyRule = {
 // an object in sentence two — "The optimizer worker runs as its own service.
 // The module is a loadable nginx module." is two true statements, not a claim
 // that the worker is loadable. A '.' flanked by digits is a version separator,
-// not a boundary, so "mod_pagespeed 2.1" never splits a clause (the same
+// not a boundary, so "mod_pagespeed 2.5.0" never splits a clause (the same
 // carve-out isClauseBoundary() makes for the exemption scope below).
 const CLAUSE_GAP = /(?:[^;:—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
 
 // CLAUSE_GAP plus the colon. A colon normally ends a clause, and for most
 // rules it should: what follows an "Install it:" is a new statement. But a
-// colon-introduced LIST is one statement, not two — "mod_pagespeed 2.1:
+// colon-introduced LIST is one statement, not two — "mod_pagespeed:
 // Apache, nginx, IIS and Envoy" names its subject once and then enumerates.
 // Used ONLY by rule `j`'s list branches, which additionally require the colon
 // itself to sit between the subject and the list.
@@ -386,6 +398,13 @@ const COLON_LIST_GAP = /(?:[^;—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
 const WORKER_SUBJECT =
   /(?:optimi[sz]er worker|pagespeed-optimizer|factory_worker|the worker(?!_)(?!\s+(?:thread|threads|pool|pools|image|images)\b))/
     .source;
+
+// The current product as a rule SUBJECT: the name alone, "mod_pagespeed 2",
+// and the retired "2.1" label while copy still carries it. Never the
+// predecessor ("mod_pagespeed 1.15"), never an exact release ("mod_pagespeed
+// 2.3.0" in a release-notes row is a fact about that release), and never a
+// filename ("mod_pagespeed.so").
+const CURRENT_PRODUCT_SUBJECT = /mod_pagespeed(?: 2(?:\.1)?)?(?![\w.-]|\s+\d)/.source;
 
 function escapeForRegExp(literal: string): string {
   return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -419,6 +438,14 @@ const FROZEN_POST_TITLES = [
 const FROZEN_TITLE_CITATION = FROZEN_POST_TITLES.map(
   (title) => `(?:title:\\s*["']|\\[)${escapeForRegExp(title.split(/\.(?!\d)/)[0])}`,
 );
+
+// The hits of rule `k` that the rename has not reached yet (see `pending` on
+// DenyRule). Shared with scripts/check-built-content.mjs, which reads the
+// `pages` half.
+const RETIRED_LABEL_PENDING_FILE = path.join(WEBSITE_ROOT, 'scripts/retired-label-pending.json');
+const RETIRED_LABEL_PENDING: Record<string, number> = existsSync(RETIRED_LABEL_PENDING_FILE)
+  ? (JSON.parse(readFileSync(RETIRED_LABEL_PENDING_FILE, 'utf8')).sources ?? {})
+  : {};
 
 const DENYLIST: DenyRule[] = [
   {
@@ -475,7 +502,7 @@ const DENYLIST: DenyRule[] = [
       // The module IS a drop-in nginx module — the bare phrase must not fire
       // (no worker subject):
       'A drop-in nginx image optimization module — install the module from the signed apt/yum repository.',
-      'The drop-in nginx optimization module for Apache, nginx and IIS: mod_pagespeed 2.1.',
+      'The drop-in nginx optimization module for Apache, nginx and IIS: mod_pagespeed.',
       // Both parts named, each doing its own job — the clause boundary keeps
       // the module's phrase away from the worker:
       'The optimizer worker runs as its own service; the module is the loadable nginx module.',
@@ -1027,16 +1054,26 @@ const DENYLIST: DenyRule[] = [
   {
     id: 'g-2.1-no-native-module',
     why: 'releases-2.1/release.yaml declares native deb/rpm packages for Apache and nginx, shipped from the signed apt/yum repository (the same channel mod_pagespeed 1.15 uses, per its GA-alias-naming note). A claim that the converged line has no standalone/native module is the exact regression a review round caught and fixed in installation-module.md; it must not resurface.',
-    re: /2\.1\b[\s\S]{0,40}?(?:has no|does not have|doesn't have|lacks|is without)\s+(?:an?\s+)?(?:standalone|native)\s+(?:Apache(?:\/nginx| or nginx)?|nginx)\s+module/i,
+    // The subject is the "2.1" line key or the current product by name (the
+    // name alone once the retired label is gone from the copy).
+    re: new RegExp(
+      `(?:2\\.1\\b|${CURRENT_PRODUCT_SUBJECT})` +
+        /[\s\S]{0,40}?(?:has no|does not have|doesn't have|lacks|is without)\s+(?:an?\s+)?(?:standalone|native)\s+(?:Apache(?:\/nginx| or nginx)?|nginx)\s+module/
+          .source,
+      'i',
+    ),
     bad: 'mod_pagespeed 2.1 has no standalone nginx module yet.',
-    good: 'mod_pagespeed 2.1 ships a native module for Apache and nginx, from the signed apt/yum repository.',
+    good: 'mod_pagespeed ships a native module for Apache and nginx, from the signed apt/yum repository.',
     variantsBad: [
       'ModPageSpeed 2.1 does not have a native Apache or nginx module.',
       '2.1 has no native nginx module.',
+      'mod_pagespeed has no standalone nginx module yet.',
+      'mod_pagespeed 2 lacks a native Apache module.',
     ],
     variantsGood: [
       'The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.',
-      'mod_pagespeed 2.1 ships a native module for Apache and nginx today.',
+      'mod_pagespeed ships a native module for Apache and nginx today.',
+      'Since 2.1.0, mod_pagespeed ships a native module for Apache and nginx.',
     ],
   },
   {
@@ -1059,7 +1096,7 @@ const DENYLIST: DenyRule[] = [
       'Convergence is planned, but two actively maintained successors exist right now.',
     ],
     bad: 'We-Amp shipped two actively maintained continuations of mod_pagespeed.',
-    good: 'mod_pagespeed 2.1 converges the two lines We-Amp shipped through 2026 into one continuously updated product.',
+    good: 'mod_pagespeed converges the two lines We-Amp shipped through 2026 into one continuously updated product.',
     variantsBad: [
       'Two actively maintained successors exist today.',
       'Whether it runs 1.15 or 2.0, the same optimizations apply.',
@@ -1067,7 +1104,7 @@ const DENYLIST: DenyRule[] = [
       'There are two product lines to choose from.',
     ],
     variantsGood: [
-      'mod_pagespeed 2.1 converges the two previously maintained lines into one always-updated release.',
+      'mod_pagespeed converges the two previously maintained lines into one always-updated release.',
     ],
   },
   {
@@ -1078,34 +1115,35 @@ const DENYLIST: DenyRule[] = [
     // in the same clause as the current product, or as the module, offers a
     // reader a front end they cannot deploy. A dated post describing the
     // predecessor's four front ends is a record and names neither subject.
-    why: "The module's platforms are Apache, nginx and IIS. The Envoy port is not shipped and is excluded from CI, so naming Envoy in a clause about mod_pagespeed 2.1 or about the module offers a deployment target that does not exist.",
+    why: "The module's platforms are Apache, nginx and IIS. The Envoy port is not shipped and is excluded from CI, so naming Envoy in a clause about mod_pagespeed or about the module offers a deployment target that does not exist.",
     re: new RegExp(
       [
-        `(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b${CLAUSE_GAP}{0,160}?\\bEnvoy\\b`,
-        `\\bEnvoy\\b${CLAUSE_GAP}{0,160}?(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b`,
+        `(?:${CURRENT_PRODUCT_SUBJECT}|the (?:native |in-process )?module)\\b${CLAUSE_GAP}{0,160}?\\bEnvoy\\b`,
+        `\\bEnvoy\\b${CLAUSE_GAP}{0,160}?(?:${CURRENT_PRODUCT_SUBJECT}|the (?:native |in-process )?module)\\b`,
         // A colon-introduced list is the site's own idiom for naming
         // platforms — a card subline, a `description:` front-matter string, a
         // comparison row — and CLAUSE_GAP treats ':' as a boundary, so the
         // subject and the platform after the colon never met. These two
         // branches cross a colon, and ONLY a colon: the subject has to sit
-        // directly in front of it ("mod_pagespeed 2.1: Apache, nginx, IIS and
+        // directly in front of it ("mod_pagespeed: Apache, nginx, IIS and
         // Envoy"), or Envoy has to head the list that introduces the subject
-        // ("Envoy users: install mod_pagespeed 2.1").
-        `(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b\\s*:${COLON_LIST_GAP}{0,120}?\\bEnvoy\\b`,
-        `\\bEnvoy\\b${COLON_LIST_GAP}{0,40}?:${COLON_LIST_GAP}{0,120}?(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b`,
+        // ("Envoy users: install mod_pagespeed").
+        `(?:${CURRENT_PRODUCT_SUBJECT}|the (?:native |in-process )?module)\\b\\s*:${COLON_LIST_GAP}{0,120}?\\bEnvoy\\b`,
+        `\\bEnvoy\\b${COLON_LIST_GAP}{0,40}?:${COLON_LIST_GAP}{0,120}?(?:${CURRENT_PRODUCT_SUBJECT}|the (?:native |in-process )?module)\\b`,
       ].join('|'),
       'i',
     ),
     bad: 'The native module is available as an HTTP filter for Envoy.',
     good: 'The module runs in-process in Apache, nginx and IIS.',
     variantsBad: [
-      'mod_pagespeed 2.1 runs on Apache and nginx, plus an experimental Envoy port.',
-      'Envoy filter chain | mod_pagespeed 2.1 (experimental)',
+      'mod_pagespeed runs on Apache and nginx, plus an experimental Envoy port.',
+      'mod_pagespeed 2 runs on Apache and nginx, plus an experimental Envoy port.',
+      'Envoy filter chain | mod_pagespeed (experimental)',
       'You can load the module into Envoy as an HTTP filter.',
       // Colon-introduced platform lists — the site's own card/front-matter
       // idiom, and invisible to the rule until the list branches were added.
-      'mod_pagespeed 2.1: Apache, nginx, IIS and Envoy.',
-      'Envoy users: install mod_pagespeed 2.1 and enable the filter.',
+      'mod_pagespeed: Apache, nginx, IIS and Envoy.',
+      'Envoy users: install mod_pagespeed and enable the filter.',
     ],
     variantsGood: [
       // The predecessor line's four front ends, as a dated record — neither
@@ -1117,14 +1155,14 @@ const DENYLIST: DenyRule[] = [
       // The dependency, not the front end:
       'libcurl links against the same BoringSSL that Envoy links against.',
       // The same colon list, naming only the platforms that exist:
-      'mod_pagespeed 2.1: Apache, nginx and IIS.',
+      'mod_pagespeed: Apache, nginx and IIS.',
       // A colon list in the NEXT sentence — the clause boundary still holds:
       'The module runs in Apache, nginx and IIS. Envoy users: see the predecessor line.',
     ],
   },
   {
     id: 'i-retired-product-name-as-current-label',
-    // RULE: the product is mod_pagespeed 2.1 — one product in two parts, the
+    // RULE: the product is mod_pagespeed — one product in two parts, the
     // module and the optimizer worker. "ModPageSpeed 2.0", the bare camel
     // "ModPageSpeed" and "mod_pagespeed 1.15" are names the product no longer
     // goes by. Each survives only where it records something that was true
@@ -1138,7 +1176,7 @@ const DENYLIST: DenyRule[] = [
     // imperative, a page title, an H1, a JSON-LD name, a call to action — it
     // offers a reader a product they cannot install under that name, and
     // splits one product back into a shelf of them.
-    why: 'The product is mod_pagespeed 2.1, one product in two parts (the module and the optimizer worker). A retired name used as the current product\'s label, or as something to install, tells readers to go looking for a product that is not on offer. Allowed: version facts (2.0.x, v2.0, image tags), dated announcements, migration source states, the phrase "the 2.0 re-architecture", the JSON-LD alternate name, literal identifiers, and the dated post titles the blog keeps.',
+    why: 'The product is mod_pagespeed, one product in two parts (the module and the optimizer worker). A retired name used as the current product\'s label, or as something to install, tells readers to go looking for a product that is not on offer. Allowed: version facts (2.0.x, v2.0, image tags), dated announcements, migration source states, the phrase "the 2.0 re-architecture", the JSON-LD alternate name, literal identifiers, and the dated post titles the blog keeps.',
     // CASE-SENSITIVE on purpose: this rule guards a SPELLING. Lower-cased,
     // "modpagespeed" is the domain name and "mod_pagespeed" is the current
     // product, so an /i flag would flag both wherever they appear. The
@@ -1170,7 +1208,7 @@ const DENYLIST: DenyRule[] = [
         // The predecessor line name as a present-tense product claim on a line
         // that also tells the reader where to get it. A dated post recording
         // what 1.15 shipped is a record; the same sentence next to a download,
-        // pricing or install link is an offer, and the offer is 2.1.
+        // pricing or install link is an offer, and the offer is the current product.
         /\bmod_pagespeed 1\.1(?:5)?\s+(?:is|are|runs?|ships?|optimi[sz]es?|supports?|serves?|handles?|transcodes?|caches?)\b[^\n]{0,300}?(?:\/download\/|\/pricing\/|\/license\/|[Dd]ownload|[Ii]nstall)/
           .source,
       ].join('|'),
@@ -1240,8 +1278,15 @@ const DENYLIST: DenyRule[] = [
       'src/pages/privacy.astro',
       'src/pages/terms.astro',
     ],
+    exemptLines: [
+      {
+        file: 'src/data/software-jsonld.ts',
+        line: "  'ModPageSpeed',",
+        why: 'the camel spelling as an entry of PRODUCT_ALTERNATE_NAMES: the JSON-LD alternate name that keeps the old query findable (the alternateName exemption, for a list one entry per line)',
+      },
+    ],
     bad: 'ModPageSpeed 2.0 optimizes whole sites from its worker behind nginx.',
-    good: 'mod_pagespeed 2.1 optimizes whole sites: the optimizer worker, introduced by the 2.0 re-architecture, does the heavy work behind the module.',
+    good: 'mod_pagespeed optimizes whole sites: the optimizer worker, introduced by the 2.0 re-architecture, does the heavy work behind the module.',
     variantsBad: [
       'Run ModPageSpeed 2.0 locally with Docker and measure the difference.',
       'title="Security — ModPageSpeed 2.0"',
@@ -1270,7 +1315,7 @@ const DENYLIST: DenyRule[] = [
       // attached — the 1.15 branch needs the call to action.
       'mod_pagespeed 1.15 ships an experimental RSL-CAP gate for nginx, added in 2026.',
       // The current product, spelled the way it is spelled:
-      'mod_pagespeed 2.1 runs as an Apache, nginx or IIS module. Install it from the signed repository.',
+      'mod_pagespeed runs as an Apache, nginx or IIS module. Install it from the signed repository.',
       // The predecessor line's dated release post, in title position: a
       // record of what was published on its date, not a live label.
       "title: 'mod_pagespeed 1.15: what six years of stewardship look like'",
@@ -1307,6 +1352,78 @@ const DENYLIST: DenyRule[] = [
       "title: 'mod_pagespeed 1.15: what six years of stewardship look like'; name: 'mod_pagespeed 1.15'",
     ],
   },
+  {
+    id: 'k-retired-2.1-product-label',
+    // RULE (owner ruling, 2026-10-20): the product is plain "mod_pagespeed".
+    // "2.1" is retired as a product label. "mod_pagespeed 2" is the form for
+    // contrasting with the 1.x lineage, and an exact three-part version,
+    // rendered from the release manifest, is for release facts (download,
+    // install output, release notes, advisories). The name followed by "2.1"
+    // as a label tells a reader there is a 2.1 product to go and find, and
+    // dates every page that says it at the next release.
+    //
+    // Allowed, because none of them puts the label after the name: an exact
+    // version ("2.1.0"), version-scoped phrases ("since 2.1.0", "2.1.0 and
+    // later"), identifiers (the releases-2.1 collection, getRelease('2.1'),
+    // the /docs/release-notes-2-1/ and /docs/migrating-to-2-1/ slugs), and the
+    // two records exempted by file below.
+    //
+    // The second branch catches the label assembled from the constants,
+    // `${PRODUCT_NAME} ${CURRENT_LINE}` or its {{…}} template form, which is
+    // where most of the generated copy gets it from.
+    //
+    // The rename itself is a separate change: `pending` lists the hits that
+    // were there when this rule landed (scripts/retired-label-pending.json,
+    // whose `pages` half feeds the built-output lint's rule of the same name).
+    why: 'The product is mod_pagespeed, with no version (owner ruling, 2026-10-20). "2.1" is retired as a product label: write "mod_pagespeed", "mod_pagespeed 2" only to contrast with the 1.x line, and an exact three-part version from the release manifest where the version is the point. Allowed: exact versions (2.1.0), version-scoped phrases that do not follow the name ("since 2.1.0"), identifiers and slugs, and the 2.1.0 release notes and announcement post.',
+    re: new RegExp(
+      [
+        // The label in prose, any case, underscore or space; not the start of
+        // a longer version ("2.1.0", "2.10").
+        /\bmod[_ ]pagespeed 2\.1(?!\d|\.\d)/.source,
+        // The label assembled from the constants.
+        /\bPRODUCT_(?:DISPLAY_)?NAME\}{1,2}\s*\$?\{{1,2}\s*CURRENT_LINE\b/.source,
+      ].join('|'),
+      'i',
+    ),
+    // Records of what shipped under the label, on the date it shipped.
+    exemptFile: (rel) =>
+      rel === 'src/content/docs/release-notes-2-1.mdx' ||
+      rel === 'src/content/blog/mod-pagespeed-2-1-one-product-again.md' ||
+      rel === 'public/llms-full.txt',
+    exemptFileExpectation: [
+      // The generated full agent file embeds every docs page verbatim; its
+      // prose is scanned at its sources (the docs bodies, agent-files.mjs).
+      'public/llms-full.txt',
+      // The dated announcement of the 2.1.0 convergence.
+      'src/content/blog/mod-pagespeed-2-1-one-product-again.md',
+      // The 2.1.0 release notes.
+      'src/content/docs/release-notes-2-1.mdx',
+    ],
+    pending: RETIRED_LABEL_PENDING,
+    bad: 'mod_pagespeed 2.1 runs as an nginx or Apache module.',
+    good: 'mod_pagespeed runs as an nginx or Apache module; 2.1.0 converged the module and the optimizer worker into one product.',
+    variantsBad: [
+      'Install mod_pagespeed 2.1 on Debian 12.',
+      "title: 'Security hardening guide — mod_pagespeed 2.1'",
+      "name: 'mod_pagespeed 2.1',",
+      'MOD_PAGESPEED 2.1 is open source.',
+      'Upgrade to mod pagespeed 2.1 in place.',
+      'The mod_pagespeed 2.1 worker warms hot URLs.',
+      'Run mod_pagespeed 2.1.',
+      'const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;',
+      '{{PRODUCT_NAME}} {{CURRENT_LINE}} is open source.',
+    ],
+    variantsGood: [
+      'mod_pagespeed 2.1.0 converged the module line and the optimizer worker.',
+      'mod_pagespeed 2.5.0 is the current release.',
+      'mod_pagespeed 2 is a drop-in for 1.14 and 1.15 configurations.',
+      'Since 2.1.0 the worker drops privileges at startup.',
+      'The 2.1.0 notes are at /docs/release-notes-2-1/.',
+      "const rel = await getRelease('2.1');",
+      'Migrate from ModPageSpeed 2.0: see /docs/migrating-to-2-1/.',
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1339,7 +1456,7 @@ const FP_CORPUS = [
   'While the module ships from apt and yum repositories, the optimizer worker ships from that repository and as a container image.',
   // Added by the 2026-06-15 FP-probe-v2 (all accurate; none may flag):
   'A drop-in nginx image optimization module — install the module from signed apt/yum.', // the module IS a drop-in module
-  'The drop-in nginx optimization module for Apache, nginx and IIS: mod_pagespeed 2.1.',
+  'The drop-in nginx optimization module for Apache, nginx and IIS: mod_pagespeed.',
   'ModPageSpeed 2.0 skipped .NET 9: it targets the net8.0 and net10.0 LTS releases.',
   'ModPageSpeed 2.0.x runs on net10.0, which is newer than .NET 9.',
   'The el9 yum repo carries x86_64; arm64 ships from the apt repo only.',
@@ -1594,7 +1711,7 @@ function rulesFlagging(line: string): DenyRule[] {
   return DENYLIST.filter((r) => isFlaggedByRule(r, line));
 }
 
-type Violation = { ruleId: string; location: string; line: number };
+type Violation = { ruleId: string; file: string; location: string; line: number };
 
 function scanFilesForRule(rule: DenyRule, files: string[]): Violation[] {
   const violations: Violation[] = [];
@@ -1606,8 +1723,14 @@ function scanFilesForRule(rule: DenyRule, files: string[]): Violation[] {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const m = line.match(rule.re);
+      if (rule.exemptLines?.some((e) => e.file === rel && e.line === line)) continue;
       if (m && isFlaggedByRule(rule, line, file)) {
-        violations.push({ ruleId: rule.id, location: `${rel}:${i + 1}: ${m[0]}`, line: i + 1 });
+        violations.push({
+          ruleId: rule.id,
+          file: rel,
+          location: `${rel}:${i + 1}: ${m[0]}`,
+          line: i + 1,
+        });
       }
     }
   }
@@ -1616,6 +1739,43 @@ function scanFilesForRule(rule: DenyRule, files: string[]): Violation[] {
 
 function scanForRule(rule: DenyRule): Violation[] {
   return scanFilesForRule(rule, SCAN_FILES);
+}
+
+// What a rule's scan FAILS on: every violation, except those its `pending`
+// ratchet covers exactly. Returns the failure lines and the number of hits
+// tolerated as pending.
+function unpendedViolations(rule: DenyRule): { failures: string[]; pendingHits: number } {
+  const violations = scanForRule(rule);
+  if (!rule.pending) {
+    return { failures: violations.map((v) => `[${v.ruleId}] ${v.location}`), pendingHits: 0 };
+  }
+  const byFile = new Map<string, Violation[]>();
+  for (const v of violations) byFile.set(v.file, [...(byFile.get(v.file) ?? []), v]);
+  const failures: string[] = [];
+  let pendingHits = 0;
+  for (const [file, hits] of byFile) {
+    const allowed = rule.pending[file] ?? 0;
+    if (hits.length === allowed) {
+      pendingHits += hits.length;
+    } else if (hits.length > allowed) {
+      failures.push(
+        `[${rule.id}] ${file}: ${hits.length} hits, ${allowed} pending — new text must not add any:`,
+        ...hits.map((v) => `    ${v.location}`),
+      );
+    } else {
+      failures.push(
+        `[${rule.id}] ${file}: ${hits.length} hits, ${allowed} pending — lower its count in scripts/retired-label-pending.json to ${hits.length}`,
+      );
+    }
+  }
+  for (const file of Object.keys(rule.pending)) {
+    if (!byFile.has(file)) {
+      failures.push(
+        `[${rule.id}] ${file}: no hits left — remove it from scripts/retired-label-pending.json`,
+      );
+    }
+  }
+  return { failures, pendingHits };
 }
 
 // ---------------------------------------------------------------------------
@@ -1636,8 +1796,14 @@ describe('canonical sources hold ground-truth product facts', () => {
       path.join(WEBSITE_ROOT, 'scripts/generate-title-cards.mjs'),
       'utf8',
     );
-    expect(generator).toContain(`'${facts.PRODUCT_NAME} ${facts.CURRENT_LINE}'`);
-    expect(generator).not.toMatch(/ModPageSpeed|MPS ?2\.0/);
+    // The default card's eyebrow is the product-name constant, never a
+    // literal (and never a version: owner ruling, 2026-10-20).
+    expect(generator).toMatch(/\beyebrow: PRODUCT_DISPLAY_NAME,/);
+    expect(generator).toContain(
+      "import { PRODUCT_DISPLAY_NAME } from '../src/data/product-facts.mjs';",
+    );
+    expect(facts.PRODUCT_DISPLAY_NAME).toBe('mod_pagespeed');
+    expect(generator).not.toMatch(/mod_pagespeed 2\.1|ModPageSpeed|MPS ?2\.0/);
   });
 
   it('ASPNETCORE_RIDS includes linux-arm64 (2.0 is multi-arch, not x86_64-only)', () => {
@@ -1905,6 +2071,19 @@ describe('denylist matchers discriminate bad vs good samples', () => {
     });
   }
 
+  // An exact-line exemption names one line; if that line changes or moves to
+  // another file, the entry goes stale and must fail rather than linger.
+  for (const rule of DENYLIST) {
+    if (!rule.exemptLines?.length) continue;
+    it(`[${rule.id}] each exact-line exemption still matches exactly one line`, () => {
+      for (const e of rule.exemptLines!) {
+        const lines = readFileSync(path.join(WEBSITE_ROOT, e.file), 'utf8').split('\n');
+        expect(lines.filter((l) => l === e.line).length, `${e.file}: ${e.line}`).toBe(1);
+        expect(isFlaggedByRule(rule, e.line), `${e.line} no longer needs the exemption`).toBe(true);
+      }
+    });
+  }
+
   // f4 must catch the two defects that motivated it, in their REAL wording.
   it('[f4] flags every historical pre-fix defect line verbatim', () => {
     const f4 = DENYLIST.find((r) => r.id.startsWith('f4-'))!;
@@ -2004,26 +2183,38 @@ describe('content accuracy guard (anti-drift; PR #705 must not regress)', () => 
 
   for (const rule of DENYLIST) {
     it(`[${rule.id}] no violations across the full scan surface`, () => {
-      const violations = scanForRule(rule);
+      const { failures, pendingHits } = unpendedViolations(rule);
+      if (pendingHits > 0) {
+        console.warn(
+          `[${rule.id}] ${pendingHits} pending hits in ${Object.keys(rule.pending ?? {}).length} files (scripts/retired-label-pending.json) — warnings until the rename removes them`,
+        );
+      }
       expect(
-        violations,
-        violations.length
-          ? `\n${rule.id} — ${rule.why}\n` +
-              violations.map((v) => `  ${v.location}`).join('\n') +
-              '\n'
+        failures,
+        failures.length
+          ? `\n${rule.id} — ${rule.why}\n` + failures.map((f) => `  ${f}`).join('\n') + '\n'
           : undefined,
       ).toEqual([]);
     });
   }
 
   it('aggregate: zero denylist violations across all rules', () => {
-    const all = DENYLIST.flatMap((r) => scanForRule(r));
-    expect(
-      all,
-      all.length
-        ? '\n' + all.map((v) => `  [${v.ruleId}] ${v.location}`).join('\n') + '\n'
-        : undefined,
-    ).toEqual([]);
+    const all = DENYLIST.flatMap((r) => unpendedViolations(r).failures);
+    expect(all, all.length ? '\n' + all.map((f) => `  ${f}`).join('\n') + '\n' : undefined).toEqual(
+      [],
+    );
+  });
+
+  // The ratchet is only as good as its file: every pending entry names a
+  // scanned file and a positive count.
+  it('retired-label-pending.json lists only scanned files, with positive counts', () => {
+    const scanned = new Set(
+      SCAN_FILES.map((f) => path.relative(WEBSITE_ROOT, f).split(path.sep).join('/')),
+    );
+    const bad = Object.entries(RETIRED_LABEL_PENDING).filter(
+      ([file, n]) => !scanned.has(file) || !Number.isInteger(n) || n < 1,
+    );
+    expect(bad).toEqual([]);
   });
 });
 

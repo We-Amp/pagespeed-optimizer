@@ -4,12 +4,12 @@ description: 'Install, uninstall and maintain mod_pagespeed on cPanel / EasyApac
 order: 6
 group: 'Install'
 datePublished: 2026-05-20
-lastUpdated: 2026-09-18
+lastUpdated: 2026-10-20
 ---
 
 mod_pagespeed ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today.
 
-EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The module pairs with the `pagespeed-optimizer` worker on EL9 and EL10; on EL8, the module runs without the optimizer worker.
+EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The EA4 package runs without the `pagespeed-optimizer` worker on every EL major: there is no EA4 optimizer package, so in-place optimization through the worker is not available on cPanel.
 
 On CloudLinux 8/9, mod_pagespeed is an Apache output filter and runs on the standard EA4 Apache (including hosts using `mod_lsapi` as the PHP handler — `mod_lsapi` is an Apache handler, not LiteSpeed Web Server). It does not apply to LiteSpeed Web Server (LSWS), which is a separate, non-Apache server. The EL8 build is validated on AlmaLinux 8 / Rocky 8 stock EA4; if you run CloudLinux's `cl-ea4`-patched Apache and hit anything unexpected, [let us know](/contact/).
 
@@ -29,15 +29,29 @@ gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 ```
 
-`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with key `rsa4096/F50D6054F10712A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
+`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
-### 2. Install the module
+### 2. Remove mod_ruid2 if it is installed {#mod-ruid2}
+
+mod_pagespeed and `mod_ruid2` cannot run together. Check first:
+
+```bash
+rpm -q ea-apache24-mod_ruid2
+```
+
+If it is installed, the next step fails: the package declares `Conflicts: ea-apache24-mod_ruid2`, so `dnf` stops with a conflict and installs nothing. Remove mod_ruid2 first, either with `sudo dnf remove ea-apache24-mod_ruid2` or by unticking it in WHM → _EasyApache 4_ → _Customize_ → _Apache Modules_ and provisioning.
+
+Why the two do not mix: mod_ruid2 switches each request's Apache process to the uid and gid of the cPanel account that owns the site. mod_pagespeed keeps one cache for the whole server, `/var/cache/mod_pagespeed`, which the package creates owned by `nobody:nobody` (the EA4 Apache user) with mode `0750`, and its shared-memory cache and locks are set up by the Apache parent process for every child. A process running as an account user cannot read or write that cache, and the package is not built or tested for that setup, so it refuses to install beside mod_ruid2 rather than run half-working.
+
+If you used mod_ruid2 to run PHP as each account's user, PHP-FPM (WHM → _MultiPHP Manager_) does that per account without changing the user Apache itself runs as. `mod_mpm_itk`, which also runs each virtual host under its own uid, is not tested with mod_pagespeed and the package does not declare a conflict with it; the same cache-ownership problem applies, so do not combine them.
+
+### 3. Install the module
 
 ```bash
 sudo dnf install --enablerepo=ea4 ea-apache24-mod_pagespeed
 ```
 
-### 3. Turn it on in WHM
+### 4. Turn it on in WHM
 
 The RPM drops the module file but does not flip it on. Apache loads `mod_pagespeed` only after you tick the box in WHM and rebuild:
 
@@ -48,7 +62,7 @@ The RPM drops the module file but does not flip it on. Apache loads `mod_pagespe
 
 The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting started](/docs/getting-started/) for the directive reference.
 
-### 4. Open the admin console
+### 5. Open the admin console
 
 The global admin console lives at:
 
