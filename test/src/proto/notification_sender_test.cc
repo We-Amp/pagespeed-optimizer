@@ -2251,15 +2251,17 @@ TEST_F(NotificationSenderTest, PartialWriteWithSlowDrain) {
   std::thread receiver([&]() {
     intptr_t client_fd = AcceptClient(server_fd, socket_path_);
     if (client_fd != -1) {
-      // Read in tiny 32-byte chunks with brief delays to create
-      // backpressure that exercises the EAGAIN/poll/continue path.
+      // Read in tiny 32-byte chunks to create backpressure that exercises
+      // the EAGAIN/poll/continue path: the payload is larger than the
+      // socket buffer, so the sender has to wait for the reader. No sleep
+      // between reads: the sender gives up after kSendTimeoutMs without
+      // progress, and a sleeping reader on a loaded host can stall longer
+      // than that, failing the test on timing alone.
       char buf[32];
       while (true) {
         ssize_t n = ReadClient(client_fd, buf, sizeof(buf));
         if (n <= 0) break;
         received_data.append(buf, static_cast<size_t>(n));
-        // Brief delay to slow down consumption.
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
       }
       CloseClient(client_fd);
     }
