@@ -14,6 +14,9 @@ import {
   LICENSING_TERMS_URL,
   SOURCE_PUBLICATION,
 } from './product-facts.mjs';
+import { VERSION_MAP } from './version-map.mjs';
+
+const CURRENT = VERSION_MAP[0];
 
 const link = (href: string, text: string) =>
   `<a href="${href}" class="text-interactive hover:text-interactive-hover underline">${text}</a>`;
@@ -34,6 +37,10 @@ export const faqPricing: FaqEntry[] = [
   {
     q: 'Which tier do I need?',
     a: `Count production servers: up to 5 is Standard, up to 25 is Priority, more than that (or one organization without a limit) is Enterprise. Choose Priority when your security team wants the release SBOM and VEX. ${link('/support/', 'What each tier includes')}.`,
+  },
+  {
+    q: 'Which version is current?',
+    a: `mod_pagespeed ${CURRENT.release}, released ${CURRENT.date}. From 2.5.0 on, the packages, the container images, the NuGet package and the IIS installer all carry the release number; the Helm chart keeps its own chart version (${CURRENT.helmChart}). ${link('/docs/release-notes/#version-map', 'The version map')} lists every release.`,
   },
   {
     q: 'How do I buy?',

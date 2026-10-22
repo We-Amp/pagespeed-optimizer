@@ -16,6 +16,7 @@ import {
   formatFingerprint,
 } from '../data/product-facts.mjs';
 import { productJsonLd } from '../data/software-jsonld';
+import VersionMap from '../components/release/VersionMap.astro';
 
 const rel21 = await getRelease('2.1');
 // The download page is where the version is the point: every current card and
@@ -303,6 +304,14 @@ const jsonLd = await productJsonLd({
   </section>
 
   <!-- Other integration paths: nginx walkthrough + IISpeed transfer CTA -->
+  <section id="versions" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 scroll-mt-20">
+    <h2 class="h2-section text-text-body">Versions</h2>
+    <p class="mt-4 max-w-3xl text-text-muted">
+      The version each artifact carries, per release. The current release is {CURRENT_RELEASE}.
+    </p>
+    <VersionMap />
+  </section>
+
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-20">
     <h2 class="text-base font-semibold text-text-body">Other integration paths</h2>
     <p class="mt-3 text-sm text-text-muted">

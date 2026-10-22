@@ -24,6 +24,9 @@ web server and an optimizer worker that does the heavy work beside it. Pick the
 integration that matches how you serve pages, run the few lines under it, then
 check the result with the same two requests. Every path below is free to
 install and run; the software is licensed under the Apache License 2.0.
+Every artifact of a release carries the same version number, except the Helm
+chart, which keeps its own chart version; the
+[version map](/docs/release-notes/#version-map) lists them per release.
 
 ## Pick an integration
 

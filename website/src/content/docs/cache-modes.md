@@ -720,7 +720,7 @@ pagespeed FetchWithGzip on
 pagespeed HttpCacheCompressionLevel 6
 ```
 
-The 1.15 IIS module uses WinHTTP for resource fetching. WinHTTP handles SSL certificate verification using the Windows certificate store — no `SslCertDirectory` or `SslCertFile` directives are needed.
+The IIS module uses WinHTTP for resource fetching. WinHTTP handles SSL certificate verification using the Windows certificate store — no `SslCertDirectory` or `SslCertFile` directives are needed.
 
 </div>
 
