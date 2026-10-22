@@ -178,13 +178,13 @@ jobs:
                  "--disk_cache=${HOME}/.cache/optimizer-bazel-disk-macos"
                  --experimental_disk_cache_gc_max_size=3G)
           rc=0
-          bazel test "${FLAGS[@]}" //test/... || rc=$?
+          bazel test "${FLAGS[@]}" --nocache_test_results //test/... || rc=$?
           # Exit 37 is a crashed Bazel server: retry once.
           if [ "$rc" -eq 37 ]; then
             echo "Bazel server crashed (exit 37), retrying..."
             sleep 5
             rc=0
-            bazel test "${FLAGS[@]}" //test/... || rc=$?
+            bazel test "${FLAGS[@]}" --nocache_test_results //test/... || rc=$?
           fi
           exit "$rc"
 

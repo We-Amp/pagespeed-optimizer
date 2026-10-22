@@ -294,6 +294,9 @@ jobs:
       - name: Dev-image helper - self-test
         run: bash tools/ci/test_ensure_dev_image.sh
 
+      - name: Post-merge tests never reuse cached results - self-test
+        run: bash tools/ci/test_post_merge_nocache.sh
+
       - name: Vendor-tarball publisher - self-test
         run: |
           bash tools/ci/test_publish_vendor_tarball.sh
