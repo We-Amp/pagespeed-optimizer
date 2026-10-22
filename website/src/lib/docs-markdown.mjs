@@ -14,7 +14,7 @@
 //     appended as the page renders them (a "Frequently asked questions" section)
 //   - MDX: `import` and `export const relNN = await getRelease(...)` lines go,
 //     `{relNN.path}` expressions and the release-aware components (<Version />,
-//     <ImageTag />, <NugetCmd />, <XPageSpeedExample />) resolve from the release
+//     <ImageTag />, <NugetCmd />, <XPageSpeedExample />, <VersionMap />) resolve from the release
 //     manifests exactly as the components do; a JSX <pre><code> block becomes a
 //     fenced code block; a component that renders no content (the release-notes
 //     deep-link helper) is dropped
@@ -34,6 +34,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { PKG_ASPNETCORE } from '../data/product-facts.mjs';
+import { versionMapMarkdown } from '../data/version-map.mjs';
 
 export const SITE = 'https://modpagespeed.com';
 
@@ -255,6 +256,9 @@ function componentText(name, attrs, m) {
       if (surface === 'apache') return `X-Mod-Pagespeed: ${moduleHeaderVersion()}`;
       return `X-Page-Speed: ${moduleHeaderVersion()}`;
     }
+    case 'VersionMap':
+      // The version map renders the same rows as a Markdown table.
+      return versionMapMarkdown();
     case 'ReleaseNotesDeepLink':
       // A progressive enhancement (opens a collapsed entry a deep link points
       // at); it renders nothing a reader sees, so nothing is lost here.

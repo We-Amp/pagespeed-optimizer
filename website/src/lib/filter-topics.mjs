@@ -1205,7 +1205,7 @@ export function renderFiltersHubMarkdown(topics) {
     '',
     `Canonical URL: ${SITE}${FILTERS_PAGE.path}`,
     '',
-    `A PageSpeed filter is one named optimization that mod_pagespeed, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the server serves it. The tables list every filter mod_pagespeed 2.1 accepts: ${shipped} filters and ${aliases} compound names that expand to several. Core means the filter is in CoreFilters, the default RewriteLevel. OFB means it is in OptimizeForBandwidth. Each name links to the entry that explains what the filter changes, when to use it and what can go wrong.`,
+    `A PageSpeed filter is one named optimization that mod_pagespeed, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the server serves it. The tables list every filter mod_pagespeed accepts: ${shipped} filters and ${aliases} compound names that expand to several. Core means the filter is in CoreFilters, the default RewriteLevel. OFB means it is in OptimizeForBandwidth. Each name links to the entry that explains what the filter changes, when to use it and what can go wrong.`,
     '',
   ];
   for (const [category, title] of Object.entries(CATEGORY_TITLES)) {

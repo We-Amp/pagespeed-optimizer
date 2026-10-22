@@ -354,7 +354,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         href: '/features/',
-        text: 'mod_pagespeed 2.1 features',
+        text: 'mod_pagespeed features',
         note: 'server-injected image dimensions, critical CSS, and variant-aware caching',
       },
     ],
@@ -455,7 +455,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         q: 'Can mod_pagespeed fix my INP?',
-        a: 'Indirectly, and only sometimes. INP measures JavaScript main-thread responsiveness, and a server-layer optimizer does not rewrite your application logic; it will not make a slow click handler fast. What it can do is reduce how much JavaScript competes for the main thread before the user interacts, by minifying (<code>rewrite_javascript</code>), combining (<code>combine_javascript</code>), and deferring scripts proven safe (<code>defer_javascript</code>). That lowers INP on pages throttled by startup script execution: a lot when the origin serves heavy non-minified JS, little when the stack already ships a lean, code-split bundle. In the module these are the named filters <code>rewrite_javascript</code>, <code>combine_javascript</code>, and <code>defer_javascript</code>. The <a href="/blog/aspnet-core-middleware/">mod_pagespeed 2.1 ASP.NET Core middleware</a> reaches the same outcome through its always-on pipeline — automatic JS minification and browser-analysis-driven deferral — not a named-filter list.',
+        a: 'Indirectly, and only sometimes. INP measures JavaScript main-thread responsiveness, and a server-layer optimizer does not rewrite your application logic; it will not make a slow click handler fast. What it can do is reduce how much JavaScript competes for the main thread before the user interacts, by minifying (<code>rewrite_javascript</code>), combining (<code>combine_javascript</code>), and deferring scripts proven safe (<code>defer_javascript</code>). That lowers INP on pages throttled by startup script execution: a lot when the origin serves heavy non-minified JS, little when the stack already ships a lean, code-split bundle. In the module these are the named filters <code>rewrite_javascript</code>, <code>combine_javascript</code>, and <code>defer_javascript</code>. The <a href="/blog/aspnet-core-middleware/">mod_pagespeed ASP.NET Core middleware</a> reaches the same outcome through its always-on pipeline — automatic JS minification and browser-analysis-driven deferral — not a named-filter list.',
       },
       {
         q: "Why can't a server-layer tool fix Blazor Server INP?",

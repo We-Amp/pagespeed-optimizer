@@ -71,7 +71,7 @@ const docs = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/docs' }),
   schema: z.object({
     // The sidebar label, breadcrumb and (unless `h1` is set) the heading.
-    // The <title> appends " — mod_pagespeed 2.1" only when the total stays
+    // The <title> appends " — mod_pagespeed" only when the total stays
     // within 60 characters, the point where search engines truncate.
     title: z.string().max(60, 'docs title must be 60 characters or fewer'),
     // Optional <title> override for a landing page whose search title should

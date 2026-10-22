@@ -99,7 +99,7 @@ test.describe('Risk & SEO panel', () => {
       '3 issues: canonical 1, title 1, structured data 1.',
     );
     await expect(row(panel, 'responseExposure').locator('[data-risk-building]')).toContainText(
-      'A response-firewall pack for mod_pagespeed 2.1 is planned.',
+      'A response-firewall pack for mod_pagespeed is planned.',
     );
     // One verdict sentence per row: no counts, host lists, CSP or server lines.
     const text = await panel.locator('[data-risk-sentence]').allTextContents();

@@ -176,7 +176,7 @@ const faqPage = {
       acceptedAnswer: {
         '@type': 'Answer',
         text: stripHtml(
-          'Support; Priority and Enterprise add a private package repository (being set up). The original mod_pagespeed and ngx_pagespeed are no longer actively developed; mod_pagespeed 2.1 is the maintained, open-source (Apache-2.0) continuation: the same directives and filters, with security fixes and a current toolchain, plus a separate optimizer worker with variant-aware caching that serves optimized variants straight from cache and optimizes off the request path. The software is free; what We-Amp sells is support plans from the people who build it; Priority and Enterprise add a private package repository (being set up).',
+          'Support; Priority and Enterprise add a private package repository (being set up). The original mod_pagespeed and ngx_pagespeed are no longer actively developed; mod_pagespeed 2 is the maintained, open-source (Apache-2.0) continuation: the same directives and filters, with security fixes and a current toolchain, plus a separate optimizer worker with variant-aware caching that serves optimized variants straight from cache and optimizes off the request path. The software is free; what We-Amp sells is support plans from the people who build it; Priority and Enterprise add a private package repository (being set up).',
         ),
       },
     },
@@ -237,8 +237,8 @@ const jsonLd = [organization, website, product, faqPage];
 ---
 
 <BaseLayout
-  title="PageSpeed module for nginx and Apache: mod_pagespeed 2.1"
-  description={`The PageSpeed module, maintained again and ${LICENSE_CLAUSE}. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum.`}
+  title="PageSpeed module for nginx and Apache: mod_pagespeed"
+  description={`The PageSpeed module, maintained again and ${LICENSE_CLAUSE}. Install mod_pagespeed on nginx or Apache with apt or yum.`}
   jsonLd={jsonLd}
 >
   {/* Hero — instrument layout: message left, the measured readout panel on
@@ -249,7 +249,7 @@ const jsonLd = [organization, website, product, faqPage];
       <div>
         <p class="eyebrow">open source &middot; Apache-2.0</p>
         <h1 class="h1-hero hero-title mt-4 text-text-body">
-          <span class="block">mod_pagespeed 2.1, the PageSpeed module for nginx and Apache</span>
+          <span class="block">mod_pagespeed, the PageSpeed module for nginx and Apache</span>
           <span class="hero-sub mt-4 block text-interactive">
             Lighthouse <span class="text-text-body">56</span> to{' '}
             <span class="text-text-body">90</span>. On your own servers.
@@ -368,7 +368,7 @@ const jsonLd = [organization, website, product, faqPage];
     </p>
 
     <p class="mt-6 text-xs text-text-annotation max-w-lg">
-      mod_pagespeed 2.1 is developed by{' '}
+      mod_pagespeed is developed by{' '}
       <a
         href="https://we-amp.com/"
         target="_blank"
@@ -609,7 +609,7 @@ const jsonLd = [organization, website, product, faqPage];
   </style>
 
   {/* 01 — this site runs the binary it sells: the captured response headers
-      of this very page, the HIT/MISS header the 2.1 nginx module adds, and
+      of this very page, the HIT/MISS header the nginx module adds, and
       the public admin console. */}
   <section class="py-13 sm:py-18" aria-labelledby="s-running" data-live-console>
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -694,7 +694,7 @@ const jsonLd = [organization, website, product, faqPage];
         eyebrow="Module + worker"
         title="One product again. The module you know, plus the worker."
       >
-        mod_pagespeed 2.1 converges the two lines We-Amp shipped through 2026: the native in-process
+        mod_pagespeed 2 converges the two lines We-Amp shipped through 2026: the native in-process
         module that stays compatible with your existing pagespeed.conf, and the optimizer worker
         that does the heavy optimization work outside the web server. {LICENSE_CLAUSE_CAP}.
       </SectionHeader>
@@ -708,14 +708,14 @@ const jsonLd = [organization, website, product, faqPage];
               <span class="stack-key">Apache</span>
               <span>
                 native module + worker &rarr;{' '}
-                <span class="font-semibold text-text-body">mod_pagespeed 2.1</span> (this page)
+                <span class="font-semibold text-text-body">mod_pagespeed</span> (this page)
               </span>
             </li>
             <li>
               <span class="stack-key">nginx</span>
               <span>
                 native module, and module + worker in the reverse-proxy deployment &rarr;{' '}
-                <span class="font-semibold text-text-body">mod_pagespeed 2.1</span> (this page)
+                <span class="font-semibold text-text-body">mod_pagespeed</span> (this page)
               </span>
             </li>
             <li>
@@ -766,8 +766,10 @@ const jsonLd = [organization, website, product, faqPage];
             <i></i>
             <i class="lit"></i>
           </div>
-          <p class="mt-4 text-lg font-semibold text-text-body">mod_pagespeed 2.1</p>
-          <p class="mt-1 text-sm text-text-muted">The converged line &mdash; {LICENSE_CLAUSE}</p>
+          <p class="mt-4 text-lg font-semibold text-text-body">mod_pagespeed</p>
+          <p class="mt-1 text-sm text-text-muted">
+            One product, two parts &mdash; {LICENSE_CLAUSE}
+          </p>
           <div class="mt-3 flex flex-wrap gap-2">
             <Chip tone="interactive" label="Apache" />
             <Chip tone="interactive" label="nginx" />
@@ -845,7 +847,7 @@ const jsonLd = [organization, website, product, faqPage];
           aria-label for the full narrative. */}
       <figure
         class="mt-10"
-        aria-label="mod_pagespeed 2.1 request flow. A request hits the module which performs a cache lookup. On HIT the variant is served from mmap in under a millisecond. On MISS the origin response is returned immediately while the optimizer worker optimizes and writes the variant, feeding future HITs."
+        aria-label="mod_pagespeed request flow. A request hits the module which performs a cache lookup. On HIT the variant is served from mmap in under a millisecond. On MISS the origin response is returned immediately while the optimizer worker optimizes and writes the variant, feeding future HITs."
       >
         {/* Desktop / tablet (>= md) */}
         <svg
@@ -856,7 +858,7 @@ const jsonLd = [organization, website, product, faqPage];
           xmlns="http://www.w3.org/2000/svg"
         >
           <title>
-            mod_pagespeed 2.1 architecture: request, module and cache lookup, HIT serves from mmap,
+            mod_pagespeed architecture: request, module and cache lookup, HIT serves from mmap,
             MISS serves origin while an async worker writes the optimized variant.
           </title>
           <defs>
@@ -1265,7 +1267,7 @@ const jsonLd = [organization, website, product, faqPage];
           role="img"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <title>mod_pagespeed 2.1 architecture, mobile vertical view.</title>
+          <title>mod_pagespeed architecture, mobile vertical view.</title>
           <defs>
             <marker
               id="arrow-stone-20m"
@@ -1992,7 +1994,7 @@ const jsonLd = [organization, website, product, faqPage];
           <dd class="mt-2 text-sm text-text-muted">
             Support; Priority and Enterprise add a private package repository (being set up). The
             original mod_pagespeed and ngx_pagespeed are no longer actively developed; mod_pagespeed
-            2.1 is the maintained, open-source (Apache-2.0) continuation: the same directives and
+            2 is the maintained, open-source (Apache-2.0) continuation: the same directives and
             filters, with security fixes and a current toolchain, plus a separate optimizer worker
             with variant-aware caching that serves optimized variants straight from cache and
             optimizes off the request path. The software is free; what We-Amp sells is support plans

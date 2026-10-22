@@ -14,6 +14,9 @@ import {
   LICENSING_TERMS_URL,
   SOURCE_PUBLICATION,
 } from './product-facts.mjs';
+import { VERSION_MAP } from './version-map.mjs';
+
+const CURRENT = VERSION_MAP[0];
 
 const link = (href: string, text: string) =>
   `<a href="${href}" class="text-interactive hover:text-interactive-hover underline">${text}</a>`;
@@ -21,7 +24,7 @@ const link = (href: string, text: string) =>
 export const faqPricing: FaqEntry[] = [
   {
     q: 'Is the software really free?',
-    a: `Yes. mod_pagespeed 2.1 is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers. Support is optional.`,
+    a: `Yes. mod_pagespeed is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers. Support is optional.`,
   },
   {
     q: 'What if I never subscribe?',
@@ -29,11 +32,15 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'What does support cover?',
-    a: "Configuration, upgrades and incidents on the servers in your tier's band, for mod_pagespeed 2.1 on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.",
+    a: "Configuration, upgrades and incidents on the servers in your tier's band, for mod_pagespeed on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.",
   },
   {
     q: 'Which tier do I need?',
     a: `Count production servers: up to 5 is Standard, up to 25 is Priority, more than that (or one organization without a limit) is Enterprise. Choose Priority when your security team wants the release SBOM and VEX. ${link('/support/', 'What each tier includes')}.`,
+  },
+  {
+    q: 'Which version is current?',
+    a: `mod_pagespeed ${CURRENT.release}, released ${CURRENT.date}. From 2.5.0 on, the packages, the container images, the NuGet package and the IIS installer all carry the release number; the Helm chart keeps its own chart version (${CURRENT.helmChart}). ${link('/docs/release-notes/#version-map', 'The version map')} lists every release.`,
   },
   {
     q: 'How do I buy?',
@@ -61,7 +68,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'I have an IISpeed or mod_pagespeed 1.x license. What now?',
-    a: `Your license moves to mod_pagespeed 2.1 at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Request the transfer through the ${link('/contact/?topic=iispeed-transfer', 'license-transfer form')}; other questions go to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)}.`,
+    a: `Your license moves to mod_pagespeed at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Request the transfer through the ${link('/contact/?topic=iispeed-transfer', 'license-transfer form')}; other questions go to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)}.`,
   },
   {
     q: 'Where do the support terms live?',

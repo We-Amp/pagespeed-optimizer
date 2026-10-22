@@ -1,4 +1,4 @@
-# Helm: install and verify mod_pagespeed 2.1 on Kubernetes
+# Helm: install and verify mod_pagespeed on Kubernetes
 
 Source: https://modpagespeed.com/docs/helm-deployment/. Header: `X-PageSpeed`.
 Scope: the `pagespeed` chart, a two-container pod (nginx with the module and

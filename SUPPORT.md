@@ -1,6 +1,6 @@
 # Support
 
-mod_pagespeed 2.1 is open source (Apache-2.0) — support is what's for sale.
+mod_pagespeed is open source (Apache-2.0) — support is what's for sale.
 
 ## Community support
 

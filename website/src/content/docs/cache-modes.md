@@ -1,12 +1,12 @@
 ---
 title: 'Choose a cache mode: safe vs aggressive'
-description: 'Safe or aggressive Cache-Control for optimized responses in mod_pagespeed 2.1, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.'
+description: 'Safe or aggressive Cache-Control for optimized responses in mod_pagespeed, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.'
 order: 22
 group: 'Configure'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
-mod_pagespeed 2.1 transforms your origin's content — optimizing images, minifying
+mod_pagespeed transforms your origin's content — optimizing images, minifying
 CSS, and rewriting HTML. Because the output depends on mod_pagespeed's
 configuration and software version, the [Cache-Control headers your origin
 sends](/docs/cache-control/) don't apply verbatim to the transformed output. A misconfigured option or a software bug
@@ -720,7 +720,7 @@ pagespeed FetchWithGzip on
 pagespeed HttpCacheCompressionLevel 6
 ```
 
-The 1.15 IIS module uses WinHTTP for resource fetching. WinHTTP handles SSL certificate verification using the Windows certificate store — no `SslCertDirectory` or `SslCertFile` directives are needed.
+The IIS module uses WinHTTP for resource fetching. WinHTTP handles SSL certificate verification using the Windows certificate store — no `SslCertDirectory` or `SslCertFile` directives are needed.
 
 </div>
 

@@ -1,14 +1,14 @@
 ---
 title: 'Image filters'
-description: 'Image filters in mod_pagespeed 2.1 for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
+description: 'Image filters in mod_pagespeed for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
 order: 43
 group: 'Filters'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 ## Overview
 
-mod_pagespeed 2.1 includes image filters for recompression, format conversion, resizing, and inlining that cut page weight without touching the original files on disk. The master filter `rewrite_images` is a CoreFilter and enables several sub-filters by default. Enable additional image filters individually for finer control. The same filter names and directives apply across the in-process module on Apache, nginx, and IIS.
+mod_pagespeed includes image filters for recompression, format conversion, resizing, and inlining that cut page weight without touching the original files on disk. The master filter `rewrite_images` is a CoreFilter and enables several sub-filters by default. Enable additional image filters individually for finer control. The same filter names and directives apply across the in-process module on Apache, nginx, and IIS.
 
 ## IIS syntax
 
@@ -848,7 +848,7 @@ pagespeed ImageMaxRewritesAtOnce 8;
 ## Design background: how server-side image rewriting works
 
 :::note[Historical context]
-This summarizes a design decision from the original mod_pagespeed project (Google, 2010), included as background. The filter behavior documented above is the current reference for mod_pagespeed 2.1.
+This summarizes a design decision from the original mod_pagespeed project (Google, 2010), included as background. The filter behavior documented above is the current reference for mod_pagespeed 2.
 :::
 
 The image filters above descend from a 2010 design for server-side image rewriting. Four invariants from that design still shape how `rewrite_images` works:
@@ -858,7 +858,7 @@ The image filters above descend from a 2010 design for server-side image rewriti
 3. **Recompress per format, and only keep a smaller result.** Each format has its own codec strategy (`recompress_jpeg`, `recompress_png`, `recompress_webp`). A conversion (`convert_jpeg_to_webp`, `convert_png_to_jpeg`, `convert_gif_to_png`) or recompression is kept only when the output is smaller, which is what `ImageLimitOptimizedPercent` enforces.
 4. **Cache the negative result too.** If no variant is meaningfully smaller, the original URL is kept, and mod_pagespeed remembers that so it does not re-attempt a losing rewrite on every request.
 
-The output formats have changed since 2010: the native module transcodes to WebP through `rewrite_images`, and to AVIF through [opt-in filters](#avif) enabled separately from it. The mod_pagespeed 2.1 optimizer worker adds SVG auto-vectorization and Jpegli through its own independent optimization engine. The four invariants above describe how the native module's `rewrite_images` pipeline works. For how this works in production, see [Automatic WebP/AVIF on nginx: One Decode, 37 Variants](/blog/viewport-aware-image-optimization/) and [Image optimization cost: self-hosted vs CDN](/blog/economics-of-image-optimization/).
+The output formats have changed since 2010: the native module transcodes to WebP through `rewrite_images`, and to AVIF through [opt-in filters](#avif) enabled separately from it. The mod_pagespeed optimizer worker adds SVG auto-vectorization and Jpegli through its own independent optimization engine. The four invariants above describe how the native module's `rewrite_images` pipeline works. For how this works in production, see [Automatic WebP/AVIF on nginx: One Decode, 37 Variants](/blog/viewport-aware-image-optimization/) and [Image optimization cost: self-hosted vs CDN](/blog/economics-of-image-optimization/).
 
 _Adapted from the original mod_pagespeed image-rewriting design (Google, 2010), an open-source project now maintained by We-Amp B.V. Original material © Google Inc., released under the Apache License 2.0. mod_pagespeed and PageSpeed are trademarks of Google LLC. We-Amp B.V. is not affiliated with, endorsed by, or sponsored by Google, and maintains the open-source mod_pagespeed project independently._
 

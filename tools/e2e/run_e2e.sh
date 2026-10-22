@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# mod_pagespeed 2.1 - End-to-End Test Runner
+# mod_pagespeed - End-to-End Test Runner
 #
 # Runs pytest-based E2E user story tests against the full stack
 # (nginx + worker + origin) in Docker.

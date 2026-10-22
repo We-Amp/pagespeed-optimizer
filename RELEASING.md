@@ -1,4 +1,4 @@
-# Releasing mod_pagespeed 2.1
+# Releasing mod_pagespeed
 
 Releases of the pagespeed-optimizer host packages are cut with the `Release`
 workflow (`release.yml`). The lane builds the optimization daemon and the
@@ -132,7 +132,7 @@ hardening properties on both artifacts before they are packaged.
 the site's source of truth: a website change is an ordinary pull request here,
 and `website/CLAUDE.md` is the guide to the tree. The `Website` workflow gates
 every push or pull request touching `website/**`: the content guards (no
-version-pinned URLs in non-frozen content; the 2.1 manifest does not lag the
+version-pinned URLs in non-frozen content; the release manifest does not lag the
 latest stable release tag), `npm ci`, the vitest unit suite, a production build
 (with `PRICING_ALLOW_STALE=1` — a hosted build holds no pricing API credentials,
 so it builds on the committed pricing file), and the Playwright browser suite.

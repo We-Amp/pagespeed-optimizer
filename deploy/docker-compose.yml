@@ -1,4 +1,4 @@
-# mod_pagespeed 2.1 - Production Docker Compose
+# mod_pagespeed - Production Docker Compose
 #
 # Usage:
 #   docker compose -f deploy/docker-compose.yml up -d
@@ -20,7 +20,7 @@
 #   BACKEND_HOST - Origin server host (default: host.docker.internal)
 #   BACKEND_PORT - Origin server port (default: 8081)
 #
-# Cache sharing (2.1): the worker and nginx images share the volume through
+# Cache sharing (since 2.1.0): the worker and nginx images share the volume through
 # group `pagespeed` at the fixed GID 918, not through world-writable modes.
 # The worker's entrypoint starts as root, prepares/adopts the volume and then
 # drops the optimizer to uid 918, so no `user:` key is needed here. If you add

@@ -102,7 +102,7 @@ Document these honestly so the /analyze copy can flag them:
 ## 1.15 vs 2.0 coverage
 
 `/analyze` ships two editions of the recommendation, labelled for the two
-parts of mod_pagespeed 2.1: the optimizer worker (default) and the module.
+parts of mod_pagespeed: the optimizer worker (default) and the module.
 The `availableIn` field on each mapping declares which
 edition(s) actually address the audit; the `snippet11` and `snippet20`
 fields hold edition-specific config syntax.

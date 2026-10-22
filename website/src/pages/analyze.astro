@@ -133,15 +133,15 @@ const jsonLd = [
       align="center"
     >
       Run Google's official PageSpeed Insights against any URL. We score the page on mobile and
-      desktop, then map every failing Lighthouse audit to the filter in mod_pagespeed 2.1 that fixes
-      it on your server. Audits no optimizer can touch get labeled.
+      desktop, then map every failing Lighthouse audit to the filter in mod_pagespeed that fixes it
+      on your server. Audits no optimizer can touch get labeled.
     </SectionHeader>
     <ScanUiBoot />
     <div data-scan-variant="v1">
       <p class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
-        This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is developed by
-        We-Amp B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a
-        trademark of Google LLC.
+        This tool calls Google's public PageSpeed Insights API. mod_pagespeed is developed by We-Amp
+        B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of
+        Google LLC.
       </p>
 
       <form
@@ -1107,7 +1107,7 @@ const jsonLd = [
       // the toggle on the worker, a module-only audit (e.g. animated GIF →
       // WebP) gets a "Module" pill; with the toggle on the module, a
       // worker-only audit (HTML caching) gets a "Worker" pill. Both markers
-      // use the same neutral styling — both parts ship in mod_pagespeed 2.1
+      // use the same neutral styling — both parts ship in mod_pagespeed
       // and the marker says where the fix runs.
       const isTwoOnly =
         item.mapping.availableIn.includes('2.0') && !item.mapping.availableIn.includes('1.1');

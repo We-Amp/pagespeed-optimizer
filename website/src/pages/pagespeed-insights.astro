@@ -1,4 +1,5 @@
 ---
+import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
@@ -107,12 +108,7 @@ const articleJsonLd = {
   about: featured.map((m) => ({ '@type': 'Thing', name: m.auditTitle })),
   image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-  publisher: {
-    '@type': 'Organization',
-    name: 'We-Amp B.V.',
-    url: 'https://we-amp.com/',
-    logo: { '@type': 'ImageObject', url: 'https://modpagespeed.com/logo.svg' },
-  },
+  publisher: ORGANIZATION_PUBLISHER,
 };
 
 // FAQ — single source of truth for both the visible <dl> and the FAQPage
@@ -185,7 +181,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         those failures are delivery problems that live below your application &mdash;
         render-blocking CSS, oversized images, weak cache headers &mdash; where a server-layer
         optimizer applies. Others are in your own JavaScript. This page maps each common audit onto
-        what mod_pagespeed 2.1 does about it, marks every claim{' '}
+        what mod_pagespeed does about it, marks every claim{' '}
         <span class="text-success">auto-fix</span>,<span class="text-accent">assistive</span>, or
         <span class="text-text-muted">client-side</span>, and links a real before/after for the ones
         it fixes.
@@ -201,8 +197,8 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       </a>
     </div>
     <p class="mt-4 text-xs text-text-annotation max-w-3xl">
-      PageSpeed Insights and Lighthouse are products of Google LLC. mod_pagespeed 2.1 is built by
-      We-Amp B.V. and is not affiliated with or endorsed by Google. The{' '}
+      PageSpeed Insights and Lighthouse are products of Google LLC. mod_pagespeed is built by We-Amp
+      B.V. and is not affiliated with or endorsed by Google. The{' '}
       <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline">
         Analyze tool
       </a>{' '}

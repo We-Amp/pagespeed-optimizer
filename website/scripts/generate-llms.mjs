@@ -41,7 +41,6 @@ import { dirname, resolve } from 'node:path';
 import {
   LLMS_TOKENS,
   PRODUCT_NAME,
-  CURRENT_LINE,
   PKG_APACHE_MODULE,
   PKG_NGINX_MODULE,
   PKG_OPTIMIZER,
@@ -195,7 +194,7 @@ export function distributionLines(ctx) {
 export function buildIndex(ctx) {
   /** @type {string[]} */
   const lines = [
-    `# ${PRODUCT_NAME} ${CURRENT_LINE}`,
+    `# ${PRODUCT_NAME}`,
     '',
     `> ${render(SUMMARY, 'agent-files.mjs SUMMARY')}`,
     '',

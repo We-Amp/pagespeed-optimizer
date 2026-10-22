@@ -3,7 +3,7 @@ title: 'How a server optimizer avoids adding latency'
 description: "How mod_pagespeed optimizes images, CSS, and JS without slowing the request: the second-request problem, and the optimizer worker that solves it."
 order: 10
 datePublished: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 ---
 A server-side optimizer has one hard constraint that never goes away: it sits in the request path. Every page the user asks for passes through it on the way to the browser. So the moment the optimizer decides to compress an image or minify a stylesheet, the user is waiting for that work to finish. Do it inline, and you have traded a smaller page for a slower one.
 
@@ -59,4 +59,4 @@ A practical consequence falls out of caching the decision. If the optimizer find
 
 The asynchronous-rewriting model originates with the Apache PageSpeed project, in design work by Joshua Marantz and contributors including Maksim Orlovich (2011). We-Amp B.V. was a committer and maintainer on that project, and maintains the open-source mod_pagespeed line today. The 2.0 re-architecture was an independent rebuild that kept the original optimization libraries and re-implemented the orchestration around them; that engine continues as the optimizer worker.
 
-Want to see it run? [Install mod_pagespeed 2.1](/features/) and point it at your origin — it is licensed under Apache-2.0 and free to run, so you can watch variants populate the cache on your own traffic.
+Want to see it run? [Install mod_pagespeed](/features/) and point it at your origin — it is licensed under Apache-2.0 and free to run, so you can watch variants populate the cache on your own traffic.

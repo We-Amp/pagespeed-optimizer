@@ -1,6 +1,6 @@
 ---
 title: 'mod_pagespeed admin console'
-description: 'mod_pagespeed 2.1 admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.'
+description: 'mod_pagespeed admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.'
 order: 52
 group: 'Operate'
 lastUpdated: 2026-10-22
@@ -12,7 +12,7 @@ See it running: [the live console on our own sites](https://we-amp.com/pagespeed
 
 ## Overview
 
-mod_pagespeed 2.1 includes built-in admin pages for monitoring, configuration inspection, and cache management. Access them at `/pagespeed_admin/` on your server.
+mod_pagespeed includes built-in admin pages for monitoring, configuration inspection, and cache management. Access them at `/pagespeed_admin/` on your server.
 
 Two endpoints are exposed: `/pagespeed_admin` is the per-vhost admin handler, and `/pagespeed_global_admin` is the process-wide handler. Both are read-write (cache purge) and warrant the same access restrictions in production.
 

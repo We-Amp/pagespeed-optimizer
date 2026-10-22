@@ -1,9 +1,9 @@
 ---
 title: 'Migrate from ngx_pagespeed'
-description: 'Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2.1 nginx module: what carries over.'
+description: 'Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2 nginx module: what carries over.'
 order: 13
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-22
 datePublished: 2026-10-08
 faq:
   - q: 'Do my pagespeed directives carry over from ngx_pagespeed?'
@@ -12,7 +12,7 @@ faq:
     a: 'Each module build is pinned to the exact nginx version your distribution ships. An nginx from another repository, including the one a third-party ngx_pagespeed package was built against, has a different version string and nginx refuses the module. Run the stock nginx, or contact us for a matching build.'
 ---
 
-mod_pagespeed 2.1 continues the nginx port. If you run the open-source
+mod_pagespeed 2 continues the nginx port. If you run the open-source
 [`ngx_pagespeed`](https://ngxpagespeed.com/install/) today, whether you compiled it into nginx yourself or
 installed a third-party package build of it such as the GetPageSpeed packages,
 the move is a package swap: remove the old module, install the signed
@@ -71,7 +71,7 @@ repository and set two directives; see
 
 ## Configuration compatibility
 
-| Directives and filters                                                                                                                                                                                                                             | Status in mod_pagespeed 2.1                                                                                                   |
+| Directives and filters                                                                                                                                                                                                                             | Status in mod_pagespeed 2                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `pagespeed on/off`, `RewriteLevel`, `EnableFilters`, `DisableFilters`, `ForbidFilters`, `Domain`, `MapOriginDomain`, `MapRewriteDomain`, `MapProxyDomain`, `LoadFromFile`, the admin and statistics paths, `FetchHttps`, `UseNativeFetcher` and the rest of the [configuration reference](/docs/configuration/) | Carry over unchanged                                                                                                          |
 | `FileCachePath`                                                                                                                                                                                                                                    | Accepted; the module keeps its Cyclone volume under it                                                                        |

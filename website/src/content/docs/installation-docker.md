@@ -1,12 +1,12 @@
 ---
 title: 'Install with Docker'
-description: 'Run mod_pagespeed 2.1 with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.'
+description: 'Run mod_pagespeed with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.'
 order: 4
 group: 'Install'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
-Deploy mod_pagespeed 2.1 with Docker Compose. You run three containers — nginx
+Deploy mod_pagespeed with Docker Compose. You run three containers — nginx
 with the pagespeed module, the worker, and your origin server — sharing a
 Cyclone cache volume. To try it against your own site in seconds first, start
 with the single combined container below.
@@ -252,7 +252,7 @@ What this means for your compose file:
   0777) will draw a startup warning, because a non-root container cannot tighten
   its own mount.
 
-### Upgrading a volume created before 2.1
+### Upgrading a volume created before 2.1.0 {#upgrading-a-volume-created-before-21}
 
 A shared volume from an earlier release has files owned by whichever process
 created them first — usually root, sometimes the nginx user. On first start the
@@ -264,7 +264,7 @@ NOTE: adopted 0-byte cache stem /shared/cache.vol (was uid 999); no content was 
 NOTE: adopted existing cache volume /shared/cache-6-2f1c….vol (536870912 bytes, was uid 0) into pagespeed:pagespeed mode 0660.
 ```
 
-Only state owned by **root** is migrated — that is the pre-2.1 optimizer, the
+Only state owned by **root** is migrated — that is the optimizer from before 2.1.0, the
 one identity whose authorship is not in question. That covers the cache volume
 and also everything the optimizer reads back at startup, `pagespeed.json`
 included: a copy of that file written by anything else could set the key
@@ -419,9 +419,9 @@ mode `0660` owned by `pagespeed:pagespeed`; a peer outside the group gets
 nothing.
 
 **Worker exits 78 immediately with a block of `ERROR:` lines about ownership:**
-The volume holds content from before 2.1 that the entrypoint would not take
+The volume holds content from before 2.1.0 that the entrypoint would not take
 ownership of. The message names the path and the remedy; see
-[Upgrading a volume created before 2.1](#upgrading-a-volume-created-before-21).
+[Upgrading a volume created before 2.1.0](#upgrading-a-volume-created-before-21).
 
 **`X-PageSpeed: MISS` after changing the `user` directive in your nginx.conf:**
 Group membership is resolved from the user nginx drops its workers to. If you

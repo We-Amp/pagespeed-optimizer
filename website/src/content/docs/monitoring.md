@@ -1,9 +1,9 @@
 ---
 title: 'Monitoring'
-description: 'Monitor mod_pagespeed 2.1: the admin console, the worker health socket and /v1/health, /v1/stats and Prometheus /v1/metrics, logs, and what to alert on.'
+description: 'Monitor mod_pagespeed: the admin console, the worker health socket and /v1/health, /v1/stats and Prometheus /v1/metrics, logs, and what to alert on.'
 order: 55
 group: 'Operate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-22
 datePublished: 2026-10-08
 faq:
   - q: 'What is the one probe to wire into a load balancer or Kubernetes?'
@@ -12,7 +12,7 @@ faq:
     a: 'From `GET /v1/metrics` on the worker management API, in text exposition format, or from the `METRICS` command on the management socket. Every counter and gauge in `/v1/stats` is exposed.'
 ---
 
-Three places tell you how mod_pagespeed 2.1 is doing: the module's admin
+Three places tell you how mod_pagespeed is doing: the module's admin
 console inside the web server, the optimizer worker's own health and metrics
 endpoints, and the logs. This page says what each one shows and which signals
 deserve an alert.

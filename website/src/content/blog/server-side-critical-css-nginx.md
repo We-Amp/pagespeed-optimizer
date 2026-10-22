@@ -19,7 +19,7 @@ Core app behind nginx as a reverse proxy, a Go binary, a static-site
 generator with no Node), you've been doing critical CSS by hand or
 not at all.
 
-The mod_pagespeed 2.1 module does critical CSS at the nginx layer for any backend. The
+The mod_pagespeed module does critical CSS at the nginx layer for any backend. The
 nginx interceptor rewrites the HTML on the way out; the worker extracts
 critical CSS via a heuristic that runs in under 5 ms per page without a
 headless browser. Both pieces ship as a single package install.

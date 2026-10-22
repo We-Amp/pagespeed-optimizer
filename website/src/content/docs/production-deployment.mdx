@@ -1,12 +1,12 @@
 ---
 title: 'ASP.NET Core in production'
-description: 'Production deployment of the mod_pagespeed 2.1 ASP.NET Core middleware: configuration, health probes, multi-instance scale and zero-downtime restarts.'
+description: 'Production deployment of the mod_pagespeed ASP.NET Core middleware: configuration, health probes, multi-instance scale and zero-downtime restarts.'
 order: 51
 group: 'Operate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-22
 faq:
   - q: 'Does scaling the ASP.NET Core middleware across multiple instances add per-server cost?'
-    a: 'No. mod_pagespeed 2.1 is licensed under Apache-2.0 and free to run in development and in production, so scaling out adds no software cost — size replica counts for traffic and availability.'
+    a: 'No. mod_pagespeed is licensed under Apache-2.0 and free to run in development and in production, so scaling out adds no software cost — size replica counts for traffic and availability.'
   - q: 'What does the /healthz check report?'
     a: 'The plain-text status: `Healthy` while the cache is operational, `Unhealthy` when the cache cannot be opened — wire monitoring to alert on `Unhealthy`.'
 ---
@@ -19,7 +19,7 @@ export const rel21 = await getRelease('2.1');
 
 {/* The NuGet package shares the product version; if the two ever diverge, read the package version from its own release entry. */}
 
-This page is for teams shipping the mod_pagespeed 2.1 ASP.NET Core middleware
+This page is for teams shipping the mod_pagespeed ASP.NET Core middleware
 (`WeAmp.PageSpeed.AspNetCore`) into a production ASP.NET Core deployment. If you
 are still evaluating the middleware locally, start with
 [Install ASP.NET Core middleware](/docs/aspnet-getting-started/) instead.
@@ -28,7 +28,7 @@ The current NuGet release is {rel21.display.badge_version}. The middleware runs
 in-process in your request pipeline and, by default, launches the `factory_worker`
 binary from the same package as a child process to do the expensive work — image
 transcoding and critical-CSS extraction — out of process. If you need an in-process
-native module for Apache, nginx or IIS instead, see [mod_pagespeed 2.1](/), where
+native module for Apache, nginx or IIS instead, see [mod_pagespeed](/), where
 the module runs in-process in the web server. The IIS package ships as a signed
 installer on the mod_pagespeed GitHub release.
 
@@ -151,7 +151,7 @@ console off or gate it, as above.
 
 ## Scale across multiple instances
 
-mod_pagespeed 2.1 is licensed under Apache-2.0 and free to run in development
+mod_pagespeed is licensed under Apache-2.0 and free to run in development
 and in production, so scaling out adds no software cost. Size replica counts
 for your traffic and availability needs.
 

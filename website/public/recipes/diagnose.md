@@ -1,4 +1,4 @@
-# Diagnose: check an installed mod_pagespeed 2.1 module or optimizer worker (read-only)
+# Diagnose: check an installed mod_pagespeed module or optimizer worker (read-only)
 
 Source: https://modpagespeed.com/docs/is-it-working/,
 https://modpagespeed.com/docs/monitoring/,
@@ -34,12 +34,12 @@ docker ps -a --filter 'name=^pagespeed$' --format '{{.Names}} {{.Status}}'   # D
 kubectl get pods -n <namespace> -l app.kubernetes.io/name=pagespeed   # Helm: READY 2/2
 ```
 
-| Surface                          | Header            | Value                                     | Processes                                 |
-| -------------------------------- | ----------------- | ----------------------------------------- | ----------------------------------------- |
-| Apache, cPanel                   | `X-Mod-Pagespeed` | the module version                        | the module; the worker when installed     |
-| nginx, IIS                       | `X-Page-Speed`    | the module version                        | the module; the worker when attached      |
-| Docker, Helm                     | `X-PageSpeed`     | `MISS`, `HIT`, `STALE` or `REVALIDATED`   | the module and the worker                 |
-| ASP.NET Core                     | `X-PageSpeed`     | `MISS`, then `HIT`                        | the middleware and its in-process worker  |
+| Surface        | Header            | Value                                   | Processes                                |
+| -------------- | ----------------- | --------------------------------------- | ---------------------------------------- |
+| Apache, cPanel | `X-Mod-Pagespeed` | the module version                      | the module; the worker when installed    |
+| nginx, IIS     | `X-Page-Speed`    | the module version                      | the module; the worker when attached     |
+| Docker, Helm   | `X-PageSpeed`     | `MISS`, `HIT`, `STALE` or `REVALIDATED` | the module and the worker                |
+| ASP.NET Core   | `X-PageSpeed`     | `MISS`, then `HIT`                      | the middleware and its in-process worker |
 
 IIS (elevated PowerShell) and ASP.NET Core (a `.csproj` using
 `Microsoft.NET.Sdk.Web` that references `WeAmp.PageSpeed.AspNetCore`):
@@ -295,14 +295,14 @@ Lines that name a cause:
   is not in group `pagespeed`, or the socket path does not match.
 - "too large": the worker skipped content above its size limit.
 
-| Symptom                                                          | Likely cause                                                       |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Health socket silent, or `/v1/health` reports `ready: false`     | the worker is down or saturated                                    |
-| `errors.total` rising                                            | processing failures; read the worker log                           |
-| `connections.active` near `connections.max`                      | change notifications from the web server are being dropped         |
-| `X-PageSpeed: MISS` on every request                             | can mean module and worker on different cache formats              |
-| Container exit status 78                                         | the worker image refused to start on a configuration or volume fault |
-| `systemctl status` shows `code=dumped, status=31/SYS`            | the system-call filter stopped the worker                          |
+| Symptom                                                      | Likely cause                                                         |
+| ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| Health socket silent, or `/v1/health` reports `ready: false` | the worker is down or saturated                                      |
+| `errors.total` rising                                        | processing failures; read the worker log                             |
+| `connections.active` near `connections.max`                  | change notifications from the web server are being dropped           |
+| `X-PageSpeed: MISS` on every request                         | can mean module and worker on different cache formats                |
+| Container exit status 78                                     | the worker image refused to start on a configuration or volume fault |
+| `systemctl status` shows `code=dumped, status=31/SYS`        | the system-call filter stopped the worker                            |
 
 ## 6. Report
 

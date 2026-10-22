@@ -85,7 +85,7 @@ const docItemList = listedDocs.map((doc, i) => ({
 const docsJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
-  name: 'Documentation — mod_pagespeed 2.1',
+  name: 'Documentation — mod_pagespeed',
   url: `${siteOrigin}/docs/`,
   mainEntity: {
     '@type': 'ItemList',
@@ -95,8 +95,8 @@ const docsJsonLd = {
 ---
 
 <BaseLayout
-  title="Documentation — mod_pagespeed 2.1"
-  description="Install, configure, and run mod_pagespeed 2.1. Guides for Docker, nginx module, ASP.NET Core middleware, configuration, deployment, and troubleshooting."
+  title="Documentation — mod_pagespeed"
+  description="Install, configure, and run mod_pagespeed. Guides for Docker, nginx module, ASP.NET Core middleware, configuration, deployment, and troubleshooting."
   jsonLd={docsJsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
@@ -112,7 +112,7 @@ const docsJsonLd = {
       </div>
     </div>
     <p class="mt-4 text-lg text-text-muted">
-      Install, configure and run mod_pagespeed 2.1: the native module for Apache, nginx and IIS, the
+      Install, configure and run mod_pagespeed: the native module for Apache, nginx and IIS, the
       optimizer worker beside it, or the Docker / nginx reverse proxy in front of any origin. Start
       with{' '}
       <a href="/docs/getting-started/" class="underline underline-offset-2 hover:text-interactive">

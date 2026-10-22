@@ -1062,12 +1062,12 @@ const DENYLIST: DenyRule[] = [
           .source,
       'i',
     ),
-    bad: 'mod_pagespeed 2.1 has no standalone nginx module yet.',
+    bad: 'mod_pagespeed has no standalone nginx module yet.',
     good: 'mod_pagespeed ships a native module for Apache and nginx, from the signed apt/yum repository.',
     variantsBad: [
+      'mod_pagespeed 2.1 has no standalone nginx module yet.',
       'ModPageSpeed 2.1 does not have a native Apache or nginx module.',
       '2.1 has no native nginx module.',
-      'mod_pagespeed has no standalone nginx module yet.',
       'mod_pagespeed 2 lacks a native Apache module.',
     ],
     variantsGood: [
