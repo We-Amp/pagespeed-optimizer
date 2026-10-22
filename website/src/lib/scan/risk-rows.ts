@@ -254,7 +254,7 @@ function rxVerdict(rx: Lens): string {
 }
 
 export const RX_BUILDING =
-  'A response-firewall pack for mod_pagespeed 2.1 is planned. It would mask leaked stack traces, strip version tells and add missing security headers in the response, on your own server. No pack ships today.';
+  'A response-firewall pack for mod_pagespeed is planned. It would mask leaked stack traces, strip version tells and add missing security headers in the response, on your own server. No pack ships today.';
 
 // ---- Rows ----------------------------------------------------------------
 

@@ -18,7 +18,7 @@ check, report and say that there is nothing to roll back.
 | Docker (reverse proxy)    | [docker.md](https://modpagespeed.com/recipes/docker.md)           | `X-PageSpeed`                  |
 | Kubernetes (Helm chart)   | [helm.md](https://modpagespeed.com/recipes/helm.md)               | `X-PageSpeed`                  |
 
-To check a server where mod_pagespeed 2.1 is already installed, use
+To check a server where mod_pagespeed is already installed, use
 [diagnose.md](https://modpagespeed.com/recipes/diagnose.md): read-only checks of
 the response header, the worker's health and API, the admin pages and the logs,
 ending in a report for the operator.

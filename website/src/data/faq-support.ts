@@ -20,7 +20,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'Who answers a ticket?',
-    a: 'The engineers who build mod_pagespeed 2.1. There is no first-line desk in front of them: the person reading your ticket can read the code path behind it.',
+    a: 'The engineers who build mod_pagespeed. There is no first-line desk in front of them: the person reading your ticket can read the code path behind it.',
   },
   {
     q: 'When do you answer?',

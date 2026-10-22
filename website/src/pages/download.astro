@@ -18,6 +18,9 @@ import {
 import { productJsonLd } from '../data/software-jsonld';
 
 const rel21 = await getRelease('2.1');
+// The download page is where the version is the point: every current card and
+// the title carry the exact release from the manifest.
+const CURRENT_RELEASE = `mod_pagespeed ${rel21.release.semver}`;
 
 // The IIS installer is hosted on the module's GitHub release, not under
 // /releases/; its SHA256SUMS sits beside it on the same release.
@@ -50,7 +53,7 @@ const rel21DockerTag = dockerTag(rel21);
 const integrations = [
   {
     name: 'Apache',
-    product: 'mod_pagespeed 2.1',
+    product: CURRENT_RELEASE,
     badge: 'Native module',
     description:
       'Prebuilt signed package from the apt/yum repository — apt-get on Debian and Ubuntu, dnf on Enterprise Linux. Drop-in replacement for the open-source build.',
@@ -61,7 +64,7 @@ const integrations = [
   },
   {
     name: 'nginx',
-    product: 'mod_pagespeed 2.1',
+    product: CURRENT_RELEASE,
     badge: 'Native module',
     description:
       "Prebuilt signed dynamic module from the apt/yum repository, pinned to each distro's stock nginx. Loads alongside your existing nginx binary — no rebuild, no traffic detour.",
@@ -73,7 +76,7 @@ const integrations = [
   },
   {
     name: 'nginx (Docker)',
-    product: 'mod_pagespeed 2.1',
+    product: CURRENT_RELEASE,
     badge: 'Reverse proxy',
     description:
       'Run the optimizer worker and an nginx with the thin nginx module as Docker containers in front of your origin. The image brings its own nginx and module, so your nginx binary and config stay as they are.',
@@ -84,7 +87,7 @@ const integrations = [
   },
   {
     name: 'Helm',
-    product: 'mod_pagespeed 2.1',
+    product: CURRENT_RELEASE,
     badge: 'Kubernetes',
     description:
       'Official Helm chart deploys nginx and the worker as a two-container pod, sharing a Cyclone cache volume. Pulls the public images directly — no registry credentials required.',
@@ -95,7 +98,7 @@ const integrations = [
   },
   {
     name: 'IIS',
-    product: 'mod_pagespeed 2.1',
+    product: CURRENT_RELEASE,
     badge: 'Native module',
     description:
       'MSI installer for Windows Server. Enable in IIS Manager, iisreset, and the optimization pipeline is live.',
@@ -107,7 +110,7 @@ const integrations = [
   },
   {
     name: 'ASP.NET Core',
-    product: 'mod_pagespeed 2.1',
+    product: CURRENT_RELEASE,
     badge: 'NuGet middleware',
     description:
       'Two lines in Program.cs add the optimization pipeline to any ASP.NET Core app. Runs in-process — no sidecar, no Docker.',
@@ -139,7 +142,7 @@ const jsonLd = await productJsonLd({
 ---
 
 <BaseLayout
-  title="Download mod_pagespeed 2.1 — Apache, nginx, Docker & Helm"
+  title={`Download ${CURRENT_RELEASE} — Apache, nginx, Docker & Helm`}
   description={`Signed apt/yum packages for Apache and nginx, Docker and Helm, ASP.NET Core middleware and the IIS module. ${LICENSE_CLAUSE_CAP}.`}
   jsonLd={jsonLd}
 >
@@ -166,11 +169,11 @@ const jsonLd = await productJsonLd({
   <section id="integrations" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-8 lg:pt-12">
     <h2 class="h2-section text-text-body">Apache, nginx, Docker, Helm, IIS &amp; ASP.NET Core</h2>
     <p class="mt-4 text-lg text-text-body">
-      Every way to run it, in one place. mod_pagespeed 2.1's native module installs on Apache and
-      nginx from the signed apt/yum repository, or runs as a Docker container fronting nginx —
-      deploy that with Helm on Kubernetes. Windows/IIS gets a signed installer from the GitHub
-      release, and ASP.NET Core apps get a NuGet middleware or a Linux sidecar. Each card shows
-      which package it comes from and how it integrates.
+      Every way to run it, in one place. mod_pagespeed's native module installs on Apache and nginx
+      from the signed apt/yum repository, or runs as a Docker container fronting nginx — deploy that
+      with Helm on Kubernetes. Windows/IIS gets a signed installer from the GitHub release, and
+      ASP.NET Core apps get a NuGet middleware or a Linux sidecar. Each card shows which package it
+      comes from and how it integrates.
     </p>
     <p class="mt-3 text-sm text-text-annotation inline-flex items-center gap-3">
       <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 font-mono text-xs text-text-body">

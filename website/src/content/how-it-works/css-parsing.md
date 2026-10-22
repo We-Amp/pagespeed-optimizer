@@ -51,6 +51,6 @@ Both parts fully parse CSS for structural rewrites and fall back to URL-only rew
 
 A structure-aware server optimizer is categorically safer than the string substitution most build-time hacks rely on. It edits CSS without corrupting the stylesheet on the input you didn't think to test.
 
-The CSS parser at the center of this design comes from the original mod_pagespeed project: Joshua Marantz wrote the 2010 design note that argued for a real parser over search-and-replace, and that lineage carries straight into mod_pagespeed 2.1 today, in both of its parts. mod_pagespeed is an open-source project now maintained by We-Amp B.V.
+The CSS parser at the center of this design comes from the original mod_pagespeed project: Joshua Marantz wrote the 2010 design note that argued for a real parser over search-and-replace, and that lineage carries straight into mod_pagespeed 2 today, in both of its parts. mod_pagespeed is an open-source project now maintained by We-Amp B.V.
 
 You can run the full optimizer — licensed under Apache-2.0, free to run — and watch it rewrite a stylesheet on your own pages; see [what mod_pagespeed optimizes](/features/) to start.

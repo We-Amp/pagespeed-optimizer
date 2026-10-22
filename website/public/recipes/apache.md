@@ -1,4 +1,4 @@
-# Apache: install and verify mod_pagespeed 2.1 (native module)
+# Apache: install and verify mod_pagespeed (native module)
 
 Source: https://modpagespeed.com/docs/installation-module/#native-apache-module
 and https://modpagespeed.com/docs/getting-started/. Header: `X-Mod-Pagespeed`.

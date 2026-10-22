@@ -5,7 +5,6 @@ import {
   SOURCE_IS_PUBLISHED,
   LICENSE_CLAUSE,
   PRODUCT_NAME,
-  CURRENT_LINE,
   V2_LINE,
   V1_LINE,
 } from '../data/product-facts.mjs';
@@ -15,7 +14,7 @@ import {
 // page re-states any of them as a literal. Whether the software is described
 // as licensed under the license or as published source derives from the
 // publication status (LICENSE_CLAUSE) — never hard-code either form.
-const product = `${PRODUCT_NAME} ${CURRENT_LINE}`;
+const product = `${PRODUCT_NAME}`;
 ---
 
 <BaseLayout

@@ -21,7 +21,7 @@ const link = (href: string, text: string) =>
 export const faqPricing: FaqEntry[] = [
   {
     q: 'Is the software really free?',
-    a: `Yes. mod_pagespeed 2.1 is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers. Support is optional.`,
+    a: `Yes. mod_pagespeed is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers. Support is optional.`,
   },
   {
     q: 'What if I never subscribe?',
@@ -29,7 +29,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'What does support cover?',
-    a: "Configuration, upgrades and incidents on the servers in your tier's band, for mod_pagespeed 2.1 on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.",
+    a: "Configuration, upgrades and incidents on the servers in your tier's band, for mod_pagespeed on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.",
   },
   {
     q: 'Which tier do I need?',
@@ -61,7 +61,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'I have an IISpeed or mod_pagespeed 1.x license. What now?',
-    a: `Your license moves to mod_pagespeed 2.1 at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Request the transfer through the ${link('/contact/?topic=iispeed-transfer', 'license-transfer form')}; other questions go to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)}.`,
+    a: `Your license moves to mod_pagespeed at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Request the transfer through the ${link('/contact/?topic=iispeed-transfer', 'license-transfer form')}; other questions go to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)}.`,
   },
   {
     q: 'Where do the support terms live?',

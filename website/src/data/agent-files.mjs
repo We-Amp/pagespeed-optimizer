@@ -11,19 +11,19 @@
 //
 // {{TOKEN}} holes are filled from LLMS_TOKENS in product-facts.mjs; an unknown
 // token fails the generator. Copy rules apply (website/CLAUDE.md): the product
-// is mod_pagespeed 2.1, "worker" never "daemon", predecessor lines only as
+// is mod_pagespeed, "worker" never "daemon", predecessor lines only as
 // predecessors, and nothing about the Google relationship beyond the
 // provenance sentence.
 
 /** The blockquote under the H1: the one-paragraph summary of the llms.txt convention. */
 export const SUMMARY =
-  'Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.';
+  'Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. {{PRODUCT_NAME}} converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.';
 
 /**
  * The paragraphs between the summary and the first link section. Plain
  * Markdown, no headings (the llms.txt convention reserves H2 for link lists).
  */
-export const ABOUT = `We-Amp B.V. develops {{PRODUCT_NAME}} {{CURRENT_LINE}}, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the {{V1_LINE}} module line (renumbered from {{V1_RENUMBERED_FROM}}, the forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}) with the ModPageSpeed {{V2_LINE}} engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
+export const ABOUT = `We-Amp B.V. develops {{PRODUCT_NAME}} 2, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. {{PRODUCT_NAME}} 2 converges the {{V1_LINE}} module line (renumbered from {{V1_RENUMBERED_FROM}}, the forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}) with the ModPageSpeed {{V2_LINE}} engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
 
 Heritage: mod_pagespeed, the open-source optimization core this product continues, powers {{BUILTWITH_SITES}} live sites (per BuiltWith, {{BUILTWITH_AS_OF}}; {{BUILTWITH_HISTORICAL}} across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
 
@@ -36,7 +36,7 @@ What it does:
 - Variant-aware caching keyed on a 32-bit capability mask (image format, viewport, pixel density, Save-Data, transfer encoding), served zero-copy from the shared Cyclone cache
 - The module's classic filter set: CSS and JavaScript combining, image spriting, in-place resource optimization, domain mapping, and the built-in admin console
 
-{{PRODUCT_NAME}} {{CURRENT_LINE}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; Priority and Enterprise add a private package repository (being set up):
+{{PRODUCT_NAME}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; Priority and Enterprise add a private package repository (being set up):
 
 {{SUPPORT_LADDER_MD}}
 - {{PRICING_LINE}} {{RESPONSE_TARGETS_LINE}}
@@ -45,7 +45,7 @@ What it does:
 
 Every documentation page and every filter reference page below is also served as Markdown at its URL with a \`.md\` suffix (for example https://modpagespeed.com/docs/getting-started.md and https://modpagespeed.com/docs/filters/rewrite_images.md; the filters table is https://modpagespeed.com/docs/filters.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every one of those pages. Every blog post is served as Markdown the same way (https://modpagespeed.com/blog/<slug>.md) and is listed in the Blog section below, but its text is not in llms-full.txt: the posts are dated commentary, so fetch one when you need it.
 
-We-Amp B.V., The Netherlands (founded {{COMPANY_FOUNDED_YEAR}}, KvK {{COMPANY_KVK}}); {{COMMERCIAL_EMAIL}} for support, partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: {{LICENSE_NAME}}; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. {{PRODUCT_NAME}} {{CURRENT_LINE}} is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.`;
+We-Amp B.V., The Netherlands (founded {{COMPANY_FOUNDED_YEAR}}, KvK {{COMPANY_KVK}}); {{COMMERCIAL_EMAIL}} for support, partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: {{LICENSE_NAME}}; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. {{PRODUCT_NAME}} is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.`;
 
 /**
  * The filters table is a page of its own (src/pages/docs/filters.astro), not a
@@ -73,7 +73,7 @@ export const SURFACES = [
         path: '/demo/',
         title: 'Live demo',
         description:
-          'Watch {{PRODUCT_NAME}} {{CURRENT_LINE}} optimize real sites: measured CSS/JS minification and WebP/AVIF transcoding, with modeled load-time projections.',
+          'Watch {{PRODUCT_NAME}} optimize real sites: measured CSS/JS minification and WebP/AVIF transcoding, with modeled load-time projections.',
       },
       {
         path: '/examples/',
@@ -156,7 +156,7 @@ export const SURFACES = [
         path: '/license/',
         title: 'Software license',
         description:
-          '{{PRODUCT_NAME}} {{CURRENT_LINE}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production.',
+          '{{PRODUCT_NAME}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production.',
       },
       {
         path: '/security/',

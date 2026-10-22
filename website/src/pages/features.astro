@@ -40,10 +40,10 @@ const faqPage = {
   mainEntity: [
     {
       '@type': 'Question',
-      name: 'What image formats does mod_pagespeed 2.1 support?',
+      name: 'What image formats does mod_pagespeed support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: "mod_pagespeed 2.1 transcodes images to WebP and AVIF based on the client's Accept header, and also optimizes original JPEG and PNG. Animated GIFs are converted to animated WebP. The optimizer worker adds SVG auto-vectorization for eligible images, Jpegli encoding, and ML-predicted per-format quality — every variant is verified against the original with SSIMULACRA2 before it reaches the cache. Up to 37 variants are generated per image across formats, viewports, pixel densities, and Save-Data preferences.",
+        text: "mod_pagespeed transcodes images to WebP and AVIF based on the client's Accept header, and also optimizes original JPEG and PNG. Animated GIFs are converted to animated WebP. The optimizer worker adds SVG auto-vectorization for eligible images, Jpegli encoding, and ML-predicted per-format quality — every variant is verified against the original with SSIMULACRA2 before it reaches the cache. Up to 37 variants are generated per image across formats, viewports, pixel densities, and Save-Data preferences.",
       },
     },
     {
@@ -72,7 +72,7 @@ const faqPage = {
     },
     {
       '@type': 'Question',
-      name: 'Does mod_pagespeed 2.1 require changes to my application code?',
+      name: 'Does mod_pagespeed require changes to my application code?',
       acceptedAnswer: {
         '@type': 'Answer',
         text: 'No. Optimization is transparent. The module serves in-process and the optimizer worker runs behind it; in reverse-proxy mode the module sits in front of any HTTP origin. Your application serves the same responses it always has. No URL rewrites, no markup changes, no build pipeline modifications.',
@@ -93,8 +93,8 @@ const jsonLd = [softwareApplication, faqPage];
 ---
 
 <BaseLayout
-  title="mod_pagespeed 2.1 features: WebP/AVIF, critical CSS, minify"
-  description="Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS and variant-aware caching: the full mod_pagespeed 2.1 feature set."
+  title="mod_pagespeed features: WebP/AVIF, critical CSS, minify"
+  description="Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS and variant-aware caching: the full mod_pagespeed feature set."
   jsonLd={jsonLd}
 >
   <!-- Hero -->

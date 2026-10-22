@@ -2,7 +2,6 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import {
   PRODUCT_NAME,
-  CURRENT_LINE,
   V1_LINE,
   V2_LINE,
   VENDOR,
@@ -16,7 +15,7 @@ import {
 // markup below must stay in lockstep with TERMS_VERSION_WEB in
 // src/pages/pricing.astro (the pricing page's terms stamp) —
 // test/sync/terms-version-sync.test.ts guards it.
-const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
+const PRODUCT = `${PRODUCT_NAME}`;
 const LICENSE = SOURCE_PUBLICATION.license;
 ---
 
