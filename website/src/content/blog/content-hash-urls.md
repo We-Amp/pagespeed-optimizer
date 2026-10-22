@@ -2,7 +2,7 @@
 title: 'Content-hash URLs: why .pagespeed. URLs carry a hash'
 description: 'A content hash in a .pagespeed. URL gives year-long caching with automatic cache busting, years before webpack contenthash. Plus data-pagespeed-url-hash.'
 date: 2026-06-05
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['caching', 'architecture', 'performance']
 draft: false
@@ -26,7 +26,7 @@ That property is what the rest of this builds on. Because the URL is derived fro
 
 You can cache a content-hashed URL forever and never serve stale bytes, because a given URL only ever names one byte sequence. The usual choice between a [short TTL with frequent revalidation and a long TTL with the occasional stale response](/blog/cache-mode-safety-must-revalidate-vs-aggressive/) does not apply here. There is no expiry clock to get wrong.
 
-A practical consequence: you almost never need to purge these resources. The mod_pagespeed 2.1 module ships [real cache purging for the cases that need it](/blog/single-url-cache-purge-optimizing-proxy/): the admin endpoint, the HTTP `PURGE` method, and the `cache.flush` file. But an asset under a content-hashed URL purges itself the moment its content changes and the URL changes with it. The old URL stops being referenced. Deploy a new stylesheet and clients fetch the new hash. Nothing has to tell them to discard the old one, because they will never request it again.
+A practical consequence: you almost never need to purge these resources. The mod_pagespeed module ships [real cache purging for the cases that need it](/blog/single-url-cache-purge-optimizing-proxy/): the admin endpoint, the HTTP `PURGE` method, and the `cache.flush` file. But an asset under a content-hashed URL purges itself the moment its content changes and the URL changes with it. The old URL stops being referenced. Deploy a new stylesheet and clients fetch the new hash. Nothing has to tell them to discard the old one, because they will never request it again.
 
 One caveat, because people hit it. In-Place Resource Optimization (IPRO) deliberately keeps a resource's original URL, so that third-party code and CDN edge rules that hardcode the path keep working. Those resources do not get a content-hashed URL, so they fall back to whatever `Cache-Control` your origin already sends, or to a [default TTL heuristic](/blog/default-cache-ttl-heuristic-freshness/) when the origin sends none. Content hashing is a property of URL rewriting, not of optimization in general.
 

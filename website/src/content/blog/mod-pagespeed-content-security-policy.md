@@ -2,14 +2,14 @@
 title: "mod_pagespeed and Content-Security-Policy (CSP)"
 description: 'Does mod_pagespeed break a strict Content-Security-Policy? Where rewriting collides with a CSP, feature by feature, and how HonorCsp keeps pages compliant.'
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 tags: ["security", "csp", "configuration", "mod_pagespeed"]
 product: "1.1"
 draft: false
 ---
 If you run a strict Content-Security-Policy and you want an automatic optimizer in front of your pages, you are right to be cautious. The two systems are working against each other. A CSP exists to constrain exactly what a page is allowed to load and execute. An optimizer earns its keep by changing what a page loads and executes. Put them together without thought and the optimizer rewrites a resource to a URL the policy never authorized, the browser refuses it, and a page that worked five minutes ago stops rendering.
 
-This post walks through where mod_pagespeed and a CSP actually collide, feature by feature, and how the mod_pagespeed 2.1 module handles it: with the [`HonorCsp`](/docs/configuration/#native-module-configuration-directives) directive, which makes the optimizer read your policy and decline any rewrite it cannot prove the policy already allows. The short version is that the safe behavior is to refuse the rewrite, not to widen your policy to fit it.
+This post walks through where mod_pagespeed and a CSP actually collide, feature by feature, and how the mod_pagespeed module handles it: with the [`HonorCsp`](/docs/configuration/#native-module-configuration-directives) directive, which makes the optimizer read your policy and decline any rewrite it cannot prove the policy already allows. The short version is that the safe behavior is to refuse the rewrite, not to widen your policy to fit it.
 
 ## Why automatic rewriting and CSP fight
 

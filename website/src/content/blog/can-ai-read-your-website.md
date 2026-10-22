@@ -2,7 +2,7 @@
 title: 'Can AI read your website? We tested the top 1,000 sites'
 description: '40% of the top 1,000 sites serve almost nothing to non-JavaScript AI crawlers: ChatGPT, Perplexity and Claude see an empty page. The data, and the fix.'
 date: 2026-05-28
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['ai-readability', 'ai-crawlers', 'llm-seo', 'client-side-rendering', 'research']
 draft: false
@@ -110,7 +110,7 @@ content into the HTML your server sends.
 
 This is the kind of work [mod_pagespeed](/) has done for over a decade: it
 optimizes pages and cuts page weight on your own server, which makes the markup
-lighter for people and easier for machines to parse. The mod_pagespeed 2.1 optimizer worker goes a step
+lighter for people and easier for machines to parse. The mod_pagespeed optimizer worker goes a step
 further with an experimental, off-by-default option to
 [serve a clean, fully-rendered Markdown copy to AI agents](/blog/serve-markdown-to-ai-agents/)
 at the same URL — the content an agent needs, without changing what a browser

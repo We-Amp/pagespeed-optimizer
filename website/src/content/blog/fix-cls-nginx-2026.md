@@ -1,8 +1,8 @@
 ---
 title: 'Fix CLS on nginx with mod_pagespeed: insert_image_dimensions'
-description: 'Fix CLS on nginx sites: add width and height to img tags with ngx_pagespeed (mod_pagespeed 2.1), add a CSS aspect-ratio backstop, set sizes at build.'
+description: 'Fix CLS on nginx sites: add width and height to img tags with ngx_pagespeed (mod_pagespeed 2), add a CSS aspect-ratio backstop, set sizes at build.'
 date: 2026-05-12
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'cls', 'nginx']
 draft: false
@@ -12,7 +12,7 @@ howTo:
   description: Eliminate Cumulative Layout Shift on nginx-served sites by rewriting img tags to add width/height with mod_pagespeed and reserving space for fonts and embeds with CSS.
   tools:
   - nginx
-  - mod_pagespeed 2.1 (ngx_pagespeed)
+  - mod_pagespeed 2 (ngx_pagespeed)
   - PageSpeed Insights
   - Chrome DevTools
   steps:
@@ -38,7 +38,7 @@ faq:
 
 ---
 
-nginx itself is fast; CLS is what nginx _serves_, not what nginx _does_. A 0.2+ CLS on mobile with the failing element a content image missing `width`/`height` is the classic shape, and auditing every static HTML file (or every template across every generator) is a recurring tax. Rewrite `<img>` tags at the HTML layer with `insert_image_dimensions` via **mod_pagespeed 2.1** (`ngx_pagespeed`) and stack CSS `aspect-ratio` as a backstop.
+nginx itself is fast; CLS is what nginx _serves_, not what nginx _does_. A 0.2+ CLS on mobile with the failing element a content image missing `width`/`height` is the classic shape, and auditing every static HTML file (or every template across every generator) is a recurring tax. Rewrite `<img>` tags at the HTML layer with `insert_image_dimensions` via **mod_pagespeed 2** (`ngx_pagespeed`) and stack CSS `aspect-ratio` as a backstop.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -164,4 +164,4 @@ Add the CSS rule `img { max-width: 100%; height: auto; }` and modern browsers co
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

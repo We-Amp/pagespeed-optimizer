@@ -2,6 +2,7 @@
 title: 'How to reduce TTFB: server-layer wins before a CDN'
 description: 'Reduce TTFB on nginx: split origin compute, network, and cache, then fix keep-alive, HTTP/2 or HTTP/3, TLS resumption, and variant-aware caching.'
 date: 2026-06-06
+lastUpdated: 2026-10-22
 tags: ['performance', 'ttfb', 'nginx', 'core-web-vitals']
 product: '2.0'
 howTo:
@@ -21,7 +22,7 @@ howTo:
   - name: Fix the transport and connection layers
     text: 'Enable HTTP/2 (listen 443 ssl; http2 on;) or HTTP/3 (listen 443 quic reuseport; add the Alt-Svc header), turn on upstream keepalive so nginx reuses backend connections, enable TLS session resumption (ssl_session_cache shared:SSL:10m; ssl_session_tickets), and serve pre-compressed assets with gzip_static on; and brotli_static on; instead of compressing on every request.'
   - name: Serve optimized variants from cache instead of recomputing
-    text: 'Put a variant-aware cache in front of the work so the optimized response is computed once and served from memory thereafter. With the mod_pagespeed 2.1 optimizer worker, In-Place Resource Optimization (IPRO) generates optimized variants asynchronously; nginx serves the best-fit variant for each client from the memory-mapped Cyclone cache, so the per-request cost on a hit is a cache lookup, not a re-encode.'
+    text: 'Put a variant-aware cache in front of the work so the optimized response is computed once and served from memory thereafter. With the mod_pagespeed optimizer worker, In-Place Resource Optimization (IPRO) generates optimized variants asynchronously; nginx serves the best-fit variant for each client from the memory-mapped Cyclone cache, so the per-request cost on a hit is a cache lookup, not a re-encode.'
   - name: Confirm the win and watch the field data
     text: 'Re-run PSI and confirm the server-response audit clears 600 ms. Re-run the curl timing on both a cached and an uncached URL to confirm the connection phases shrank. Then watch real-user TTFB in Search Console and CrUX over the following weeks, since field numbers move on the trailing 28-day window, not instantly.'
 

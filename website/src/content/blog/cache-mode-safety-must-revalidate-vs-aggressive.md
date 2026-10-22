@@ -1,8 +1,8 @@
 ---
 title: 'Cache mode safety: must-revalidate vs aggressive TTLs'
-description: 'Why must-revalidate, not max-age, is the real safety net in mod_pagespeed 2.1, and when aggressive TTLs with stale-if-error are the right call.'
+description: 'Why must-revalidate, not max-age, is the real safety net in mod_pagespeed, and when aggressive TTLs with stale-if-error are the right call.'
 date: 2026-06-13
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['caching', 'operations', 'performance', 'nginx', 'architecture']
 draft: false
@@ -11,7 +11,7 @@ product: '2.0'
 
 Picture the failure you are actually trying to survive. You roll out a filter
 config, and a rewrite produces broken CSS — a stylesheet that parses on your
-machine but drops a rule on production. mod_pagespeed 2.1 serves it, a CDN edge
+machine but drops a rule on production. mod_pagespeed serves it, a CDN edge
 caches it with `max-age=86400`, and now every visitor for the next 24 hours
 gets the broken page until you find the purge button. The TTL is not protecting
 you here. It is what holds the bug in place.

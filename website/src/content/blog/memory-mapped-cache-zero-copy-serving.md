@@ -1,8 +1,8 @@
 ---
 title: 'The memory-mapped cache: zero-copy serving from nginx'
-description: 'How mod_pagespeed 2.1 shares one memory-mapped cache between nginx and the worker: large hits zero-copy via sendfile, small ones with a single copy.'
+description: 'How mod_pagespeed shares one memory-mapped cache between nginx and the worker: large hits zero-copy via sendfile, small ones with a single copy.'
 date: 2026-06-13
-lastUpdated: 2026-07-05
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'caching', 'performance', 'deep-dive', 'nginx']
 draft: false
@@ -17,7 +17,7 @@ faq:
 
 In mod_pagespeed 1.x, a request for `/styles/site.css` or `/photo.jpg` paid for its own optimization. The web server ran the rewrite in-flight, on the request thread, and only then sent bytes to the client. The work was cached afterwards, but the architecture meant transformation latency sat on the critical path of real requests, in every web server process, every time the cache was cold.
 
-The mod_pagespeed 2.1 optimizer worker takes that work off the request path entirely. The optimizing process and the serving process are separate, and they meet at a single memory-mapped cache: one disk file that both nginx and the worker `mmap` into their own address space. When a request hits a cached variant, nginx hands the client a buffer that points straight at the mapped pages. No copy, no re-parse. The bytes the worker wrote are the bytes nginx serves.
+The mod_pagespeed optimizer worker takes that work off the request path entirely. The optimizing process and the serving process are separate, and they meet at a single memory-mapped cache: one disk file that both nginx and the worker `mmap` into their own address space. When a request hits a cached variant, nginx hands the client a buffer that points straight at the mapped pages. No copy, no re-parse. The bytes the worker wrote are the bytes nginx serves.
 
 ## Two processes, one memory-mapped cache
 

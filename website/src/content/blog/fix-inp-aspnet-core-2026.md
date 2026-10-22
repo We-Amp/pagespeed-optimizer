@@ -6,7 +6,7 @@ author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'inp', 'aspnet-core', 'blazor']
 draft: false
 product: '2.0'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 howTo:
   name: How to fix INP on ASP.NET Core
   description: Diagnose the worst interaction on ASP.NET Core, then reduce JavaScript parse and transfer cost on Razor Pages / MVC with the WeAmp.PageSpeed middleware and framework-level tuning, while routing architectural Blazor Server INP to a rendering-model change.
@@ -91,7 +91,7 @@ var app = builder.Build();
 app.UsePageSpeed();
 ```
 
-**For Blazor Server**, mod_pagespeed 2.1 cannot help. SignalR round-trips are the dominant INP cost; no rewriter operating on the response stream can shorten a network round-trip. Skip this step entirely and go straight to the framework-level tuning below.
+**For Blazor Server**, mod_pagespeed cannot help. SignalR round-trips are the dominant INP cost; no rewriter operating on the response stream can shorten a network round-trip. Skip this step entirely and go straight to the framework-level tuning below.
 
 ## Where the framework still helps
 
@@ -169,4 +169,4 @@ ASP.NET Core's INP story is almost entirely about what frontend you ship. mod_pa
 
 The IIS-flavored angle on the same metrics, including IIS-specific deployment notes, is at [iispeed.com — IIS Core Web Vitals 2026](https://iispeed.com/iis-core-web-vitals-2026/).
 
-mod_pagespeed 2.1 runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS package ships from the 1.15 packaging channel. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2 runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS module ships as a signed MSI on the mod_pagespeed GitHub release. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

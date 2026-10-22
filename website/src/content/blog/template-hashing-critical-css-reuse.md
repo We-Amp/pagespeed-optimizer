@@ -1,8 +1,8 @@
 ---
 title: 'Template hashing: compute critical CSS once, reuse it'
-description: 'How the mod_pagespeed 2.1 worker hashes a page template so critical CSS is computed once and reused across every URL sharing it, with queue dedup.'
+description: 'How the mod_pagespeed worker hashes a page template so critical CSS is computed once and reused across every URL sharing it, with queue dedup.'
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['critical-css', 'headless-chrome', 'performance', 'architecture', 'caching']
 draft: false

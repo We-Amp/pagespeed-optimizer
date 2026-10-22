@@ -2,7 +2,7 @@
 title: 'Fix INP on Magento 2: why Hyvä beats a JS rewriter'
 description: 'INP on Magento 2 lives in KnockoutJS and RequireJS, so theme architecture (Hyvä) moves it, not a server rewriter. What mod_pagespeed can and cannot do.'
 date: 2026-05-05
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'inp', 'magento', 'hyva', 'javascript']
 draft: false
@@ -11,7 +11,7 @@ howTo:
   name: How to fix INP on Magento
   description: Reduce Magento Interaction to Next Paint by diagnosing the slow handler, trimming JS parse cost with mod_pagespeed, and applying the architectural theme and module fixes that actually move INP.
   tools:
-  - mod_pagespeed 2.1
+  - mod_pagespeed
   - nginx
   - PageSpeed Insights
   - Chrome DevTools Performance panel
@@ -38,7 +38,7 @@ faq:
 
 ---
 
-Magento 2's INP is the worst-case among the major CMSes, and the reason is not bytes on the wire: it is the KnockoutJS data-binding chain plus the RequireJS loader, both of which run synchronously on every interaction in the default Luma theme. The fix that pays off most is switching to the **Hyvä theme**, not enabling a server-layer rewriter. Hyvä replaces Knockout with Alpine.js and routinely drops PDP and cart INP by 40–70% in customer benchmarks. **mod_pagespeed 2.1** (an nginx or Apache module) can trim parse cost via `combine_javascript` and `rewrite_javascript`, but `defer_javascript` is actively unsafe on Magento — covered explicitly below.
+Magento 2's INP is the worst-case among the major CMSes, and the reason is not bytes on the wire: it is the KnockoutJS data-binding chain plus the RequireJS loader, both of which run synchronously on every interaction in the default Luma theme. The fix that pays off most is switching to the **Hyvä theme**, not enabling a server-layer rewriter. Hyvä replaces Knockout with Alpine.js and routinely drops PDP and cart INP by 40–70% in customer benchmarks. **mod_pagespeed** (an nginx or Apache module) can trim parse cost via `combine_javascript` and `rewrite_javascript`, but `defer_javascript` is actively unsafe on Magento — covered explicitly below.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -164,4 +164,4 @@ No. Magento's RequireJS bootstrap is order-sensitive, and deferring scripts brea
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

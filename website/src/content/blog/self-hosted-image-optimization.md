@@ -2,7 +2,7 @@
 title: 'Self-hosted image optimization vs image SaaS egress'
 description: 'Image SaaS bills per transformation and per GB of egress. Self-hosted optimization transcodes WebP/AVIF on your servers: no per-transformation cost.'
 date: 2026-06-06
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-22
 tags: ['image-optimization', 'self-hosted', 'cloudinary', 'performance']
 product: '2.0'
 draft: false
@@ -35,7 +35,7 @@ A third-party transformation service can't structurally offer any of the followi
 
 ## How it works: one decode, many variants
 
-mod_pagespeed 2.1 runs the optimizer as an async worker behind nginx (or as ASP.NET Core middleware). The request path stays fast; the work happens out of band.
+mod_pagespeed runs the optimizer as an async worker behind nginx (or as ASP.NET Core middleware). The request path stays fast; the work happens out of band.
 
 When nginx records a cache miss, it sends a fire-and-forget notification to the worker over a Unix socket. The worker reads the original from the shared cache, decodes it once, and generates every missing variant from that single pixel buffer. A 10-megapixel JPEG decodes to roughly 40 MB of raw pixels. Decode it once and run the encoders, instead of decoding it again for every format and size you want.
 

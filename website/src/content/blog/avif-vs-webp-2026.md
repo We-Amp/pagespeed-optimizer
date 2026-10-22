@@ -2,18 +2,18 @@
 title: 'AVIF vs WebP in 2026: which to serve, and how to serve both'
 description: 'AVIF beats WebP on size but is slower to encode. Serve AVIF, WebP or the original per request off the Accept header instead of one format for everyone.'
 date: 2026-06-06
-lastUpdated: 2026-10-21
+lastUpdated: 2026-10-22
 tags: ['avif', 'webp', 'image-optimization', 'content-negotiation', 'performance']
 product: '2.0'
 howTo:
   name: How to serve AVIF and WebP per request off the Accept header
   description: Set up per-request image format negotiation so each browser gets AVIF if it accepts it, WebP if not, and the original as a last resort, all from a single source image and decided by the Accept header instead of hand-written markup.
   tools:
-  - mod_pagespeed 2.1
+  - mod_pagespeed
   - nginx
   steps:
   - name: Run optimization at the server layer
-    text: Put the mod_pagespeed 2.1 module in front of your origin as a reverse proxy. The module reads the request's Accept header and classifies the client's format support before it touches the cache.
+    text: Put the mod_pagespeed module in front of your origin as a reverse proxy. The module reads the request's Accept header and classifies the client's format support before it touches the cache.
   - name: Let the worker produce the variants once
     text: On the first request for an image, the worker decodes the source once and encodes the format variants (AVIF, WebP, and an optimized original), writing each into the shared cache keyed by what the client supports. No build step and no separate asset pipeline.
   - name: Serve the best variant the client accepts
@@ -34,7 +34,7 @@ At visually-equivalent quality, AVIF files are roughly 20–30% smaller than Web
 
 The cost is encode time. WebP encodes quickly. AVIF, at comparable effort, is slower: at default encoder settings the gap is roughly an order of magnitude, and high-effort AVIF settings widen it further. For a single image that does not matter. Encoding a 10,000-image catalog synchronously, in the request path with a browser waiting, does. AVIF's compression comes from spending CPU, and that CPU has to be spent somewhere.
 
-This is why the encode happens [outside the request path](/blog/economics-of-image-optimization/) in the mod_pagespeed 2.1 optimizer worker. The worker decodes the source once and runs the encoders asynchronously. The first visitor gets the original immediately; the AVIF and WebP variants land in the cache shortly after, for everyone who follows. A slow encoder costs nothing when no request waits on it.
+This is why the encode happens [outside the request path](/blog/economics-of-image-optimization/) in the mod_pagespeed optimizer worker. The worker decodes the source once and runs the encoders asynchronously. The first visitor gets the original immediately; the AVIF and WebP variants land in the cache shortly after, for everyone who follows. A slow encoder costs nothing when no request waits on it.
 
 ## Browser support in 2026
 

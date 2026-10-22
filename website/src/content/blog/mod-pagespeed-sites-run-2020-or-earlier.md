@@ -2,6 +2,7 @@
 title: 'Most mod_pagespeed sites run a release from 2020 or earlier'
 description: 'HTTP Archive, September 2026: 99.9% of PageSpeed origins that report a version run a release from 2020 or earlier. The queries are public.'
 date: 2026-10-17
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['data', 'mod_pagespeed', 'ngx_pagespeed', 'security']
 draft: false
@@ -55,7 +56,7 @@ curl -s -D - -o /dev/null https://example.com/ \
   | grep -i -E '^x-(mod-pagespeed|page-speed):'
 ```
 
-Compare the value with the [release notes](/docs/release-notes/#by-line) rather than counting its numbers. The old lines report four numbers, such as `1.13.35.2` or `1.14.36.1`, or `1.15.0.0-<revision>` from an unreleased trunk build. A `1.1.23.x` value is a 2012 Google-era build, not the maintained line. The maintained module reported `1.1.0` before the renumber, then `1.15.0` through `1.19.0` (from 2.1 the package version: 2.4.0 reports `1.19.0`), and later releases report the product version. If the header carries no version, check the installed package (`dpkg -l | grep -i pagespeed` or `rpm -qa | grep -i pagespeed`). ngx_pagespeed is usually compiled into nginx from source, so those list nothing: `nginx -V` shows whether it was built in, and the header is the only version signal.
+Compare the value with the [release notes](/docs/release-notes/#by-line) rather than counting its numbers. The old lines report four numbers, such as `1.13.35.2` or `1.14.36.1`, or `1.15.0.0-<revision>` from an unreleased trunk build. A `1.1.23.x` value is a 2012 Google-era build, not the maintained line. The maintained module reported `1.1.0` before the renumber, then `1.15.0` through `1.19.0` (from 2.1.0 the package version: 2.4.0 reports `1.19.0`), and later releases report the product version. If the header carries no version, check the installed package (`dpkg -l | grep -i pagespeed` or `rpm -qa | grep -i pagespeed`). ngx_pagespeed is usually compiled into nginx from source, so those list nothing: `nginx -V` shows whether it was built in, and the header is the only version signal.
 
 If you are on an old line, update or remove the module. For whether the current line is safe, see [is mod_pagespeed safe?](/blog/is-mod-pagespeed-safe/). Packages and per-server steps are on the [download page](/download/).
 
@@ -65,4 +66,4 @@ The queries, tables and method are public in [pagespeed-census](https://github.c
 
 We make the maintained mod_pagespeed line, so we have an interest in these numbers. That is why the queries are public. Rerun them, and tell us where our reading is wrong.
 
-mod_pagespeed 2.1 and later is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+mod_pagespeed and later is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.

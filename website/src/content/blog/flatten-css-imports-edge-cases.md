@@ -2,7 +2,7 @@
 title: "Flattening CSS @imports: harder than concat"
 description: "Why flattening CSS @import rules is harder than concatenation: media intersection, @charset aborts, url() rebasing, and the CssFlattenMaxBytes cap."
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 tags: ["css", "performance", "deep-dive", "mod-pagespeed-1.1", "filters"]
 product: "1.1"
 draft: false
@@ -11,7 +11,7 @@ draft: false
 
 A CSS `@import` rule hides a request the browser cannot see in advance. The browser does not learn that `base.css` exists until it has fetched and parsed the parent sheet that imports it. If `base.css` then imports `colors.css`, that third request waits on the second. Each link in the chain is a serialized round trip, discovered late, with no chance for the browser to fetch the files in parallel the way it does with side-by-side `<link>` tags. On a high-latency connection, a three-deep import chain can add hundreds of milliseconds before any styling arrives. Flattening removes the chain outright; where a sheet cannot be flattened, [server-injected resource hints](/blog/server-injected-resource-hints-speculation-rules/) are the fallback that at least lets the browser discover the nested files without parsing their parents first.
 
-The fix sounds trivial: replace each `@import` with the bytes of the file it points at, recurse, and emit one stylesheet. The mod_pagespeed 2.1 module does exactly this with the `flatten_css_imports` filter, a CoreFilter that runs by default. The reason it took a design document and not an afternoon is that a correct flattener has to preserve the meaning of the original cascade, and several CSS rules make naive concatenation produce a stylesheet that behaves differently from the original.
+The fix sounds trivial: replace each `@import` with the bytes of the file it points at, recurse, and emit one stylesheet. The mod_pagespeed module does exactly this with the `flatten_css_imports` filter, a CoreFilter that runs by default. The reason it took a design document and not an afternoon is that a correct flattener has to preserve the meaning of the original cascade, and several CSS rules make naive concatenation produce a stylesheet that behaves differently from the original.
 
 This post walks the non-obvious cases a flattener has to get right. It complements the one-line entry in the [CSS filters reference](/docs/css-filters/#flatten_css_imports); here we explain why the rules exist.
 

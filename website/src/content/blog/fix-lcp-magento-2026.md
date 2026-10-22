@@ -2,7 +2,7 @@
 title: 'Fix LCP on Magento without breaking RequireJS'
 description: 'How to fix LCP on Magento: tame the RequireJS waterfall, regenerate catalog images, inline critical CSS at the server. Step-by-step for Magento 2 in 2026.'
 date: 2026-04-28
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'lcp', 'magento']
 draft: false
@@ -13,7 +13,7 @@ howTo:
   tools:
   - PageSpeed Insights
   - Chrome DevTools
-  - mod_pagespeed 2.1
+  - mod_pagespeed
   - nginx
   - Varnish
   - Magento 2 CLI (bin/magento)
@@ -29,7 +29,7 @@ howTo:
 
 ---
 
-LCP on Magento is one of the harder cells in the matrix. Platform-side work — production mode, Varnish, image cache regeneration — does most of the heavy lifting; mod_pagespeed handles the CSS chain and the byte budget on top. Magento 2 storefronts routinely render the category banner or product hero past 3 s on mobile, and the Adobe Page Builder pages are worse. The plan: tame the RequireJS waterfall, regenerate catalog images to match the theme's rendered sizes, then layer **mod_pagespeed 2.1** (an nginx module) in front of Varnish to inline critical CSS and rewrite images.
+LCP on Magento is one of the harder cells in the matrix. Platform-side work — production mode, Varnish, image cache regeneration — does most of the heavy lifting; mod_pagespeed handles the CSS chain and the byte budget on top. Magento 2 storefronts routinely render the category banner or product hero past 3 s on mobile, and the Adobe Page Builder pages are worse. The plan: tame the RequireJS waterfall, regenerate catalog images to match the theme's rendered sizes, then layer **mod_pagespeed** (an nginx module) in front of Varnish to inline critical CSS and rewrite images.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -146,4 +146,4 @@ Cases where mod_pagespeed alone isn't enough on Magento:
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as an nginx or Apache module. CoreFilters are enabled by default. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as an nginx or Apache module. CoreFilters are enabled by default. See [pricing](/pricing/) and [license terms](/license/).

@@ -2,7 +2,7 @@
 title: 'Learned image quality: a model predicts encoding parameters'
 description: 'One perception-based quality knob: a trained model predicts JPEG, WebP and AVIF encoding parameters per image in microseconds. No per-codec tuning.'
 date: 2026-06-06
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['images', 'architecture', 'deep-dive']
 draft: false
@@ -17,7 +17,7 @@ Setting them well means knowing how each encoder behaves. Most people don't, so 
 
 That number is wrong for nearly every image you serve. A photo of a clear sky compresses to almost nothing and still looks perfect. A screenshot of code at the same setting picks up visible ringing around every glyph. A single global quality has to be cautious enough to survive the screenshot, which means it wastes bytes on the photo.
 
-The mod_pagespeed 2.1 optimizer worker removes that panel of dials. There is nothing to tune.
+The mod_pagespeed optimizer worker removes that panel of dials. There is nothing to tune.
 
 ## Out of the box: nothing to configure
 

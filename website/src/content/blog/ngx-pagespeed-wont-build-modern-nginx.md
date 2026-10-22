@@ -2,7 +2,7 @@
 title: "ngx_pagespeed won't build on modern nginx: cause and fix"
 description: "Why upstream ngx_pagespeed won't compile on nginx 1.25+ (sys_siglist, glibc, OpenSSL 3, toolchain drift) — and the prebuilt module to install instead."
 date: 2026-06-06
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 tags: ['ngx_pagespeed', 'nginx', 'migration', 'troubleshooting']
 product: '1.1'
 howTo:
@@ -59,7 +59,7 @@ So when you `git clone` upstream and point `--add-module` at it on a 2026 box, y
 
 ## Installing the prebuilt module
 
-mod_pagespeed 2.1 is the maintained continuation of the open-source module — the same native, in-process nginx module, built for current distros and pinned to each distro's stock nginx. It serves from a signed apt and yum repository at `packages.modpagespeed.com`, amd64 and arm64.
+mod_pagespeed 2 is the maintained continuation of the open-source module — the same native, in-process nginx module, built for current distros and pinned to each distro's stock nginx. It serves from a signed apt and yum repository at `packages.modpagespeed.com`, amd64 and arm64.
 
 One line adds the repo. It detects the distribution, installs the GPG signing key, and writes the source file:
 
@@ -95,9 +95,9 @@ If that header is present, the module loaded and is rewriting responses on the r
 
 One constraint to know up front: each prebuilt `.so` is pinned to its distro's stock nginx version, because nginx's `--with-compat` does not relax the version check for a native module. The repository currently covers Debian 11 (nginx 1.18.0), Debian 12 (1.22.1), Debian 13 (1.26.3), Ubuntu 22.04 (1.18.0), and Ubuntu 24.04 (1.24.0), on amd64 and arm64. If you run a hand-rolled nginx newer than your distro's stock build, you still need a module compiled against that exact version. The difference is that it becomes our build to maintain, not yours. The Apache module ships the same way (`mod-pagespeed` via apt, plus el9 and el10 via yum), so a mixed Apache and nginx fleet stays on one repository.
 
-## When to move to mod_pagespeed 2.1 {#when-to-reach-for-20-instead}
+## When to move to mod_pagespeed {#when-to-reach-for-20-instead}
 
-The prebuilt [module](/) is the closest match to what you already run, and mod_pagespeed 2.1 ships it. If you are reworking this part of the stack anyway, the optimizer worker — the second part, out of the C++23 2.0 re-architecture — runs behind an nginx reverse proxy or as ASP.NET Core middleware, generating viewport-aware variants into the variant-aware cache both parts map. Installing the module alone is the smallest change; adding the worker is the larger one.
+The prebuilt [module](/) is the closest match to what you already run, and mod_pagespeed ships it. If you are reworking this part of the stack anyway, the optimizer worker — the second part, out of the C++23 2.0 re-architecture — runs behind an nginx reverse proxy or as ASP.NET Core middleware, generating viewport-aware variants into the variant-aware cache both parts map. Installing the module alone is the smallest change; adding the worker is the larger one.
 
 ## The short version
 

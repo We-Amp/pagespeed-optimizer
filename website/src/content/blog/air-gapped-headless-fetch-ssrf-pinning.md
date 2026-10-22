@@ -6,12 +6,12 @@ author: 'Otto van der Schaaf'
 tags: ['architecture', 'security', 'headless-chrome', 'agentic', 'deep-dive']
 draft: false
 product: '2.0'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 ---
 
 Rendering an untrusted page in a real browser is a server-side request forgery primitive handed to whoever wrote the page. The HTML can point a stylesheet at `http://169.254.169.254/latest/meta-data/iam/security-credentials/`, an XHR at an internal admin port, or a script at a hostname that resolves to RFC1918 space. If the browser's own network stack fetches those, the page has read your cloud metadata endpoint through your renderer. SSRF protection for headless browser rendering is therefore not a feature you bolt on; it is the precondition for letting Chrome touch attacker-controlled markup at all.
 
-The mod_pagespeed 2.1 optimizer worker has two answers to this, and this post is about the second one. The legacy perf-measurement render (covered in [/blog/headless-lcp-cls-measurement/](/blog/headless-lcp-cls-measurement/) and [/blog/remove-unused-javascript-chrome-coverage/](/blog/remove-unused-javascript-chrome-coverage/)) forces Chrome offline and serves only bytes the worker already cached, blocking everything else. That is deny-by-default with no egress at all. The [`agent_optimize` render](/blog/serve-markdown-to-ai-agents/) needs more: to produce faithful markdown for AI crawlers it has to actually fetch some subresources. So it keeps Chrome's network off and routes every paused request through an out-of-process, IP-pinned fetch that re-runs the full origin and SSRF policy on each redirect hop. The code lives in `src/browser/agent_fetcher.cc`, `lib/net/fetch_policy.cc`, `lib/net/upstream_pin.cc`, and `lib/net/ssrf_guard.cc`.
+The mod_pagespeed 2 optimizer worker has two answers to this, and this post is about the second one. The legacy perf-measurement render (covered in [/blog/headless-lcp-cls-measurement/](/blog/headless-lcp-cls-measurement/) and [/blog/remove-unused-javascript-chrome-coverage/](/blog/remove-unused-javascript-chrome-coverage/)) forces Chrome offline and serves only bytes the worker already cached, blocking everything else. That is deny-by-default with no egress at all. The [`agent_optimize` render](/blog/serve-markdown-to-ai-agents/) needs more: to produce faithful markdown for AI crawlers it has to actually fetch some subresources. So it keeps Chrome's network off and routes every paused request through an out-of-process, IP-pinned fetch that re-runs the full origin and SSRF policy on each redirect hop. The code lives in `src/browser/agent_fetcher.cc`, `lib/net/fetch_policy.cc`, `lib/net/upstream_pin.cc`, and `lib/net/ssrf_guard.cc`.
 
 ## SSRF protection for headless rendering: Chrome's network stays off
 

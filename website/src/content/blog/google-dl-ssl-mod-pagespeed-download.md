@@ -5,7 +5,7 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'history', 'downloads']
 draft: false
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-22
 ---
 
 If you landed here, you probably ran something like this and got a
@@ -26,7 +26,7 @@ patches in years.
 
 If you came here looking for an install command, this is the one to
 run on Debian or Ubuntu. It installs the signed apt repository at
-`packages.modpagespeed.com` and the maintained `mod_pagespeed 2.1`
+`packages.modpagespeed.com` and the maintained `mod_pagespeed`
 package:
 
 ```bash
@@ -113,7 +113,7 @@ AVIF never landed in Google's open-source releases. Google's last build
 only emits WebP and the legacy JPEG/PNG paths. In 2026 that's a meaningful weight
 penalty for above-the-fold hero images: AVIF is typically 20–30%
 smaller than WebP at equivalent quality (see [AVIF vs WebP in 2026](/blog/avif-vs-webp-2026/)).
-AVIF encoding landed in mod_pagespeed 2.1: the module and the optimizer worker both emit it.
+AVIF encoding landed in mod_pagespeed: the module and the optimizer worker both emit it.
 
 ### No Core Web Vitals signals
 
@@ -149,7 +149,7 @@ CVE patches, a current toolchain, and the Cyclone Cache.
 
 If you have a working 1.13.35.2 install and want a security update
 that doesn't require config changes, this is the path. The
-[mod_pagespeed 2.1 download docs](/download/) list every platform package;
+[mod_pagespeed download docs](/download/) list every platform package;
 the [mod_pagespeed site](/) has the full reference.
 
 **Debian / Ubuntu (Apache):**
@@ -227,7 +227,7 @@ If you want a reverse-proxy plus async-worker model on nginx in front of
 any HTTP origin, this is the path.
 
 ```bash
-# mod_pagespeed 2.1 — ASP.NET Core middleware
+# mod_pagespeed — ASP.NET Core middleware
 dotnet add package WeAmp.PageSpeed.AspNetCore
 ```
 
@@ -242,11 +242,10 @@ minutes](/blog/run-with-docker-compose/).
 If you were installing `mod_pagespeed` because it had a port for your
 server, the modern equivalents:
 
-- **IIS:** the [download page](/download/) ships an MSI installer. The IIS package
-  ships from the 1.15 packaging channel.
+- **IIS:** the [download page](/download/) ships an MSI installer. The IIS module ships as a signed MSI on the mod_pagespeed GitHub release.
 - **ASP.NET Core:** the [WeAmp.PageSpeed.AspNetCore NuGet
   middleware](/go/nuget/?from=blog-google-dl-ssl)
-  registers the mod_pagespeed 2.1 optimization core as ASP.NET Core middleware.
+  registers the mod_pagespeed optimization core as ASP.NET Core middleware.
 
 ## What to do with the existing install
 
@@ -305,11 +304,11 @@ curl -fsSL https://packages.modpagespeed.com/setup-yum.sh | sudo bash
 sudo dnf install mod-pagespeed-stable
 ```
 
-mod_pagespeed 2.1 is the drop-in continuation. It optimizes out of the
+mod_pagespeed 2 is the drop-in continuation. It optimizes out of the
 box, and it is licensed under Apache-2.0 and free to run in development and
 in production — see the [license](/license/).
 Starting fresh on nginx? The
-[mod_pagespeed 2.1 Docker Compose quickstart](/blog/run-with-docker-compose/)
+[mod_pagespeed Docker Compose quickstart](/blog/run-with-docker-compose/)
 covers the rewrite.
 
 ## Related

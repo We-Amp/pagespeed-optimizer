@@ -1,11 +1,11 @@
 ---
 title: 'Serve markdown and llms.txt to AI agents from your origin'
-description: 'The mod_pagespeed 2.1 worker serves a markdown variant on Accept: text/markdown and builds /llms.txt from your sitemap. Experimental, off by default.'
+description: 'The mod_pagespeed worker serves a markdown variant on Accept: text/markdown and builds /llms.txt from your sitemap. Experimental, off by default.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'llms-txt', 'agent-optimize', 'content']
 product: '2.0'
-lastUpdated: 2026-10-13
+lastUpdated: 2026-10-22
 draft: false
 ---
 

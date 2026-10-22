@@ -2,7 +2,7 @@
 title: 'Why I rebuilt mod_pagespeed from scratch'
 description: 'The story behind ModPageSpeed 2.0: why mod_pagespeed stopped being developed, what was kept from PSOL, and how a new architecture replaced RewriteDriver.'
 date: 2026-02-01
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'announcement']
 product: '2.0'
@@ -52,7 +52,7 @@ ModPageSpeed 2.0 separates the system into three components:
 
 This separation means nginx never blocks on optimization. The first request always gets the original content (fast, from cache). Optimized variants [appear asynchronously](/how-it-works/async-rewriting/) as the worker processes them. Subsequent requests from similar clients get the optimized version.
 
-While nginx powers the caching proxy internally, the optimization worker and cache are server-agnostic. In reverse-proxy mode, the mod_pagespeed 2.1 module fronts any HTTP origin — Apache, Node.js, Caddy, or anything else that speaks HTTP. The Docker Compose setup takes a `BACKEND_HOST` and `BACKEND_PORT`, and the rest is automatic.
+While nginx powers the caching proxy internally, the optimization worker and cache are server-agnostic. In reverse-proxy mode, the mod_pagespeed module fronts any HTTP origin — Apache, Node.js, Caddy, or anything else that speaks HTTP. The Docker Compose setup takes a `BACKEND_HOST` and `BACKEND_PORT`, and the rest is automatic.
 
 ## Why self-hosted matters
 

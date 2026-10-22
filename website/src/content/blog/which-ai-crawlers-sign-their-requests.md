@@ -2,6 +2,7 @@
 title: '55 of 150 AI crawler operators publish Web Bot Auth keys'
 description: 'We asked 150 AI crawler operators for their Web Bot Auth key directory on 19 October 2026. 55 served one. The script, the data, and what to do with it.'
 date: 2026-10-19
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['benchmark', 'ai-crawlers', 'ai-agents', 'security']
 draft: false
@@ -89,7 +90,7 @@ Use the signals as a ladder, strongest first:
 
 Then decide what each verified identity may do: allow it, rate-limit it, or ask for a license. [Pay-per-crawl at the origin](/blog/pay-per-crawl-at-the-origin/) covers the 401 and 402 side.
 
-If you run mod_pagespeed 2.1, its verifier takes this kind of list directly; it has shipped in every build since 2.0.34. `PAGESPEED_WEB_BOT_AUTH_KEY_DIRECTORIES` is a comma-separated set of HTTPS directory URLs, fetched in the background. The verdict lands in an `x-verified-bot` response header. It is experimental, off by default and observe-only; the [docs page](/docs/web-bot-auth/) has the setup.
+If you run mod_pagespeed, its verifier takes this kind of list directly; it has shipped in every build since 2.0.34. `PAGESPEED_WEB_BOT_AUTH_KEY_DIRECTORIES` is a comma-separated set of HTTPS directory URLs, fetched in the background. The verdict lands in an `x-verified-bot` response header. It is experimental, off by default and observe-only; the [docs page](/docs/web-bot-auth/) has the setup.
 
 ## Rerun it
 

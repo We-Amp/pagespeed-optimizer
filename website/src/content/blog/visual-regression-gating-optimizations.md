@@ -1,12 +1,12 @@
 ---
 title: 'Visual-regression gating: reject CSS that changes the pixels'
-description: 'The mod_pagespeed 2.1 worker pixel-diffs the rendered above-fold before caching a headless critical-CSS variant; if it looks different, it is discarded.'
+description: 'The mod_pagespeed worker pixel-diffs the rendered above-fold before caching a headless critical-CSS variant; if it looks different, it is discarded.'
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ["headless-chrome", "critical-css", "visual-regression", "operations", "deep-dive", "core-web-vitals"]
 draft: false
 product: '2.0'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 ---
 
 The dangerous failure mode for a critical-CSS pass isn't making a page slower. It's making the page *wrong*: a hero that loses its background, or a card grid that loses its gap, because the extractor decided a rule wasn't above-fold and dropped it. Slower is measurable. Visually broken is the kind of thing you find out about from a customer screenshot three days later. That is the case for a visual regression gate.
