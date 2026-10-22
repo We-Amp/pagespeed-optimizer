@@ -434,7 +434,7 @@ unless `Sidecar.AllowPublicAdmin` is enabled).
 
 ### When to use the sidecar vs. the in-process middleware
 
-|               | `WeAmp.PageSpeed.Sidecar` (1.15)                           | `WeAmp.PageSpeed.AspNetCore`                              |
+|               | `WeAmp.PageSpeed.Sidecar`                                  | `WeAmp.PageSpeed.AspNetCore`                              |
 | ------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
 | Model         | Middleware front door; bundled nginx optimizes on loopback | In-process middleware (P/Invoke)                          |
 | Platforms     | Linux only (`linux-x64`, `linux-arm64`)                    | linux-x64/arm64, osx-arm64, win-x64                       |

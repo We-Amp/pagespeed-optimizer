@@ -1,6 +1,6 @@
 # mod_pagespeed
 
-> Self-hosted web performance optimization for Apache and nginx. Open source under the Apache License 2.0. mod_pagespeed converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.
+> Self-hosted web performance optimization for Apache and nginx. Open source under the Apache License 2.0. mod_pagespeed 2 converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.
 
 We-Amp B.V. develops mod_pagespeed 2, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. mod_pagespeed 2 converges the 1.15 module line (renumbered from 1.1, the forward-semver successor to the last upstream release, 1.14.36.1) with the ModPageSpeed 2.0 engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
 

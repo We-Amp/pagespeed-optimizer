@@ -583,7 +583,7 @@ describe('ai-plugin.json manifest drift guard', () => {
 
   it('description_for_model carries the single-sourced identity + support facts', () => {
     const m: string = manifest.description_for_model;
-    expect(m).toContain(`The current product, ${PRODUCT_NAME},`);
+    expect(m).toContain(`The current product, ${PRODUCT_NAME} 2,`);
     expect(m).not.toMatch(/mod[_ ]pagespeed 2\.1(?![.\d])/i);
     expect(m).toContain(`mod_pagespeed ${V1_LINE}`);
     expect(m).toContain(`renumbered from ${V1_RENUMBERED_FROM}`);

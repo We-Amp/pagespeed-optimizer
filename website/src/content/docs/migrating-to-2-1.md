@@ -6,18 +6,18 @@ group: 'Upgrade and migrate'
 lastUpdated: 2026-10-22
 faq:
   - q: 'Do I have to recreate my cache volume?'
-    a: 'No. On its first start, 2.1 migrates a volume created by 2.0 in place: it adopts the cache files into the unprivileged `pagespeed` user and keeps the warm cache, deleting nothing. Native-package installs are different: there the cache lives in a versioned directory and a package upgrade starts it cold by design.'
+    a: 'No. On its first start, the optimizer worker (2.1.0 and later) migrates a volume created by 2.0 in place: it adopts the cache files into the unprivileged `pagespeed` user and keeps the warm cache, deleting nothing. Native-package installs are different: there the cache lives in a versioned directory and a package upgrade starts it cold by design.'
   - q: 'Do I have to migrate right away?'
-    a: 'No — migrate on your own schedule. Migrating earlier moves you onto the converged line sooner.'
+    a: 'No — migrate on your own schedule. Migrating earlier moves you onto the current release sooner.'
 ---
 
-mod_pagespeed converges the mod_pagespeed lineage and the ModPageSpeed 2.0
+mod_pagespeed 2 converges the mod_pagespeed lineage and the ModPageSpeed 2.0
 engine into one product. If you run 2.0 today, the engine you rely on continues
-as the 2.1 **optimizer worker**. The migration upgrades the deployment around
+as the **optimizer worker** of mod_pagespeed. The migration upgrades the deployment around
 it rather than rebuilding it: your nginx directives and worker flags carry
-over. What to review is who the 2.1 worker runs as, how 2.1 exposes the
-management API and browser analysis by default, and (for Helm) the 2.1 pod
-security defaults.
+over. What to review is who the worker runs as, how it exposes the
+management API and browser analysis by default, and (for Helm) the pod
+security defaults, all of which changed in 2.1.0.
 
 Migration is manual — there is no automated path — but for most deployments it
 is an image bump plus a review of the defaults below.
@@ -40,11 +40,11 @@ It is not for users of the ASP.NET Core middleware: `WeAmp.PageSpeed.AspNetCore`
 is the ASP.NET Core form of mod_pagespeed, and there is no migration step —
 see [ASP.NET Core performance](/aspnet-core-performance/) for that path.
 
-## What changes in 2.1
+## What changed in 2.1.0 {#what-changes-in-21}
 
 ### The worker runs unprivileged
 
-The 2.1 worker runs as the dedicated `pagespeed` user at a fixed UID/GID of
+Since 2.1.0 the worker runs as the dedicated `pagespeed` user at a fixed UID/GID of
 **918**, with an empty capability set and new privileges disabled. The shared
 cache volume is owned by it: `/data` is group-readable (`2750`), cache files
 and sockets are `0660`, and the serving side reaches them through membership
@@ -69,7 +69,7 @@ Three setups need an explicit change:
 
 ### Management API: loopback and a token, by default
 
-In 2.1 the container binds the management API to loopback and requires a
+Since 2.1.0 the container binds the management API to loopback and requires a
 token; a non-loopback bind refuses to start unless you set both
 `PAGESPEED_API_ALLOW_REMOTE=true` and a token. If you deliberately publish the
 API, set both — and keep your reverse proxy's own authentication in front of
@@ -84,7 +84,7 @@ yourself to keep them out of the log and stable across restarts.
 
 ### Browser analysis: the sandbox is required
 
-Browser analysis in 2.1 requires the Chrome sandbox by default, and the
+Since 2.1.0 browser analysis requires the Chrome sandbox by default, and the
 unprivileged worker satisfies that requirement — provided the container
 runtime's seccomp profile permits user namespaces. Where it does not, browser
 analysis refuses to start and `/v1/health` reports
@@ -94,7 +94,7 @@ Run with a Chrome-compatible seccomp profile, or set
 
 ### Helm: the pod seccomp profile
 
-The 2.1 chart sets `seccompProfile.type: RuntimeDefault` on the pod. If a
+Since 2.1.0 the chart sets `seccompProfile.type: RuntimeDefault` on the pod. If a
 workload of yours needs a syscall the runtime's default profile blocks, opt
 out with:
 
@@ -108,7 +108,7 @@ empty `podSecurityContext: {}` will **not** override the chart default.
 
 ### Native packages
 
-2.1 also ships as native web-server packages: the module plus the
+mod_pagespeed also ships as native web-server packages: the module plus the
 `pagespeed-optimizer` worker, installed and upgraded as a matching pair. On a
 package install the worker keeps its cache in a versioned directory
 (`/var/cache/pagespeed-optimizer/v3`), and a package upgrade starts that
@@ -127,7 +127,7 @@ Your configuration carries over:
 
 What to review is operational defaults, not directives:
 
-| Area             | 2.1 default                                                                 | Act if                                                                                               |
+| Area             | Default since 2.1.0                                                           | Act if                                                                                               |
 | ---------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Management API   | Loopback bind; token required                                               | You reach the API from another host: set `PAGESPEED_API_ALLOW_REMOTE=true` and `PAGESPEED_API_TOKEN` |
 | Purge endpoint   | Token required (generated if unset)                                         | You automate purges: set `PAGESPEED_PURGE_TOKEN`                                                     |
@@ -145,15 +145,15 @@ keeps its cache and socket — see
 
 ## The reverse-proxy gap
 
-One 2.0 deployment shape has no 2.1 equivalent yet: the **any-origin caching
+One 2.0 deployment shape has no equivalent in mod_pagespeed yet: the **any-origin caching
 reverse proxy** — running the stack purely as an optimizing proxy in front of
 an origin that is otherwise untouched. Closing that gap is a committed part of
-the converged line's roadmap. Until it is covered, that shape stays where it
+the mod_pagespeed roadmap. Until it is covered, that shape stays where it
 is, fully supported on 2.0, and this guide applies when the coverage lands.
 
 ## Migration steps
 
-1. **Upgrade** to the 2.1 images or chart version — see
+1. **Upgrade** to the current images or chart version — see
    [Install with Docker](/docs/installation-docker/) and the
    [Helm deployment guide](/docs/helm-deployment/) for the current tags and
    values.
@@ -188,6 +188,6 @@ what changed and what did not; the archived 1.0 docs are at [/1.0/](/1.0/).
 ## Licensing
 
 mod_pagespeed is licensed under the Apache License 2.0, free in
-development and in production. What We-Amp sells on the converged line is
+development and in production. What We-Amp sells is
 [support](/support/) from the people who build
 the product; Priority and Enterprise add a private package repository (being set up), and the standard signed packages stay free.

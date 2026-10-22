@@ -17,7 +17,7 @@
 
 /** The blockquote under the H1: the one-paragraph summary of the llms.txt convention. */
 export const SUMMARY =
-  'Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. {{PRODUCT_NAME}} converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.';
+  'Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. {{PRODUCT_NAME}} 2 converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.';
 
 /**
  * The paragraphs between the summary and the first link section. Plain
