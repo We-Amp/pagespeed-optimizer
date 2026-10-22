@@ -82,6 +82,21 @@ try {
   if (Test-Path -LiteralPath $script) { $null = (& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Workspace $ws3 2>&1 | Out-String) }
   if ((-not (Test-Path -LiteralPath (Join-Path $ws3 'vendor'))) -and (Test-Path -LiteralPath (Join-Path $t2 's2.txt'))) { Pass 'vendor junction unlinked, target kept' } else { Fail 'vendor junction unlinked, target kept' }
 
+  # Dangling vendor junction (target gone): still unlinked, exit 0.
+  $ws4 = Join-Path $root 'ws4'
+  $t4  = Join-Path $root 't4'
+  New-Item -ItemType Directory -Path $ws4, $t4 | Out-Null
+  New-Item -ItemType Junction -Path (Join-Path $ws4 'vendor') -Target $t4 | Out-Null
+  Remove-Item -LiteralPath $t4 -Force
+  $code4 = 127
+  if (Test-Path -LiteralPath $script) {
+    $null = (& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Workspace $ws4 2>&1 | Out-String)
+    $code4 = $LASTEXITCODE
+  }
+  $stillThere = $true
+  try { $null = [IO.File]::GetAttributes((Join-Path $ws4 'vendor')) } catch { $stillThere = $false }
+  if ($code4 -eq 0 -and -not $stillThere) { Pass 'dangling vendor junction is unlinked' } else { Fail 'dangling vendor junction is unlinked' }
+
   $emptyCode = 127
   if (Test-Path -LiteralPath $script) {
     $null = (& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Workspace $empty 2>&1 | Out-String)

@@ -60,26 +60,41 @@ function Write-Summary {
 }
 
 $vendor = Join-Path $Workspace 'vendor'
-if (-not (Test-Path -LiteralPath $vendor)) {
-  Write-Summary
-  exit 0
-}
 
-# vendor itself a link: unlink it and stop; never list inside it.
-$vitem = Get-Item -LiteralPath $vendor -Force
-if (($vitem.Attributes -band $reparse) -ne 0) {
-  Remove-Link $vitem
-  Write-Summary
-  exit 0
-}
+# Everything below is one guarded body: a listing error is a warning, never a
+# failed leg.
+try {
+  # GetAttributes works for a dangling link too (Test-Path does not).
+  $attr = $null
+  try {
+    $attr = [IO.File]::GetAttributes($vendor)
+  } catch [System.IO.FileNotFoundException] {
+  } catch [System.IO.DirectoryNotFoundException] {
+  }
 
-Remove-Links $vendor
+  if ($null -ne $attr) {
+    if (($attr -band $reparse) -ne 0) {
+      # vendor itself a link: unlink it and stop; never list inside it.
+      try {
+        [IO.Directory]::Delete($vendor, $false)
+        $count += 1
+      } catch {
+        $failed += 1
+        Write-Host ("::warning::could not unlink " + $vendor + ": " + $_.Exception.Message)
+      }
+    } else {
+      Remove-Links $vendor
 
-# A real (non-link) bazel-external directory: unlink the links inside it.
-$bx = Join-Path $vendor 'bazel-external'
-if (Test-Path -LiteralPath $bx) {
-  $item = Get-Item -LiteralPath $bx -Force
-  if (($item.Attributes -band $reparse) -eq 0) { Remove-Links $bx }
+      # A real (non-link) bazel-external directory: unlink the links inside it.
+      $bx = Join-Path $vendor 'bazel-external'
+      if (Test-Path -LiteralPath $bx) {
+        $item = Get-Item -LiteralPath $bx -Force
+        if (($item.Attributes -band $reparse) -eq 0) { Remove-Links $bx }
+      }
+    }
+  }
+} catch {
+  Write-Host ("::warning::unlink step failed: " + $_.Exception.Message)
 }
 
 Write-Summary
