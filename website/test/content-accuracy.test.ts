@@ -399,12 +399,12 @@ const WORKER_SUBJECT =
   /(?:optimi[sz]er worker|pagespeed-optimizer|factory_worker|the worker(?!_)(?!\s+(?:thread|threads|pool|pools|image|images)\b))/
     .source;
 
-// The current product as a rule SUBJECT: the name alone, "mod_pagespeed 2",
-// and the retired "2.1" label while copy still carries it. Never the
+// The current product as a rule SUBJECT: the name alone or "mod_pagespeed 2".
+// The retired "2.1" label is no longer a subject: rule k denies it. Never the
 // predecessor ("mod_pagespeed 1.15"), never an exact release ("mod_pagespeed
 // 2.3.0" in a release-notes row is a fact about that release), and never a
 // filename ("mod_pagespeed.so").
-const CURRENT_PRODUCT_SUBJECT = /mod_pagespeed(?: 2(?:\.1)?)?(?![\w.-]|\s+\d)/.source;
+const CURRENT_PRODUCT_SUBJECT = /mod_pagespeed(?: 2)?(?![\w.-]|\s+\d)/.source;
 
 function escapeForRegExp(literal: string): string {
   return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
