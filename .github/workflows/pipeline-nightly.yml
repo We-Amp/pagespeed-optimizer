@@ -80,6 +80,17 @@ jobs:
           if [ "${EVENT}" = workflow_dispatch ] && [ "${ACTOR}" = "github-actions[bot]" ]; then echo "::error::dispatches made with a workflow token are not allowed"; exit 1; fi
           if [ "${EVENT}" = pull_request ] && { [ "${PR_FORK}" = true ] || [ "${PR_HEAD_REPO}" != "${REPOSITORY}" ]; }; then echo "::error::pull requests from forks are not allowed in this pipeline"; exit 1; fi
           echo "event ${EVENT} on ${REF} accepted"
+
+  # ---------------------------------------------------------------------
+  # macOS, daily (hosted macos-15, arm64). The hosted runner has no remote
+  # cache and no hub, so builds restore a Bazel disk cache by prefix and
+  # save it even when a step runs out of time: a cold first night converges
+  # over the next ones. The build and pkg-smoke jobs stay under 30 minutes;
+  # macos-unit-tests gets 50 (test step 40) because the worker_test shards
+  # run uncached at 200 to 575 s each on three slots. Each step carries its
+  # own, shorter timeout so the cache save can still run. At most five
+  # macOS jobs run at once across the organization.
+  # ---------------------------------------------------------------------
   macos-build:
     name: macOS Build
     runs-on: macos-15

@@ -128,6 +128,11 @@ jobs:
           if [ "${EVENT}" = workflow_dispatch ] && [ "${ACTOR}" = "github-actions[bot]" ]; then echo "::error::dispatches made with a workflow token are not allowed"; exit 1; fi
           if [ "${EVENT}" = pull_request ] && { [ "${PR_FORK}" = true ] || [ "${PR_HEAD_REPO}" != "${REPOSITORY}" ]; }; then echo "::error::pull requests from forks are not allowed in this pipeline"; exit 1; fi
           echo "event ${EVENT} on ${REF} accepted"
+
+  # Hosted, no secrets, read-only token; every later job chains to it. The
+  # guard code is checked out from main, never from the tree being released.
+  # A dispatch builds the dispatched tag, never the HEAD of the ref it ran
+  # on; `ref`/`sha` are what every job checks out and stamps.
   ref-guard:
     name: Ref guard
     needs: event-guard

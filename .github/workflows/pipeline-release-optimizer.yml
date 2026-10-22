@@ -111,6 +111,12 @@ jobs:
           if [ "${EVENT}" = workflow_dispatch ] && [ "${ACTOR}" = "github-actions[bot]" ]; then echo "::error::dispatches made with a workflow token are not allowed"; exit 1; fi
           if [ "${EVENT}" = pull_request ] && { [ "${PR_FORK}" = true ] || [ "${PR_HEAD_REPO}" != "${REPOSITORY}" ]; }; then echo "::error::pull requests from forks are not allowed in this pipeline"; exit 1; fi
           echo "event ${EVENT} on ${REF} accepted"
+
+  # Hosted, no secrets, read-only token. Every later job chains to it. The
+  # guard code is checked out from main, never from the tree being released.
+  # A real run must pass it; a dry run reports its verdict and continues
+  # (a dry run may name a tag that does not exist yet). Any event other than
+  # a tag push or a dispatch is refused outright.
   ref-guard:
     name: Ref guard
     needs: event-guard
