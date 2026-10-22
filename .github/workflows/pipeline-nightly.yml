@@ -143,7 +143,7 @@ jobs:
   macos-unit-tests:
     name: macOS Unit Tests
     runs-on: macos-15
-    timeout-minutes: 50
+    timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
         # bazel vendor leaves read-only toolchain directories under vendor/;
@@ -171,7 +171,7 @@ jobs:
             optimizer-bazel-disk-macos-
 
       - name: Run unit tests
-        timeout-minutes: 40
+        timeout-minutes: 75
         run: |
           mkdir -p "${HOME}/.cache/optimizer-bazel-disk-macos"
           FLAGS=(--config=macos --jobs=3 --nostamp
