@@ -1,4 +1,5 @@
 ---
+import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
@@ -169,15 +170,7 @@ const articleJsonLd = {
   about: markers.map((m) => ({ '@type': 'Thing', name: m.name })),
   image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-  publisher: {
-    '@type': 'Organization',
-    name: 'We-Amp B.V.',
-    url: 'https://we-amp.com/',
-    logo: {
-      '@type': 'ImageObject',
-      url: 'https://modpagespeed.com/logo.svg',
-    },
-  },
+  publisher: ORGANIZATION_PUBLISHER,
 };
 
 // FAQ — visible <dl> and FAQPage JSON-LD share this single source of truth.

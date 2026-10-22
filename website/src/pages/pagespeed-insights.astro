@@ -1,4 +1,5 @@
 ---
+import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
@@ -107,12 +108,7 @@ const articleJsonLd = {
   about: featured.map((m) => ({ '@type': 'Thing', name: m.auditTitle })),
   image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-  publisher: {
-    '@type': 'Organization',
-    name: 'We-Amp B.V.',
-    url: 'https://we-amp.com/',
-    logo: { '@type': 'ImageObject', url: 'https://modpagespeed.com/logo.svg' },
-  },
+  publisher: ORGANIZATION_PUBLISHER,
 };
 
 // FAQ — single source of truth for both the visible <dl> and the FAQPage

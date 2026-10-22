@@ -1,4 +1,5 @@
 ---
+import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
@@ -83,11 +84,7 @@ const articleJsonLd = {
   image: OG_DEFAULT_IMAGE_URL,
   about: 'Self-hosted image optimization',
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-  publisher: {
-    '@type': 'Organization',
-    name: 'We-Amp B.V.',
-    url: 'https://we-amp.com/',
-  },
+  publisher: ORGANIZATION_PUBLISHER,
 };
 
 const softwareJsonLd = await productJsonLd({

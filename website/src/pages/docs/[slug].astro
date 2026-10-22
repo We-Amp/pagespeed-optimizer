@@ -12,7 +12,7 @@ import { getRelease, dockerTag } from '../../lib/release';
 import { gitLastModified } from '../../lib/git-date';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { productRef } from '../../data/software-jsonld';
-import { ORGANIZATION_REF } from '../../data/organization';
+import { ORGANIZATION_PUBLISHER } from '../../data/organization';
 import { basename } from 'node:path';
 
 //: the JSON-LD HowTo schema for aspnet-getting-started cites
@@ -132,13 +132,7 @@ jsonLd = {
   description: doc.data.description,
   image: schemaImage,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-  publisher: {
-    ...ORGANIZATION_REF,
-    logo: {
-      '@type': 'ImageObject',
-      url: 'https://modpagespeed.com/logo.svg',
-    },
-  },
+  publisher: ORGANIZATION_PUBLISHER,
   mainEntityOfPage: `https://modpagespeed.com/docs/${doc.id}/`,
   ...(doc.data.datePublished && {
     datePublished: doc.data.datePublished.toISOString().split('T')[0],
