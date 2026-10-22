@@ -18,6 +18,10 @@
 #        -> windows tests (fleet, or hosted twin)
 #     -> macOS arm64 build + tests (hosted)
 #     -> linux arm64 build + tests (hosted)
+#     -> sidecar-fetch (hosted): the native pair of WeAmp.PageSpeed.Sidecar
+#        from the mod_pagespeed module release named by
+#        tools/ci/sidecar-pin.json, verified against the pinned digests and
+#        the release signing key
 #     -> package (hosted, `release` environment): the four native sets
 #        from workflow artifacts, five .nupkg, draft GitHub release, the two
 #        repository_dispatch notifications
@@ -1096,17 +1100,99 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------
+  # Sidecar: the native pair of WeAmp.PageSpeed.Sidecar (nginx, the module
+  # built against it and the launch shim, per RID) is built, tested and
+  # signed in the mod_pagespeed module release. This job fetches it from the
+  # release named by tools/ci/sidecar-pin.json and verifies it: the pinned
+  # sha256 of SHA256SUMS, SHA256SUMS.asc against RELEASE-SIGNING-KEY.asc, the
+  # pinned sha256 of sidecar-pair.json, and every tarball against both
+  # (tools/ci/sidecar_fetch.sh). Never "latest": a mismatch fails the job and
+  # therefore the release. The pin, the script and the key come from main,
+  # never from the tree being released, because the module release is cut
+  # after the v<version> commit. Anonymous downloads; the job's read-only
+  # token goes to the API endpoint only.
+  # ---------------------------------------------------------------------
+  sidecar-fetch:
+    name: Fetch and verify the sidecar pair
+    needs: ref-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
+      REAL_RUN: ${{ needs.ref-guard.outputs.real }}
+    steps:
+      - name: Checkout main (pin, fetch script, published key)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trust
+          sparse-checkout: |
+            tools/ci/sidecar-pin.json
+            tools/ci/sidecar_fetch.sh
+            tools/ci/release_checksums_sig.sh
+            RELEASE-SIGNING-KEY.asc
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # v<X> takes the sidecar of module-v<X>. A dry run may rehearse with
+      # the pin as it is (the module release of a new version is cut after
+      # the v<X> commit); a real run refuses any other tag.
+      - name: The pin names this release's module tag
+        run: |
+          set -euo pipefail
+          PIN_TAG="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("tag", ""))' trust/tools/ci/sidecar-pin.json)"
+          WANT="module-${RELEASE_TAG}"
+          if [ "$PIN_TAG" != "$WANT" ]; then
+            if [ "$REAL_RUN" = true ]; then
+              echo "::error::tools/ci/sidecar-pin.json on main pins '$PIN_TAG' but $RELEASE_TAG needs '$WANT'"
+              exit 1
+            fi
+            echo "::warning::dry run: tools/ci/sidecar-pin.json pins '$PIN_TAG' but a release of $RELEASE_TAG needs '$WANT'; continuing with the pinned release"
+          fi
+
+      - name: Download and verify against the pin
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          bash trust/tools/ci/sidecar_fetch.sh fetch trust/tools/ci/sidecar-pin.json \
+            "${RUNNER_TEMP}/sidecar" trust/RELEASE-SIGNING-KEY.asc | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The keyring holds only the public key; removed anyway in case the
+      # script's EXIT trap did not run.
+      - name: Remove the temporary keyrings
+        if: always()
+        run: |
+          for h in "${RUNNER_TEMP}"/gnupg.*; do
+            [ -d "$h" ] || continue
+            GNUPGHOME="$h" gpgconf --kill gpg-agent >/dev/null 2>&1 || true
+            rm -rf "$h"
+          done
+
+      - name: Upload the verified sidecar files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: sidecar-pair-${{ needs.ref-guard.outputs.short_sha }}
+          path: ${{ runner.temp }}/sidecar/*
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------
   # Package: the four native sets from workflow artifacts, five .nupkg.
+  # Waits for sidecar-fetch, so a sidecar that does not verify stops the
+  # release before anything is created.
   # One step list for the real run (inside the `release` environment: draft
   # release + notifications) and the dry run (no environment, no approval,
   # unsigned Windows binaries, nothing leaves the workflow).
   # ---------------------------------------------------------------------
   package:
     name: Package & Release
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, sidecar-fetch, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real == 'true'
       && needs.security-gates.result == 'success'
+      && needs.sidecar-fetch.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
       && needs.sign-windows.result == 'success'
@@ -1416,10 +1502,11 @@ jobs:
 
   package-dry-run:
     name: Package (dry run)
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, sidecar-fetch, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real != 'true'
       && needs.security-gates.result == 'success'
+      && needs.sidecar-fetch.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
       && needs.macos-release-build.result == 'success'

@@ -87,7 +87,9 @@ From 2.5.0 the module release pairs with `optimizer-v` plus the same version,
 so the cut runs in this order: bump `VERSION.txt` to the release version on
 `main`, tag `optimizer-v<X>` on that commit, record the pin in the module
 repository (`install/debian/optimizer-pin.json`), then tag `module-v<X>`
-there (its `docs/ci/release.md` has the module side). Once the module
+there (its `docs/ci/release.md` has the module side). Before `v<X>` is
+tagged (or released from an existing tag), record that module release in
+`tools/ci/sidecar-pin.json` on `main` (see "The sidecar pin"). Once the module
 packages are published, `MODULE_PACKAGE_VERSION` in
 `website/src/data/product-facts.mjs` (1.19.0 today) moves to the same
 version: the scan's lifecycle sentence (`website/src/lib/scan/lifecycle.ts`)
@@ -223,6 +225,54 @@ smoke lane by hand with a manual dispatch.
 A dispatch whose tag starts with neither `optimizer-v` nor `v` fails in the
 `unsupported-tag` job of the caller instead of ending green with no jobs.
 
+## The sidecar pin
+
+The native pair of the ASP.NET Core sidecar (`WeAmp.PageSpeed.Sidecar`:
+nginx, the module built against that nginx and the launch shim, for
+linux-x64 and linux-arm64) is built, tested and signed in the mod_pagespeed
+module release, as `pagespeed-sidecar-native-<X>-linux-<arch>.tar.gz`
+described by `sidecar-pair.json`. The NuGet lane does not build it; its
+`sidecar-fetch` job takes it from the module release named by
+`tools/ci/sidecar-pin.json`:
+
+| Field | Value |
+|---|---|
+| `tag` | the module release tag, `module-v<X>` |
+| `sha256sums_sha256` | sha256 of that release's `SHA256SUMS` |
+| `sidecar_pair_sha256` | sha256 of that release's `sidecar-pair.json` |
+| `release_key_fingerprint` | `411DEFDB571351D2B25AEFCC9C02B5BDCCE75313`, which must equal the fingerprint pinned in `tools/ci/release_checksums_sig.sh` |
+
+`tools/ci/sidecar_fetch.sh fetch` downloads `SHA256SUMS`, `SHA256SUMS.asc`,
+`sidecar-pair.json` and the two pair tarballs of exactly that tag (never
+"latest"), and refuses unless the `SHA256SUMS` digest is the pinned one,
+`SHA256SUMS.asc` verifies against `RELEASE-SIGNING-KEY.asc` with
+`release_checksums_sig.sh verify`, the `sidecar-pair.json` digest is the
+pinned one and `SHA256SUMS` lists it, the manifest names the pinned tag and
+version and both RIDs, and every tarball matches the name, size and sha256
+in the manifest and in `SHA256SUMS` and holds exactly the files the
+manifest lists, with their digests. The pin, the script and the key are
+read from `main`, like the signing script, because the module release of a
+version is cut after the `v<X>` commit. A real run of `v<X>` refuses a pin
+other than `module-v<X>`; a dry run warns and verifies the pinned release.
+`package` waits for `sidecar-fetch`, so a sidecar that does not verify
+stops the release before the draft is created. The verified files are kept
+as the `sidecar-pair-<sha>` artifact.
+
+To record the pin after the module release is published:
+
+```bash
+gh release download module-v<X> --repo We-Amp/mod_pagespeed \
+  -p SHA256SUMS -p SHA256SUMS.asc -p sidecar-pair.json \
+  -p 'pagespeed-sidecar-native-<X>-linux-*.tar.gz' --dir sidecar
+sha256sum sidecar/SHA256SUMS sidecar/sidecar-pair.json   # the two pinned digests
+# edit tools/ci/sidecar-pin.json, then:
+tools/ci/sidecar_fetch.sh verify tools/ci/sidecar-pin.json sidecar RELEASE-SIGNING-KEY.asc
+```
+
+The lane does not pack or push the two sidecar packages yet
+(`WeAmp.PageSpeed.Sidecar`, `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`):
+the module release carries the pair but no `.nupkg` files.
+
 ## nuget.org Trusted Publishing (owner steps)
 
 `publish-nuget` exchanges the job's OIDC token for a short-lived nuget.org
@@ -257,6 +307,7 @@ runners. Jobs pass files only as workflow artifacts:
 | `native-linux-x64`, `native-linux-arm64`, `native-osx-arm64` | the builds | `package` |
 | `native-win-x64-unsigned` | Windows build | `sign-windows`; `package` in a dry run |
 | `native-win-x64` | `sign-windows` | `package` in a real run |
+| `sidecar-pair-<sha>` | `sidecar-fetch` | kept for the sidecar packages (not packed yet) |
 | `nupkg-<sha>` | `package` | `publish-nuget` |
 | `release-sums-<sha>` | `package` (real run) | `sign-checksums`, `attach-signature` |
 | `release-signature-<sha>` | `sign-checksums` | `attach-signature` |
