@@ -260,7 +260,13 @@ manifest lists with their digests, and the source tarball has the digest
 `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux/runtimes/<rid>/native`. In the
 same job, so no verified input crosses a job boundary, `sidecar-pack` runs
 the sidecar test suite under .NET 8 and .NET 10 (locked restore; every test
-must run and pass), packs both packages with `-p:IncludeNet10=true` at the
+must run and pass). The live nginx tests run against the verified pair of
+the runner's RID, never a host nginx: the pair is copied to
+`runtimes/<rid>/native` next to the test assembly, where the sidecar finds
+it before any system path, `PAGESPEED_SIDECAR_REQUIRE_LIVE_NGINX=1` makes
+the tests require it, `libpcre3` is installed only if the runner lacks it,
+and every live test must report the bundled nginx (at least eight per
+framework). The job then packs both packages with `-p:IncludeNet10=true` at the
 version of the `v<X>` tag (no fourth digit), and `check-packages` refuses
 unless the native package carries exactly the four files per RID at the
 digests of `sidecar-pair.json` plus its `buildTransitive` targets and the

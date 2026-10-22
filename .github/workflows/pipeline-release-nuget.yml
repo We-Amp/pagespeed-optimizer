@@ -1209,25 +1209,74 @@ jobs:
 
       # Locked restore (the test project's lock files). Every test must run
       # and pass; 201 is the floor the module lane holds the suite to. The
-      # live nginx tier ran against this pair in the module release.
+      # live nginx tier (InverseModeIntegrationTests) runs against the pair
+      # this job verified, never a host nginx: the pair of the runner's RID
+      # is copied to runtimes/<rid>/native next to the test assembly, where
+      # the sidecar resolves it before any system path, and
+      # PAGESPEED_SIDECAR_REQUIRE_LIVE_NGINX=1 makes the tests require that
+      # pair (a missing pair fails them instead of falling back). Each live
+      # test writes "live-nginx: <path>"; every one must have passed against
+      # runtimes/<rid>/native/nginx, at least 8 per framework.
       - name: Test the sidecar (.NET 8 and .NET 10)
         working-directory: ${{ runner.temp }}/sidecar-work/aspnetcore
         run: |
           set -euo pipefail
           PROJ=WeAmp.PageSpeed.AspNetCore.Tests/WeAmp.PageSpeed.AspNetCore.Tests.csproj
+          case "$(uname -m)" in
+            x86_64) RID=linux-x64 ;;
+            aarch64) RID=linux-arm64 ;;
+            *) echo "::error::no sidecar pair for $(uname -m)"; exit 1 ;;
+          esac
+          PAIR="${PWD}/WeAmp.PageSpeed.Sidecar.NativeAssets.Linux/runtimes/${RID}/native"
+          for f in nginx pagespeed-nginx-launch; do
+            [ -x "$PAIR/$f" ] || { echo "::error::$PAIR/$f is missing or not executable"; exit 1; }
+          done
+          [ -s "$PAIR/ngx_pagespeed_module.so" ] || { echo "::error::no $PAIR/ngx_pagespeed_module.so"; exit 1; }
+          # The bundled nginx links PCRE (libpcre.so.3), which a consumer
+          # host provides; install it only when the runner lacks it.
+          if ldd "$PAIR/nginx" | grep -q 'not found'; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends libpcre3 >/dev/null
+          fi
+          if ldd "$PAIR/nginx" | grep 'not found'; then
+            echo "::error::the bundled nginx has unresolved libraries on this runner"; exit 1
+          fi
           for fw in net8.0 net10.0; do
             props=()
             [ "$fw" = net8.0 ] || props=(-p:IncludeNet10=true)
-            dotnet test "$PROJ" -c Release -f "$fw" -p:RestoreLockedMode=true ${props[@]+"${props[@]}"} \
+            dotnet build "$PROJ" -c Release -f "$fw" -p:RestoreLockedMode=true ${props[@]+"${props[@]}"}
+            dest="WeAmp.PageSpeed.AspNetCore.Tests/bin/Release/${fw}/runtimes/${RID}/native"
+            mkdir -p "$dest"
+            cp -a "$PAIR/." "$dest/"
+            ls -l "$dest"
+            PAGESPEED_SIDECAR_REQUIRE_LIVE_NGINX=1 dotnet test "$PROJ" -c Release -f "$fw" --no-build ${props[@]+"${props[@]}"} \
               --results-directory "${RUNNER_TEMP}/sidecar-results" --logger "trx;LogFileName=sidecar-${fw}.trx"
-            python3 -I - "${RUNNER_TEMP}/sidecar-results/sidecar-${fw}.trx" "$fw" <<'PY'
+            python3 -I - "${RUNNER_TEMP}/sidecar-results/sidecar-${fw}.trx" "$fw" "$RID" <<'PY'
           import sys
           import xml.etree.ElementTree as ET
-          c = next(e for e in ET.parse(sys.argv[1]).getroot().iter() if e.tag.endswith("}Counters"))
+          path, fw, rid = sys.argv[1:4]
+          root = ET.parse(path).getroot()
+          c = next(e for e in root.iter() if e.tag.endswith("}Counters"))
           total, executed, passed = (int(c.get(k, 0)) for k in ("total", "executed", "passed"))
-          print("%s: %d of %d tests passed (%d executed)" % (sys.argv[2], passed, total, executed))
+          print("%s: %d of %d tests passed (%d executed)" % (fw, passed, total, executed))
           if not (total >= 201 and passed == executed == total):
-              sys.exit("::error::not every sidecar test ran and passed under %s" % sys.argv[2])
+              sys.exit("::error::not every sidecar test ran and passed under %s" % fw)
+          want = "runtimes/%s/native/nginx" % rid
+          live, other = [], []
+          for r in root.iter():
+              if not r.tag.endswith("}UnitTestResult"):
+                  continue
+              name = r.get("testName", "")
+              if ".InverseModeIntegrationTests." not in name:
+                  continue
+              out = "".join(e.text or "" for e in r.iter() if e.tag.endswith("}StdOut"))
+              marked = any(l.strip().startswith("live-nginx: ") and l.strip().endswith(want) for l in out.splitlines())
+              (live if r.get("outcome") == "Passed" and marked else other).append(name.rsplit(".", 1)[-1])
+          print("%s: %d live nginx tests ran against the bundled pair" % (fw, len(live)))
+          if other:
+              sys.exit("::error::live tests that did not run against the bundled pair: " + ", ".join(sorted(other)))
+          if len(live) < 8:
+              sys.exit("::error::only %d live nginx tests ran under %s, expected at least 8" % (len(live), fw))
           PY
           done
 
