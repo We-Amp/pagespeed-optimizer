@@ -8,7 +8,7 @@ name: Nightly
 
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 21 * * *"
   workflow_dispatch:
     inputs:
       fuzz_seconds:
