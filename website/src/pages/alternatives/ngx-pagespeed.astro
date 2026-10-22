@@ -168,11 +168,11 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
         compile.
       </p>
       <p>
-        Each package depends on the stock nginx of its distribution and is built against that
-        distribution's own patched nginx source, because nginx refuses to load a module built for a
-        different version. The module also checks its layout on the first request and passes
-        responses through unoptimized if it does not recognize it. The reasons are in the{' '}
-        <a href="#faq">questions below</a>, and the{' '}
+        Each package depends on the stock nginx of its distribution, because nginx refuses to load a
+        module built for a different version. The Ubuntu and Enterprise Linux packages are built
+        against that distribution's own patched nginx source. The module also checks its layout on
+        the first request and passes responses through unoptimized if it does not recognize it. The
+        reasons are in the <a href="#faq">questions below</a>, and the{' '}
         <a href="/docs/installation-module/#nginx-compatibility">
           pinned nginx version per distribution
         </a>{' '}
