@@ -11,7 +11,7 @@ product: '2.0'
 
 > **Data collected:** February 2026 · **Tested with:** ModPageSpeed 2.0
 >
-> Written for the ModPageSpeed 2.0 line, the predecessor of mod_pagespeed 2; the numbers below were measured on 2.0. For the current release, start with [getting started](/docs/getting-started/).
+> Written for the ModPageSpeed 2.0 line, the predecessor of today's mod_pagespeed; the numbers below were measured on 2.0. For the current release, start with [getting started](/docs/getting-started/).
 
 ## Methodology
 

@@ -169,4 +169,4 @@ ASP.NET Core's INP story is almost entirely about what frontend you ship. mod_pa
 
 The IIS-flavored angle on the same metrics, including IIS-specific deployment notes, is at [iispeed.com — IIS Core Web Vitals 2026](https://iispeed.com/iis-core-web-vitals-2026/).
 
-mod_pagespeed 2 runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS module ships as a signed MSI on the mod_pagespeed GitHub release. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS module ships as a signed MSI on the mod_pagespeed GitHub release. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

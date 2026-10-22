@@ -66,4 +66,4 @@ The queries, tables and method are public in [pagespeed-census](https://github.c
 
 We make the maintained mod_pagespeed line, so we have an interest in these numbers. That is why the queries are public. Rerun them, and tell us where our reading is wrong.
 
-mod_pagespeed and later is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+mod_pagespeed 2.1.0 and later is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.

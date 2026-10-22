@@ -258,7 +258,7 @@ The read path only became the bottleneck under a harsher regime: a working set f
 
 **Is Cyclone faster than the old file-per-entry cache?** Under concurrency, eviction pressure, and on realistic server storage, yes: 4x to 6x on throughput in our tests, with a tighter latency tail. On an idle, over-provisioned cache backed by a fast NVMe SSD, the two are close and the file cache can edge ahead.
 
-**Does the mod_pagespeed 2 module benefit from Cyclone?** Yes. The module has shipped Cyclone since 1.15 and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.
+**Does the mod_pagespeed module benefit from Cyclone?** Yes. The module has shipped Cyclone since 1.15 and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.
 
 **Will a faster cache make my site load faster?** It helps most when the cache is on the hot path: high concurrency, lots of already-optimized assets, and cache eviction under load. On a lightly loaded site the cache was rarely the bottleneck, so the end-to-end gain is smaller.
 

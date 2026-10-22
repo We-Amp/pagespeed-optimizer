@@ -293,4 +293,4 @@ The limits, in short:
 
 ## Where PageSpeed comes from
 
-mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1.0 and later is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.

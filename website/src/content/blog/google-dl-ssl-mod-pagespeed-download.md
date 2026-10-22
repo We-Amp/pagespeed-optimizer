@@ -26,7 +26,7 @@ patches in years.
 
 If you came here looking for an install command, this is the one to
 run on Debian or Ubuntu. It installs the signed apt repository at
-`packages.modpagespeed.com` and the maintained `mod_pagespeed`
+`packages.modpagespeed.com` and the maintained mod_pagespeed
 package:
 
 ```bash
@@ -288,8 +288,7 @@ searching for `mod_pagespeed download`, you probably found the
 `dl-ssl.google.com` URL first and were about to install a 2020 binary
 with years of unpatched CVEs.
 
-The maintained continuation lives on [modpagespeed.com](/): mod_pagespeed
-2.1. The optimization work that `mod_pagespeed` did still matters. The
+The maintained continuation lives on [modpagespeed.com](/): mod_pagespeed. The optimization work that `mod_pagespeed` did still matters. The
 2020 binary isn't where to get it in 2026.
 
 ## Get the maintained build
