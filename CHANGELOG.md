@@ -2,6 +2,8 @@
 
 All notable changes to mod_pagespeed are documented in this file.
 
+## Unreleased
+
 ## 2.5.2 - 2026-10-21
 
 Security: the bundled libpng is updated to 1.6.58, which fixes memory-safety
