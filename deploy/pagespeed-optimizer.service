@@ -132,7 +132,7 @@ ReadWritePaths=/var/cache/pagespeed-optimizer
 # no SIGSYS across a full cycle on both architectures, so it ships enabled
 # rather than waiting for the soak.  The daemon's own allow-list -- the
 # control that could kill a call it really makes -- is the block further
-# down, enforcing by default since 2.1 with a documented opt-out.
+# down, enforcing by default since 2.1.0 with a documented opt-out.
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
@@ -192,7 +192,7 @@ RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
 # failure deep inside glibc -- the silent degrade this project's fences
 # forbid -- so there is none.
 #
-# OPT-OUT -- back to the pre-2.1 log-only posture, surviving every package
+# OPT-OUT -- back to the pre-2.1.0 log-only posture, surviving every package
 # upgrade because the package never writes under /etc/systemd:
 #
 #   install -D -m 0644 \
@@ -294,7 +294,7 @@ RestrictNamespaces=yes
 # call outside @system-service and lets it proceed.  Under enforcement the
 # kill wins for the calls both cover, so what this adds is (1) a record of
 # the calls a drop-in re-admitted beyond @system-service -- Chrome's
-# seccomp/chroot -- and (2) the pre-2.1 soak posture, unchanged,
+# seccomp/chroot -- and (2) the pre-2.1.0 soak posture, unchanged,
 # for a host that opted out above.
 #
 # Cost, both halves.  (1) Each directive installs a real seccomp-BPF

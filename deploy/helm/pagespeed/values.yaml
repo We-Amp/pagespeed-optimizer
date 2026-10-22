@@ -1,4 +1,4 @@
-# mod_pagespeed 2.1 Helm Chart - Default Values
+# mod_pagespeed Helm Chart - Default Values
 
 replicaCount: 1
 

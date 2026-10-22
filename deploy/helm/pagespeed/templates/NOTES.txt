@@ -1,4 +1,4 @@
-mod_pagespeed 2.1 has been deployed!
+mod_pagespeed has been deployed!
 
 Get the application URL:
 {{- if .Values.ingress.enabled }}
