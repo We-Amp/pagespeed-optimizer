@@ -374,7 +374,7 @@ export function buildConfigSnippet11(items: AggregatedAudit[]): string {
   }
 
   const lines: string[] = [
-    '# mod_pagespeed 2.1 — the module, nginx syntax.',
+    '# mod_pagespeed — the module, nginx syntax.',
     '# Add to your server { } or location { } block.',
     'pagespeed on;',
     '',
@@ -451,7 +451,7 @@ export function buildConfigSnippet20(items: AggregatedAudit[]): string {
   }
 
   const lines: string[] = [
-    '# mod_pagespeed 2.1 — module + optimizer worker.',
+    '# mod_pagespeed — module + optimizer worker.',
     '# Add the nginx directives to your server { } or location { } block;',
     '# launch the worker with the listed flags (or use the equivalent',
     '# appsettings.json keys in the ASP.NET Core middleware).',

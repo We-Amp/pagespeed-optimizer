@@ -1,9 +1,9 @@
 ---
 title: 'Configuration reference: Apache and nginx directives'
-description: 'Every mod_pagespeed 2.1 directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.'
+description: 'Every mod_pagespeed directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.'
 order: 20
 group: 'Configure'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 faq:
   - q: 'Where is the mod_pagespeed configuration file?'
     a: 'Apache reads `pagespeed.conf` from `/etc/apache2/mods-available/` (Debian, Ubuntu) or `/etc/httpd/conf.d/` (RHEL, AlmaLinux, Rocky); nginx reads `pagespeed` directives from `nginx.conf`, in the `http`, `server` or `location` block; IIS reads `pagespeed.config` from the site root or `%ProgramData%\We-Amp\PageSpeed\`.'

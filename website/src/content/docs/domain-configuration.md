@@ -1,9 +1,9 @@
 ---
 title: 'Domain configuration'
-description: 'Domain mapping in mod_pagespeed 2.1 on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.'
+description: 'Domain mapping in mod_pagespeed on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.'
 order: 24
 group: 'Configure'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 ---
 
 mod_pagespeed rewrites and optimizes resources referenced by HTML pages. To do this safely, it must know which domains it is allowed to fetch from and how domain names map between the public-facing URL and the actual origin.
@@ -233,4 +233,4 @@ The first argument is the URL prefix. The second is the filesystem path that cor
 
 - [Configuration](/docs/configuration/) — general configuration reference
 - [Caching](/docs/cache-control/#rewrite_domains) — how domain configuration affects caching behavior
-- [Configuration reference](/docs/configuration/) — the full list of mod_pagespeed 2.1 directives
+- [Configuration reference](/docs/configuration/) — the full list of mod_pagespeed directives

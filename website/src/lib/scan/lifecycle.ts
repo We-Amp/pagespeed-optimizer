@@ -55,7 +55,7 @@ export function lifecycleSentence(
   const label = String(version).trim();
   if (v.major === 2 && v.minor < 5) {
     return v.minor === 0
-      ? `ModPageSpeed ${label}: Migrate from ModPageSpeed 2.0 explains whether your setup moves to 2.1 today.`
+      ? `ModPageSpeed ${label}: Migrate from ModPageSpeed 2.0 explains how your setup moves to the current release.`
       : '';
   }
   const cur = parseVersion(current);

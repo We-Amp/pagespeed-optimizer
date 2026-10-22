@@ -11,3 +11,4 @@ export { default as CompatMatrix } from './CompatMatrix.astro';
 export { default as NugetCmd } from './NugetCmd.astro';
 export { default as XPageSpeedExample } from './XPageSpeedExample.astro';
 export { default as ImageTag } from './ImageTag.astro';
+export { default as VersionMap } from './VersionMap.astro';

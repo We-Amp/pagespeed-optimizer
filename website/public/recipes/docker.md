@@ -1,4 +1,4 @@
-# Docker: install and verify mod_pagespeed 2.1 (nginx reverse proxy)
+# Docker: install and verify mod_pagespeed (nginx reverse proxy)
 
 Source: https://modpagespeed.com/docs/installation-docker/. Header: `X-PageSpeed`.
 Scope: the containers in front of an existing HTTP origin. Run section 2 (one

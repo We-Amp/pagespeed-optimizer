@@ -14,7 +14,8 @@ test.describe('Support page', () => {
   test('title, description and H1', async ({ page }) => {
     const title = await page.title();
     expect(title.length).toBeLessThanOrEqual(60);
-    expect(title).toContain('mod_pagespeed 2.1');
+    expect(title).toContain('mod_pagespeed');
+    expect(title).not.toMatch(/mod_pagespeed 2\.1(?!\.)/);
     const description = await page.locator('meta[name="description"]').getAttribute('content');
     expect(description!.length).toBeLessThanOrEqual(155);
     await expect(page.locator('h1')).toHaveCount(1);

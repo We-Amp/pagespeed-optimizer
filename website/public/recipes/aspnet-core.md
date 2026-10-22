@@ -1,4 +1,4 @@
-# ASP.NET Core: install and verify the mod_pagespeed 2.1 middleware
+# ASP.NET Core: install and verify the mod_pagespeed middleware
 
 Source: https://modpagespeed.com/docs/aspnet-getting-started/ and
 https://modpagespeed.com/docs/aspnet-configuration/. Header: `X-PageSpeed`.

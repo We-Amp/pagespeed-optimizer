@@ -71,7 +71,7 @@ test.describe('Landing page', () => {
   });
 
   test('page has correct title', async ({ page }) => {
-    await expect(page).toHaveTitle(/PageSpeed module for nginx and Apache: mod_pagespeed 2\.1/i);
+    await expect(page).toHaveTitle(/PageSpeed module for nginx and Apache: mod_pagespeed$/i);
   });
 
   test('page has correct meta description', async ({ page }) => {

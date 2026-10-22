@@ -7,19 +7,19 @@ const cards = [
     href: '/alternatives/mod-pagespeed/',
     title: 'mod_pagespeed alternative',
     summary:
-      'mod_pagespeed is deprecated. mod_pagespeed 2.1 — the native module plus the optimizer worker — is the actively-maintained continuation.',
+      'mod_pagespeed is deprecated. mod_pagespeed 2 — the native module plus the optimizer worker — is the actively-maintained continuation.',
   },
   {
     href: '/alternatives/ngx-pagespeed/',
     title: 'ngx_pagespeed alternative',
     summary:
-      'ngx_pagespeed was the nginx port of mod_pagespeed; the GitHub repository is now read-only. mod_pagespeed 2.1 is the maintained nginx path — the native module plus the optimizer worker, with variant-aware caching and zero-copy serving.',
+      'ngx_pagespeed was the nginx port of mod_pagespeed; the GitHub repository is now read-only. mod_pagespeed 2 is the maintained nginx path — the native module plus the optimizer worker, with variant-aware caching and zero-copy serving.',
   },
   {
     href: '/alternatives/iispeed/',
     title: 'IISpeed alternative',
     summary:
-      'IISpeed is deprecated. Free license transfer to mod_pagespeed 2.1 for native IIS, or to the WeAmp.PageSpeed.AspNetCore NuGet package for ASP.NET Core.',
+      'IISpeed is deprecated. Free license transfer to mod_pagespeed 2 for native IIS, or to the WeAmp.PageSpeed.AspNetCore NuGet package for ASP.NET Core.',
   },
   {
     href: '/alternatives/google-pagespeed-module/',
@@ -34,7 +34,7 @@ const jsonLd = {
   '@type': 'CollectionPage',
   name: 'Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed',
   description:
-    "The active continuation for Google's deprecated PageSpeed Module family — mod_pagespeed 2.1 — plus path-by-path migration guidance for nginx, Apache, IIS, and ASP.NET Core.",
+    "The active continuation for Google's deprecated PageSpeed Module family — mod_pagespeed 2 — plus path-by-path migration guidance for nginx, Apache, IIS, and ASP.NET Core.",
   url: 'https://modpagespeed.com/alternatives/',
   hasPart: cards.map((card) => ({
     '@type': 'WebPage',
@@ -47,7 +47,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed"
-  description="mod_pagespeed and ngx_pagespeed are deprecated. Compare the maintained continuation, mod_pagespeed 2.1, and pick the right fit per server."
+  description="mod_pagespeed and ngx_pagespeed are deprecated. Compare the maintained continuation, mod_pagespeed 2, and pick the right fit per server."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
@@ -58,10 +58,10 @@ const jsonLd = {
       <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code> and{' '}
       <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code> are
       deprecated. IISpeed is in transition. These pages cover the actively-maintained continuation,
-      mod_pagespeed 2.1, and how each server reaches it.
+      mod_pagespeed 2, and how each server reaches it.
     </p>
     <p class="lede-sub mt-4 max-w-2xl text-sm text-text-muted">
-      mod_pagespeed 2.1 shares the optimization core that powers{' '}
+      mod_pagespeed 2 shares the optimization core that powers{' '}
       <span class="font-semibold text-text-body">230,000+ live sites</span> today (
       <a
         href="https://trends.builtwith.com/Server/mod_pagespeed"

@@ -7,10 +7,10 @@ import { LICENSE_CLAUSE, REPOSITORY_KEY, formatFingerprint } from '../../data/pr
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'TechArticle',
-  headline: 'Install mod_pagespeed 2.1 from packages.modpagespeed.com (apt + yum)',
+  headline: 'Install mod_pagespeed from packages.modpagespeed.com (apt + yum)',
   description:
-    'Signed apt and yum repository for the mod_pagespeed 2.1 Apache and nginx modules on Debian 12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10. One-line install configures the repo and pulls the package.',
-  about: 'mod_pagespeed 2.1',
+    'Signed apt and yum repository for the mod_pagespeed Apache and nginx modules on Debian 12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10. One-line install configures the repo and pulls the package.',
+  about: 'mod_pagespeed',
   image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
@@ -26,17 +26,17 @@ const jsonLd = {
 ---
 
 <BaseLayout
-  title="Install mod_pagespeed 2.1 on Apache & nginx via apt / yum"
-  description="Signed apt and yum repository for the mod_pagespeed 2.1 Apache and nginx modules: Debian 12/13, Ubuntu 22.04/24.04, AlmaLinux, RHEL and Rocky 9 and 10."
+  title="Install mod_pagespeed on Apache & nginx via apt / yum"
+  description="Signed apt and yum repository for the mod_pagespeed Apache and nginx modules: Debian 12/13, Ubuntu 22.04/24.04, AlmaLinux, RHEL and Rocky 9 and 10."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <p class="eyebrow text-interactive">mod_pagespeed 2.1</p>
+    <p class="eyebrow text-interactive">mod_pagespeed</p>
     <h1 class="h1-hero mt-2 text-text-body">
       Install from <code class="font-mono max-lg:wrap-anywhere">packages.modpagespeed.com</code>
     </h1>
     <p class="lede mt-6">
-      A signed apt and yum repository for the mod_pagespeed 2.1 Apache and nginx modules. One line
+      A signed apt and yum repository for the mod_pagespeed Apache and nginx modules. One line
       detects the distro, installs the GPG signing key, writes the source file, and pulls the
       package. The nginx module ships prebuilt for Debian 12/13 and Ubuntu 22.04/24.04 (amd64 and
       arm64), and for RHEL/AlmaLinux/Rocky 9 (x86_64, aarch64) and 10 (x86_64), each pinned to that
@@ -192,7 +192,7 @@ sudo dnf install nginx-module-pagespeed`,
     </ul>
     <p class="mt-4 text-sm text-text-annotation">
       Debian 11 (bullseye): the repository's bullseye suite carries the 1.15.0 module packages. The
-      mod_pagespeed 2.1 packages need Debian 12 or newer.
+      mod_pagespeed packages need Debian 12 or newer.
     </p>
     <p class="mt-4 text-sm text-text-annotation">
       EL8 is no longer in the generic yum repo.{' '}
@@ -235,16 +235,16 @@ sudo dnf install nginx-module-pagespeed`,
 
     <h2 class="h2-section mt-14 text-text-body">License</h2>
     <p class="mt-4 text-text-body">
-      The package is the same mod_pagespeed 2.1 build as the direct download links. Install it and
-      it optimizes right away, including{' '}
+      The package is the same mod_pagespeed build as the direct download links. Install it and it
+      optimizes right away, including{' '}
       <a
         href="/blog/nginx-image-optimization-module/"
         class="text-interactive hover:text-interactive-hover underline"
       >
         automatic WebP image optimization via the nginx module
       </a>
-      . mod_pagespeed 2.1 is {LICENSE_CLAUSE} — free in development and in production; what We-Amp
-      sells is{' '}
+      . mod_pagespeed is {LICENSE_CLAUSE} — free in development and in production; what We-Amp sells
+      is{' '}
       <a
         href="/pricing/"
         data-umami-event="cta_commercial"

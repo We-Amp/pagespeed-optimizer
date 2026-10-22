@@ -2,7 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import NugetCmd from '../../components/release/NugetCmd.astro';
-import { COMMERCIAL_EMAIL, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { COMMERCIAL_EMAIL, FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
 
 const faq = [
   {
@@ -15,7 +15,7 @@ const faq = [
   },
   {
     q: 'What replaces IISpeed for IIS deployments?',
-    a: 'mod_pagespeed 2.1 ships a native IIS module with the same web.config surface IISpeed offered — a modernized, secured filter stack with new optimizers, same admin console, plus security patches, current toolchain, and Cyclone Cache. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
+    a: 'mod_pagespeed ships a native IIS module with the same web.config surface IISpeed offered — a modernized, secured filter stack with new optimizers, same admin console, plus security patches, current toolchain, and Cyclone Cache. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
   {
     q: 'Does WeAmp.PageSpeed.AspNetCore work with classic ASP.NET?',
@@ -115,7 +115,7 @@ const jsonLd = [
     <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <p>
         IISpeed is now deprecated. Existing customers get a free license transfer to either
-        mod_pagespeed 2.1 (native IIS port) or to the WeAmp.PageSpeed.AspNetCore NuGet package for
+        mod_pagespeed (native IIS port) or to the WeAmp.PageSpeed.AspNetCore NuGet package for
         ASP.NET Core. Existing installations keep working with ongoing support, but IISpeed itself
         no longer receives updates: its IIS integration lives on in the mod_pagespeed IIS module.
       </p>
@@ -280,8 +280,8 @@ app.Run();`}</code></pre>
 
       <h2>Install and run</h2>
       <p>
-        Install either path and it optimizes right away. The converged mod_pagespeed 2.1 is open
-        source under Apache-2.0 &mdash; free in development and in production.
+        Install either path and it optimizes right away. mod_pagespeed is {LICENSE_CLAUSE} &mdash;
+        free in development and in production.
       </p>
       <p>The IIS package ships as a signed installer on the mod_pagespeed GitHub release.</p>
       <ul>
@@ -333,7 +333,7 @@ app.Run();`}</code></pre>
       <p class="text-xs text-text-annotation">
         IIS, ASP.NET, Windows Server, and other product names are trademarks of their respective
         owners. mod_pagespeed is an open-source project originally developed at Google; its
-        maintained continuation, mod_pagespeed 2.1, is developed by We-Amp B.V. Comparisons reflect
+        maintained continuation, mod_pagespeed 2, is developed by We-Amp B.V. Comparisons reflect
         publicly available information as of 2026 and are provided for evaluation; We-Amp B.V. is
         not affiliated with or endorsed by Microsoft Corporation or Google.
       </p>

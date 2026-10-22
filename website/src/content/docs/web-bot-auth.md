@@ -3,7 +3,7 @@ title: 'Verify AI crawlers with Web Bot Auth'
 description: 'Check RFC 9421 signatures from AI crawlers at your origin and label each request with a verified bot identity — observe-only, off by default.'
 order: 61
 group: 'Agents'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-22
 faq:
   - q: 'Does it ever block a request?'
     a: 'No. The verifier is observe-only: it labels signature-bearing requests with an x-verified-bot response header and counts verdicts in /v1/metrics. It never changes how a request is served — no blocking, no cache variation, no redirect.'
@@ -26,7 +26,7 @@ text. [Web Bot Auth](https://datatracker.ietf.org/wg/webbotauth/about/) fixes
 that with cryptography: a bot signs its requests with an Ed25519 key
 ([RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) HTTP Message
 Signatures) and publishes the public half in a JWKS key directory at a
-well-known HTTPS URL. mod_pagespeed 2.1 can verify those signatures at your
+well-known HTTPS URL. mod_pagespeed can verify those signatures at your
 origin and tell you, per request, **which bot actually sent it**.
 
 :::caution[Experimental]

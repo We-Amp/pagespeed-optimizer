@@ -1,4 +1,4 @@
-# IIS: install and verify mod_pagespeed 2.1 (native IIS module)
+# IIS: install and verify mod_pagespeed (native IIS module)
 
 Source: https://modpagespeed.com/docs/install-iis/ and
 https://modpagespeed.com/docs/iis-configuration/. Header: `X-Page-Speed`.

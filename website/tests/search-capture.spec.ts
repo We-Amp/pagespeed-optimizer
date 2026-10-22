@@ -10,9 +10,9 @@ import { stubUmami, trackedEvents } from './helpers/umami';
 // orientation on the three pages those docs redirect to.
 
 const titles: Array<[string, string]> = [
-  ['/', 'PageSpeed module for nginx and Apache: mod_pagespeed 2.1'],
-  ['/docs/getting-started/', 'Install mod_pagespeed 2.1: nginx, Apache, Docker, IIS'],
-  ['/docs/installation-module/', 'Install mod_pagespeed on Apache and nginx: 2.1 packages'],
+  ['/', 'PageSpeed module for nginx and Apache: mod_pagespeed'],
+  ['/docs/getting-started/', 'Install mod_pagespeed: nginx, Apache, Docker, IIS'],
+  ['/docs/installation-module/', 'Install mod_pagespeed on Apache and nginx: signed packages'],
   ['/docs/filters/', 'PageSpeed filters: the complete reference'],
   ['/analyze/', 'Free PageSpeed Insights test, with the fix attached'],
   [
@@ -48,7 +48,7 @@ test.describe('search capture: titles', () => {
 
   test('getting started leads with the install heading', async ({ page }) => {
     await page.goto('/docs/getting-started/');
-    await expect(page.locator('main h1').first()).toHaveText('Install mod_pagespeed 2.1');
+    await expect(page.locator('main h1').first()).toHaveText('Install mod_pagespeed');
   });
 
   test('the PageSpeed module explainer answers availability and the browser extension', async ({

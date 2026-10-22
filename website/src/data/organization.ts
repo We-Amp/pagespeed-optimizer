@@ -11,6 +11,9 @@ import { PRODUCT_DISPLAY_NAME, VENDOR, VENDOR_URL } from './product-facts.mjs';
 
 export const ORGANIZATION_ID = 'https://we-amp.com/#organization';
 
+// The company's logo (the We-Amp mark, not the product logo).
+export const ORGANIZATION_LOGO_URL = 'https://we-amp.com/images/weamp.svg';
+
 // What a product or article node carries as its publisher: the `@id` that
 // resolves to the full node, plus the name and URL for consumers that do not
 // follow references.
@@ -19,6 +22,15 @@ export const ORGANIZATION_REF = {
   '@id': ORGANIZATION_ID,
   name: VENDOR,
   url: VENDOR_URL,
+};
+
+// What an article node (TechArticle, BlogPosting) carries as its publisher:
+// the reference above plus the company's logo, which article rich results
+// expect on the publisher. The same logo as the full node, so the publisher
+// of every article is recognisably the same organization.
+export const ORGANIZATION_PUBLISHER = {
+  ...ORGANIZATION_REF,
+  logo: { '@type': 'ImageObject', url: ORGANIZATION_LOGO_URL },
 };
 
 // The brand We-Amp owns. The nginx module's historical name and the 2.0 line
@@ -35,7 +47,7 @@ export const ORGANIZATION = {
   '@id': ORGANIZATION_ID,
   name: VENDOR,
   url: VENDOR_URL,
-  logo: 'https://we-amp.com/images/weamp.svg',
+  logo: ORGANIZATION_LOGO_URL,
   description:
     'Dutch software and consulting company specializing in HTTP infrastructure, web performance, and reverse proxy engineering.',
   foundingDate: '2012',

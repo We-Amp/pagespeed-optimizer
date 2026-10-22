@@ -230,7 +230,7 @@ describe('riskRows edge cases', () => {
       ' mod_pagespeed 1.16.0.2: a newer release is available. Update recommended. One page only',
     );
     expect(sentence('2.0.3')).toContain(
-      ' ModPageSpeed 2.0.3: Migrate from ModPageSpeed 2.0 explains whether your setup moves to 2.1 today. One page only',
+      ' ModPageSpeed 2.0.3: Migrate from ModPageSpeed 2.0 explains how your setup moves to the current release. One page only',
     );
     expect(sentence('2.1.0')).toBe(
       '0 error-output patterns · 1 version tell · end of life: none seen · missing: none. One page only; not a security assessment.',

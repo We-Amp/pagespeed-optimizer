@@ -1,7 +1,7 @@
-# mod_pagespeed 2.1 — release manifest (single source of truth)
+# mod_pagespeed — release manifest (single source of truth)
 #
 # The converged line: the native web-server module (Apache, nginx)
-# and the pagespeed-optimizer worker ship as one product, mod_pagespeed 2.1,
+# and the pagespeed-optimizer worker ship as one product, mod_pagespeed,
 # licensed under the Apache License 2.0. The predecessor lines
 # (mod_pagespeed 1.15, ModPageSpeed 2.0) carry the same license.
 #

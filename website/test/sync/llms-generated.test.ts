@@ -185,7 +185,7 @@ describe('llms*.txt drift guard', () => {
       expect(t).not.toContain('half price');
       expect(t).toContain(`up to ${MAX_VARIANTS} variants per image`);
       expect(t).toContain(`${RASTER_VARIANTS} raster`);
-      expect(t).toContain(`${PRODUCT_NAME} ${CURRENT_LINE}`);
+      expect(t).toContain(PRODUCT_NAME);
       expect(t).toContain(`mod_pagespeed ${V1_LINE}`);
       expect(t).toContain(`renumbered from ${V1_RENUMBERED_FROM}`);
       expect(t).toContain(LAST_UPSTREAM_VERSION);
@@ -276,7 +276,7 @@ describe('agent files cover the docs collection', () => {
   });
 
   it('llms.txt opens with the H1 and the one-paragraph summary', () => {
-    expect(index.startsWith(`# ${PRODUCT_NAME} ${CURRENT_LINE}\n\n> `)).toBe(true);
+    expect(index.startsWith(`# ${PRODUCT_NAME}\n\n> `)).toBe(true);
     // No heading between the summary and the first link section.
     const beforeFirstSection = index.slice(0, index.indexOf('\n## '));
     expect(beforeFirstSection.split('\n').filter((l) => /^#{2,6} /.test(l))).toEqual([]);
@@ -583,7 +583,8 @@ describe('ai-plugin.json manifest drift guard', () => {
 
   it('description_for_model carries the single-sourced identity + support facts', () => {
     const m: string = manifest.description_for_model;
-    expect(m).toContain(`${PRODUCT_NAME} ${CURRENT_LINE}`);
+    expect(m).toContain(`The current product, ${PRODUCT_NAME} 2,`);
+    expect(m).not.toMatch(/mod[_ ]pagespeed 2\.1(?![.\d])/i);
     expect(m).toContain(`mod_pagespeed ${V1_LINE}`);
     expect(m).toContain(`renumbered from ${V1_RENUMBERED_FROM}`);
     expect(m).toContain(LICENSE_CLAUSE);
@@ -626,7 +627,7 @@ describe('product-facts consumers reflect the single source', () => {
   it('/api/product.json reflects the converged identity, support tiers and predecessors', async () => {
     const res = (productJsonGet as (ctx?: unknown) => Response)({});
     const data = JSON.parse(await res.text());
-    expect(data.product).toBe(`${PRODUCT_NAME} ${CURRENT_LINE}`);
+    expect(data.product).toBe(PRODUCT_NAME);
     expect(data.license).toBe(SOURCE_PUBLICATION.licenseId);
     // The license/publication record is pinned in full by
     // source-publication-sync.test.ts; no evaluation story exists.

@@ -1,9 +1,9 @@
 ---
 title: 'HTTPS configuration'
-description: 'Fetch HTTPS resources on nginx, Apache and IIS with mod_pagespeed 2.1: FetchHttps with certificate checks, MapOriginDomain to HTTP, or LoadFromFile.'
+description: 'Fetch HTTPS resources on nginx, Apache and IIS with mod_pagespeed: FetchHttps with certificate checks, MapOriginDomain to HTTP, or LoadFromFile.'
 order: 25
 group: 'Configure'
-lastUpdated: 2026-07-12
+lastUpdated: 2026-10-22
 ---
 
 mod_pagespeed fetches resources (CSS, JavaScript, images) from your site to optimize them. When your site serves pages over HTTPS, mod_pagespeed must be able to make HTTPS connections to fetch those resources.

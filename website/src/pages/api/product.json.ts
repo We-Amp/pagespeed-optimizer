@@ -44,7 +44,7 @@ import {
 const rel = await getRelease(CURRENT_LINE as '2.1');
 
 const productData = {
-  product: `${PRODUCT_NAME} ${CURRENT_LINE}`,
+  product: `${PRODUCT_NAME}`,
   vendor: VENDOR,
   website: WEBSITE,
   release: {
@@ -129,7 +129,7 @@ const productData = {
   related_products: [
     {
       product: `mod_pagespeed ${V1_LINE}`,
-      description: `The mod_pagespeed ${V1_LINE} line, continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. ${PRODUCT_NAME} ${CURRENT_LINE} is its drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
+      description: `The mod_pagespeed ${V1_LINE} line, continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. ${PRODUCT_NAME} 2 is its drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
       nuget_sidecar: {
         package: PKG_SIDECAR,
         native_assets_package: PKG_SIDECAR_NATIVE,
@@ -148,7 +148,7 @@ const productData = {
     },
     {
       product: `ModPageSpeed ${V2_LINE}`,
-      description: `The Docker/Helm stack from the ${V2_LINE} re-architecture, whose engine continues as the ${PRODUCT_NAME} ${CURRENT_LINE} optimizer worker. Its ASP.NET Core middleware, ${PKG_ASPNETCORE}, continues as the ASP.NET Core form of ${PRODUCT_NAME} ${CURRENT_LINE}.`,
+      description: `The Docker/Helm stack from the ${V2_LINE} re-architecture, whose engine continues as the ${PRODUCT_NAME} 2 optimizer worker. Its ASP.NET Core middleware, ${PKG_ASPNETCORE}, continues as the ASP.NET Core form of ${PRODUCT_NAME} 2.`,
       links: {
         migration_guide: 'https://modpagespeed.com/docs/migrating-to-2-1/',
       },

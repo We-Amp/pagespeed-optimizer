@@ -1,4 +1,5 @@
 ---
+import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
@@ -83,11 +84,7 @@ const articleJsonLd = {
   image: OG_DEFAULT_IMAGE_URL,
   about: 'Self-hosted image optimization',
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-  publisher: {
-    '@type': 'Organization',
-    name: 'We-Amp B.V.',
-    url: 'https://we-amp.com/',
-  },
+  publisher: ORGANIZATION_PUBLISHER,
 };
 
 const softwareJsonLd = await productJsonLd({
@@ -109,7 +106,7 @@ const faqEntries = [
   },
   {
     q: 'Does self-hosting image optimization cost more in CPU?',
-    a: 'Optimization runs once per image variant and the result is cached, so steady-state cost is a cache read, not a re-encode. In mod_pagespeed 2.1 the encode happens in the optimizer worker, out of the request path, so a slow or heavy transcode cannot stall the web server — the first request for an image is served as the original and the optimized variant appears on later requests. The quality model used to pick encoder settings runs on CPU — no GPU is required.',
+    a: 'Optimization runs once per image variant and the result is cached, so steady-state cost is a cache read, not a re-encode. In mod_pagespeed the encode happens in the optimizer worker, out of the request path, so a slow or heavy transcode cannot stall the web server — the first request for an image is served as the original and the optimized variant appears on later requests. The quality model used to pick encoder settings runs on CPU — no GPU is required.',
   },
   {
     q: 'What image formats and sizes does it generate?',
@@ -163,10 +160,10 @@ const faqJsonLd = {
     >
       <p>
         Hosted image services optimize your images well, then bill you per transformation, per
-        stored asset, and per byte of egress. mod_pagespeed 2.1 does the same work &mdash; transcode
-        to WebP and AVIF, resize to the rendered size, target a perceptual-quality score &mdash; on
-        the server you already run. Images never leave your origin, so there is nothing to meter on
-        the way out.
+        stored asset, and per byte of egress. mod_pagespeed does the same work &mdash; transcode to
+        WebP and AVIF, resize to the rendered size, target a perceptual-quality score &mdash; on the
+        server you already run. Images never leave your origin, so there is nothing to meter on the
+        way out.
       </p>
     </SectionHeader>
 
@@ -361,9 +358,9 @@ const faqJsonLd = {
       <h2 class="h2-section text-text-body">Turning it on</h2>
       <p class="mt-4 text-text-body">
         Image transcoding, resizing, and recompression are on as soon as it is enabled &mdash; there
-        is no per-filter list to assemble. On nginx, mod_pagespeed 2.1 is two directives:
+        is no per-filter list to assemble. On nginx, mod_pagespeed is two directives:
       </p>
-      <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# nginx — mod_pagespeed 2.1
+      <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# nginx — mod_pagespeed
 pagespeed on;
 pagespeed_cache_path /var/lib/pagespeed/cache.vol;`}</code></pre>
       <p class="mt-4 text-text-body">
@@ -376,7 +373,7 @@ pagespeed_cache_path /var/lib/pagespeed/cache.vol;`}</code></pre>
         For .NET, the same engine ships as ASP.NET Core middleware &mdash; one package, native
         worker bundled, no separate image server to deploy:
       </p>
-      <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# ASP.NET Core — mod_pagespeed 2.1 middleware
+      <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# ASP.NET Core — mod_pagespeed middleware
 dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
       <p class="mt-4 text-sm text-text-muted">
         See the{' '}
@@ -561,7 +558,7 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
         </li>
         <li>
           <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
-            mod_pagespeed 2.1 features
+            mod_pagespeed features
           </a>{' '}
           &mdash; image transcoding, critical CSS, minification, and variant-aware caching
         </li>

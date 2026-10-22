@@ -1,12 +1,12 @@
 ---
 title: 'Install the module on Apache and nginx'
-seoTitle: 'Install mod_pagespeed on Apache and nginx: 2.1 packages'
-description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
+seoTitle: 'Install mod_pagespeed on Apache and nginx: signed packages'
+description: 'Install the native mod_pagespeed module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
 order: 3
 group: 'Install'
 lastUpdated: 2026-10-22
 faq:
-  - q: 'Is there a native nginx module for mod_pagespeed 2.1?'
+  - q: 'Is there a native nginx module for mod_pagespeed?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
   - q: 'How do I run mod_pagespeed on nginx today?'
     a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.'

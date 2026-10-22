@@ -3,7 +3,7 @@ title: 'Browser analysis with headless Chrome'
 description: 'How the optimizer worker renders pages in headless Chrome to extract critical CSS, find the LCP element, measure JS coverage and gate visual regressions.'
 order: 54
 group: 'Operate'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-22
 ---
 
 The optimizer worker can render pages in headless Chrome instead of relying on
@@ -65,7 +65,7 @@ reports `browser_sandbox: "unavailable"`, names the cause in the journal, and
 keeps serving without browser analysis (it never starts an unsandboxed
 browser on its own -- that is the explicit `PAGESPEED_BROWSER_SANDBOX=off`
 opt-out). The packaged service unit enforces a system-call allow-list (since
-2.1), and Chrome's own sandbox needs a handful of calls that list does not
+2.1.0), and Chrome's own sandbox needs a handful of calls that list does not
 admit; the package ships that re-admission list installed and active as a
 vendor drop-in (`20-browser-analysis.conf` next to the unit), so nothing
 needs installing. A host that does not run browser analysis can mask it with

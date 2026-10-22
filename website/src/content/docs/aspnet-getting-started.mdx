@@ -1,14 +1,14 @@
 ---
 title: 'Install ASP.NET Core middleware'
-description: 'Install the mod_pagespeed 2.1 ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.'
+description: 'Install the mod_pagespeed ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.'
 order: 9
 group: 'Install'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
 
-The mod_pagespeed 2.1 ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) runs
+The mod_pagespeed ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) runs
 inside your ASP.NET Core pipeline, installed as a NuGet package. Same optimization
 pipeline as the nginx integration — image transcoding, CSS/JS minification, critical
 CSS — invoked via P/Invoke to the native C/C++ library. No separate reverse proxy or
@@ -434,7 +434,7 @@ unless `Sidecar.AllowPublicAdmin` is enabled).
 
 ### When to use the sidecar vs. the in-process middleware
 
-|               | `WeAmp.PageSpeed.Sidecar` (1.15)                           | `WeAmp.PageSpeed.AspNetCore` (2.1)                        |
+|               | `WeAmp.PageSpeed.Sidecar`                                  | `WeAmp.PageSpeed.AspNetCore`                              |
 | ------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
 | Model         | Middleware front door; bundled nginx optimizes on loopback | In-process middleware (P/Invoke)                          |
 | Platforms     | Linux only (`linux-x64`, `linux-arm64`)                    | linux-x64/arm64, osx-arm64, win-x64                       |

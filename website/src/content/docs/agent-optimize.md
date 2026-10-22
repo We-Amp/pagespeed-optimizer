@@ -3,7 +3,7 @@ title: 'Serve Markdown to AI agents'
 description: 'Serve AI agents a rendered Markdown copy of your pages at the same URL, and synthesize an /llms.txt — off by default, nothing leaves your server.'
 order: 60
 group: 'Agents'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 faq:
   - q: 'Does this change what browsers and search engines see?'
     a: 'No. Browsers and crawlers receive your normal HTML at the same URL. Only a request that explicitly negotiates the agent representation (Accept: text/markdown), on a deployment where you have enabled agent optimization, receives the rendered-Markdown copy. The response carries Vary: Accept so shared caches never mix the two.'
@@ -20,7 +20,7 @@ faq:
 AI agents and LLM crawlers fetch your pages to read, summarize, and act on them —
 but a JavaScript-rendered site often
 [looks empty to a client that does not execute scripts](/blog/can-ai-read-your-website/).
-The mod_pagespeed 2.1 optimizer worker can serve those agents a **rendered,
+The mod_pagespeed optimizer worker can serve those agents a **rendered,
 readable copy** of each page, at the **same URL**, without changing anything a
 browser or search engine sees.
 

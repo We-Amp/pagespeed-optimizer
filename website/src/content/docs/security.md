@@ -1,9 +1,9 @@
 ---
 title: 'Security hardening guide'
-description: 'Security guidance for mod_pagespeed 2.1: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.'
+description: 'Security guidance for mod_pagespeed: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.'
 order: 57
 group: 'Operate'
-lastUpdated: 2026-10-06
+lastUpdated: 2026-10-22
 ---
 
 ## Overview
@@ -45,7 +45,7 @@ mod_pagespeed verifies SSL certificates when fetching HTTPS resources. Do not di
 
 ## Security patches
 
-mod_pagespeed 2.1 includes patches for all known CVEs from the open-source project. We-Amp maintains an ongoing security review process. If you discover a security issue, report it to [security@modpagespeed.com](mailto:security@modpagespeed.com) or through the [security policy](/security/).
+mod_pagespeed includes patches for all known CVEs from the open-source project. We-Amp maintains an ongoing security review process. If you discover a security issue, report it to [security@modpagespeed.com](mailto:security@modpagespeed.com) or through the [security policy](/security/).
 
 ## See also
 

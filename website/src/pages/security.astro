@@ -4,12 +4,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 <BaseLayout
   title="Security policy and vulnerability reporting"
-  description="The mod_pagespeed 2.1 security policy: how to report a vulnerability, the threat model, supply chain security and safe harbor for researchers."
+  description="The mod_pagespeed security policy: how to report a vulnerability, the threat model, supply chain security and safe harbor for researchers."
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="h1-hero text-text-body">Security policy</h1>
     <p class="mt-6 text-lg text-text-muted">
-      mod_pagespeed 2.1 processes untrusted content &mdash; HTML, CSS, JavaScript, and images from
+      mod_pagespeed processes untrusted content &mdash; HTML, CSS, JavaScript, and images from
       origin servers. We take this seriously.
     </p>
 
@@ -84,8 +84,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <div>
         <h2 class="h2-section text-text-body">Scope</h2>
         <p class="mt-4 text-text-muted">
-          This security policy covers the mod_pagespeed 2.1 software (the module, the optimizer
-          worker, and the cache layer) on Apache, nginx and IIS, and the
+          This security policy covers the mod_pagespeed software (the module, the optimizer worker,
+          and the cache layer) on Apache, nginx and IIS, and the
           <a
             href="https://modpagespeed.com"
             class="text-interactive hover:text-interactive-hover underline"
@@ -163,7 +163,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div>
             <h3 class="font-semibold text-text-body">SBOM</h3>
             <p class="mt-2 text-text-muted">
-              An SPDX 2.3 SBOM for the 2.1 line, with a VEX document, is published in the{' '}
+              An SPDX 2.3 SBOM, with a VEX document, is published in the{' '}
               <a
                 href="https://github.com/We-Amp/pagespeed-optimizer/tree/main/sbom"
                 rel="noopener noreferrer"
@@ -195,7 +195,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <p class="mt-4 text-text-muted">
           Both parts process untrusted content by design &mdash; they rewrite HTML, minify CSS and
           JavaScript, and transcode images from origins you configure. We take this attack surface
-          seriously. Both parts of mod_pagespeed 2.1 build on a current toolchain and run with
+          seriously. Both parts of mod_pagespeed build on a current toolchain and run with
           AddressSanitizer and UndefinedBehaviorSanitizer in CI, catching memory safety issues and
           undefined behavior before they reach production. The optimizer worker is written in C++23
           with smart pointers and RAII throughout.

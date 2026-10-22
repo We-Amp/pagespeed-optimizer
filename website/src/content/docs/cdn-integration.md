@@ -1,12 +1,12 @@
 ---
 title: 'Integrate with a CDN'
-description: 'Run mod_pagespeed 2.1 behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.'
+description: 'Run mod_pagespeed behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.'
 order: 23
 group: 'Configure'
 lastUpdated: 2026-10-22
 ---
 
-mod_pagespeed 2.1 runs behind any CDN. The one thing to get right is how your CDN
+mod_pagespeed runs behind any CDN. The one thing to get right is how your CDN
 treats the `Vary` headers mod_pagespeed emits — get it wrong and edge hit rates
 collapse. This page explains that interaction and gives concrete settings for
 Cloudflare, CloudFront, and Fastly.
