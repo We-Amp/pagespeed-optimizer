@@ -822,15 +822,18 @@ module's own filters also work without the worker: leave out step 2 and the
    EOF
    ```
 
-   From the next release, the `nginx-module-pagespeed` package installs the
-   same four `location` lines as
-   `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
-   the file above by hand, under this name: the package leaves a hand-made
-   `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
-   packaged name makes the package upgrade stop and ask on Debian and Ubuntu
-   (on Enterprise Linux, rpm keeps the hand-made file and saves the packaged
-   copy beside it as `.rpmnew`). Include one of the
-   two files, not both: nginx rejects the duplicate `location` blocks.
+   From 2.5.2, the `nginx-module-pagespeed` package installs the same four
+   `location` lines as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`,
+   so you can include that file instead of creating the one above. The file
+   is not included anywhere on its own: add
+   `include /etc/nginx/snippets/pagespeed_admin_localhost.conf;` to each
+   `server {}` block that serves the admin pages. It is a conffile on Debian
+   and Ubuntu and `%config(noreplace)` on Enterprise Linux, so your edits
+   survive upgrades. A copy you made earlier at
+   `/etc/nginx/snippets/pagespeed_admin_restrict.conf` is left alone. Include
+   one of the two files, not both: nginx rejects the duplicate `location`
+   blocks. Remove the `include` lines before purging (deb) or removing (rpm)
+   the package, or `nginx -t` fails.
 
    Then, in each `server` block that should be optimized:
 
@@ -10775,10 +10778,11 @@ To tell downstream caches about this, it emits Vary headers:
 | HTML                                          | `Accept-Encoding, User-Agent`               |
 | CSS / JS                                      | `Accept-Encoding`                           |
 
-The native Apache, nginx and IIS modules with the optimizer worker attached
-send a shorter line on images: `Vary: Accept` on an optimized copy chosen from
-the request's `Accept` header (with `Accept-Encoding` where compression
-applies). A response that carries the origin's own bytes, such as the first
+From 2.5.2 the native Apache, nginx and IIS modules with the optimizer worker
+attached send the same list on images the optimizer worker chose:
+`Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR`, on the 200 and on the 304
+(with `Accept-Encoding` where compression applies). Up to and including 2.5.0
+they named only `Accept`. A response that carries the origin's own bytes, such as the first
 request for a URL, carries no `Vary: Accept` unless the origin sent one.
 
 Internally, mod_pagespeed classifies User-Agent strings into a small number of
@@ -10853,14 +10857,20 @@ Forward the normalized value as the request's `Accept` (for example
 class the edge cached it under. If you cannot do that, do not cache images at
 the edge.
 
-**The native modules need more than `Accept` today.** Behind the native
-Apache, nginx or IIS module with the optimizer worker attached, the copy is
-also chosen by device class and pixel density (from `User-Agent`) and by
-`Save-Data`, but the response names only `Accept` in `Vary`
-([mod_pagespeed#102](https://github.com/We-Amp/mod_pagespeed/issues/102)).
-Until that is fixed, a shared cache keyed on `Accept` alone can hand one
-device class's or Save-Data copy to another client. Bypass the edge cache for
-images there, or key on a `User-Agent` device class and `Save-Data` as well.
+**The native modules name the full list from 2.5.2.** Behind the native
+Apache, nginx or IIS module with the optimizer worker attached, an image
+served at its original URL is chosen by the device class and Save-Data as
+well as by `Accept`. These responses now carry
+`Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR` on Apache, nginx and IIS,
+so a shared cache no longer hands one device's image to another; up to and
+including 2.5.0 the response named only `Accept`. A cache that honours `Vary`
+(Varnish, Fastly, nginx) now keeps more copies of each image, so its hit rate
+for them drops; keying it on a device class wins that back. A cache that
+ignores `Vary` by default (Cloudflare, Amazon CloudFront) still hands one
+device's image to another until it is configured to key on the device class,
+`Accept` and `Save-Data`, or to skip these images. After upgrading, purge the
+images a shared cache holds once, since copies cached before the upgrade
+still carry `Vary: Accept` alone.
 
 If a non-browser client must receive the original format:
 
@@ -16042,7 +16052,7 @@ http {
 - **Block order does not matter for these paths.** `=` and `^~` blocks are chosen ahead of any regular-expression location, such as the one for `.pagespeed.` resources.
 - **These pages are reached by their own paths only.** A request that nginx rewrites (`rewrite`) or redirects internally to one of these paths is not served by the admin, statistics, console or message pages.
 
-The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself (`sudo mkdir -p /etc/nginx/snippets` first on Enterprise Linux). From the next release the package installs the same four lines itself as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`; include one of the two files, not both:
+The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself (`sudo mkdir -p /etc/nginx/snippets` first on Enterprise Linux). From 2.5.2 the package installs the same four lines itself as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. The file is not included anywhere on its own: add `include /etc/nginx/snippets/pagespeed_admin_localhost.conf;` to each `server {}` block that serves the admin pages. A copy you made earlier at `/etc/nginx/snippets/pagespeed_admin_restrict.conf` is left alone; include one of the two files, not both:
 
 ```nginx
 location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }

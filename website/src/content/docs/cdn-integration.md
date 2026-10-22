@@ -3,7 +3,7 @@ title: 'Integrate with a CDN'
 description: 'Run mod_pagespeed 2.1 behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.'
 order: 23
 group: 'Configure'
-lastUpdated: 2026-10-21
+lastUpdated: 2026-10-22
 ---
 
 mod_pagespeed 2.1 runs behind any CDN. The one thing to get right is how your CDN
@@ -24,10 +24,11 @@ To tell downstream caches about this, it emits Vary headers:
 | HTML                                          | `Accept-Encoding, User-Agent`               |
 | CSS / JS                                      | `Accept-Encoding`                           |
 
-The native Apache, nginx and IIS modules with the optimizer worker attached
-send a shorter line on images: `Vary: Accept` on an optimized copy chosen from
-the request's `Accept` header (with `Accept-Encoding` where compression
-applies). A response that carries the origin's own bytes, such as the first
+From 2.5.2 the native Apache, nginx and IIS modules with the optimizer worker
+attached send the same list on images the optimizer worker chose:
+`Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR`, on the 200 and on the 304
+(with `Accept-Encoding` where compression applies). Up to and including 2.5.0
+they named only `Accept`. A response that carries the origin's own bytes, such as the first
 request for a URL, carries no `Vary: Accept` unless the origin sent one.
 
 Internally, mod_pagespeed classifies User-Agent strings into a small number of
@@ -102,14 +103,20 @@ Forward the normalized value as the request's `Accept` (for example
 class the edge cached it under. If you cannot do that, do not cache images at
 the edge.
 
-**The native modules need more than `Accept` today.** Behind the native
-Apache, nginx or IIS module with the optimizer worker attached, the copy is
-also chosen by device class and pixel density (from `User-Agent`) and by
-`Save-Data`, but the response names only `Accept` in `Vary`
-([mod_pagespeed#102](https://github.com/We-Amp/mod_pagespeed/issues/102)).
-Until that is fixed, a shared cache keyed on `Accept` alone can hand one
-device class's or Save-Data copy to another client. Bypass the edge cache for
-images there, or key on a `User-Agent` device class and `Save-Data` as well.
+**The native modules name the full list from 2.5.2.** Behind the native
+Apache, nginx or IIS module with the optimizer worker attached, an image
+served at its original URL is chosen by the device class and Save-Data as
+well as by `Accept`. These responses now carry
+`Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR` on Apache, nginx and IIS,
+so a shared cache no longer hands one device's image to another; up to and
+including 2.5.0 the response named only `Accept`. A cache that honours `Vary`
+(Varnish, Fastly, nginx) now keeps more copies of each image, so its hit rate
+for them drops; keying it on a device class wins that back. A cache that
+ignores `Vary` by default (Cloudflare, Amazon CloudFront) still hands one
+device's image to another until it is configured to key on the device class,
+`Accept` and `Save-Data`, or to skip these images. After upgrading, purge the
+images a shared cache holds once, since copies cached before the upgrade
+still carry `Vary: Accept` alone.
 
 If a non-browser client must receive the original format:
 
