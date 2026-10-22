@@ -1,12 +1,12 @@
 ---
 title: 'Filter selection'
-description: 'Choose which mod_pagespeed 2.1 filters run: RewriteLevel presets, the CoreFilters default, EnableFilters, DisableFilters, ForbidFilters and thresholds.'
+description: 'Choose which mod_pagespeed filters run: RewriteLevel presets, the CoreFilters default, EnableFilters, DisableFilters, ForbidFilters and thresholds.'
 order: 41
 group: 'Filters'
 lastUpdated: 2026-07-12
 ---
 
-mod_pagespeed 2.1 applies a set of filters to optimize your pages. You control which filters run through the `RewriteLevel` directive and per-filter enable/disable directives.
+mod_pagespeed applies a set of filters to optimize your pages. You control which filters run through the `RewriteLevel` directive and per-filter enable/disable directives.
 
 For what each filter does, see the [PageSpeed filters](/docs/filters/) table. This page covers how to select them.
 
@@ -328,7 +328,7 @@ pagespeed ImageRecompressionQuality 75
 
 ## URL preservation
 
-By default, mod_pagespeed 2.1 rewrites resource URLs to include content hashes for cache extension. If you use a CDN or other infrastructure that requires stable, unchanged URLs, set the URL-preservation options for the affected resource types:
+By default, mod_pagespeed rewrites resource URLs to include content hashes for cache extension. If you use a CDN or other infrastructure that requires stable, unchanged URLs, set the URL-preservation options for the affected resource types:
 
 <!-- platform: nginx -->
 

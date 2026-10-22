@@ -20,7 +20,7 @@ faq:
 AI agents and LLM crawlers fetch your pages to read, summarize, and act on them —
 but a JavaScript-rendered site often
 [looks empty to a client that does not execute scripts](/blog/can-ai-read-your-website/).
-The mod_pagespeed 2.1 optimizer worker can serve those agents a **rendered,
+The mod_pagespeed optimizer worker can serve those agents a **rendered,
 readable copy** of each page, at the **same URL**, without changing anything a
 browser or search engine sees.
 

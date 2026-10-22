@@ -1,6 +1,6 @@
 ---
 title: 'JavaScript filters'
-description: 'Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.'
+description: 'Minify, combine, inline, and defer JavaScript in mod_pagespeed. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.'
 order: 45
 group: 'Filters'
 lastUpdated: 2026-10-08
@@ -8,7 +8,7 @@ lastUpdated: 2026-10-08
 
 ## Overview
 
-mod_pagespeed 2.1 includes filters for JavaScript minification, combining, inlining, and deferring execution. Three JS filters are CoreFilters: `rewrite_javascript`, `combine_javascript`, and `inline_javascript`.
+mod_pagespeed includes filters for JavaScript minification, combining, inlining, and deferring execution. Three JS filters are CoreFilters: `rewrite_javascript`, `combine_javascript`, and `inline_javascript`.
 
 ## Quick reference
 

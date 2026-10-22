@@ -1,12 +1,12 @@
 ---
 title: 'Troubleshoot common issues'
-description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
+description: 'Fix common mod_pagespeed issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
 lastUpdated: 2026-10-20
 ---
 
-Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
+Most mod_pagespeed problems surface in one place: the `X-PageSpeed`
 response header. `HIT` means the worker served a cached response (normally an
 optimized variant); `MISS` means it served the original. Read that header first,
 then jump to the symptom
@@ -24,7 +24,7 @@ been requested before.
    same cache file path. Verify that `pagespeed_cache_path` in your nginx
    config matches the worker's cache (`--cache-dir` / `--cache-path`).
 
-   **After upgrading to 2.1 this is the first thing to check.** The worker's
+   **After upgrading to 2.1.0 or later this is the first thing to check.** The worker's
    default paths moved to `/var/cache/pagespeed-optimizer/v3/cache` and
    `/run/pagespeed-optimizer/notify.sock`, but your web-server configuration
    keeps whatever it was set to. A configuration still naming the old

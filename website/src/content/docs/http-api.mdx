@@ -1,6 +1,6 @@
 ---
 title: 'Call the worker HTTP API'
-description: 'Optimizer worker HTTP API for mod_pagespeed 2.1: health, stats, Prometheus metrics, cache management, live config and WebSocket streaming, all via curl.'
+description: 'Optimizer worker HTTP API for mod_pagespeed: health, stats, Prometheus metrics, cache management, live config and WebSocket streaming, all via curl.'
 order: 66
 group: 'Reference'
 lastUpdated: 2026-10-18
@@ -76,7 +76,7 @@ curl --unix-socket /run/pagespeed-optimizer/api.sock http://localhost/v1/stats
 The `--api-socket` transport is also the surface the web server module's
 unified console reads: its worker panels proxy `GET /v1/health`,
 `GET /v1/stats`, and `GET /v1/cache/cooldowns` over this socket. The console
-panels require a 2.1 worker or later; against an older or unreachable worker
+panels require a 2.1.0 worker or later; against an older or unreachable worker
 the panel reports it as such instead of failing the console.
 
 `--api-port PORT` binds TCP, `127.0.0.1` by default.

@@ -1,12 +1,12 @@
 ---
 title: 'ASP.NET Core settings'
-description: 'Configuration reference for the mod_pagespeed 2.1 ASP.NET Core middleware: appsettings.json PageSpeed options, cache and worker settings, and hot reload.'
+description: 'Configuration reference for the mod_pagespeed ASP.NET Core middleware: appsettings.json PageSpeed options, cache and worker settings, and hot reload.'
 order: 27
 group: 'Configure'
 lastUpdated: 2026-10-18
 ---
 
-The mod_pagespeed 2.1 ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) is
+The mod_pagespeed ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) is
 configured from the standard ASP.NET Core sources: appsettings.json, environment
 variables, or any `IConfiguration` provider. It binds its options to the
 `PageSpeed` section via `IServiceCollection.AddPageSpeed()`.

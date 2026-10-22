@@ -1,13 +1,13 @@
 ---
 title: 'Getting started'
-h1: 'Install mod_pagespeed 2.1'
-seoTitle: 'Install mod_pagespeed 2.1: nginx, Apache, Docker, IIS'
-description: 'Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
+h1: 'Install mod_pagespeed'
+seoTitle: 'Install mod_pagespeed: nginx, Apache, Docker, IIS'
+description: 'Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
 lastUpdated: 2026-10-20
 faq:
-  - q: 'Which mod_pagespeed 2.1 integration should I pick?'
+  - q: 'Which mod_pagespeed integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
   - q: 'How do I verify mod_pagespeed is working?'
     a: 'Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.'
@@ -19,7 +19,7 @@ faq:
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
 ---
 
-mod_pagespeed 2.1 is one product in two parts: a module that runs inside your
+mod_pagespeed is one product in two parts: a module that runs inside your
 web server and an optimizer worker that does the heavy work beside it. Pick the
 integration that matches how you serve pages, run the few lines under it, then
 check the result with the same two requests. Every path below is free to

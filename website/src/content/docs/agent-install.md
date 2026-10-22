@@ -7,7 +7,7 @@ lastUpdated: 2026-10-13
 datePublished: 2026-10-10
 ---
 
-A coding agent can install mod_pagespeed 2.1 from a recipe: one Markdown file
+A coding agent can install mod_pagespeed from a recipe: one Markdown file
 per server, written for an agent to run. Each install recipe has the same five
 sections: prerequisites check, install, minimal configuration, verification and
 rollback; the diagnose recipe is read-only and ends in a report instead. The
@@ -34,7 +34,7 @@ and the recipe follows.
 
 ## Diagnose an installed server
 
-When mod_pagespeed 2.1 is already installed and the operator says it is not
+When mod_pagespeed is already installed and the operator says it is not
 working, or asks whether it works, an agent uses the diagnose recipe instead of
 an install recipe. It reads what the server already exposes: the response
 header, the worker's health socket and API, the admin pages, the counters and

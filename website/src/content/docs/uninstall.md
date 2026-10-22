@@ -1,6 +1,6 @@
 ---
 title: 'Uninstall and rollback'
-description: 'Remove mod_pagespeed 2.1 per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.'
+description: 'Remove mod_pagespeed per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.'
 order: 56
 group: 'Operate'
 lastUpdated: 2026-10-19
@@ -12,7 +12,7 @@ faq:
     a: 'Yes. Roll the module and the `pagespeed-optimizer` worker back together, optimizer first. After a release that changed the cache format the previous release files are still on disk, so the rollback starts with a warm cache.'
 ---
 
-Removing mod_pagespeed 2.1 is the reverse of installing it: take the module
+Removing mod_pagespeed is the reverse of installing it: take the module
 out of the web server, stop the worker, then decide what to do with the cache
 and configuration each shape leaves behind. The last section covers rolling
 back to a previous release instead.

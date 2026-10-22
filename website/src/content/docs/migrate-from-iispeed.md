@@ -13,7 +13,7 @@ faq:
 ---
 
 IISpeed is deprecated; its successor is the native IIS module that
-mod_pagespeed 2.1 ships, from the same code lineage. The move is an uninstall,
+mod_pagespeed ships, from the same code lineage. The move is an uninstall,
 an install and a check: your configuration files and your cache directory stay
 in place and keep working. The IIS package ships as a signed installer on the
 mod_pagespeed GitHub release.

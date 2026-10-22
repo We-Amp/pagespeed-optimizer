@@ -1,6 +1,6 @@
 ---
 title: 'Run in production'
-description: 'Run mod_pagespeed 2.1 in production: Docker Compose, Kubernetes with or without the chart, the packaged systemd unit, permissions, logs and cache sizing.'
+description: 'Run mod_pagespeed in production: Docker Compose, Kubernetes with or without the chart, the packaged systemd unit, permissions, logs and cache sizing.'
 order: 50
 group: 'Operate'
 lastUpdated: 2026-10-20
@@ -8,7 +8,7 @@ lastUpdated: 2026-10-20
 
 import ImageTag from '../../components/release/ImageTag.astro';
 
-mod_pagespeed 2.1 runs as two cooperating processes: the optimizer worker,
+mod_pagespeed runs as two cooperating processes: the optimizer worker,
 which optimizes content, and a serving side (nginx with the module in the
 reverse proxy, or the Apache, nginx or IIS module on a host install) that
 serves it from a shared cache. This page covers the three ways to run that
@@ -427,7 +427,7 @@ worker; give it an ordering drop-in of its own with
   by the worker.
 - **`ProtectSystem=strict`** with **`ReadWritePaths=/var/cache/pagespeed-optimizer`**:
   the worker can write nowhere else.
-- **`SystemCallFilter=`**, enforcing since 2.1: the worker may make the calls
+- **`SystemCallFilter=`**, enforcing since 2.1.0: the worker may make the calls
   in systemd's `@system-service` group (minus `@privileged` and `@resources`,
   plus `mincore`), and the kernel stops it with `SIGSYS` on anything else;
   `systemctl status` then shows `status=31/SYS`. The package ships an opt-out

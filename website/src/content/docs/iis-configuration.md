@@ -277,7 +277,7 @@ The module checks the modification timestamp of `pagespeed.config` periodically 
 
 ## IIS tuning
 
-IIS has its own performance controls that sit alongside mod_pagespeed 2.1. Configure them through IIS Manager or `web.config` — not through the [`pagespeed.config` file](/docs/iis-configuration/) that controls mod_pagespeed itself. This guide covers the settings worth changing when mod_pagespeed is active: request filtering for combined resources, gzip compression, CDN integration, Application Request Routing, and TCP slow start.
+IIS has its own performance controls that sit alongside mod_pagespeed. Configure them through IIS Manager or `web.config` — not through the [`pagespeed.config` file](/docs/iis-configuration/) that controls mod_pagespeed itself. This guide covers the settings worth changing when mod_pagespeed is active: request filtering for combined resources, gzip compression, CDN integration, Application Request Routing, and TCP slow start.
 
 ### Request filtering for combined resources
 

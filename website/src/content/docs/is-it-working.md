@@ -1,6 +1,6 @@
 ---
 title: 'Is it working?'
-description: 'Confirm mod_pagespeed 2.1 is active: the response header per server, MISS then HIT, ?PageSpeed=off, the admin console and the worker health endpoint.'
+description: 'Confirm mod_pagespeed is active: the response header per server, MISS then HIT, ?PageSpeed=off, the admin console and the worker health endpoint.'
 order: 2
 group: 'Start here'
 lastUpdated: 2026-10-18
@@ -15,7 +15,7 @@ faq:
 ---
 
 Request any HTML page twice with GET and read one header. Which header you
-look for depends on how you run mod_pagespeed 2.1.
+look for depends on how you run mod_pagespeed.
 
 ```bash
 curl -s -o /dev/null -D - http://localhost/

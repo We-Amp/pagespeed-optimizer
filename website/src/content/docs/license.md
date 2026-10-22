@@ -1,12 +1,12 @@
 ---
 title: 'License'
-description: 'mod_pagespeed 2.1 is licensed under the Apache License 2.0. We sell support; Priority and Enterprise add a private package repository (being set up).'
+description: 'mod_pagespeed is licensed under the Apache License 2.0. We sell support; Priority and Enterprise add a private package repository (being set up).'
 order: 71
 group: 'Reference'
 lastUpdated: 2026-09-19
 ---
 
-mod_pagespeed 2.1 is licensed under the [Apache License 2.0](/license/). Every
+mod_pagespeed is licensed under the [Apache License 2.0](/license/). Every
 feature is available to everyone.
 
 The `LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES` files ship with every

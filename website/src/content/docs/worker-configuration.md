@@ -1,6 +1,6 @@
 ---
 title: 'Worker and reverse-proxy configuration'
-description: 'Every optimizer worker flag and thin nginx module directive of mod_pagespeed 2.1 (the Docker and reverse-proxy shape), generated from the source.'
+description: 'Every optimizer worker flag and thin nginx module directive of mod_pagespeed (the Docker and reverse-proxy shape), generated from the source.'
 order: 21
 group: 'Configure'
 lastUpdated: 2026-10-20

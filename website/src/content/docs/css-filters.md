@@ -1,6 +1,6 @@
 ---
 title: 'CSS filters'
-description: 'CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.'
+description: 'CSS filters in mod_pagespeed: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.'
 order: 44
 group: 'Filters'
 lastUpdated: 2026-10-08
@@ -8,7 +8,7 @@ lastUpdated: 2026-10-08
 
 ## Overview
 
-mod_pagespeed 2.1 includes filters for CSS minification, combining, inlining, import flattening, and critical CSS extraction. Several CSS filters are CoreFilters and run by default. The remaining filters can be enabled individually or through OptimizeForBandwidth mode.
+mod_pagespeed includes filters for CSS minification, combining, inlining, import flattening, and critical CSS extraction. Several CSS filters are CoreFilters and run by default. The remaining filters can be enabled individually or through OptimizeForBandwidth mode.
 
 ## IIS syntax
 

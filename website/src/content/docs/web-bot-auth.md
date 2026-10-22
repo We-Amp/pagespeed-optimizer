@@ -26,7 +26,7 @@ text. [Web Bot Auth](https://datatracker.ietf.org/wg/webbotauth/about/) fixes
 that with cryptography: a bot signs its requests with an Ed25519 key
 ([RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) HTTP Message
 Signatures) and publishes the public half in a JWKS key directory at a
-well-known HTTPS URL. mod_pagespeed 2.1 can verify those signatures at your
+well-known HTTPS URL. mod_pagespeed can verify those signatures at your
 origin and tell you, per request, **which bot actually sent it**.
 
 :::caution[Experimental]

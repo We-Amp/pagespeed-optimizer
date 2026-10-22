@@ -92,7 +92,7 @@ Fixed: when the optimizer worker improves HTML served through the nginx module i
 
 **Linux packages**
 
-Fixed: the optimizer worker's deb and rpm packages no longer repeat the cache notices on every configure once they no longer apply. The notice about the old `v1` cache path now appears only while a loaded web-server configuration file still names that path, and the notice about a cold-started cache only while the worker has not yet written a `v2` cache or the configuration still names a path from before 2.1. Each notice is one line, so apt and dnf no longer cut it off, and it names the directive to check: `pagespeed DaemonVolumePath` on nginx, `ModPagespeedDaemonVolumePath` on Apache.
+Fixed: the optimizer worker's deb and rpm packages no longer repeat the cache notices on every configure once they no longer apply. The notice about the old `v1` cache path now appears only while a loaded web-server configuration file still names that path, and the notice about a cold-started cache only while the worker has not yet written a `v2` cache or the configuration still names a path from before 2.1.0. Each notice is one line, so apt and dnf no longer cut it off, and it names the directive to check: `pagespeed DaemonVolumePath` on nginx, `ModPagespeedDaemonVolumePath` on Apache.
 
 **ASP.NET Core middleware**
 

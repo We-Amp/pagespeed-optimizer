@@ -1,6 +1,6 @@
 ---
 title: 'Migrate from ModPageSpeed 2.0'
-description: 'Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed 2.1: unprivileged worker, loopback-bound API, configuration carries over.'
+description: 'Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed: unprivileged worker, loopback-bound API, configuration carries over.'
 order: 10
 group: 'Upgrade and migrate'
 lastUpdated: 2026-09-19
@@ -11,7 +11,7 @@ faq:
     a: 'No — migrate on your own schedule. Migrating earlier moves you onto the converged line sooner.'
 ---
 
-mod_pagespeed 2.1 converges the mod_pagespeed lineage and the ModPageSpeed 2.0
+mod_pagespeed converges the mod_pagespeed lineage and the ModPageSpeed 2.0
 engine into one product. If you run 2.0 today, the engine you rely on continues
 as the 2.1 **optimizer worker**. The migration upgrades the deployment around
 it rather than rebuilding it: your nginx directives and worker flags carry
@@ -37,7 +37,7 @@ own pages:
 - **IISpeed**: [Migrate from IISpeed](/docs/migrate-from-iispeed/).
 
 It is not for users of the ASP.NET Core middleware: `WeAmp.PageSpeed.AspNetCore`
-is the ASP.NET Core form of mod_pagespeed 2.1, and there is no migration step —
+is the ASP.NET Core form of mod_pagespeed, and there is no migration step —
 see [ASP.NET Core performance](/aspnet-core-performance/) for that path.
 
 ## What changes in 2.1
@@ -187,7 +187,7 @@ what changed and what did not; the archived 1.0 docs are at [/1.0/](/1.0/).
 
 ## Licensing
 
-mod_pagespeed 2.1 is licensed under the Apache License 2.0, free in
+mod_pagespeed is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells on the converged line is
 [support](/support/) from the people who build
 the product; Priority and Enterprise add a private package repository (being set up), and the standard signed packages stay free.
