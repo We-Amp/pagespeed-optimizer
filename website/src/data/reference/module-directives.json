@@ -1,8 +1,8 @@
 {
   "source": {
     "repo": "https://github.com/We-Amp/mod_pagespeed",
-    "tag": "v2.5.0",
-    "commit": "d85af9cdfd8c1deb45088162dd8532e706b20fa8"
+    "tag": "v2.5.2",
+    "commit": "16cd467a9f269688e8021736830b3d8db2426bfa"
   },
   "generator": "website/scripts/generate-references.mjs",
   "areas": [
@@ -434,7 +434,7 @@
         "query": false
       },
       "since": null,
-      "description": "Deprecated and ignored: in-place optimization no longer varies its output by request header.",
+      "description": "Deprecated and ignored: it no longer affects in-place optimization. With the optimizer daemon attached, in-place images are served in the format the request's Accept header selects, with Vary: Accept.",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "string",
@@ -7833,7 +7833,7 @@
         "query": false
       },
       "since": null,
-      "description": "Deprecated and ignored: in-place optimized resources are no longer browser-dependent, so they are never served as Cache-Control: private and never carry a Vary header.",
+      "description": "Deprecated and ignored: in-place optimized resources are no longer downgraded to Cache-Control: private for Internet Explorer. With the optimizer daemon attached, in-place images vary by the request's Accept header and carry Vary: Accept.",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "bool",
