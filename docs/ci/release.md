@@ -9,7 +9,7 @@ one of two lanes, each a reusable workflow pinned to `main`:
 | Tag | Lane | Publishes |
 |---|---|---|
 | `optimizer-v<version>` | `pipeline-release-optimizer.yml` | a GitHub release with the host packages: deb and rpm for amd64 and arm64, a Windows x64 zip, `SHA256SUMS` and `SHA256SUMS.asc` |
-| `v<version>` | `pipeline-release-nuget.yml` | five NuGet packages on nuget.org (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore, WeAmp.PageSpeed.NativeAssets.Linux / .Windows / .macOS) and a draft GitHub release with the packages, SBOM, VEX, `SHA256SUMS` and `SHA256SUMS.asc` |
+| `v<version>` | `pipeline-release-nuget.yml` | seven NuGet packages on nuget.org (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore, WeAmp.PageSpeed.NativeAssets.Linux / .Windows / .macOS, and the sidecar packages WeAmp.PageSpeed.Sidecar / WeAmp.PageSpeed.Sidecar.NativeAssets.Linux) and a draft GitHub release with the packages, SBOM, VEX, `SHA256SUMS` and `SHA256SUMS.asc` |
 
 `optimizer-v*` never matches `v*`. `release-smoke.yml` runs
 `pipeline-release-smoke.yml` when a `v*` release is published: it installs
@@ -35,7 +35,7 @@ environment, so it needs no approval.
   (artifact `optimizer-release-dist`). The tag may not exist yet; the lane
   then builds the dispatched ref. The ref guard reports its verdict and
   does not stop a dry run.
-- NuGet lane: every build and test and the five `.nupkg` files (artifact
+- NuGet lane: every build and test and the seven `.nupkg` files (artifact
   `nupkg-<sha>`). The Windows binaries in a dry run are unsigned, because
   signing happens only inside the environment. The tag must exist and be
   reachable from `main`: the ref guard is enforced on NuGet dry runs, so the
@@ -227,13 +227,16 @@ A dispatch whose tag starts with neither `optimizer-v` nor `v` fails in the
 
 ## The sidecar pin
 
-The native pair of the ASP.NET Core sidecar (`WeAmp.PageSpeed.Sidecar`:
-nginx, the module built against that nginx and the launch shim, for
-linux-x64 and linux-arm64) is built, tested and signed in the mod_pagespeed
-module release, as `pagespeed-sidecar-native-<X>-linux-<arch>.tar.gz`
-described by `sidecar-pair.json`. The NuGet lane does not build it; its
-`sidecar-fetch` job takes it from the module release named by
-`tools/ci/sidecar-pin.json`:
+The NuGet lane also publishes the ASP.NET Core sidecar packages,
+`WeAmp.PageSpeed.Sidecar` and `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`.
+Their native pair (nginx, the module built against that nginx and the
+launch shim, for linux-x64 and linux-arm64) is built, tested (live nginx
+tests included) and signed in the mod_pagespeed module release, as
+`pagespeed-sidecar-native-<X>-linux-<arch>.tar.gz` described by
+`sidecar-pair.json`; their managed code is `aspnetcore/` of that release's
+source tarball, `mod_pagespeed-<X>.tar.gz`. The lane builds neither from a
+branch of the module repository: the `sidecar-pack` job takes both from the
+module release named by `tools/ci/sidecar-pin.json`:
 
 | Field | Value |
 |---|---|
@@ -243,35 +246,55 @@ described by `sidecar-pair.json`. The NuGet lane does not build it; its
 | `release_key_fingerprint` | `411DEFDB571351D2B25AEFCC9C02B5BDCCE75313`, which must equal the fingerprint pinned in `tools/ci/release_checksums_sig.sh` |
 
 `tools/ci/sidecar_fetch.sh fetch` downloads `SHA256SUMS`, `SHA256SUMS.asc`,
-`sidecar-pair.json` and the two pair tarballs of exactly that tag (never
-"latest"), and refuses unless the `SHA256SUMS` digest is the pinned one,
-`SHA256SUMS.asc` verifies against `RELEASE-SIGNING-KEY.asc` with
+`sidecar-pair.json`, the two pair tarballs and the source tarball of exactly
+that tag (never "latest"), and refuses unless the `SHA256SUMS` digest is the
+pinned one, `SHA256SUMS.asc` verifies against `RELEASE-SIGNING-KEY.asc` with
 `release_checksums_sig.sh verify`, the `sidecar-pair.json` digest is the
 pinned one and `SHA256SUMS` lists it, the manifest names the pinned tag and
-version and both RIDs, and every tarball matches the name, size and sha256
+version and both RIDs, every pair tarball matches the name, size and sha256
 in the manifest and in `SHA256SUMS` and holds exactly the files the
-manifest lists, with their digests. The pin, the script and the key are
-read from `main`, like the signing script, because the module release of a
-version is cut after the `v<X>` commit. A real run of `v<X>` refuses a pin
-other than `module-v<X>`; a dry run warns and verifies the pinned release.
-`package` waits for `sidecar-fetch`, so a sidecar that does not verify
-stops the release before the draft is created. The verified files are kept
-as the `sidecar-pair-<sha>` artifact.
+manifest lists with their digests, and the source tarball has the digest
+`SHA256SUMS` lists. `stage` then writes `aspnetcore/` of the source tarball
+(regular files and directories only) with the pair of each RID (`nginx`,
+`ngx_pagespeed_module.so`, `pagespeed-nginx-launch`, `build-info.json`) in
+`WeAmp.PageSpeed.Sidecar.NativeAssets.Linux/runtimes/<rid>/native`. In the
+same job, so no verified input crosses a job boundary, `sidecar-pack` runs
+the sidecar test suite under .NET 8 and .NET 10 (locked restore; every test
+must run and pass), packs both packages with `-p:IncludeNet10=true` at the
+version of the `v<X>` tag (no fourth digit), and `check-packages` refuses
+unless the native package carries exactly the four files per RID at the
+digests of `sidecar-pair.json` plus its `buildTransitive` targets and the
+license files, and the managed package carries `lib/net8.0` and
+`lib/net10.0` and depends on the native package at the same version.
+`package` waits for `sidecar-pack`, adds the two packages to its five and
+requires seven; from there they take the path of the others: the
+source-control metadata guard, `SHA256SUMS` and its signature, the draft
+release and `publish-nuget`. A dry run runs the same path and pushes
+nothing.
+
+The pin, the script and the key are read from `main`, like the signing
+script, because the module release of a version is cut after the `v<X>`
+commit. A real run of `v<X>` refuses a pin other than `module-v<X>`; a dry
+run warns and uses the pinned release. Two consequences:
+
+- A real `v<X>` requires a published `module-v<X>` pinned on `main`. A
+  version the module release skips (for example 2.5.1) gets no NuGet
+  release.
+- Because the pin is read from `main`, a real re-run of an older `v<X>`
+  after the pin has moved on fails at the pin check: restore the pin to
+  `module-v<X>` on `main` first, or rehearse it as a dry run.
 
 To record the pin after the module release is published:
 
 ```bash
-gh release download module-v<X> --repo We-Amp/mod_pagespeed \
+gh release download module-v<X> --repo We-Amp/mod_pagespeed --dir sidecar \
   -p SHA256SUMS -p SHA256SUMS.asc -p sidecar-pair.json \
-  -p 'pagespeed-sidecar-native-<X>-linux-*.tar.gz' --dir sidecar
+  -p 'pagespeed-sidecar-native-<X>-linux-*.tar.gz' -p 'mod_pagespeed-<X>.tar.gz'
+rm sidecar/pagespeed-sidecar-native-debug-*   # the debug tarballs are not inputs
 sha256sum sidecar/SHA256SUMS sidecar/sidecar-pair.json   # the two pinned digests
 # edit tools/ci/sidecar-pin.json, then:
 tools/ci/sidecar_fetch.sh verify tools/ci/sidecar-pin.json sidecar RELEASE-SIGNING-KEY.asc
 ```
-
-The lane does not pack or push the two sidecar packages yet
-(`WeAmp.PageSpeed.Sidecar`, `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`):
-the module release carries the pair but no `.nupkg` files.
 
 ## nuget.org Trusted Publishing (owner steps)
 
@@ -307,7 +330,8 @@ runners. Jobs pass files only as workflow artifacts:
 | `native-linux-x64`, `native-linux-arm64`, `native-osx-arm64` | the builds | `package` |
 | `native-win-x64-unsigned` | Windows build | `sign-windows`; `package` in a dry run |
 | `native-win-x64` | `sign-windows` | `package` in a real run |
-| `sidecar-pair-<sha>` | `sidecar-fetch` | kept for the sidecar packages (not packed yet) |
+| `sidecar-nupkg-<sha>` | `sidecar-pack` | `package` |
+| `sidecar-test-results-<sha>` | `sidecar-pack` | kept for inspection |
 | `nupkg-<sha>` | `package` | `publish-nuget` |
 | `release-sums-<sha>` | `package` (real run) | `sign-checksums`, `attach-signature` |
 | `release-signature-<sha>` | `sign-checksums` | `attach-signature` |
