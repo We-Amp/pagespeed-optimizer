@@ -270,7 +270,11 @@ license files, and the managed package carries `lib/net8.0` and
 requires seven; from there they take the path of the others: the
 source-control metadata guard, `SHA256SUMS` and its signature, the draft
 release and `publish-nuget`. A dry run runs the same path and pushes
-nothing.
+nothing. When a dry run's pin names another version than its tag, the
+sidecar packages carry the tag's version but contain the pinned module
+release: the run says so in its step summary, in the artifact name
+(`sidecar-nupkg-<sha>-contains-module-v<pinned>`) and in a
+`README-SIDECAR-PIN.txt` that travels with the packages into `nupkg-<sha>`.
 
 The pin, the script and the key are read from `main`, like the signing
 script, because the module release of a version is cut after the `v<X>`
@@ -290,7 +294,6 @@ To record the pin after the module release is published:
 gh release download module-v<X> --repo We-Amp/mod_pagespeed --dir sidecar \
   -p SHA256SUMS -p SHA256SUMS.asc -p sidecar-pair.json \
   -p 'pagespeed-sidecar-native-<X>-linux-*.tar.gz' -p 'mod_pagespeed-<X>.tar.gz'
-rm sidecar/pagespeed-sidecar-native-debug-*   # the debug tarballs are not inputs
 sha256sum sidecar/SHA256SUMS sidecar/sidecar-pair.json   # the two pinned digests
 # edit tools/ci/sidecar-pin.json, then:
 tools/ci/sidecar_fetch.sh verify tools/ci/sidecar-pin.json sidecar RELEASE-SIGNING-KEY.asc
@@ -315,6 +318,17 @@ Until the policy exists `publish-nuget` fails at the token exchange; dry
 runs are unaffected. The first successful publish locks the policy to the
 repository's ids.
 
+nuget.org scopes the policy to the package owner, not to package ids. Before
+the first real run that publishes the sidecar packages, the owner:
+
+- confirms in the nuget.org UI that this policy covers
+  `WeAmp.PageSpeed.Sidecar` and `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`
+  (both owned by the same account as the other five packages);
+- deletes the retired policy for the former private repository's sidecar
+  workflow (`sidecar-nuget.yml`, environment `1.15 sidecar nuget`): it would
+  still let a workflow in a retired repository push any package the account
+  owns, the sidecar packages included.
+
 ## Runners
 
 Fleet jobs (`fleet-heavy`, `fleet-windows`) follow `docs/ci/pipelines.md`:
@@ -330,7 +344,7 @@ runners. Jobs pass files only as workflow artifacts:
 | `native-linux-x64`, `native-linux-arm64`, `native-osx-arm64` | the builds | `package` |
 | `native-win-x64-unsigned` | Windows build | `sign-windows`; `package` in a dry run |
 | `native-win-x64` | `sign-windows` | `package` in a real run |
-| `sidecar-nupkg-<sha>` | `sidecar-pack` | `package` |
+| `sidecar-nupkg-<sha>` (dry run with another pin: `sidecar-nupkg-<sha>-contains-module-v<pinned>`) | `sidecar-pack` | `package` |
 | `sidecar-test-results-<sha>` | `sidecar-pack` | kept for inspection |
 | `nupkg-<sha>` | `package` | `publish-nuget` |
 | `release-sums-<sha>` | `package` (real run) | `sign-checksums`, `attach-signature` |

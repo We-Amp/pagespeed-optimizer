@@ -20,8 +20,7 @@
 # fetch:  downloads SHA256SUMS, SHA256SUMS.asc, sidecar-pair.json, the two
 #         pair tarballs and the source tarball mod_pagespeed-<version>.tar.gz
 #         of the pinned tag from the public module release
-#         (We-Amp/mod_pagespeed; SIDECAR_REPO overrides it), into an empty
-#         <out-dir>, then runs verify. GH_READ_TOKEN, when set, is sent to the
+#         (We-Amp/mod_pagespeed), into an empty <out-dir>, then runs verify. GH_READ_TOKEN, when set, is sent to the
 #         API endpoint only, against the anonymous rate limit.
 # verify: refuses unless all of the following hold:
 #   - the pin names a module-v<version> tag, two sha256 digests and the
@@ -57,7 +56,8 @@ set -euo pipefail
 die() { echo "::error::$*" >&2; exit 1; }
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIG="$HERE/release_checksums_sig.sh"
-REPO="${SIDECAR_REPO:-We-Amp/mod_pagespeed}"
+REPO=We-Amp/mod_pagespeed
+FETCH_API=""
 
 # pin_field <pin> <key>
 pin_field() {
@@ -210,23 +210,24 @@ PY
 
 cmd_fetch() {
   [ $# -eq 3 ] || die "usage: $0 fetch <pin.json> <out-dir> <public key file>"
-  local pin="$1" out="$2" key="$3" api auth=() name url
+  local pin="$1" out="$2" key="$3" auth=() name url
   read_pin "$pin"
   mkdir -p "$out"
   [ -z "$(ls -A "$out")" ] || die "$out is not empty"
-  api="$(mktemp)"
+  FETCH_API="$(mktemp)"
+  trap 'rm -f "$FETCH_API"' EXIT
   if [ -n "${GH_READ_TOKEN:-}" ]; then
     auth=(-H "Authorization: Bearer ${GH_READ_TOKEN}")
   fi
   curl -fsSL --retry 5 --retry-all-errors \
     -H "Accept: application/vnd.github+json" ${auth[@]+"${auth[@]}"} \
-    "https://api.github.com/repos/${REPO}/releases/tags/${PIN_TAG}" -o "$api" \
+    "https://api.github.com/repos/${REPO}/releases/tags/${PIN_TAG}" -o "$FETCH_API" \
     || die "no release $PIN_TAG in $REPO"
   for name in SHA256SUMS SHA256SUMS.asc sidecar-pair.json \
       "pagespeed-sidecar-native-${PIN_VERSION}-linux-x64.tar.gz" \
       "pagespeed-sidecar-native-${PIN_VERSION}-linux-arm64.tar.gz" \
       "mod_pagespeed-${PIN_VERSION}.tar.gz"; do
-    url="$(python3 -I - "$api" "$name" <<'PY'
+    url="$(python3 -I - "$FETCH_API" "$name" <<'PY'
 import json, sys
 doc = json.load(open(sys.argv[1]))
 if doc.get("draft") or doc.get("prerelease"):
@@ -244,7 +245,7 @@ PY
     # Anonymous: the release is public, and the token goes to the API only.
     curl -fsSL --retry 5 --retry-all-errors -o "$out/$name" "$url"
   done
-  rm -f "$api"
+  rm -f "$FETCH_API"
   cmd_verify "$pin" "$out" "$key"
 }
 
