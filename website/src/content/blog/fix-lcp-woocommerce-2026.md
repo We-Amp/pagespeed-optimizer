@@ -2,7 +2,7 @@
 title: 'Fix LCP on WooCommerce: shrink the gallery first'
 description: 'Fix LCP on WooCommerce: shrink the product gallery, drop cart-fragments on non-shop pages, and rewrite catalog images at the server with mod_pagespeed.'
 date: 2026-04-16
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'lcp', 'woocommerce', 'image-optimization']
 draft: false
@@ -11,7 +11,7 @@ faq:
   - q: Why is LCP slow on WooCommerce product pages?
     a: On most WooCommerce product pages the LCP element is the main gallery image, uploaded at 2000-3000 px and served into an 800-px slot. The flexslider lazy-loader also defers it until JS executes, so LCP waits on the cart-fragments AJAX call.
   - q: Can mod_pagespeed fix WooCommerce LCP?
-    a: mod_pagespeed 2.1 resizes, recompresses, and converts catalog images to WebP at the nginx or Apache layer, applying the fix to the whole catalog at once instead of editing theme files. It cannot help when the gallery is rendered by a JavaScript SPA or when TTFB is the long pole.
+    a: mod_pagespeed resizes, recompresses, and converts catalog images to WebP at the nginx or Apache layer, applying the fix to the whole catalog at once instead of editing theme files. It cannot help when the gallery is rendered by a JavaScript SPA or when TTFB is the long pole.
   - q: What counts as a good LCP score?
     a: Google calls field LCP under 2.5 s "good" and over 4 s "poor", measured on real users over the trailing 28 days in Chrome's CrUX dataset.
 howTo:
@@ -21,7 +21,7 @@ howTo:
   - PageSpeed Insights
   - Chrome DevTools
   - Lighthouse
-  - mod_pagespeed 2.1
+  - mod_pagespeed
   - nginx
   - Apache
   - WooCommerce
@@ -38,7 +38,7 @@ howTo:
 
 ---
 
-Three product pages, three different LCP elements: the gallery on the PDP, the hero block on the homepage, a category banner on `/shop/`. That's WooCommerce, and it's why we tackle this at the server layer with **mod_pagespeed 2.1** (an nginx or Apache module) instead of pasting `loading="eager"` into 40 theme files. Shrink the gallery image at the source, kill the cart-fragments AJAX call where it doesn't belong, and let the rewriter apply the fix to the whole catalog at once.
+Three product pages, three different LCP elements: the gallery on the PDP, the hero block on the homepage, a category banner on `/shop/`. That's WooCommerce, and it's why we tackle this at the server layer with **mod_pagespeed** (an nginx or Apache module) instead of pasting `loading="eager"` into 40 theme files. Shrink the gallery image at the source, kill the cart-fragments AJAX call where it doesn't belong, and let the rewriter apply the fix to the whole catalog at once.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -160,7 +160,7 @@ Cases where mod_pagespeed alone isn't enough on WooCommerce:
 
 **Why is LCP slow on WooCommerce product pages?** On most WooCommerce product pages the LCP element is the main gallery image, uploaded at 2000-3000 px and served into an 800-px slot. The flexslider lazy-loader also defers it until JS executes, so LCP waits on the cart-fragments AJAX call.
 
-**Can mod_pagespeed fix WooCommerce LCP?** mod_pagespeed 2.1 resizes, recompresses, and converts catalog images to WebP at the nginx or Apache layer, applying the fix to the whole catalog at once instead of editing theme files. It cannot help when the gallery is rendered by a JavaScript SPA or when TTFB is the long pole.
+**Can mod_pagespeed fix WooCommerce LCP?** mod_pagespeed resizes, recompresses, and converts catalog images to WebP at the nginx or Apache layer, applying the fix to the whole catalog at once instead of editing theme files. It cannot help when the gallery is rendered by a JavaScript SPA or when TTFB is the long pole.
 
 **What counts as a good LCP score?** Google calls field LCP under 2.5 s "good" and over 4 s "poor", measured on real users over the trailing 28 days in Chrome's CrUX dataset.
 
@@ -176,4 +176,4 @@ Cases where mod_pagespeed alone isn't enough on WooCommerce:
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

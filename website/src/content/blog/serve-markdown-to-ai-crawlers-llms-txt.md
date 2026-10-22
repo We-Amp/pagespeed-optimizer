@@ -2,7 +2,7 @@
 title: 'Serving markdown to AI crawlers, and synthesizing /llms.txt'
 description: 'How to serve markdown to AI crawlers on the same URL via Accept: text/markdown, synthesize /llms.txt from the sitemap, and honor AI opt-out directives.'
 date: 2026-06-14
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'deep-dive', 'operations']
 draft: false
@@ -11,7 +11,7 @@ product: '2.0'
 
 A crawler sends `GET /docs/configuration/` with `Accept: text/markdown`. Instead of a few hundred kilobytes of HTML wrapped in nav bars, script tags, and a cookie banner, it gets back a markdown document: headings, paragraphs, a code fence, the canonical link targets, and nothing else. The response carries `Content-Type: text/markdown`, `Vary: Accept`, `X-Robots-Tag: noindex`, and `Cache-Control: private`. The same origin also publishes a synthesized `/llms.txt` site-index built from its own sitemap.
 
-This is the feature in the mod_pagespeed 2.1 optimizer worker that **serves markdown to AI crawlers** on the same URL a browser uses. It ships in the worker but is **experimental and off by default**; it is content negotiation, not a separate endpoint or a separate build. Two things up front. The markdown variant is **operator-gated**: it is selected only when you have enabled agent optimization and the request asks for it. And the whole pipeline **honors AI opt-out signals**: `robots.txt` AI blocks, `X-Robots-Tag: noai`, `Google-Extended`, and known AI user agents. Both are in the code below.
+This is the feature in the mod_pagespeed optimizer worker that **serves markdown to AI crawlers** on the same URL a browser uses. It ships in the worker but is **experimental and off by default**; it is content negotiation, not a separate endpoint or a separate build. Two things up front. The markdown variant is **operator-gated**: it is selected only when you have enabled agent optimization and the request asks for it. And the whole pipeline **honors AI opt-out signals**: `robots.txt` AI blocks, `X-Robots-Tag: noai`, `Google-Extended`, and known AI user agents. Both are in the code below.
 
 ## How to serve markdown to AI crawlers: SAX HTML to markdown, with a `<main>`/`<article>` guard
 

@@ -1,11 +1,11 @@
 ---
 title: 'Web Bot Auth: verify AI crawlers at your origin'
-description: 'mod_pagespeed 2.1 ships an nginx Web Bot Auth verifier: it checks RFC 9421 signatures and labels requests in $x_verified_bot. Observe-only, off by default.'
+description: 'mod_pagespeed ships an nginx Web Bot Auth verifier: it checks RFC 9421 signatures and labels requests in $x_verified_bot. Observe-only, off by default.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'security', 'nginx']
 draft: false
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 ---
 
 > **Status: experimental (preview).** The Web Bot Auth verifier ships in mod_pagespeed 1.15 and, as of 2.0.34, in ModPageSpeed 2.0 — off by default and observe-only in both. The 2.0 configuration is documented at [Verify AI crawlers with Web Bot Auth](/docs/web-bot-auth/); the 1.15 directives below are still a preview.
@@ -18,7 +18,7 @@ Any client can send any user-agent string. A scraper that wants your content set
 
 The traditional fix is reverse-DNS verification: look up the IP, confirm it resolves back into the crawler operator's domain, accept the request only if it does. That works only for the crawlers that publish stable IP ranges and run cooperative DNS, and it ties identity to network topology rather than to the agent.
 
-There is a better primitive, and the mod_pagespeed 2.1 module now speaks it.
+There is a better primitive, and the mod_pagespeed module now speaks it.
 
 ## What Web Bot Auth checks
 

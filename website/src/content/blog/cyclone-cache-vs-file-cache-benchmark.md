@@ -2,13 +2,14 @@
 title: 'Cyclone vs the file cache: a memory-mapped cache benchmark'
 description: 'Cache benchmark: Cyclone (memory-mapped, in-process RAM tier) vs the classic file-per-entry cache, across concurrency, traffic, latency tails and eviction.'
 date: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['performance', 'benchmarks', 'cache']
 product: '2.0'
 faq:
   - q: 'Is Cyclone faster than the old file-per-entry cache?'
     a: 'Under concurrency, eviction pressure, and on realistic server storage, yes: 4x to 6x on throughput in our tests, with a tighter latency tail. On an idle, over-provisioned cache backed by a fast NVMe SSD, the two are close and the file cache can edge ahead.'
-  - q: 'Does the mod_pagespeed 2.1 module benefit from Cyclone?'
+  - q: 'Does the mod_pagespeed module benefit from Cyclone?'
     a: 'Yes. The module has shipped Cyclone since 1.15 and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.'
   - q: 'Will a faster cache make my site load faster?'
     a: 'It helps most when the cache is on the hot path: high concurrency, lots of already-optimized assets, and cache eviction under load. On a lightly loaded site the cache was rarely the bottleneck, so the end-to-end gain is smaller.'
@@ -18,7 +19,7 @@ faq:
     a: 'Aim to keep the hot working set in RAM. A memory-mapped cache is demand-paged, so the cache can be larger than physical memory; only the pages in active use need to be resident. Push the working set itself far past RAM and it pages to disk, about 1.8x slower in our test, and still faster than the file cache at that size. The file cache leans on the OS page cache for the same reason, so this is true of any disk-backed cache.'
 ---
 
-Every cache backend behind mod_pagespeed 2.1 sits under one interface, so the optimizer above it never changes. That makes a direct question easy to ask: how much does the storage engine itself matter? We put **Cyclone**, the memory-mapped cache both parts of mod_pagespeed share, against the classic file-per-entry disk cache it replaced, and measured both across concurrency, realistic mixed traffic, latency tails, and eviction, on two very different machines.
+Every cache backend behind mod_pagespeed sits under one interface, so the optimizer above it never changes. That makes a direct question easy to ask: how much does the storage engine itself matter? We put **Cyclone**, the memory-mapped cache both parts of mod_pagespeed share, against the classic file-per-entry disk cache it replaced, and measured both across concurrency, realistic mixed traffic, latency tails, and eviction, on two very different machines.
 
 The most useful result is a trend. Cyclone's advantage is smallest on a laptop with a fast NVMe SSD and grows to **4x-6x** on the kind of storage a real server runs on. The faster the disk, the more the old design's per-file cost stays hidden.
 
@@ -257,7 +258,7 @@ The read path only became the bottleneck under a harsher regime: a working set f
 
 **Is Cyclone faster than the old file-per-entry cache?** Under concurrency, eviction pressure, and on realistic server storage, yes: 4x to 6x on throughput in our tests, with a tighter latency tail. On an idle, over-provisioned cache backed by a fast NVMe SSD, the two are close and the file cache can edge ahead.
 
-**Does the mod_pagespeed 2.1 module benefit from Cyclone?** Yes. The module has shipped Cyclone since 1.15 and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.
+**Does the mod_pagespeed module benefit from Cyclone?** Yes. The module has shipped Cyclone since 1.15 and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.
 
 **Will a faster cache make my site load faster?** It helps most when the cache is on the hot path: high concurrency, lots of already-optimized assets, and cache eviction under load. On a lightly loaded site the cache was rarely the bottleneck, so the end-to-end gain is smaller.
 

@@ -1,8 +1,8 @@
 ---
 title: 'Cache key derivation: host-scoped keys and variant fallback'
-description: 'How cache key derivation in mod_pagespeed 2.1 hashes host plus URL into one key and scores stored variants in one selector pass instead of probing keys.'
+description: 'How cache key derivation in mod_pagespeed hashes host plus URL into one key and scores stored variants in one selector pass instead of probing keys.'
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['caching', 'architecture', 'deep-dive', 'nginx', 'save-data']
 draft: false
@@ -11,7 +11,7 @@ product: '2.0'
 
 Two sites behind the same proxy ask for the same path: `GET /logo.png`, one for `Host: a.example`, one for `Host: b.example`. If your cache key is the path, those two requests collide. The first site's logo gets served to the second site's visitors. The fix is in how the key is derived, and it changes more than just isolation.
 
-This post walks the shipped cache key derivation in mod_pagespeed 2.1: how a key is built from scheme, host, and URL, how the many variants of one resource are stored as alternates under that single key, and how a scored single-pass selector picks the right variant instead of probing a sequence of separate keys.
+This post walks the shipped cache key derivation in mod_pagespeed: how a key is built from scheme, host, and URL, how the many variants of one resource are stored as alternates under that single key, and how a scored single-pass selector picks the right variant instead of probing a sequence of separate keys.
 
 ## Cache key derivation: a digest of scheme, host, and URL
 

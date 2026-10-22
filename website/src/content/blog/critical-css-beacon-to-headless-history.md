@@ -2,14 +2,14 @@
 title: "How critical CSS extraction works: beacons to headless"
 description: "How critical CSS extraction works without a build step: the original beacon model, why CDNs broke it, and how 2.0 moved to heuristics + headless Chrome."
 date: 2026-06-13
-lastUpdated: 2026-06-21
+lastUpdated: 2026-10-22
 tags: ["critical-css", "css", "performance", "history", "headless-chrome", "architecture"]
 product: "2.0"
 draft: false
 ---
 Every critical-CSS tool answers one question: which CSS rules does the browser actually need to paint the top of the page? Get that set right and you can inline a few kilobytes into the `<head>`, defer the rest, and stop a large stylesheet from blocking the first paint. Get it wrong and you ship a flash of unstyled content.
 
-Today most tools answer that question with a headless browser at build time. mod_pagespeed 2.1 answers it at the server, with no build step. But the way it answers has changed three times, and the middle chapter is the interesting one: before headless Chrome was practical to run server-side, the original Apache PageSpeed project found critical CSS by instrumenting real visitors. That design worked, taught us a lot, and broke in a specific way once a CDN sat in front of it.
+Today most tools answer that question with a headless browser at build time. mod_pagespeed answers it at the server, with no build step. But the way it answers has changed three times, and the middle chapter is the interesting one: before headless Chrome was practical to run server-side, the original Apache PageSpeed project found critical CSS by instrumenting real visitors. That design worked, taught us a lot, and broke in a specific way once a CDN sat in front of it.
 
 This post walks the three eras: the beacon, the failure mode that retired it, and where 2.0 landed.
 
@@ -69,7 +69,7 @@ The contrast with the beacon is the whole point. The beacon measured the real br
 
 If you run **the module**, `prioritize_critical_css` is the beacon model, and it still earns its place: it measures real browsers, and on a site without a misbehaving cache in front of it, it works. Mind the beacon endpoint and the downstream-caching interaction described above.
 
-If you run **the mod_pagespeed 2.1 optimizer worker**, critical CSS comes from heuristics by default and from cached headless-Chrome measurement when you opt in. Nothing is injected into the page to measure it, and there is nothing to coordinate with your CDN. For the server-layer mechanics on nginx, see [server-side critical CSS for nginx](/blog/server-side-critical-css-nginx/).
+If you run **the mod_pagespeed optimizer worker**, critical CSS comes from heuristics by default and from cached headless-Chrome measurement when you opt in. Nothing is injected into the page to measure it, and there is nothing to coordinate with your CDN. For the server-layer mechanics on nginx, see [server-side critical CSS for nginx](/blog/server-side-critical-css-nginx/).
 
 One boundary applies to all three eras. Inlining critical CSS removes a render-blocking request, which helps First Contentful Paint and often [Largest Contentful Paint](/core-web-vitals/lcp/). It does not fix layout shift or input delay, and no critical-CSS tool guarantees a Core Web Vitals score. It removes one specific bottleneck. For the rest of the request budget, see [reducing TTFB at the server layer](/blog/reduce-ttfb-server-layer-2026/).
 

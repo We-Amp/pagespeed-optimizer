@@ -2,7 +2,7 @@
 title: 'Fix LCP on ASP.NET Core: Razor vs Blazor'
 description: 'Fix LCP on ASP.NET Core: async view components, immutable cache headers, deferred JS and the WeAmp.PageSpeed middleware, for Razor Pages, MVC and Blazor.'
 date: 2026-05-18
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'lcp', 'aspnet-core', 'blazor']
 draft: false
@@ -59,13 +59,13 @@ Output you're hunting for: the LCP element, the TTFB number, and whether the lon
 
 ## Step 2: Recompress images and inline critical CSS in-process via the WeAmp.PageSpeed middleware
 
-mod_pagespeed 2.1 ships an ASP.NET Core middleware as a NuGet package (`WeAmp.PageSpeed.AspNetCore`). It runs the same optimization pipeline as the nginx deployment — image transcoding, CSS extraction, HTML rewriting, cache management — inside the Kestrel process via P/Invoke into a native shared library. Optimization is on by default; there are no named filters to enable, and you tune the HTML transforms with the `options.Html.Enable*` toggles. What moves LCP:
+mod_pagespeed ships an ASP.NET Core middleware as a NuGet package (`WeAmp.PageSpeed.AspNetCore`). It runs the same optimization pipeline as the nginx deployment — image transcoding, CSS extraction, HTML rewriting, cache management — inside the Kestrel process via P/Invoke into a native shared library. Optimization is on by default; there are no named filters to enable, and you tune the HTML transforms with the `options.Html.Enable*` toggles. What moves LCP:
 
 - **Image recompression and WebP/AVIF transcoding** — always-on worker behavior; it re-encodes hero images at a configured quality and transcodes to WebP and AVIF for browsers that advertise support. There is no toggle to switch it on.
 - **Critical-CSS injection** (`options.Html.EnableCriticalCss`, default on) — extracts above-the-fold rules from the page's CSS and inlines them into the document `<head>`, so the browser can paint without waiting for the external stylesheet. See [how the critical-CSS heuristics decide what to inline](/blog/critical-css-heuristics/).
 - **LCP preload** (`options.Html.EnableLcpPreload`, default on) — emits a `<link rel="preload">` hint for the detected LCP image so the browser fetches it early. This is one of the [server-injected resource hints](/blog/server-injected-resource-hints-speculation-rules/) the worker generates from the rendered HTML.
 
-For a Razor Pages site where the LCP element is text rather than an image, mod_pagespeed 2.1's contribution is smaller — critical-CSS injection still helps by trimming the CSS chain, but the bigger win is fixing TTFB by making view components properly async.
+For a Razor Pages site where the LCP element is text rather than an image, mod_pagespeed's contribution is smaller — critical-CSS injection still helps by trimming the CSS chain, but the bigger win is fixing TTFB by making view components properly async.
 
 Minimal `Program.cs` for an MVC/Razor Pages site:
 
@@ -171,4 +171,4 @@ Cases where mod_pagespeed alone isn't enough on ASP.NET Core:
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS package ships from the 1.15 packaging channel. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS module ships as a signed MSI on the mod_pagespeed GitHub release. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

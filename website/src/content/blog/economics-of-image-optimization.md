@@ -1,8 +1,8 @@
 ---
 title: 'Image CDN cost comparison: Cloudflare, Cloudinary, imgix'
-description: 'Image CDNs run $35 to $3,500/mo as traffic grows; self-hosted mod_pagespeed 2.1 stays flat. Break-even is ~100 to 170K requests/mo. The 2026 cost model.'
+description: 'Image CDNs run $35 to $3,500/mo as traffic grows; self-hosted mod_pagespeed stays flat. Break-even is ~100 to 170K requests/mo. The 2026 cost model.'
 date: 2026-02-07
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 coverImage: '/images/economics-of-image-optimization-card.png'
 tags: ['image optimization cost', 'image CDN', 'cloudinary', 'imgix', 'cloudflare images', 'self-hosted image cdn', 'gdpr', 'economics']
@@ -72,7 +72,7 @@ These numbers are conservative. They assume static images with long cache TTLs. 
 
 ## Self-hosted cost model
 
-The mod_pagespeed 2.1 optimizer worker transcodes images asynchronously in a separate process, writing optimized variants to the shared Cyclone cache. Each image is decoded once and encoded into multiple formats in a single pass (WebP, AVIF, and optimized original) when the `proactive_image_variants` option is enabled. Subsequent requests are served directly from the memory-mapped cache -- zero-copy, no re-encoding.
+The mod_pagespeed optimizer worker transcodes images asynchronously in a separate process, writing optimized variants to the shared Cyclone cache. Each image is decoded once and encoded into multiple formats in a single pass (WebP, AVIF, and optimized original) when the `proactive_image_variants` option is enabled. Subsequent requests are served directly from the memory-mapped cache -- zero-copy, no re-encoding.
 
 **Compute cost.** Image transcoding is CPU-intensive but bounded. JPEG to WebP conversion at quality 75 takes approximately 10-50 ms per image on a modern server core, depending on image dimensions. AVIF encoding at speed 6 and quality 60 (the shipped `avif_quality` default) takes 50-200 ms. The proactive multi-format pipeline decodes the source image once and runs the encoders, so the total per-image compute is roughly 100-300 ms. A single core can process 200-600 unique images per minute. Since each image is only processed once per format variant (deduplication via cache existence checks), a 4-core VM handles steady-state traffic of thousands of unique images per hour -- see [measured optimization results](/blog/benchmarking-real-numbers/) for real-world numbers.
 

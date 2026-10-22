@@ -1,8 +1,8 @@
 ---
 title: 'Cache purge in an optimizing proxy: what one URL touches'
-description: 'Purging one URL in mod_pagespeed 2.1 touches more than one cache entry: the fan-out problem, the 1.x lookup-time design, and why the worker deletes now.'
+description: 'Purging one URL in mod_pagespeed 2 touches more than one cache entry: the fan-out problem, the 1.x lookup-time design, and why the worker deletes now.'
 date: 2026-06-13
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 tags: ["caching", "cache-invalidation", "architecture", "wordpress", "operations"]
 product: "2.0"
 draft: false

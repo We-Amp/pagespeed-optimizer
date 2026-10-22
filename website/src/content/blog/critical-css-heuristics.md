@@ -1,12 +1,12 @@
 ---
 title: 'Critical CSS without a browser, or with headless Chrome'
-description: 'How the mod_pagespeed 2.1 optimizer worker inlines critical CSS two ways: static heuristics in under 5ms per page, or an optional headless-Chrome path.'
+description: 'How the mod_pagespeed optimizer worker inlines critical CSS two ways: static heuristics in under 5ms per page, or an optional headless-Chrome path.'
 date: 2026-02-08
 author: 'Otto van der Schaaf'
 tags: ['critical-css', 'css', 'performance', 'headless-chrome', 'core-web-vitals', 'deep-dive']
 draft: false
 product: '2.0'
-lastUpdated: 2026-09-30
+lastUpdated: 2026-10-22
 ---
 
 ## Two ways to find the critical CSS

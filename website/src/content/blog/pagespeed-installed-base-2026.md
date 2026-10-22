@@ -2,6 +2,7 @@
 title: 'The state of the PageSpeed installed base, 2026'
 description: 'HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.'
 date: 2026-10-10
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['data', 'mod_pagespeed', 'ngx_pagespeed', 'security', 'hosting']
 draft: false
@@ -292,4 +293,4 @@ The limits, in short:
 
 ## Where PageSpeed comes from
 
-mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1.0 and later is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.

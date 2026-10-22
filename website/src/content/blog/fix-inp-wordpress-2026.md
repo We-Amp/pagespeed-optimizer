@@ -2,7 +2,7 @@
 title: 'Fix INP on WordPress: plugin discipline'
 description: 'How to fix INP on WordPress: diagnose the responsible interaction, defer non-critical JS at the server layer, then trim plugin handlers and jQuery.'
 date: 2026-04-14
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'inp', 'wordpress']
 draft: false
@@ -11,7 +11,7 @@ howTo:
   name: How to fix INP on WordPress
   description: Diagnose the slow interaction, use mod_pagespeed to cut JS parse and transfer cost, then trim the plugin handlers and jQuery that actually drive INP, and verify in the field.
   tools:
-  - mod_pagespeed 2.1
+  - mod_pagespeed
   - nginx
   - Apache
   - Chrome DevTools Performance panel
@@ -33,7 +33,7 @@ howTo:
 
 ---
 
-WordPress INP is mostly a plugin-discipline problem in disguise. LCP and CLS clear, then Search Console flags INP on the first nav click or search form — and there are forty plugin handlers that could be the culprit. **mod_pagespeed 2.1** (an nginx or Apache module) runs `defer_javascript`, `combine_javascript`, and `rewrite_javascript` to push parse and transfer cost past the first interaction, but the structural fix is removing plugins that attach delegated click listeners to `document`. Both steps below.
+WordPress INP is mostly a plugin-discipline problem in disguise. LCP and CLS clear, then Search Console flags INP on the first nav click or search form — and there are forty plugin handlers that could be the culprit. **mod_pagespeed** (an nginx or Apache module) runs `defer_javascript`, `combine_javascript`, and `rewrite_javascript` to push parse and transfer cost past the first interaction, but the structural fix is removing plugins that attach delegated click listeners to `document`. Both steps below.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -147,4 +147,4 @@ WordPress INP is mostly a plugin-discipline problem. mod_pagespeed reduces the p
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

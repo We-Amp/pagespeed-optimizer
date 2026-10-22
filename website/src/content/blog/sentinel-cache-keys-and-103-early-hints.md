@@ -1,12 +1,12 @@
 ---
 title: 'Sentinel cache keys: alternate IDs for 103 Early Hints'
-description: 'How the mod_pagespeed 2.1 worker precomputes 103 Early Hints preloads that nginx serves from cache, stored under reserved sentinel keys beside each URL.'
+description: 'How the mod_pagespeed worker precomputes 103 Early Hints preloads that nginx serves from cache, stored under reserved sentinel keys beside each URL.'
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ['caching', 'architecture', 'deep-dive', 'performance', 'nginx']
 draft: false
 product: '2.0'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 ---
 
 A browser asks for `https://example.com/`, and before the origin has produced a single byte of HTML, nginx writes back `HTTP/1.1 103 Early Hints` with a list of stylesheet preloads. The browser starts fetching CSS while the real response is still being assembled. That `103` payload did not come from the origin and it was not computed on the request path. It was read out of the cache, from a key that no client request can ever address.

@@ -2,7 +2,7 @@
 title: 'Classify, denoise, then encode: content-aware image encoding'
 description: 'Content-aware image optimization classifies each image and denoises noisy sources before encoding, so photos, screenshots and logos get the right codec.'
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['images', 'image-optimization', 'deep-dive', 'performance']
 draft: false
@@ -57,7 +57,7 @@ The reason this work lives inside a transparent proxy rather than an external se
 - [Viewport-aware image optimization](/blog/viewport-aware-image-optimization/)
 - [How asynchronous rewriting works](/how-it-works/async-rewriting/)
 
-If your traffic is a mix of photos, screenshots, and illustrations, a single quality setting is leaving bytes on the table in one direction and quality on the table in the other. Content-aware image optimization fixes that by looking at the buffer before the codec does. mod_pagespeed 2.1 is maintained and independently developed; you can run the whole image pipeline on your own servers, with your images staying in your infrastructure. Grab a build from the [downloads](/download/) page and read the [configuration reference](/docs/configuration/) for the image filters and the content-analysis, denoise, and SSIMULACRA2 flags, all of which ship on by default. It is licensed under Apache-2.0 and free to run in development and in production, so you can measure the win on your own content.
+If your traffic is a mix of photos, screenshots, and illustrations, a single quality setting is leaving bytes on the table in one direction and quality on the table in the other. Content-aware image optimization fixes that by looking at the buffer before the codec does. mod_pagespeed is maintained and independently developed; you can run the whole image pipeline on your own servers, with your images staying in your infrastructure. Grab a build from the [downloads](/download/) page and read the [configuration reference](/docs/configuration/) for the image filters and the content-analysis, denoise, and SSIMULACRA2 flags, all of which ship on by default. It is licensed under Apache-2.0 and free to run in development and in production, so you can measure the win on your own content.
 
 ---
 

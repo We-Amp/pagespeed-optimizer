@@ -5,8 +5,10 @@ date: 2026-09-17
 author: 'Otto van der Schaaf'
 tags: ['announcement', 'release']
 draft: false
-lastUpdated: 2026-09-18
+lastUpdated: 2026-10-22
 ---
+
+> Editor's note (22 October 2026): this post is kept as written for the 2.1.0 launch. The product is now called mod_pagespeed, with no version in its name; "2.1" below refers to the 2.1.0 release. For the current release, start with [getting started](/docs/getting-started/).
 
 For the past year we shipped two products: mod_pagespeed 1.15, the maintained
 continuation of the classic module, and ModPageSpeed 2.0, a ground-up rewrite

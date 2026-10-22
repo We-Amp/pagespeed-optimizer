@@ -1,8 +1,8 @@
 ---
 title: "Chrome's Coverage API: inlining cached CSS for critical CSS"
-description: "How mod_pagespeed 2.1 feeds the Chrome Coverage API critical CSS: the worker inlines cached stylesheets into a network-blocked sandbox to see real usage."
+description: "How mod_pagespeed feeds the Chrome Coverage API critical CSS: the worker inlines cached stylesheets into a network-blocked sandbox to see real usage."
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ["critical-css", "headless-chrome", "css", "caching", "architecture"]
 draft: false

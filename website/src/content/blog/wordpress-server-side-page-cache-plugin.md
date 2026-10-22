@@ -2,7 +2,7 @@
 title: 'A WordPress server-side page cache plugin: control plane'
 description: 'How a WordPress server-side page cache plugin sets Cache-Control on anonymous pages and purges the mod_pagespeed cache on publish, not caching in PHP.'
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ["caching", "wordpress", "architecture", "operations", "nginx", "ttfb"]
 draft: false
@@ -16,7 +16,7 @@ The fix is not more server code. It is teaching WordPress to send the right head
 
 ## A WordPress server-side page cache plugin that is a control plane, not a cache
 
-The plugin is pure PHP, and it does not cache anything itself. It is a control plane: it sets cache headers on responses and calls a purge API when content changes. The caching happens server-side, in the mod_pagespeed 2.1 module you already run on nginx or Apache.
+The plugin is pure PHP, and it does not cache anything itself. It is a control plane: it sets cache headers on responses and calls a purge API when content changes. The caching happens server-side, in the mod_pagespeed module you already run on nginx or Apache.
 
 That split is deliberate, and it is the same architecture LiteSpeed Cache uses on its own server: the WordPress plugin is a bridge, and the server does the actual storage. We-Amp took LiteSpeed Cache as a benchmark precisely because the model is proven. The difference is the layer underneath. LiteSpeed Cache drives LiteSpeed Web Server. WeAmp Cache Control drives mod_pagespeed, which runs on Apache, nginx and IIS. LiteSpeed Cache is a strong plugin with millions of installs; the difference is simply where the cache lives.
 

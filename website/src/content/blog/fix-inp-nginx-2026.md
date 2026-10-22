@@ -6,13 +6,13 @@ author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'inp', 'nginx', 'ngx_pagespeed']
 draft: false
 product: '1.1'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 howTo:
   name: How to fix INP on nginx
   description: Diagnose the slowest interaction, lighten served JS with ngx_pagespeed, tune nginx's upstream and transport layer, then confirm the INP win with field and lab data.
   tools:
   - nginx
-  - mod_pagespeed 2.1 (ngx_pagespeed)
+  - mod_pagespeed 2 (ngx_pagespeed)
   - Chrome DevTools
   - web-vitals (attribution mode)
   - PageSpeed Insights
@@ -31,7 +31,7 @@ howTo:
 
 ---
 
-INP is a client-side metric — it measures the latency between a user input and the next paint — so nginx itself rarely _is_ the bottleneck. What nginx controls is _what JS gets served_ and _how fast the AJAX endpoints behind the interactive widgets respond_. **mod_pagespeed 2.1** (`ngx_pagespeed`) runs at the nginx layer to minify, combine, and defer that JS. If your origin already serves lean JS, mod_pagespeed adds little; if it serves a typical bundled-WordPress-or-similar mess, mod_pagespeed helps a lot. This is the CMS-agnostic guide for the in-between case where the stack is custom and you want to know where to push.
+INP is a client-side metric — it measures the latency between a user input and the next paint — so nginx itself rarely _is_ the bottleneck. What nginx controls is _what JS gets served_ and _how fast the AJAX endpoints behind the interactive widgets respond_. **mod_pagespeed 2** (`ngx_pagespeed`) runs at the nginx layer to minify, combine, and defer that JS. If your origin already serves lean JS, mod_pagespeed adds little; if it serves a typical bundled-WordPress-or-similar mess, mod_pagespeed helps a lot. This is the CMS-agnostic guide for the in-between case where the stack is custom and you want to know where to push.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -153,4 +153,4 @@ This post deliberately does _not_ try to be the definitive INP guide. The INP ×
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

@@ -1,8 +1,8 @@
 ---
 title: 'Auto-vectorizing raster images to SVG: one variant for all'
-description: 'Raster to SVG auto-vectorization in mod_pagespeed 2.1: the optimizer worker traces logos and icons with VTracer, collapsing the variant matrix into one.'
+description: 'Raster to SVG auto-vectorization in mod_pagespeed: the optimizer worker traces logos and icons with VTracer, collapsing the variant matrix into one.'
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['images', 'image-optimization', 'performance', 'deep-dive', 'caching']
 draft: false

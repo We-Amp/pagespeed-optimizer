@@ -1,11 +1,11 @@
 ---
 title: 'Migrate from mod_pagespeed 1.13 or ngx_pagespeed: 2.0 guide'
-description: 'Migrating from the archived mod_pagespeed 1.13.x or ngx_pagespeed: directive mapping, image-format checks, a verification checklist, and the 2.1 path.'
+description: 'Migrating from the archived mod_pagespeed 1.13.x or ngx_pagespeed: directive mapping, image-format checks, a verification checklist and the upgrade path.'
 date: 2026-02-10
 author: 'Otto van der Schaaf'
 tags: ['migration', 'guide', 'nginx']
 draft: false
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 product: '2.0'
 faq:
   - q: "Can I run the archived 1.13.x and 2.0 side by side?"
@@ -16,7 +16,7 @@ faq:
     a: "No. The optimizer worker uses Cyclone, a different cache format from the 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through."
 ---
 
-> Written for the ModPageSpeed 2.0 line: the Docker Compose setup and the `pagespeed_*` directives below are 2.0's. On mod_pagespeed 2.1 a 1.13 or ngx_pagespeed configuration carries over to the native module; see [migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/) and [migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/).
+> Written for the ModPageSpeed 2.0 line: the Docker Compose setup and the `pagespeed_*` directives below are 2.0's. On mod_pagespeed 2 a 1.13 or ngx_pagespeed configuration carries over to the native module; see [migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/) and [migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/).
 
 ## What changed and why
 
@@ -76,7 +76,7 @@ Many of the original mod_pagespeed 1.13.x directives have no direct equivalent b
 | `ModPagespeedCacheSizeMb`                            | `--cache-size`                 | Worker flag — value is now in **bytes**, not MB; multiply by 1048576 (e.g. `1024` MB → `--cache-size 1073741824`) |
 | `ModPagespeedFileCachePath`                          | `pagespeed_cache_path`         | nginx directive                                                                                                   |
 
-**Deliberately omitted features.** Several classic filters have no 2.0 equivalent because the 2.0 architecture makes them unnecessary or handles their use case differently. The [mod_pagespeed 2.1 module](/) keeps these filters if you need them:
+**Deliberately omitted features.** Several classic filters have no 2.0 equivalent because the 2.0 architecture makes them unnecessary or handles their use case differently. The [mod_pagespeed module](/) keeps these filters if you need them:
 
 - `combine_css` / `combine_javascript` -- Not needed. HTTP/2 multiplexing eliminates the round-trip cost of multiple small files.
 - `lazyload_images` -- Replaced with native `loading="lazy"` attribute injection. The worker's HTML transform pipeline automatically adds `loading="lazy"` to `<img>` and `<iframe>` tags, with the LCP candidate image (or first body image as fallback) receiving `fetchpriority="high"` instead. This is enabled by default. The classic `lazyload_images` filter used a JavaScript-based approach; 2.0 uses the browser-native attribute.
@@ -98,7 +98,7 @@ cp /etc/apache2/mods-enabled/pagespeed.conf ~/pagespeed-1x-backup.conf
 cp /etc/nginx/nginx.conf ~/nginx-1x-backup.conf
 ```
 
-### 2. Install mod_pagespeed 2.1
+### 2. Install mod_pagespeed
 
 Deploy the three components using Docker Compose or systemd. The Docker Compose approach is recommended for initial testing:
 
@@ -222,6 +222,6 @@ curl -H "Accept: image/jpeg" -o /dev/null -w "%{content_type}" http://localhost/
 - [mod_pagespeed: install and getting started](/docs/getting-started/)
 - [What mod_pagespeed optimizes](/features/)
 - [mod_pagespeed — the native Apache, nginx and IIS module](/)
-- [Migrate to mod_pagespeed 2.1](/mod-pagespeed-still-maintained/)
+- [Migrate to mod_pagespeed](/mod-pagespeed-still-maintained/)
 - [Why I rebuilt mod_pagespeed](/blog/why-i-rebuilt-mod-pagespeed/)
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/)

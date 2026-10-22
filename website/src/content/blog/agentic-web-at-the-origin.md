@@ -5,7 +5,7 @@ date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'strategy', 'architecture', 'web-bot-auth']
 draft: false
-lastUpdated: 2026-10-13
+lastUpdated: 2026-10-22
 ---
 
 ## The agentic web changed your traffic
@@ -40,7 +40,7 @@ Be clear-eyed about its status. RSL-CAP is experimental and off by default — a
 
 An AI agent does not want your navigation or your nested `<div>` wrappers. It wants the content. Serve a retrieval bot a full HTML page and it spends tokens parsing markup it will throw away, and it parses HTML poorly enough that it sometimes throws away the content too.
 
-The fix is to serve agents something they can read: clean markdown, plus an `/llms.txt` index that points them at it. The mod_pagespeed 2.1 optimizer worker's `agent_optimize` does this through content negotiation. When a client signals it wants the agent-friendly variant, the origin serves markdown synthesized from your existing pages. There is no separate content pipeline to maintain.
+The fix is to serve agents something they can read: clean markdown, plus an `/llms.txt` index that points them at it. The mod_pagespeed optimizer worker's `agent_optimize` does this through content negotiation. When a client signals it wants the agent-friendly variant, the origin serves markdown synthesized from your existing pages. There is no separate content pipeline to maintain.
 
 This is experimental and off by default; the operator enables it with a worker flag, and it requires browser analysis. Turn it on when your content is the product and your agent traffic is real. The generation rules, the negotiation header, and the shape of the synthesized `/llms.txt` are in [Serve clean Markdown to AI agents](/blog/serve-markdown-to-ai-agents/); the configuration lives in the [agent-optimize docs](/docs/agent-optimize/).
 

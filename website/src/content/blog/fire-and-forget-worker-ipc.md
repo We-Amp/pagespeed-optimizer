@@ -1,7 +1,8 @@
 ---
 title: 'Fire-and-forget IPC: keep optimization off the request path'
-description: 'mod_pagespeed 2.1 keeps optimization off the nginx request path: a small notification to the worker, no reply, so a cache miss stays cheap and none waits.'
+description: 'mod_pagespeed keeps optimization off the nginx request path: a small notification to the worker, no reply, so a cache miss stays cheap and none waits.'
 date: 2026-06-13
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'performance', 'deep-dive', 'nginx', 'caching']
 draft: false

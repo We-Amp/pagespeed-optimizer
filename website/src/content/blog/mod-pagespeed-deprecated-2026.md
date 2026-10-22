@@ -5,52 +5,52 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'migration', 'security']
 draft: false
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-22
 ---
 
-_Disclosure: I founded We-Amp, which develops mod_pagespeed 2.1._
+_Disclosure: I founded We-Amp, which develops mod_pagespeed._
 
-Yes. `mod_pagespeed` is deprecated. The 1.13.35.2 binaries still install, but the project receives no maintenance and the dependency stack has not been patched in years. The maintained continuation is [mod_pagespeed 2.1](/), licensed under Apache-2.0, developed by We-Amp B.V.
+Yes. `mod_pagespeed` is deprecated. The 1.13.35.2 binaries still install, but the project receives no maintenance and the dependency stack has not been patched in years. The maintained continuation is [mod_pagespeed 2](/), licensed under Apache-2.0, developed by We-Amp B.V.
 
 ## Practical paths forward
 
 | You currently run                         | Best path                                                                                                                                   |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mod_pagespeed` 1.13.35.2 on Apache       | [mod_pagespeed 2.1](/) — drop-in replacement                                                                                                |
-| `ngx_pagespeed` on nginx                  | [mod_pagespeed 2.1](/) — drop-in for nginx                                                                                                  |
-| IISpeed on Windows / IIS                  | [mod_pagespeed for IIS](/alternatives/iispeed/) — the IIS package ships from the 1.15 packaging channel                                |
+| `mod_pagespeed` 1.13.35.2 on Apache       | [mod_pagespeed 2](/) — drop-in replacement                                                                                                |
+| `ngx_pagespeed` on nginx                  | [mod_pagespeed 2](/) — drop-in for nginx                                                                                                  |
+| IISpeed on Windows / IIS                  | [mod_pagespeed for IIS](/alternatives/iispeed/) — the IIS module ships as a signed MSI on the mod_pagespeed GitHub release                                |
 | Envoy filter chain                        | No packaged build                                                                                                                          |
-| Reverse proxy in front of any HTTP origin | [mod_pagespeed 2.1](/) — see the [migration guide](/docs/migrating-to-2-1/)                                                                  |
+| Reverse proxy in front of any HTTP origin | [mod_pagespeed](/) — see the [migration guide](/docs/migrating-to-2-1/)                                                                  |
 | ASP.NET Core application                  | [WeAmp.PageSpeed NuGet middleware](/blog/aspnet-core-middleware/)                                                                           |
 
-Through 2026, We-Amp shipped two continuations — mod_pagespeed 1.15 and ModPageSpeed 2.0 — and they have since converged: mod_pagespeed 2.1 is a native in-process module for Apache and nginx, using the same `ModPagespeed*` directives and the built-in `/pagespeed_admin/` console, with a separate optimizer worker doing the heavy optimization work outside the web server. It is licensed under Apache-2.0. mod_pagespeed 2.1 is a drop-in upgrade for mod_pagespeed 1.15 — see the [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15). The deeper comparison lives in the [mod_pagespeed alternatives](/blog/mod-pagespeed-alternatives/) post.
+Through 2026, We-Amp shipped two continuations — mod_pagespeed 1.15 and ModPageSpeed 2.0 — and they have since converged: mod_pagespeed 2 is a native in-process module for Apache and nginx, using the same `ModPagespeed*` directives and the built-in `/pagespeed_admin/` console, with a separate optimizer worker doing the heavy optimization work outside the web server. It is licensed under Apache-2.0. mod_pagespeed 2 is a drop-in upgrade for mod_pagespeed 1.15 — see the [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15). The deeper comparison lives in the [mod_pagespeed alternatives](/blog/mod-pagespeed-alternatives/) post.
 
 ## Install snippets
 
 ```bash
-# mod_pagespeed 2.1 — ASP.NET Core middleware
+# mod_pagespeed — ASP.NET Core middleware
 dotnet add package WeAmp.PageSpeed.AspNetCore
 ```
 
 ```bash
-# mod_pagespeed 2.1 (Apache) — Debian/Ubuntu
+# mod_pagespeed (Apache) — Debian/Ubuntu
 curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
 sudo apt install mod-pagespeed-stable
 ```
 
 ```bash
-# mod_pagespeed 2.1 (Apache) — RHEL/Fedora
+# mod_pagespeed (Apache) — RHEL/Fedora
 curl -fsSL https://packages.modpagespeed.com/setup-yum.sh | sudo bash
 sudo dnf install mod-pagespeed-stable
 ```
 
 ```bash
-# mod_pagespeed 2.1 (nginx) — Debian/Ubuntu / RHEL/Fedora
+# mod_pagespeed (nginx) — Debian/Ubuntu / RHEL/Fedora
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed
 ```
 
 ```nginx
-# nginx (2.1, drop-in for ngx_pagespeed; the package loads the module itself)
+# nginx (mod_pagespeed 2, drop-in for ngx_pagespeed; the package loads the module itself)
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
 ```
@@ -78,15 +78,15 @@ If you have a working install and your threat model accepts unpatched dependenci
 
 The binaries work; the ecosystem around them is decaying.
 
-## mod_pagespeed 2.1 — the maintained continuation
+## mod_pagespeed 2 — the maintained continuation
 
-We-Amp B.V. — the team that helped build ngx_pagespeed, maintained mod_pagespeed, and drove the project's Apache incubation — develops the converged continuation, `mod_pagespeed 2.1`: the native in-process module, joined by a separate optimizer worker, licensed under Apache-2.0.
+We-Amp B.V. — the team that helped build ngx_pagespeed, maintained mod_pagespeed, and drove the project's Apache incubation — develops the converged continuation, `mod_pagespeed 2`: the native in-process module, joined by a separate optimizer worker, licensed under Apache-2.0.
 
 The worker architecture moves optimization work out of the request path: a separate worker process reads originals from a shared cache, generates the optimized variants, and writes them back, so the request path no longer waits on encoding.
 
 The optimization libraries (the parts that decide how to recompress a JPEG, how to fold a stylesheet, how to extract critical CSS) are the same ones mod_pagespeed proved at scale. The architecture around them is new.
 
-`mod_pagespeed 2.1` continues the original codebase with security patches and a current toolchain on Apache and nginx. The IIS package ships from the 1.15 packaging channel — see the [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15) for details.
+`mod_pagespeed 2` continues the original codebase with security patches and a current toolchain on Apache and nginx. The IIS module ships as a signed MSI on the mod_pagespeed GitHub release — see the [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15) for details.
 
 ## What about PageSpeed Insights?
 
@@ -103,7 +103,7 @@ See [Google PageSpeed Module alternative](/alternatives/google-pagespeed-module/
 - [Google PageSpeed Module alternative](/alternatives/google-pagespeed-module/) — disambiguation against PageSpeed Insights
 - [mod_pagespeed alternatives — the deep comparison](/blog/mod-pagespeed-alternatives/)
 - [Why I rebuilt mod_pagespeed from scratch](/blog/why-i-rebuilt-mod-pagespeed/) — the origin story behind ModPageSpeed 2.0
-- [Upgrading to mod_pagespeed 2.1](/docs/migrating-to-2-1/#upgrading-from-1-15) — the drop-in upgrade
+- [Upgrading to mod_pagespeed](/docs/migrating-to-2-1/#upgrading-from-1-15) — the drop-in upgrade
 - [Migrating from ModPageSpeed 2.0](/docs/migrating-to-2-1/) — for the Docker/Helm line
 - [Getting started](/docs/getting-started/) — concrete install steps
 - [Production deployment](/docs/production-deployment/) — hardening and rollout for a live server

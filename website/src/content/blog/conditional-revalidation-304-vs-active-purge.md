@@ -2,7 +2,7 @@
 title: '304 revalidation vs PURGE: which invalidation is cheaper'
 description: 'When a 304 ETag round-trip beats PURGE and keeps optimized AVIF and WebP variants on an HTML-only deploy with no rebuild.'
 date: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['caching', 'operations', 'performance', 'deep-dive', 'images']
 draft: false
@@ -14,7 +14,7 @@ Cache invalidation has two halves. Purge is the loud one: it deletes, immediatel
 
 ## What a 304 actually buys you
 
-When mod_pagespeed 2.1 caches a response from your origin, it stores the validators the origin sent: the `ETag`, the `Last-Modified` timestamp, or both. Those are the receipts. When the cached entry later goes stale — its `max-age` has elapsed — mod_pagespeed has a choice. It can re-fetch the resource in full, or it can ask the origin a narrower question: *has this changed since the version I'm holding?*
+When mod_pagespeed caches a response from your origin, it stores the validators the origin sent: the `ETag`, the `Last-Modified` timestamp, or both. Those are the receipts. When the cached entry later goes stale — its `max-age` has elapsed — mod_pagespeed has a choice. It can re-fetch the resource in full, or it can ask the origin a narrower question: *has this changed since the version I'm holding?*
 
 That narrower question is a conditional request. mod_pagespeed sends `If-None-Match` with the stored ETag, or `If-Modified-Since` with the stored timestamp. If the origin's copy is unchanged, it answers `304 Not Modified` with no body. mod_pagespeed marks its cached entry fresh again and serves it. No bytes crossed the wire beyond the headers, and — this is the part that matters for an optimizing proxy — no re-optimization happened, because the input bytes are provably the same ones already optimized.
 

@@ -2,16 +2,16 @@
 title: 'Run ModPageSpeed 2.0 with Docker Compose'
 description: 'A working docker-compose.yml for ModPageSpeed 2.0 on nginx: worker + interceptor + shared Cyclone cache volume. Verify with curl, done.'
 date: 2026-05-20
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['installation', 'docker', 'nginx']
 draft: false
 product: '2.0'
 ---
 
-> Written for the ModPageSpeed 2.0 line: the image tags and the `pagespeed_*` directives below are 2.0's. For mod_pagespeed 2.1, follow [the Docker install guide](/docs/installation-docker/).
+> Written for the ModPageSpeed 2.0 line: the image tags and the `pagespeed_*` directives below are 2.0's. For mod_pagespeed, follow [the Docker install guide](/docs/installation-docker/).
 
-mod_pagespeed 2.1 ships as two cooperating containers. One is a worker
+mod_pagespeed ships as two cooperating containers. One is a worker
 that transcodes images and minifies assets; the other is an nginx interceptor
 that serves the optimized variants. Both processes share a single
 [Cyclone cache](/blog/cyclone-cache-vs-file-cache-benchmark/) volume via

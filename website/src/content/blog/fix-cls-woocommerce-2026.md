@@ -10,7 +10,7 @@ howTo:
   name: How to fix CLS on WooCommerce
   description: Reduce Cumulative Layout Shift on WooCommerce product pages by locking gallery and variation-swap image dimensions at the server layer and reserving space for the zero-height thumbnail and cross-sell containers.
   tools:
-  - mod_pagespeed 2.1
+  - mod_pagespeed
   - nginx
   - Apache
   - PageSpeed Insights
@@ -20,14 +20,14 @@ howTo:
   - name: Diagnose the shifting elements
     text: Run PageSpeed Insights on the product URL and read the "Avoid large layout shifts" diagnostic to find the failing selector (usually .woocommerce-product-gallery or .cross-sells). Use Chrome DevTools Performance with Layout Shift Regions and throttling to reproduce the shift on reload and on a variation-swatch click, and record a baseline CLS.
   - name: Enable image-dimension filters at the server layer
-    text: Configure mod_pagespeed 2.1 (an nginx or Apache module) with insert_image_dimensions to read each gallery and thumbnail image's real size and write matching width/height attributes, plus lazyload_images, inline_preview_images, and prioritize_critical_css. Test on responsive templates before site-wide rollout, since fixed dimensions can interfere with some custom galleries.
+    text: Configure mod_pagespeed (an nginx or Apache module) with insert_image_dimensions to read each gallery and thumbnail image's real size and write matching width/height attributes, plus lazyload_images, inline_preview_images, and prioritize_critical_css. Test on responsive templates before site-wide rollout, since fixed dimensions can interfere with some custom galleries.
   - name: Unify product image aspect ratios in WooCommerce
     text: In the theme's functions.php, call add_image_size('shop_single', 800, 800, true) with crop true and run Regenerate Thumbnails once so every variant shares one aspect ratio. The variation-swap shift disappears when all variants are the same shape; on WooCommerce 8.0+ consider the Blocks Product Gallery, which renders dimensions server-side.
   - name: Reserve space for the zero-height containers in CSS
     text: 'The rewriter cannot size the thumbnail strip or cross-sell sections because they start at zero height with no img to inspect. Reserve them manually: .woocommerce-product-gallery { aspect-ratio: 1 / 1; }, .cross-sells { min-height: 320px; }, and .flex-control-thumbs { min-height: 80px; }, tuning values to the expected populated height.'
   - name: Confirm the gallery and cross-sells stay put
     text: Re-run PageSpeed Insights until "Avoid large layout shifts" lists no shifted elements, and record a DevTools trace of a reload plus a variation-swatch click to confirm the Layout Shift Regions overlay is empty. Watch the CrUX field number over the following weeks, not just the Lighthouse lab run, since variation-swap shifts only fire under real interaction.
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 faq:
 - q: What CLS score does a WooCommerce product page need to pass Core Web Vitals?
   a: Under 0.1 at the 75th percentile of real Chrome users. PageSpeed Insights reports the field number; optimize toward it, not the Lighthouse lab run.
@@ -38,7 +38,7 @@ faq:
 
 ---
 
-The gallery on a WooCommerce PDP scores 0.28 CLS on mobile, the variation swatches inflate it further, and the AJAX cross-sells finish the job. Getting under 0.1 doesn't require abandoning Storefront or rewriting the variation JavaScript: force dimensions onto every `<img>` in the gallery at the server layer with **mod_pagespeed 2.1** (an nginx or Apache module) so the variation swap and cross-sells stop pushing content around.
+The gallery on a WooCommerce PDP scores 0.28 CLS on mobile, the variation swatches inflate it further, and the AJAX cross-sells finish the job. Getting under 0.1 doesn't require abandoning Storefront or rewriting the variation JavaScript: force dimensions onto every `<img>` in the gallery at the server layer with **mod_pagespeed** (an nginx or Apache module) so the variation swap and cross-sells stop pushing content around.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -159,4 +159,4 @@ No. The AJAX cross-sell container starts at zero height with no img for the rewr
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

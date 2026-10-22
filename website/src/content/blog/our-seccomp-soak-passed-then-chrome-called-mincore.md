@@ -2,6 +2,7 @@
 title: 'Our seccomp soak passed. Then Chrome called mincore'
 description: 'A log-only systemd soak cannot see calls your filter subtracts, or a call that fires less often than the soak runs. Headless Chrome hit both.'
 date: 2026-10-20
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['deep-dive', 'security', 'systemd', 'headless-chrome', 'linux']
 draft: false
@@ -12,7 +13,7 @@ With 11 extra syscalls admitted, headless Chrome passed every check we ran under
 
 A call that fires every few minutes is invisible to a soak shorter than its period. That is one of two blind spots in "log first, then enforce what you saw". The other is any call your enforcing filter subtracts from the group the log treats as normal. Both apply to anyone running headless Chrome as a service: Puppeteer and Playwright workers, PDF renderers, link-preview fetchers.
 
-Our case is the mod_pagespeed optimizer worker, which can render pages in headless Chrome for analysis ([measuring LCP and CLS in a headless render](/blog/headless-lcp-cls-measurement/)). Since 2.1.0 its packaged unit enforces a syscall allow-list by default ([2.1 release notes](/docs/release-notes-2-1/)), and a vendor drop-in re-admits what Chrome's sandbox needs ([browser analysis](/docs/browser-analysis/)). Everything below about Chrome's calls is our own observation on x86_64, sandbox on, unprivileged user: Debian 12 with Debian's chromium package, and Ubuntu 24.04 with Google Chrome's .deb, both at versions 150 and 151. The group memberships we re-checked on 19 October 2026 with `systemd-analyze syscall-filter` on systemd 252 (Debian 12) and 255 (Ubuntu 24.04).
+Our case is the mod_pagespeed optimizer worker, which can render pages in headless Chrome for analysis ([measuring LCP and CLS in a headless render](/blog/headless-lcp-cls-measurement/)). Since 2.1.0 its packaged unit enforces a syscall allow-list by default ([2.1.0 release notes](/docs/release-notes-2-1/)), and a vendor drop-in re-admits what Chrome's sandbox needs ([browser analysis](/docs/browser-analysis/)). Everything below about Chrome's calls is our own observation on x86_64, sandbox on, unprivileged user: Debian 12 with Debian's chromium package, and Ubuntu 24.04 with Google Chrome's .deb, both at versions 150 and 151. The group memberships we re-checked on 19 October 2026 with `systemd-analyze syscall-filter` on systemd 252 (Debian 12) and 255 (Ubuntu 24.04).
 
 ## The profile: one group, minus two
 

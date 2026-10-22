@@ -1,14 +1,14 @@
 ---
 title: 'Pay-per-crawl at the origin: an experimental RSL-CAP gate'
-description: 'mod_pagespeed 2.1 ships an experimental, off-by-default RSL-CAP gate for nginx: check License capability tokens and refuse unauthorized AI crawlers.'
+description: 'mod_pagespeed ships an experimental, off-by-default RSL-CAP gate for nginx: check License capability tokens and refuse unauthorized AI crawlers.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'ai-crawlers', 'licensing', 'nginx']
 draft: false
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 ---
 
-> **Status: experimental preview, not GA.** RSL-CAP enforcement ships in the mod_pagespeed 2.1 module, off by default and confined to test configurations. Nothing here is priced, sold, or available to buy. Treat this post as the design, not a quickstart.
+> **Status: experimental preview, not GA.** RSL-CAP enforcement ships in the mod_pagespeed module, off by default and confined to test configurations. Nothing here is priced, sold, or available to buy. Treat this post as the design, not a quickstart.
 
 An AI crawler hits your site. It reads a product page, follows a few links, and pulls a PDF. None of that is free for you. It costs origin CPU, bandwidth, and database queries. The crawler then trains on that content, or answers a user's question from it, and the value flows to someone else's product.
 
