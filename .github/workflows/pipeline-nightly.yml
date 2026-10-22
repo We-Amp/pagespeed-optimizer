@@ -55,27 +55,31 @@ permissions:
 
 jobs:
   event-guard:
-    name: Event guard (refuses merge_group and unexpected events)
+    name: Event guard (refuses merge_group, unexpected events, refs and actors)
     runs-on: ubuntu-latest
     steps:
-      - name: Refuse events this pipeline must never run on
+      - name: Refuse events, refs and actors this pipeline must never run on
         env:
           EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          ACTOR: ${{ github.actor }}
+          PR_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPOSITORY: ${{ github.repository }}
           ALLOWED: "schedule workflow_dispatch"
+          ALLOWED_REFS: "refs/heads/main"
         run: |
           set -euo pipefail
-          case " ${ALLOWED} " in *" ${EVENT} "*) echo "event ${EVENT} accepted";; *) echo "::error::event ${EVENT} is not allowed in this pipeline"; exit 1;; esac
-
-  # ---------------------------------------------------------------------
-  # macOS, daily (hosted macos-15, arm64). The hosted runner has no remote
-  # cache and no hub, so builds restore a Bazel disk cache by prefix and
-  # save it even when a step runs out of time: a cold first night converges
-  # over the next ones. The build and pkg-smoke jobs stay under 30 minutes;
-  # macos-unit-tests gets 50 (test step 40) because the worker_test shards
-  # run uncached at 200 to 575 s each on three slots. Each step carries its
-  # own, shorter timeout so the cache save can still run. At most five
-  # macOS jobs run at once across the organization.
-  # ---------------------------------------------------------------------
+          set -f
+          case " ${ALLOWED} " in *" ${EVENT} "*) ;; *) echo "::error::event ${EVENT} is not allowed in this pipeline"; exit 1;; esac
+          case "${REF}" in refs/heads/gh-readonly-queue/*) echo "::error::merge queue refs never run this pipeline"; exit 1;; esac
+          ok=no
+          # shellcheck disable=SC2254  # the allowed refs are globs on purpose
+          for r in ${ALLOWED_REFS}; do case "${REF}" in ${r}) ok=yes;; esac; done
+          [ "${ok}" = yes ] || { echo "::error::ref ${REF} is not allowed in this pipeline"; exit 1; }
+          if [ "${EVENT}" = workflow_dispatch ] && [ "${ACTOR}" = "github-actions[bot]" ]; then echo "::error::dispatches made with a workflow token are not allowed"; exit 1; fi
+          if [ "${EVENT}" = pull_request ] && { [ "${PR_FORK}" = true ] || [ "${PR_HEAD_REPO}" != "${REPOSITORY}" ]; }; then echo "::error::pull requests from forks are not allowed in this pipeline"; exit 1; fi
+          echo "event ${EVENT} on ${REF} accepted"
   macos-build:
     name: macOS Build
     runs-on: macos-15
