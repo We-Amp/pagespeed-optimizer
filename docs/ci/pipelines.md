@@ -268,8 +268,13 @@ request (the callers pin `@main`). To exercise it before merge:
    `git push --force origin HEAD:ci-dev`.
 2. Dispatch the `CI (ci-dev)` workflow (`ci-dev.yml`) from the Actions tab
    or with `gh workflow run ci-dev.yml`. It calls `pipeline-pr.yml@ci-dev`.
+   To run the full tier as well, set the `full` input:
+   `gh workflow run ci-dev.yml --ref <branch> -f full=true` (or tick `full`
+   in the Actions tab). The `full` job then calls `pipeline-full.yml@ci-dev`.
 3. When it is green, merge the pull request as usual.
 
+The `ci-dev` workflow is latest-wins: its concurrency group cancels the run in
+flight when a newer one is dispatched, so only the newest dispatch finishes.
 The `ci-dev` branch is shared and disposable; whoever pushes it last owns
 the next dispatch.
 
@@ -313,6 +318,7 @@ reach the fleet:
 ```text
 We-Amp/pagespeed-optimizer/.github/workflows/pipeline-pr.yml@refs/heads/main
 We-Amp/pagespeed-optimizer/.github/workflows/pipeline-full.yml@refs/heads/main
+We-Amp/pagespeed-optimizer/.github/workflows/pipeline-full.yml@refs/heads/ci-dev
 We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nightly.yml@refs/heads/main
 We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main
 We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-nuget.yml@refs/heads/main
