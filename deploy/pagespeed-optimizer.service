@@ -175,7 +175,7 @@ LimitCORE=0
 RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
 
 # ---------------------------------------------------------------------------
-# Syscall filtering -- ENFORCING BY DEFAULT since 2.1.
+# Syscall filtering -- ENFORCING BY DEFAULT since 2.1.0
 #
 # The allow-list lives HERE, in the unit, and nowhere else.  It is not a
 # drop-in on purpose: a drop-in carrying a bare `SystemCallFilter=` list

@@ -241,11 +241,12 @@ Requires(pre): shadow-utils
 %define _build_id_links none
 
 %description
-The mod_pagespeed optimizer worker serves module integrations over a local socket:
-image/css/js optimization with quality verification, a shared cache
-volume, and a systemd-supervised service. Ships the worker and the C API
-client library (libpagespeed.so) that serving modules bind. Serving-module
-packages depend on this package at an exact version; the two ship together.
+The mod_pagespeed optimizer worker, serving module integrations over a
+local socket. It optimizes images, CSS and JS with quality verification,
+keeps a shared cache volume, and runs as a systemd-supervised service.
+Ships the worker and the C API client library (libpagespeed.so) that
+serving modules bind. Serving-module packages depend on this package at an
+exact version; the two ship together.
 Agent install recipes: https://modpagespeed.com/recipes/README.md
 
 %install

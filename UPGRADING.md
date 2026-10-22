@@ -11,7 +11,7 @@ This document covers upgrading to mod_pagespeed:
   the third section.
 - The long appendix at the end describes the 1.x → 2.0 architecture change
   for readers of the nginx line. It is background, not a migration guide:
-  a 1.x install upgraded to 2.1.0 through the packages does not go through it.
+  a 1.x install upgraded to 2.1.0 or later through the packages does not go through it.
 
 ## Upgrading from 2.4.0
 
@@ -135,7 +135,7 @@ is now `2`.
   this for package installs; container deployments get it from the single
   image tag the Helm chart and the compose files use for both images.
 
-## Upgrading from 1.x to 2.1.0
+## Upgrading from 1.x (1.15)
 
 Upgrading a mod_pagespeed 1.x (1.15) install to 2.1.0 is an in-place package
 upgrade, boring by design and proven by in-place upgrade rehearsals:
@@ -173,7 +173,7 @@ volume and the 2.1.0 volume live in different directories (the 1.x file-cache
 path versus `/var/cache/pagespeed-optimizer/v2`). Both files exist during
 the upgrade either way, so the disk needs room for the second volume.
 
-## Upgrading from 2.0 to 2.1.0
+## Upgrading from 2.0
 
 mod_pagespeed is licensed under the Apache License 2.0. Coming from a 2.0 install:
 
@@ -362,11 +362,11 @@ file and is fixed there; opting out is the bridge, not the destination.
 
 mod_pagespeed 2.0 was the nginx-centric rewrite: it replaced the 1.x
 in-process filter pipeline with the three-component architecture (serving
-module + optimization daemon + shared cache) that 2.1.0 now converges on. If
+module + optimization daemon + shared cache) that mod_pagespeed 2 converges on. If
 you upgrade a 1.x install to 2.1.0 through the packages, the change described
 below is absorbed by the packages themselves -- you do not migrate anything
 by hand. This appendix remains for readers who ran the 2.0 line, who run
-ngx_pagespeed and are moving to the 2.1.0 nginx module, or who want the detail
+ngx_pagespeed and are moving to the mod_pagespeed 2 nginx module, or who want the detail
 of what changed under the hood.
 
 ### Architecture differences
@@ -414,7 +414,7 @@ irrelevant:
 
 **Apache httpd integration.** ModPageSpeed 2.0 does not run inside Apache. If you use
 Apache as your application server, deploy the nginx interceptor + worker in front of it
-as a reverse proxy. (This restriction was specific to the 2.0 line: in 2.1.0 the Apache
+as a reverse proxy. (This restriction was specific to the 2.0 line: since 2.1.0 the Apache
 module is first-class again -- see "What about Apache?" in the FAQ below.)
 
 **Per-filter configuration.** `ModPagespeedEnableFilters` and `ModPagespeedDisableFilters`
@@ -686,7 +686,7 @@ rewarms as traffic flows through.
 No. All optimization is transparent at the reverse-proxy level.
 
 **What about Apache?**
-First-class in 2.1.0: the `mod-pagespeed` package is the 1.x module lineage,
+First-class since 2.1.0: the `mod-pagespeed` package is the 1.x module lineage,
 served by the same pagespeed-optimizer daemon that backs the nginx module.
 (The 2.0 line was nginx-only; that restriction is gone.)
 

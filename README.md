@@ -1,6 +1,6 @@
 # mod_pagespeed — pagespeed-optimizer
 
-The optimization worker, nginx serving module, and management console of the
+The optimization worker, nginx serving module and management console of
 mod_pagespeed. The same worker also backs the Apache module
 (shipped from the [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed)
 repository): one optimizer serves both web servers, with zero-copy cache
@@ -8,7 +8,7 @@ serving and asynchronous content optimization.
 
 ## Architecture
 
-mod_pagespeed converges on three cooperating components. The serving
+mod_pagespeed is built from three cooperating components. The serving
 module is thin and lives in the web server; all optimization work happens in
 the worker; the cache is shared between them.
 
