@@ -85,6 +85,18 @@ permissions:
   contents: read
 
 jobs:
+  event-guard:
+    name: Event guard (refuses merge_group and unexpected events)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse events this pipeline must never run on
+        env:
+          EVENT: ${{ github.event_name }}
+          ALLOWED: "push workflow_dispatch"
+        run: |
+          set -euo pipefail
+          case " ${ALLOWED} " in *" ${EVENT} "*) echo "event ${EVENT} accepted";; *) echo "::error::event ${EVENT} is not allowed in this pipeline"; exit 1;; esac
+
   # Hosted, no secrets, read-only token. Every later job chains to it. The
   # guard code is checked out from main, never from the tree being released.
   # A real run must pass it; a dry run reports its verdict and continues
@@ -92,6 +104,7 @@ jobs:
   # a tag push or a dispatch is refused outright.
   ref-guard:
     name: Ref guard
+    needs: event-guard
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:

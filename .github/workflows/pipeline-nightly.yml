@@ -54,6 +54,18 @@ permissions:
   contents: read
 
 jobs:
+  event-guard:
+    name: Event guard (refuses merge_group and unexpected events)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse events this pipeline must never run on
+        env:
+          EVENT: ${{ github.event_name }}
+          ALLOWED: "schedule workflow_dispatch"
+        run: |
+          set -euo pipefail
+          case " ${ALLOWED} " in *" ${EVENT} "*) echo "event ${EVENT} accepted";; *) echo "::error::event ${EVENT} is not allowed in this pipeline"; exit 1;; esac
+
   # ---------------------------------------------------------------------
   # macOS, daily (hosted macos-15, arm64). The hosted runner has no remote
   # cache and no hub, so builds restore a Bazel disk cache by prefix and
@@ -287,6 +299,7 @@ jobs:
   # ---------------------------------------------------------------------
   periodic-vendor:
     name: Vendor Dependencies (nightly)
+    needs: event-guard
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 45
     outputs:
@@ -2009,6 +2022,7 @@ jobs:
   # ---------------------------------------------------------------------
   css-fuzz-nightly:
     name: CSS fuzz nightly (libFuzzer + corpus + findings)
+    needs: event-guard
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 45
     env:
@@ -2251,6 +2265,7 @@ jobs:
   # the verdicts), and it is an ancestor of main. Dispatching the nightly caller runs the whole nightly beside this lane.
   css-fuzz-shadow:
     name: CSS oracle shadow (baseline vs current agreement)
+    needs: event-guard
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
     if: ${{ github.event_name == 'workflow_dispatch' && vars.FLEET_ENABLED == 'true' }}
     timeout-minutes: 30
