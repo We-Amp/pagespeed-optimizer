@@ -15,23 +15,31 @@ const nginxImage = rel.artifacts.docker.image;
 const faq = [
   {
     q: 'Is the nginx port still maintained?',
-    a: 'Yes. mod_pagespeed 2.1 is the maintained continuation of the nginx port. It ships a native nginx module — the same ngx_pagespeed module, the same pagespeed directives — built against current nginx, with current image and TLS dependencies and applied CVE patches. We-Amp helped ship the open-source 1.13.35.2 release and kept the module going.',
+    a: 'Yes. mod_pagespeed is the maintained continuation of the nginx port. It ships a native nginx module (the same ngx_pagespeed module, the same pagespeed directives) built against current nginx, with current image and TLS dependencies and applied CVE patches. We-Amp helped ship the open-source 1.13.35.2 release and kept the module going.',
   },
   {
     q: 'Can I keep my existing pagespeed directives?',
-    a: 'Yes. mod_pagespeed 2.1 keeps the pagespeed directive surface and the classic filter names, so the directives and filter selectors you already wrote keep working. Install the signed package (it loads the module itself), keep your config.',
+    a: 'Yes. mod_pagespeed keeps the pagespeed directive surface and the classic filter names, so the directives and filter selectors you already wrote keep working. Install the signed package (it loads the module itself), keep your config.',
   },
   {
     q: 'What happened to the old ngx_pagespeed repository?',
-    a: 'Google donated mod_pagespeed and ngx_pagespeed to the Apache Software Foundation in 2017. The Apache Incubator podling retired in 2023, and apache/incubator-pagespeed-ngx was marked read-only in 2025. The archived sources no longer build cleanly against current nginx without patching. The module itself did not stop. Its maintainers kept shipping it, and it ships today as mod_pagespeed 2.1.',
+    a: 'Google donated mod_pagespeed and ngx_pagespeed to the Apache Software Foundation in 2017. The Apache Incubator podling retired in 2023, and apache/incubator-pagespeed-ngx was marked read-only in 2025. The archived sources no longer build cleanly against current nginx without patching. The module itself did not stop. Its maintainers kept shipping it, and it ships today as mod_pagespeed.',
   },
   {
     q: 'Native nginx module or Docker reverse proxy — which fits my stack?',
-    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: the package loads it, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module uses the optimizer worker too: install pagespeed-optimizer first and point the module at it with two directives.',
+    a: 'Both are mod_pagespeed. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: the package loads it, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module runs on its own by default; since 2.2.0 (package 1.17.0) it can also hand in-place optimization to the optimizer worker: install the pagespeed-optimizer package of the same release and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block.',
+  },
+  {
+    q: 'Why is the nginx module pinned to one exact nginx version?',
+    a: "nginx refuses to load a dynamic module built for a different nginx version, and --with-compat does not relax that check. Even at the same version, a distribution's security patch can change the internal request structures the module reads. So each package depends on the distribution's stock nginx (for example 1.24.0 on Ubuntu 24.04), and the Ubuntu and Enterprise Linux packages are built against that distribution's own patched nginx source. Running an nginx we do not package? Contact us for a matching pinned build.",
+  },
+  {
+    q: 'Why did a routine apt upgrade break my self-built PageSpeed module?',
+    a: "A 2026-06-05 Ubuntu security update for CVE-2026-49975 inserted a field into the middle of nginx's internal request-headers struct, shifting every field after it by 8 bytes. A module compiled against the earlier nginx then read the wrong offsets and spun the worker on the first request it tried to optimize, while nginx -t still passed. Our Ubuntu and Enterprise Linux packages are built against the distribution's own patched nginx source, and the module checks its layout on the first request: if it does not recognize it, it logs one alert per worker and passes responses through unoptimized instead of hanging the worker.",
   },
   {
     q: 'Does the nginx module generate AVIF?',
-    a: 'Yes. mod_pagespeed 2.1 encodes AVIF alongside WebP, JPEG, PNG, and GIF, and serves the variant the client signals support for. AVIF is not a reason to pick one integration over another — pick by deployment fit.',
+    a: 'Yes. mod_pagespeed encodes AVIF alongside WebP, JPEG, PNG, and GIF, and serves the variant the client signals support for. AVIF is not a reason to pick one integration over another. Pick by deployment fit.',
   },
   {
     q: 'Who maintains this?',
@@ -60,7 +68,7 @@ const jsonLd = [
 
 <BaseLayout
   title="ngx_pagespeed alternative in 2026 — maintained nginx module"
-  description="ngx_pagespeed no longer builds on modern nginx. mod_pagespeed 2.1 is the maintained native module — same directives, builds on current nginx, CVE-patched."
+  description="ngx_pagespeed no longer builds on modern nginx. mod_pagespeed is the maintained native module: same directives, builds on current nginx, CVE-patched."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
@@ -69,8 +77,8 @@ const jsonLd = [
       <p class="lede mt-6">
         The nginx PageSpeed port lives on. The module you knew as{' '}
         <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code> is now{' '}
-        <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed 2.1</code>: the
-        same native nginx module, the same{' '}
+        <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code>: the same
+        native nginx module, the same{' '}
         <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">pagespeed</code> directives,
         built against current nginx and security-patched. Maintained by the people who maintained
         the original.
@@ -105,7 +113,7 @@ apt install nginx-module-pagespeed
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 dnf install nginx-module-pagespeed`}</code></pre>
 
-      <h2>mod_pagespeed 2.1 &mdash; the maintained nginx module</h2>
+      <h2>mod_pagespeed, the maintained nginx module</h2>
       <p>
         The module loads into your nginx binary the way ngx_pagespeed did. The module file is{' '}
         <code>ngx_pagespeed_module.so</code>, the nginx port you came here for. Install the signed
@@ -113,7 +121,7 @@ dnf install nginx-module-pagespeed`}</code></pre>
         filter selectors, and URL-based variant fan-out you already wrote.
       </p>
 
-      <pre><code>{`# nginx.conf — the native mod_pagespeed 2.1 module
+      <pre><code>{`# nginx.conf: the native mod_pagespeed module
 # The package loads the module; check with:
 #   sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
 # Only a module installed by hand needs, at the top of nginx.conf:
@@ -152,6 +160,25 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
         </a>
       </p>
 
+      <h2>Packages for your distribution's nginx</h2>
+      <p>
+        The signed <code>nginx-module-pagespeed</code> packages cover Debian 12 and 13 and Ubuntu
+        22.04 and 24.04 on amd64 and arm64, AlmaLinux, RHEL and Rocky 9 on x86_64 and aarch64, and
+        10 on x86_64. Debian 11 stays on the repository's final 1.15.0 packages. There is nothing to
+        compile.
+      </p>
+      <p>
+        Each package depends on the stock nginx of its distribution, because nginx refuses to load a
+        module built for a different version. The Ubuntu and Enterprise Linux packages are built
+        against that distribution's own patched nginx source. The module also checks its layout on
+        the first request and passes responses through unoptimized if it does not recognize it. The
+        reasons are in the <a href="#faq">questions below</a>, and the{' '}
+        <a href="/docs/installation-module/#nginx-compatibility">
+          pinned nginx version per distribution
+        </a>{' '}
+        is in the module guide.
+      </p>
+
       <h2>Who maintains it</h2>
       <p>
         We-Amp B.V., based in Castricum, Netherlands, maintained mod_pagespeed throughout the Google
@@ -159,9 +186,24 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
         <a href="https://ngxpagespeed.com/" rel="noopener noreferrer">
           ngxpagespeed.com
         </a>
-        , the historical landing page for the nginx port. When upstream development moved to the
-        Apache Software Foundation and then wound down, the nginx module did not stop. Its
-        maintainers kept shipping it.
+        , the historical landing page for the nginx port. Two primary sources record that history:
+        Google's{' '}
+        <a
+          href="https://developers.googleblog.com/en/speed-up-your-sites-with-pagespeed-for-nginx/"
+          rel="noopener noreferrer external"
+        >
+          2013 ngx_pagespeed beta announcement
+        </a>{' '}
+        names We-Amp among the companies whose developers built the module, and the{' '}
+        <a
+          href="https://cwiki.apache.org/confluence/display/INCUBATOR/PageSpeedProposal"
+          rel="noopener noreferrer external"
+        >
+          Apache PageSpeed incubation proposal
+        </a>{' '}
+        lists We-Amp engineers among the project's initial committers. When upstream development
+        moved to the Apache Software Foundation and then wound down, the nginx module did not stop.
+        Its maintainers kept shipping it.
       </p>
 
       <h2>Why a maintained continuation matters</h2>
@@ -179,17 +221,15 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
         <a href="/blog/ngx-pagespeed-wont-build-modern-nginx/">
           why ngx_pagespeed won't build on modern nginx (and the prebuilt fix)
         </a>
-        , and the
-        <a
-          href="https://ngxpagespeed.com/ngx-pagespeed-alternative/"
-          rel="noopener noreferrer external"
-        >
-          ngx_pagespeed alternative on ngxpagespeed.com
-        </a>{' '}
-        walks through the prebuilt nginx module in more detail. Their image and TLS dependencies
-        carry known CVEs that nobody is patching. A read-only repository is the reason to move to a
-        maintained continuation, not the reason to leave nginx-native optimization behind. That is
-        the gap the maintained module closes: the same module, still maintained.
+        . Their image and TLS dependencies carry known CVEs that nobody is patching, including the
+        libwebp version affected by <span class="whitespace-nowrap">CVE-2023-4863</span>. The
+        maintained module fixed the root cause: its build moved off the Python 2 gyp harness onto
+        Bazel and a current C++ standard, the vendored libraries were brought forward (libwebp 1.1.0
+        to 1.5.0, clearing CVE-2023-4863; curl to the 8.x line), and each package is built inside
+        its target distribution's own container, so the glibc and libstdc++ it needs match the
+        system. A read-only repository is the reason to move to a maintained continuation, not the
+        reason to leave nginx-native optimization behind. That is the gap the maintained module
+        closes: the same module, still maintained.
       </p>
 
       <h2>If you want the container-native shape: the Docker reverse proxy</h2>
@@ -245,9 +285,9 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
 
       <h2>Which integration fits your nginx</h2>
       <p>
-        mod_pagespeed 2.1 is the nginx answer either way: both integrations share the optimization
-        core (PSOL) and the Cyclone cache, and both are {LICENSE_CLAUSE} &mdash; free in development
-        and in production. What differs is where the optimization runs.
+        mod_pagespeed is the nginx answer either way: both integrations share the optimization core
+        (PSOL) and the Cyclone cache, and both are {LICENSE_CLAUSE}: free in development and in
+        production. What differs is where the optimization runs.
       </p>
       <table>
         <thead>
@@ -324,7 +364,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         how the worker model works.
       </p>
 
-      <h2>Frequently asked questions</h2>
+      <h2 id="faq">Frequently asked questions</h2>
       {faq.map((entry) => (
         <>
           <h3>{entry.q}</h3>
@@ -362,13 +402,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
       <h2>Related</h2>
       <ul>
         <li>
-          <a
-            href="https://ngxpagespeed.com/ngx-pagespeed-alternative/"
-            rel="noopener noreferrer external"
-          >
-            ngx_pagespeed alternative
-          </a>{' '}
-          on{' '}
+          ngx_pagespeed install guides on{' '}
           <a href="https://ngxpagespeed.com/" rel="noopener noreferrer">
             ngxpagespeed.com
           </a>{' '}
