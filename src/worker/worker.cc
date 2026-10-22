@@ -3270,10 +3270,17 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
   ImageVariantResult result;
   result.smallest_raster_size = image_data.size();
 
-  // Intra-notification content dedup: track (size, hash) of written
-  // variant bytes to skip writing identical content under multiple
-  // AlternateIds (e.g., Desktop ignores density -> 1x and 2x identical).
+  // Intra-notification content dedup: track (viewport, size, hash) of
+  // written variant bytes to skip writing identical content under multiple
+  // AlternateIds of the same viewport (e.g., Desktop ignores density -> 1x
+  // and 2x identical).  The viewport is part of the key because the
+  // selector ranks a viewport match above every other dimension: a
+  // duplicate skipped at another viewport is never served in its place, so
+  // an image narrower than the tablet width (whose tablet and desktop
+  // encodes are byte-identical) would leave the desktop slot holding only
+  // the front end's raw recording, served to every desktop client.
   struct WrittenVariant {
+    CapabilityMask::Viewport viewport;
     size_t content_size;
     size_t content_hash;  // std::hash<std::string_view>
   };
@@ -3336,14 +3343,15 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
     write_mask.set_transfer_encoding(
         CapabilityMask::TransferEncoding::kIdentity);
     // Content dedup: skip if identical bytes already written for
-    // this URL under a different AlternateId (e.g., Desktop ignores
-    // density so 1x and 2x produce identical output).
+    // this URL under a different AlternateId of the same viewport (e.g.,
+    // Desktop ignores density so 1x and 2x produce identical output).
     size_t csz = tr.output_data.size();
     size_t chash = std::hash<std::string_view>{}(
         std::string_view(tr.output_data.data(), csz));
     bool is_dup = false;
     for (const auto& w : written_variants) {
-      if (w.content_size == csz && w.content_hash == chash) {
+      if (w.viewport == vp && w.content_size == csz &&
+          w.content_hash == chash) {
         is_dup = true;
         break;
       }
@@ -3363,7 +3371,7 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
             std::span<const char>(tr.output_data.data(), tr.output_data.size()),
             img_variant_meta, purge_check, this);
     if (wr) {
-      written_variants.push_back({csz, chash});
+      written_variants.push_back({vp, csz, chash});
       ++result.successful_writes;
       stats_.variants_written.fetch_add(1, std::memory_order_relaxed);
       stats_.images_processed.fetch_add(1, std::memory_order_relaxed);

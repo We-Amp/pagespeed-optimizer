@@ -4,6 +4,17 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: with the nginx module and proactive image variants turned on
+(`PAGESPEED_PROACTIVE_IMAGE_VARIANTS=true`), desktop browsers could be served
+the original upload, unoptimized and in its original format, for images up to
+768 pixels wide, whether they accepted WebP, AVIF or only JPEG. This started in
+2.5.1. The optimizer skipped the desktop copies of such an image because they
+were identical to the tablet copies, and since 2.5.1 a desktop browser is
+served a desktop-size image rather than the tablet one. The desktop copies are
+now stored too. After the upgrade an affected image is rebuilt the next time a
+desktop browser requests it; no purge is needed. Sites without proactive image
+variants, the default, were not affected.
+
 ## 2.5.2 - 2026-10-21
 
 Security: the bundled libpng is updated to 1.6.58, which fixes memory-safety
