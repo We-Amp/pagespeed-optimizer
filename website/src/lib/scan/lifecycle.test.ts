@@ -39,7 +39,7 @@ describe('lifecycleSentence', () => {
   it('points 2.0.x at the migration guide, labelled ModPageSpeed, with no support claim', () => {
     const s = lifecycleSentence('2.0.3');
     expect(s).toBe(
-      'ModPageSpeed 2.0.3: Migrate from ModPageSpeed 2.0 explains whether your setup moves to 2.1 today.',
+      'ModPageSpeed 2.0.3: Migrate from ModPageSpeed 2.0 explains how your setup moves to the current release.',
     );
     expect(s).not.toMatch(/frozen|security fixes|in place|supported/i);
   });

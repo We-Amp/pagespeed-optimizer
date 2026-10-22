@@ -364,11 +364,11 @@
       "description": {
         "static": {
           "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed on nginx or Apache with apt or yum."
         },
         "rendered": {
           "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed on nginx or Apache with apt or yum."
         }
       },
       "jsonLd": {

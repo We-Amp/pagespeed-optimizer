@@ -144,18 +144,18 @@ test.describe('SEO', () => {
     expect(response?.status()).toBe(404);
   });
 
-  // Wave 0 (convergence): /download/ must actually sell the current line —
-  // a bare integration grid with no 2.1 row was the defect (A4 in
-  // convergence-inventory.md). One card per current-line integration, each
-  // labelled 'mod_pagespeed 2.1' next to its name.
-  test('/download/ offers the current line (mod_pagespeed 2.1)', async ({ page }) => {
+  // /download/ must actually offer the current release: a bare integration
+  // grid with no current row was a past defect. One card per integration,
+  // each labelled with the product and the exact release from the manifest
+  // (the download page is where the version is the point).
+  test('/download/ offers the current release on every integration card', async ({ page }) => {
     await page.goto('/download/');
     for (const name of ['Apache', 'nginx', 'nginx (Docker)', 'Helm']) {
       await test.step(name, async () => {
         const card = page.locator('a.card', {
           has: page.getByRole('heading', { level: 3, name, exact: true }),
         });
-        await expect(card).toContainText('mod_pagespeed 2.1');
+        await expect(card).toContainText(`mod_pagespeed ${MANIFEST_SEMVER}`);
       });
     }
   });
