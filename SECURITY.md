@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in mod_pagespeed 2.1, please report it
+If you discover a security vulnerability in mod_pagespeed, please report it
 responsibly by emailing **security@modpagespeed.com**. Do NOT open a public GitHub
 issue.
 
@@ -28,7 +28,7 @@ assess impact.
 
 ## Supported Versions
 
-Only the latest release of the mod_pagespeed 2.1 line receives security
+Only the latest release of mod_pagespeed receives security
 updates. Users on older versions should upgrade to receive fixes.
 
 ## Disclosure Policy

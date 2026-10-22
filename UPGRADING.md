@@ -1,6 +1,6 @@
-# Upgrading to mod_pagespeed 2.1
+# Upgrading to mod_pagespeed
 
-This document covers upgrading to mod_pagespeed 2.1:
+This document covers upgrading to mod_pagespeed:
 
 - **From 2.4.0 or earlier 2.x:** the cache directory moves from `v2` to `v3` and
   the cache starts empty — see the first section below.
@@ -11,7 +11,7 @@ This document covers upgrading to mod_pagespeed 2.1:
   the third section.
 - The long appendix at the end describes the 1.x → 2.0 architecture change
   for readers of the nginx line. It is background, not a migration guide:
-  a 1.x install upgraded to 2.1 through the packages does not go through it.
+  a 1.x install upgraded to 2.1.0 through the packages does not go through it.
 
 ## Upgrading from 2.4.0
 
@@ -135,15 +135,15 @@ is now `2`.
   this for package installs; container deployments get it from the single
   image tag the Helm chart and the compose files use for both images.
 
-## Upgrading from 1.x to 2.1
+## Upgrading from 1.x to 2.1.0
 
-Upgrading a mod_pagespeed 1.x (1.15) install to 2.1 is an in-place package
+Upgrading a mod_pagespeed 1.x (1.15) install to 2.1.0 is an in-place package
 upgrade, boring by design and proven by in-place upgrade rehearsals:
 
 - **Upgrade the package.** `apt upgrade mod-pagespeed` (or the yum/dnf
   equivalent). The `mod-pagespeed` package depends on the
   `pagespeed-optimizer` package at the exact same version, so the daemon is
-  pulled in automatically. 2.1 runs the 1.x module lineage on top of a
+  pulled in automatically. 2.1.0 runs the 1.x module lineage on top of a
   separate optimization daemon; your existing module configuration carries
   over.
 - **Start order is handled.** At boot, the packaged systemd unit orders the
@@ -153,7 +153,7 @@ upgrade, boring by design and proven by in-place upgrade rehearsals:
   then the web server.
 - **The cache is not purged — it is side-stepped.** 1.15 already stores its
   cache in a Cyclone volume (`cyclone.dat` under the file-cache path), and
-  the 2.1 daemon opens its own new volume — format major 8, with the format
+  the 2.1.0 daemon opens its own new volume — format major 8, with the format
   carried in the filename, under its own cache directory
   (`/var/cache/pagespeed-optimizer/v2`) — and never touches the old file.
   There is no purge storm: the old file stays where it is, and a rollback to
@@ -168,16 +168,16 @@ upgrade, boring by design and proven by in-place upgrade rehearsals:
 
 The free-space check and the manual start order written for 2.0 installs in
 the next section apply to the 1.x upgrade exactly the same way, with one
-difference: the 2.0→2.1 files share one cache directory, while the 1.15
-volume and the 2.1 volume live in different directories (the 1.x file-cache
+difference: the 2.0→2.1.0 files share one cache directory, while the 1.15
+volume and the 2.1.0 volume live in different directories (the 1.x file-cache
 path versus `/var/cache/pagespeed-optimizer/v2`). Both files exist during
 the upgrade either way, so the disk needs room for the second volume.
 
-## Upgrading from 2.0 to 2.1
+## Upgrading from 2.0 to 2.1.0
 
-mod_pagespeed 2.1 is licensed under the Apache License 2.0. Coming from a 2.0 install:
+mod_pagespeed is licensed under the Apache License 2.0. Coming from a 2.0 install:
 
-- **The cache starts empty.** 2.1 uses a new on-disk cache format. The 2.1
+- **The cache starts empty.** 2.1.0 uses a new on-disk cache format. The 2.1.0
   binary opens a new cache file instead of converting the 2.0 one, so the
   first requests after the upgrade are misses and the cache refills as
   traffic arrives. Nothing needs configuring and nothing is lost that cannot
@@ -189,19 +189,19 @@ mod_pagespeed 2.1 is licensed under the Apache License 2.0. Coming from a 2.0 in
   size on top of what the 2.0 volume already occupies. With that room, leave
   the 2.0 file in place -- it is what makes a rollback warm -- and delete it
   once you are confident you will not roll back. Without it, **stop the
-  daemon, delete the 2.0 cache file, then start 2.1**: the new volume is
+  daemon, delete the 2.0 cache file, then start 2.1.0**: the new volume is
   extended to its full configured size during startup, ahead of any cleanup,
   so starting first on a directory sized for one volume can exhaust the disk.
   Allocation is sparse, so this would not fail at the upgrade -- it would fail
   hours later, mid-traffic, as the cache warms. A rollback to 2.0 reopens the
-  2.0 file, still warm, unless you deleted it: 2.1 leaves format-stamped
+  2.0 file, still warm, unless you deleted it: 2.1.0 leaves format-stamped
   volumes of other formats alone, so neither a cache purge nor the module's
   automatic open-failure recovery takes the rollback away. Nothing removes the 2.0 file
   for you -- deleting it is your step, once you are confident you will not
   roll back.
 
 - **Start the optimizer before the web server.** The volume filename carries
-  the cache format, so the 2.1 daemon opens a new file. Until it has started
+  the cache format, so the 2.1.0 daemon opens a new file. Until it has started
   and created that file, the only volume in the directory is the 2.0 one, and
   a web server that starts in that window creates the new file itself instead
   of attaching to the daemon's. The serving module will not paper that over:
@@ -214,7 +214,7 @@ mod_pagespeed 2.1 is licensed under the Apache License 2.0. Coming from a 2.0 in
   ahead of `apache2.service`, `httpd.service` and `nginx.service`, and counts
   as started only once its notify socket exists, so the web server is not
   released until the volume is there. The nginx half of that ordering is new
-  in 2.1, so it applies from a packaged 2.1 install onward. The manual order
+  in 2.1.0, so it applies from a packaged 2.1.0 install onward. The manual order
   above is what applies during the upgrade itself, when you start things by
   hand rather than booting. If your web server runs under some other unit
   name, order it yourself with a `Before=` drop-in on
@@ -222,7 +222,7 @@ mod_pagespeed 2.1 is licensed under the Apache License 2.0. Coming from a 2.0 in
 - **Nothing you must do.** An unchanged 2.0 configuration starts. A retired
   2.0 setting is accepted and ignored, with a startup warning that names it
   so it can be removed.
-- **`pagespeed-shared.conf`** keeps schema version 1. Keys that 2.1 no longer
+- **`pagespeed-shared.conf`** keeps schema version 1. Keys that 2.1.0 no longer
   writes read as missing to a 2.0-era reader, which keeps its defaults, so a
   mixed-version window during a package upgrade is harmless.
   `agent_optimize_entitled` keeps its historical name and mirrors the
@@ -237,19 +237,19 @@ mod_pagespeed 2.1 is licensed under the Apache License 2.0. Coming from a 2.0 in
   only egress is what you configure: origin fetches and, if enabled, the Web
   Bot Auth / RSL-CAP key directories.
 
-## 2.1 host packages: the system-call filter is enforced by default
+## 2.1.0 host packages: the system-call filter is enforced by default
 
 This section applies to the `pagespeed-optimizer` deb/rpm host packages only
 (containers have no systemd; the container runtime's seccomp profile is the
 filter there, unchanged). It covers an upgrade from a 2.0 host package, from
-an earlier 2.1 release candidate, or from 1.x -- for which the filter is
+an earlier 2.1.0 release candidate, or from 1.x -- for which the filter is
 simply new.
 
 **What changes.** The daemon's systemd unit now carries an enforcing
 system-call allow-list: `SystemCallFilter=@system-service` minus
 `@privileged @resources`, plus `RestrictNamespaces=yes`. On the first call
 outside that set the kernel terminates the daemon with `SIGSYS` (exit status
-31). Earlier 2.1 release candidates shipped the same unit log-only and offered
+31). Earlier 2.1.0 release candidates shipped the same unit log-only and offered
 enforcement as an opt-in drop-in (`10-syscall-filter-enforce.conf.example`);
 that file is retired, and if you installed it into
 `/etc/systemd/system/pagespeed-optimizer.service.d/` it is now redundant --
@@ -362,11 +362,11 @@ file and is fixed there; opting out is the bridge, not the destination.
 
 mod_pagespeed 2.0 was the nginx-centric rewrite: it replaced the 1.x
 in-process filter pipeline with the three-component architecture (serving
-module + optimization daemon + shared cache) that 2.1 now converges on. If
-you upgrade a 1.x install to 2.1 through the packages, the change described
+module + optimization daemon + shared cache) that 2.1.0 now converges on. If
+you upgrade a 1.x install to 2.1.0 through the packages, the change described
 below is absorbed by the packages themselves -- you do not migrate anything
 by hand. This appendix remains for readers who ran the 2.0 line, who run
-ngx_pagespeed and are moving to the 2.1 nginx module, or who want the detail
+ngx_pagespeed and are moving to the 2.1.0 nginx module, or who want the detail
 of what changed under the hood.
 
 ### Architecture differences
@@ -414,7 +414,7 @@ irrelevant:
 
 **Apache httpd integration.** ModPageSpeed 2.0 does not run inside Apache. If you use
 Apache as your application server, deploy the nginx interceptor + worker in front of it
-as a reverse proxy. (This restriction was specific to the 2.0 line: in 2.1 the Apache
+as a reverse proxy. (This restriction was specific to the 2.0 line: in 2.1.0 the Apache
 module is first-class again -- see "What about Apache?" in the FAQ below.)
 
 **Per-filter configuration.** `ModPagespeedEnableFilters` and `ModPagespeedDisableFilters`
@@ -497,9 +497,9 @@ incompatible with the 1.x file-based cache. There is no migration path -- the ca
 starts cold and warms as traffic flows through. (This describes the classic 1.x
 directory cache as the 2.0 line found it. Later 1.15 releases already store
 the cache in a Cyclone volume -- `cyclone.dat` under the file-cache path. The
-2.1 daemon opens its own new volume -- format major 8, with the format
+2.1.0 daemon opens its own new volume -- format major 8, with the format
 carried in the filename -- and never touches the old file, which is what
-makes the side-stepping 1.x → 2.1 cache upgrade at the top of this document
+makes the side-stepping 1.x → 2.1.0 cache upgrade at the top of this document
 work.)
 
 Key differences:
@@ -669,14 +669,14 @@ visibility into cache hit rates and optimization progress.
 
 ## Frequently asked questions
 
-**Can I run 1.x and 2.1 side by side?**
-Yes. They share no state -- 2.1 even keeps its cache in a separate,
+**Can I run 1.x and mod_pagespeed 2 side by side?**
+Yes. They share no state -- mod_pagespeed 2 even keeps its cache in a separate,
 format-fingerprinted volume file. Run them on different servers or, on nginx,
 different server blocks.
 
 **Will my 1.x cache carry over?**
 No -- and it is not destroyed either. 1.15 stores its cache in a Cyclone
-volume (`cyclone.dat` under the file-cache path); the 2.1 daemon opens its
+volume (`cyclone.dat` under the file-cache path); the 2.1.0 daemon opens its
 own new volume -- format major 8, with the format carried in the filename --
 under its own cache directory and never touches the old file, which stays
 warm for a rollback unless you delete it. The new cache starts cold and
@@ -686,14 +686,14 @@ rewarms as traffic flows through.
 No. All optimization is transparent at the reverse-proxy level.
 
 **What about Apache?**
-First-class in 2.1: the `mod-pagespeed` package is the 1.x module lineage,
+First-class in 2.1.0: the `mod-pagespeed` package is the 1.x module lineage,
 served by the same pagespeed-optimizer daemon that backs the nginx module.
 (The 2.0 line was nginx-only; that restriction is gone.)
 
 **What if I need a filter that was removed?**
 The removed filters (combining, spriting, JS-based lazy loading) were dropped
 by the 2.0 nginx line because they addressed HTTP/1.1 limitations. On Apache,
-2.1 is the 1.x module lineage, so its configuration surface carries over. On
+2.1.0 is the 1.x module lineage, so its configuration surface carries over. On
 the nginx line, if you still need them, keep running 1.x alongside during the
-transition. For most deployments on HTTP/2, the 2.1 optimizations produce
+transition. For most deployments on HTTP/2, the mod_pagespeed optimizations produce
 better results.

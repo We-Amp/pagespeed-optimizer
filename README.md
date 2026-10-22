@@ -1,14 +1,14 @@
-# mod_pagespeed 2.1 — pagespeed-optimizer
+# mod_pagespeed — pagespeed-optimizer
 
 The optimization worker, nginx serving module, and management console of the
-mod_pagespeed 2.1 product line. The same worker also backs the Apache module
+mod_pagespeed. The same worker also backs the Apache module
 (shipped from the [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed)
 repository): one optimizer serves both web servers, with zero-copy cache
 serving and asynchronous content optimization.
 
 ## Architecture
 
-mod_pagespeed 2.1 converges on three cooperating components. The serving
+mod_pagespeed converges on three cooperating components. The serving
 module is thin and lives in the web server; all optimization work happens in
 the worker; the cache is shared between them.
 
@@ -29,7 +29,7 @@ the worker; the cache is shared between them.
 **Serving module** — Thin C++ web-server module that classifies requests into
 capability-based cache keys, serves optimized variants via zero-copy mmap, and
 records cache misses for asynchronous processing. This repository builds the
-nginx module; the Apache module — the 1.x lineage going live as 2.1 — lives in
+nginx module; the Apache module (the 1.x lineage, shipped as 2.1.0 and later) lives in
 [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed). Both modules
 attach to the same worker and the same cache.
 
@@ -47,7 +47,7 @@ here via Bazel.
 
 ## Packages
 
-mod_pagespeed 2.1 ships as deb/rpm package pairs:
+mod_pagespeed ships as deb/rpm package pairs:
 
 - **`pagespeed-optimizer`** — the optimization worker (this repository)
 - **`mod-pagespeed`** — the Apache module, which depends on the optimizer
@@ -259,7 +259,7 @@ deploy/        Production deployment configs
 ## Related Repositories
 
 - [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed) — the
-  Apache module (the 1.x lineage, live as 2.1)
+  Apache module (the 1.x lineage, shipped as 2.1.0 and later)
 - [We-Amp/cyclone-cache](https://github.com/We-Amp/cyclone-cache) — the
   Cyclone cache library
 
