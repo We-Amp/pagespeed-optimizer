@@ -58,9 +58,11 @@ jobs:
   # macOS, daily (hosted macos-15, arm64). The hosted runner has no remote
   # cache and no hub, so builds restore a Bazel disk cache by prefix and
   # save it even when a step runs out of time: a cold first night converges
-  # over the next ones. Each job stays under 30 minutes; the build steps
-  # carry their own, shorter timeout so the cache save can still run. At
-  # most five macOS jobs run at once across the organization.
+  # over the next ones. The build and pkg-smoke jobs stay under 30 minutes;
+  # macos-unit-tests gets 50 (test step 40) because the worker_test shards
+  # run uncached at 200 to 575 s each on three slots. Each step carries its
+  # own, shorter timeout so the cache save can still run. At most five
+  # macOS jobs run at once across the organization.
   # ---------------------------------------------------------------------
   macos-build:
     name: macOS Build
