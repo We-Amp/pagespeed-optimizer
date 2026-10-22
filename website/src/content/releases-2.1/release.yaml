@@ -20,7 +20,7 @@
 #
 # Schema: scripts/release/manifest-schema.mjs (2.1 branch pending)
 # Distribution scope: Docker + Helm + native deb/rpm packages, plus the
-# ASP.NET Core middleware on NuGet, which ships as 2.5.0 with this release,
+# ASP.NET Core middleware on NuGet, which ships as 2.5.2 with this release,
 # and the signed IIS installer on the module's GitHub release.
 # The middleware's artifact block still lives in the 2.0 manifest; where it
 # re-homes is tracked separately.
@@ -34,10 +34,10 @@ product:
 status: active
 
 release:
-  semver: "2.5.0"
+  semver: "2.5.2"
   revision: null # plain SemVer; +rN not used on the converged line
-  tag: "v2.5.0"
-  released_on: "2026-10-19"
+  tag: "v2.5.2"
+  released_on: "2026-10-22"
 
 artifacts:
   # Docker images published to GHCR (ghcr.io/we-amp) — same channels as the
@@ -84,7 +84,7 @@ compat:
   apache:
     apache_versions: ["2.4+"]
   iis:
-    # The 2.5.0 release gate installs the MSI on one guest, Windows Server
+    # The 2.5.2 release gate installs the MSI on one guest, Windows Server
     # 2016 with IIS 10, as an upgrade over an older installed module; the MSI
     # is built and signed on Windows Server 2022, and the IIS system tests run
     # on Windows 10/11 with IIS 10. No lane installs on Server 2019 or 2025, so
@@ -93,7 +93,7 @@ compat:
     iis_versions: ["10"]
   docker:
     # Release images are ubuntu:24.04-based (digest-pinned); the bundled
-    # nginx is version-pinned in docker/nginx-version.txt (1.30.4).
+    # nginx is version-pinned in docker/nginx-version.txt (1.30.6).
     base_images: ["ubuntu:24.04"]
   kubernetes:
     versions: ["1.28+", "1.29+", "1.30+"]
@@ -102,5 +102,5 @@ compat:
 display:
   # The 2.1 line derives every customer-facing version string from
   # release.semver (same invariant the 2.0 collection enforces).
-  header_version: "2.5.0"
-  badge_version: "v2.5.0"
+  header_version: "2.5.2"
+  badge_version: "v2.5.2"
