@@ -2,7 +2,7 @@
 title: 'Server-side critical CSS for nginx, any backend'
 description: 'Extract and inline critical CSS at the nginx layer for any backend: PHP, Rails, Django, ASP.NET, Go. No WordPress plugin, headless browser or Node build.'
 date: 2026-05-20
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['critical-css', 'nginx', 'core-web-vitals', 'lcp']
 draft: false
@@ -357,5 +357,5 @@ to run in development and in production — see the [license](/license/).
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/) — full nginx + worker container setup
 - [mod_pagespeed vs WP Rocket](/vs/wp-rocket/) — side-by-side comparison
 - [ASP.NET Core image optimization](/blog/aspnet-core-image-optimization-c-sharp/) — same pipeline applied to image content negotiation
-- [ngx_pagespeed alternative](https://ngxpagespeed.com/ngx-pagespeed-alternative/) — the maintained nginx module, for the nginx audience specifically
+- [ngx_pagespeed alternative](/alternatives/ngx-pagespeed/): the maintained nginx module, for the nginx audience specifically
 - [mod_pagespeed alternatives](/alternatives/mod-pagespeed/) — background on why mod_pagespeed needs a successor in 2026
