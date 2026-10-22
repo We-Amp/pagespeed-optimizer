@@ -4457,8 +4457,10 @@ TEST_F(WorkerTest, ImageNotificationGeneratesViewportSiblings) {
                            CapabilityMask::ImageFormat::kWebP))
       << "Mobile/WebP variant not written";
 
-  // Tablet and Desktop WebP siblings should be servable (either written
-  // directly or via selector fallback when content-identical to Mobile).
+  // Tablet and Desktop WebP siblings should be servable.  Content-identical
+  // copies are only deduplicated within a viewport, so each viewport holds
+  // its own (the selector never serves another viewport's copy in place of
+  // one at the client's own size).
   EXPECT_TRUE(poll_variant(CapabilityMask::Viewport::kTablet,
                            CapabilityMask::ImageFormat::kWebP))
       << "Tablet/WebP viewport sibling not servable";
@@ -20998,6 +21000,70 @@ TEST_F(VariantSizeTest, WorkerVariantAtIdentitySlotIsNotKeptAsTheOriginal) {
       StripSchemeAuthority(url), "", "https");
   EXPECT_FALSE(durable.has_value())
       << "a worker variant was kept as the durable original";
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+// Proactive variants for an image narrower than the tablet width: the
+// tablet and desktop encodes come out byte-identical (neither resizes).  The
+// pass used to skip the desktop copies as content duplicates of the tablet
+// ones, but the selector ranks a viewport match above format, so a desktop
+// client is never handed the tablet copy: it got the front end's raw
+// recording at the identity slot instead, whatever format it negotiated.
+// Every desktop client must get an optimized variant, never the upload.
+TEST_F(VariantSizeTest, ProactiveDesktopSlotIsBuiltForASmallImage) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(32 * 1024 * 1024);
+  config.proactive_image_variants = true;
+  // One density and no Save-Data keep the matrix to the three viewports.
+  config.proactive_density_variants = false;
+  config.proactive_savedata_variants = false;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  // 512x512, below the tablet width (768): no viewport resizes it.
+  const std::string url = "http://example.com/small.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  StoreOriginal(worker, url, jpeg, Layout::kIdentitySlot);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kImage;
+  n.capability_mask = 0x09;  // desktop, 1x, WebP: the E2E suite's request
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  // Desktop and tablet, 1x, original/WebP/AVIF.
+  for (uint32_t mask : {0x08u, 0x09u, 0x0Au, 0x04u, 0x05u, 0x06u}) {
+    const std::string served =
+        ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(mask));
+    ASSERT_FALSE(served.empty()) << "mask 0x" << std::hex << mask;
+    EXPECT_TRUE(served != jpeg) << "mask 0x" << std::hex << mask
+                                << " was served the unoptimized upload";
+    EXPECT_LT(served.size(), jpeg.size()) << "mask 0x" << std::hex << mask;
+  }
+  // A desktop client gets the format a tablet client with the same Accept
+  // gets: the same encode, so the same size-gate decision.
+  for (uint32_t fmt : {0x1u, 0x2u}) {
+    const std::string desktop = ReadBestVariant(
+        worker.cache(), url, CapabilityMask::Decode(0x08 | fmt));
+    const std::string tablet = ReadBestVariant(
+        worker.cache(), url, CapabilityMask::Decode(0x04 | fmt));
+    EXPECT_TRUE(desktop.substr(0, 4) == tablet.substr(0, 4))
+        << "format " << fmt;
+  }
+  ExpectStoredSlotsSmallerThanFallback(worker, url);
 
   worker.Shutdown();
   worker_thread.join();
