@@ -1,89 +1,89 @@
 {
   "origin": "https://modpagespeed.com",
-  "capturedAt": "2026-10-19T21:01:33.705Z",
+  "capturedAt": "2026-10-22T06:34:38.115Z",
   "paths": {
     "/": {
       "status": 200,
-      "wireBytes": 30572,
-      "decodedBytes": 136302,
-      "ttfbMs": 126,
+      "wireBytes": 41194,
+      "decodedBytes": 193965,
+      "ttfbMs": 146,
       "headers": {
-        "x-mod-pagespeed": "2.5.0",
-        "vary": "Accept-Encoding",
+        "x-mod-pagespeed": "2.5.2",
+        "vary": "Save-Data,Accept-Encoding",
         "content-encoding": "gzip",
         "content-type": "text/html",
         "cache-control": "max-age=0, no-cache",
-        "content-length": "30572"
+        "content-length": "41194"
       }
     },
     "/docs/": {
       "status": 200,
-      "wireBytes": 23400,
-      "decodedBytes": 112377,
-      "ttfbMs": 120,
+      "wireBytes": 32883,
+      "decodedBytes": 161715,
+      "ttfbMs": 123,
       "headers": {
-        "x-mod-pagespeed": "2.5.0",
-        "vary": "Accept-Encoding",
+        "x-mod-pagespeed": "2.5.2",
+        "vary": "Save-Data,Accept-Encoding",
         "content-encoding": "gzip",
         "content-type": "text/html",
         "cache-control": "max-age=0, no-cache",
-        "content-length": "23400"
+        "content-length": "32883"
       }
     },
     "/download/": {
       "status": 200,
-      "wireBytes": 19861,
-      "decodedBytes": 91204,
-      "ttfbMs": 117,
+      "wireBytes": 20868,
+      "decodedBytes": 94405,
+      "ttfbMs": 118,
       "headers": {
-        "x-mod-pagespeed": "2.5.0",
+        "x-mod-pagespeed": "2.5.2",
         "vary": "Accept-Encoding",
         "content-encoding": "gzip",
         "content-type": "text/html",
         "cache-control": "max-age=0, no-cache",
-        "content-length": "19861"
+        "content-length": "20868"
       }
     },
     "/pricing/": {
       "status": 200,
-      "wireBytes": 23053,
-      "decodedBytes": 110466,
-      "ttfbMs": 121,
+      "wireBytes": 33909,
+      "decodedBytes": 164861,
+      "ttfbMs": 123,
       "headers": {
-        "x-mod-pagespeed": "2.5.0",
-        "vary": "Accept-Encoding",
+        "x-mod-pagespeed": "2.5.2",
+        "vary": "Save-Data,Accept-Encoding",
         "content-encoding": "gzip",
         "content-type": "text/html",
         "cache-control": "max-age=0, no-cache",
-        "content-length": "23053"
+        "content-length": "33909"
       }
     },
     "/features/": {
       "status": 200,
-      "wireBytes": 32316,
-      "decodedBytes": 157292,
-      "ttfbMs": 135,
+      "wireBytes": 43064,
+      "decodedBytes": 213077,
+      "ttfbMs": 130,
       "headers": {
-        "x-mod-pagespeed": "2.5.0",
-        "vary": "Accept-Encoding",
+        "x-mod-pagespeed": "2.5.2",
+        "vary": "Save-Data,Accept-Encoding",
         "content-encoding": "gzip",
         "content-type": "text/html",
         "cache-control": "max-age=0, no-cache",
-        "content-length": "32316"
+        "content-length": "43064"
       }
     },
     "/demo/": {
       "status": 200,
-      "wireBytes": 26215,
-      "decodedBytes": 143114,
-      "ttfbMs": 161,
+      "wireBytes": 36522,
+      "decodedBytes": 198465,
+      "ttfbMs": 127,
       "headers": {
-        "x-mod-pagespeed": "2.5.0",
-        "vary": "Accept-Encoding",
+        "x-mod-pagespeed": "2.5.2",
+        "vary": "Save-Data,Accept-Encoding",
         "content-encoding": "gzip",
         "content-type": "text/html",
         "cache-control": "max-age=0, no-cache",
-        "content-length": "26215"
+        "content-length": "36522"
       }
     }
   }
