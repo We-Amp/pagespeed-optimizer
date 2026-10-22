@@ -32,10 +32,10 @@ readahead residency check added after this census; see the comment above
 that lets the profile ship as two group names instead of a list of ~370
 syscalls that would have to be re-derived per architecture.
 
-**Shipped posture (2.1):** those two lines are in the packaged unit itself
+**Shipped posture (2.1.0):** those two lines are in the packaged unit itself
 (`deploy/pagespeed-optimizer.service`), enforcing by default, together with
 `RestrictNamespaces=yes`; the unit also keeps `SystemCallLog=~@system-service`
-so calls outside the group stay recorded. Until 2.1 the same two lines shipped
+so calls outside the group stay recorded. Until 2.1.0 the same two lines shipped
 as an opt-in drop-in example and the unit was log-only. The flip was decided
 on this census plus the rig's enforcing legs; the first extended soak of the
 enforcing posture is the release-candidate soak that precedes GA; the documented opt-out

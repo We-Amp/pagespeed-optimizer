@@ -22,7 +22,7 @@
 #        ReadWritePaths=/your/new/cache/dir
 #   3. Set CACHE_DIR below, then:   systemctl restart pagespeed-optimizer
 # Package purge removes only the default /var/cache/pagespeed-optimizer; a
-# relocated cache directory is yours to remove. The old pre-2.1 location
+# relocated cache directory is yours to remove. The old pre-2.1.0 location
 # /var/lib/pagespeed-optimizer is never touched by the package: a
 # pre-existing root-owned cache there is abandoned in place (cold start;
 # no content is migrated or chowned).
@@ -144,7 +144,7 @@
 # off; a setting here that appeared to would be a lie. The switch is a
 # drop-in.
 #
-# The shipped unit ENFORCES (since 2.1): the daemon may make the calls in
+# The shipped unit ENFORCES (since 2.1.0): the daemon may make the calls in
 # systemd's @system-service group minus @privileged and @resources, and the
 # kernel kills it with SIGSYS on the first call outside that set. The list
 # is in the unit itself -- nothing to install to get it, and no drop-in that
@@ -168,7 +168,7 @@
 # refuses to initialize and names the restriction. It never falls back to an
 # unsandboxed browser. Masking tightens; it is not the opt-out (below).
 #
-# OPT-OUT (back to the pre-2.1 log-only posture), surviving every package
+# OPT-OUT (back to the pre-2.1.0 log-only posture), surviving every package
 # upgrade because the package never writes under /etc/systemd:
 #
 #   install -D -m 0644 \

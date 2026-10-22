@@ -1,4 +1,4 @@
-# mod_pagespeed 2.1 Deployment
+# mod_pagespeed Deployment
 
 ## Quick Start with Docker Compose
 
@@ -73,7 +73,7 @@ The compose file pulls the published `ghcr.io/we-amp/pagespeed-worker` and
 ## Syscall filtering (host packages)
 
 The `pagespeed-optimizer` package's systemd unit **enforces** a system-call
-allow-list (since 2.1): the daemon may make the calls in systemd's
+allow-list (since 2.1.0): the daemon may make the calls in systemd's
 `@system-service` group minus `@privileged` and `@resources`, and the kernel
 kills it with `SIGSYS` on the first call outside that set. The list is in the
 unit itself, so there is no drop-in to install to get it and none that can be
@@ -131,7 +131,7 @@ tightening, not an opt-out — the opt-out is the next section.
 
 ### Opting out
 
-The documented way off — back to the pre-2.1 log-only posture — is a drop-in
+The documented way off — back to the pre-2.1.0 log-only posture — is a drop-in
 of your own, copied from the shipped example, that resets the two directives:
 
 ```bash
