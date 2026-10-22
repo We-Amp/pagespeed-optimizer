@@ -3,7 +3,7 @@ title: 'Security hardening guide'
 description: 'Security guidance for mod_pagespeed: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.'
 order: 57
 group: 'Operate'
-lastUpdated: 2026-10-06
+lastUpdated: 2026-10-22
 ---
 
 ## Overview

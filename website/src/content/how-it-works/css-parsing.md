@@ -3,7 +3,7 @@ title: 'How CSS minification and URL rewriting work'
 description: "How mod_pagespeed parses CSS into a syntax tree to minify, rewrite url(), and flatten @import safely — and why regex rewriters corrupt stylesheets."
 order: 30
 datePublished: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 ---
 Most "CSS minifiers" are a pile of regular expressions. Strip whitespace, delete comments, collapse `0px` to `0`. That works until it doesn't, and when it fails it fails silently: the page still loads, the stylesheet still parses in the browser, but one background image now points at the wrong path. mod_pagespeed treats CSS the way a browser does. It parses the stylesheet into a syntax tree before touching a byte. This page explains why that matters, and what a real parser makes possible that string-munging cannot.
 

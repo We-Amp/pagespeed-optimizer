@@ -3,7 +3,7 @@ title: 'Image filters'
 description: 'Image filters in mod_pagespeed for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
 order: 43
 group: 'Filters'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 ## Overview

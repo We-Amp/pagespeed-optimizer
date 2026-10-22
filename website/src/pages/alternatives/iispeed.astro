@@ -2,7 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import NugetCmd from '../../components/release/NugetCmd.astro';
-import { COMMERCIAL_EMAIL, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { COMMERCIAL_EMAIL, FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
 
 const faq = [
   {
@@ -280,8 +280,8 @@ app.Run();`}</code></pre>
 
       <h2>Install and run</h2>
       <p>
-        Install either path and it optimizes right away. mod_pagespeed is open source under
-        Apache-2.0 &mdash; free in development and in production.
+        Install either path and it optimizes right away. mod_pagespeed is {LICENSE_CLAUSE} &mdash;
+        free in development and in production.
       </p>
       <p>The IIS package ships as a signed installer on the mod_pagespeed GitHub release.</p>
       <ul>

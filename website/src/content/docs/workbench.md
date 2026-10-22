@@ -3,7 +3,7 @@ title: 'Use the web console'
 description: 'Inspect cache contents, monitor live throughput and bandwidth savings, and hot-reload configuration from the mod_pagespeed web console at /console/.'
 order: 53
 group: 'Operate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-22
 ---
 
 The web console is a SvelteKit application served directly by the worker

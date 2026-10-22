@@ -3,7 +3,7 @@ title: 'Migrate from ModPageSpeed 2.0'
 description: 'Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed: unprivileged worker, loopback-bound API, configuration carries over.'
 order: 10
 group: 'Upgrade and migrate'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-22
 faq:
   - q: 'Do I have to recreate my cache volume?'
     a: 'No. On its first start, 2.1 migrates a volume created by 2.0 in place: it adopts the cache files into the unprivileged `pagespeed` user and keeps the warm cache, deleting nothing. Native-package installs are different: there the cache lives in a versioned directory and a package upgrade starts it cold by design.'

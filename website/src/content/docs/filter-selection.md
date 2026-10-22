@@ -3,7 +3,7 @@ title: 'Filter selection'
 description: 'Choose which mod_pagespeed filters run: RewriteLevel presets, the CoreFilters default, EnableFilters, DisableFilters, ForbidFilters and thresholds.'
 order: 41
 group: 'Filters'
-lastUpdated: 2026-07-12
+lastUpdated: 2026-10-22
 ---
 
 mod_pagespeed applies a set of filters to optimize your pages. You control which filters run through the `RewriteLevel` directive and per-filter enable/disable directives.

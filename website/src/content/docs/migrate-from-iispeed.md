@@ -3,7 +3,7 @@ title: 'Migrate from IISpeed'
 description: 'Move an IISpeed install to the mod_pagespeed IIS module: save the configuration, uninstall IISpeed, run the MSI, keep the cache, verify, roll back.'
 order: 14
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 datePublished: 2026-10-08
 faq:
   - q: 'What happens to my IISpeed subscription?'

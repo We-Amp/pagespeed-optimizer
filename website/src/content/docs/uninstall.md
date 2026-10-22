@@ -3,7 +3,7 @@ title: 'Uninstall and rollback'
 description: 'Remove mod_pagespeed per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.'
 order: 56
 group: 'Operate'
-lastUpdated: 2026-10-19
+lastUpdated: 2026-10-22
 datePublished: 2026-10-08
 faq:
   - q: 'Does removing the packages delete the cache?'

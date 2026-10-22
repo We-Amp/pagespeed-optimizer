@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 Most mod_pagespeed problems surface in one place: the `X-PageSpeed`

@@ -3,7 +3,7 @@ title: 'Set Cache-Control headers'
 description: 'Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with mod_pagespeed.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-22
 ---
 
 :::note[Since 2.0]

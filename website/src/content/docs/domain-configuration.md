@@ -3,7 +3,7 @@ title: 'Domain configuration'
 description: 'Domain mapping in mod_pagespeed on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.'
 order: 24
 group: 'Configure'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-22
 ---
 
 mod_pagespeed rewrites and optimizes resources referenced by HTML pages. To do this safely, it must know which domains it is allowed to fetch from and how domain names map between the public-facing URL and the actual origin.

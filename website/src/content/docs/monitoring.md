@@ -3,7 +3,7 @@ title: 'Monitoring'
 description: 'Monitor mod_pagespeed: the admin console, the worker health socket and /v1/health, /v1/stats and Prometheus /v1/metrics, logs, and what to alert on.'
 order: 55
 group: 'Operate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-22
 datePublished: 2026-10-08
 faq:
   - q: 'What is the one probe to wire into a load balancer or Kubernetes?'

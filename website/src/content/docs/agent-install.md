@@ -3,7 +3,7 @@ title: 'Install with a coding agent'
 description: 'Machine-readable install recipes for coding agents, one per server: prerequisites, install, configure, verify and roll back, plus an install skill.'
 order: 9.5
 group: 'Install'
-lastUpdated: 2026-10-13
+lastUpdated: 2026-10-22
 datePublished: 2026-10-10
 ---
 

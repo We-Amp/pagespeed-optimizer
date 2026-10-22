@@ -5,7 +5,7 @@ seoTitle: 'Install mod_pagespeed: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 faq:
   - q: 'Which mod_pagespeed integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'

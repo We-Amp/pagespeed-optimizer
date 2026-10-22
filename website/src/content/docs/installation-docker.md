@@ -3,7 +3,7 @@ title: 'Install with Docker'
 description: 'Run mod_pagespeed with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.'
 order: 4
 group: 'Install'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 Deploy mod_pagespeed with Docker Compose. You run three containers — nginx

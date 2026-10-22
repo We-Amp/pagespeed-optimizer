@@ -3,7 +3,7 @@ title: 'Migrate from mod_pagespeed 1.15'
 description: 'Move a 1.15 install to mod_pagespeed 2 in place: one package upgrade brings the optimizer worker, configuration carries over, the old cache stays.'
 order: 12
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 datePublished: 2026-10-08
 faq:
   - q: 'Does my 1.15 configuration carry over?'

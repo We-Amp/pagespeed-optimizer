@@ -1,8 +1,8 @@
-# mod_pagespeed 2.1
+# mod_pagespeed
 
-> Self-hosted web performance optimization for Apache and nginx. Open source under the Apache License 2.0. mod_pagespeed 2.1 converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.
+> Self-hosted web performance optimization for Apache and nginx. Open source under the Apache License 2.0. mod_pagespeed converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.
 
-We-Amp B.V. develops mod_pagespeed 2.1, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. mod_pagespeed 2.1 converges the 1.15 module line (renumbered from 1.1, the forward-semver successor to the last upstream release, 1.14.36.1) with the ModPageSpeed 2.0 engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
+We-Amp B.V. develops mod_pagespeed 2, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. mod_pagespeed 2 converges the 1.15 module line (renumbered from 1.1, the forward-semver successor to the last upstream release, 1.14.36.1) with the ModPageSpeed 2.0 engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
 
 Heritage: mod_pagespeed, the open-source optimization core this product continues, powers 231,341 live sites (per BuiltWith, May 2026; 1.9 million+ across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
 
@@ -15,7 +15,7 @@ What it does:
 - Variant-aware caching keyed on a 32-bit capability mask (image format, viewport, pixel density, Save-Data, transfer encoding), served zero-copy from the shared Cyclone cache
 - The module's classic filter set: CSS and JavaScript combining, image spriting, in-place resource optimization, domain mapping, and the built-in admin console
 
-mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; Priority and Enterprise add a private package repository (being set up):
+mod_pagespeed is open source under the Apache License 2.0: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; Priority and Enterprise add a private package repository (being set up):
 
 - Standard support — a direct channel to the engineers who build the product, for up to 5 production servers; €490 a year; First response within 2 business days
 - Priority support — everything in Standard plus a private package repository (being set up), for up to 25 production servers; €1,900 a year; First response next business day; severity 1 (production down) within 8 business hours
@@ -26,52 +26,52 @@ mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install a
 
 Every documentation page and every filter reference page below is also served as Markdown at its URL with a `.md` suffix (for example https://modpagespeed.com/docs/getting-started.md and https://modpagespeed.com/docs/filters/rewrite_images.md; the filters table is https://modpagespeed.com/docs/filters.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every one of those pages. Every blog post is served as Markdown the same way (https://modpagespeed.com/blog/<slug>.md) and is listed in the Blog section below, but its text is not in llms-full.txt: the posts are dated commentary, so fetch one when you need it.
 
-We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for support, partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: Apache License 2.0; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for support, partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: Apache License 2.0; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
 
 ## Start here
 
-- [Getting started](https://modpagespeed.com/docs/getting-started/): Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.
-- [Is it working?](https://modpagespeed.com/docs/is-it-working/): Confirm mod_pagespeed 2.1 is active: the response header per server, MISS then HIT, ?PageSpeed=off, the admin console and the worker health endpoint.
+- [Getting started](https://modpagespeed.com/docs/getting-started/): Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.
+- [Is it working?](https://modpagespeed.com/docs/is-it-working/): Confirm mod_pagespeed is active: the response header per server, MISS then HIT, ?PageSpeed=off, the admin console and the worker health endpoint.
 
 ## Install
 
-- [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/): Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.
-- [Install with Docker](https://modpagespeed.com/docs/installation-docker/): Run mod_pagespeed 2.1 with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.
-- [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/): Install mod_pagespeed 2.1 on Kubernetes with the official Helm chart: a two-container pod (module + optimizer worker), values, autoscaling and upgrades.
+- [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/): Install the native mod_pagespeed module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.
+- [Install with Docker](https://modpagespeed.com/docs/installation-docker/): Run mod_pagespeed with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.
+- [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/): Install mod_pagespeed on Kubernetes with the official Helm chart: a two-container pod (module + optimizer worker), values, autoscaling and upgrades.
 - [cPanel / EasyApache 4](https://modpagespeed.com/docs/cpanel/): Install, uninstall and maintain mod_pagespeed on cPanel / EasyApache 4: the signed EA4 RPM, WHM setup, the cpanel/elevate runbook and ea-apache24 updates.
 - [Install on IIS](https://modpagespeed.com/docs/install-iis/): Install the mod_pagespeed IIS module on Windows Server: requirements, the signed MSI, IIS Express, the optional optimizer service and the first check.
 - [Envoy HTTP filter (experimental)](https://modpagespeed.com/docs/install-envoy/): PageSpeed for Envoy is an experimental HTTP filter built from the public source repository, not a packaged release: configuration, checks, known limits.
-- [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/): Install the mod_pagespeed 2.1 ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.
+- [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/): Install the mod_pagespeed ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.
 - [Install with a coding agent](https://modpagespeed.com/docs/agent-install/): Machine-readable install recipes for coding agents, one per server: prerequisites, install, configure, verify and roll back, plus an install skill.
 
 ## Upgrade and migrate
 
-- [Migrate from ModPageSpeed 2.0](https://modpagespeed.com/docs/migrating-to-2-1/): Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed 2.1: unprivileged worker, loopback-bound API, configuration carries over.
-- [Upgrade](https://modpagespeed.com/docs/upgrade/): Upgrade mod_pagespeed 2.1 per shape: apt or dnf, Docker tag, Helm, the Windows installer and NuGet; what to read first, security updates, rollback.
-- [Migrate from mod_pagespeed 1.15](https://modpagespeed.com/docs/migrate-from-1-15/): Move a 1.15 install to mod_pagespeed 2.1 in place: one package upgrade brings the optimizer worker, configuration carries over, the old cache stays.
-- [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/): Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2.1 nginx module: what carries over.
+- [Migrate from ModPageSpeed 2.0](https://modpagespeed.com/docs/migrating-to-2-1/): Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed: unprivileged worker, loopback-bound API, configuration carries over.
+- [Upgrade](https://modpagespeed.com/docs/upgrade/): Upgrade mod_pagespeed per shape: apt or dnf, Docker tag, Helm, the Windows installer and NuGet; what to read first, security updates, rollback.
+- [Migrate from mod_pagespeed 1.15](https://modpagespeed.com/docs/migrate-from-1-15/): Move a 1.15 install to mod_pagespeed 2 in place: one package upgrade brings the optimizer worker, configuration carries over, the old cache stays.
+- [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/): Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2 nginx module: what carries over.
 - [Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/): Move an IISpeed install to the mod_pagespeed IIS module: save the configuration, uninstall IISpeed, run the MSI, keep the cache, verify, roll back.
 - [Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/): Move from the archived mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2: package swap, what maps to what, cache, rollback.
 
 ## Configure
 
-- [Configuration reference: Apache and nginx directives](https://modpagespeed.com/docs/configuration/): Every mod_pagespeed 2.1 directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.
-- [Set Cache-Control headers](https://modpagespeed.com/docs/cache-control/): Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with mod_pagespeed 2.1.
-- [Worker and reverse-proxy configuration](https://modpagespeed.com/docs/worker-configuration/): Every optimizer worker flag and thin nginx module directive of mod_pagespeed 2.1 (the Docker and reverse-proxy shape), generated from the source.
-- [Choose a cache mode: safe vs aggressive](https://modpagespeed.com/docs/cache-modes/): Safe or aggressive Cache-Control for optimized responses in mod_pagespeed 2.1, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.
-- [Integrate with a CDN](https://modpagespeed.com/docs/cdn-integration/): Run mod_pagespeed 2.1 behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.
-- [Domain configuration](https://modpagespeed.com/docs/domain-configuration/): Domain mapping in mod_pagespeed 2.1 on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.
-- [HTTPS configuration](https://modpagespeed.com/docs/https-configuration/): Fetch HTTPS resources on nginx, Apache and IIS with mod_pagespeed 2.1: FetchHttps with certificate checks, MapOriginDomain to HTTP, or LoadFromFile.
+- [Configuration reference: Apache and nginx directives](https://modpagespeed.com/docs/configuration/): Every mod_pagespeed directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.
+- [Set Cache-Control headers](https://modpagespeed.com/docs/cache-control/): Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with mod_pagespeed.
+- [Worker and reverse-proxy configuration](https://modpagespeed.com/docs/worker-configuration/): Every optimizer worker flag and thin nginx module directive of mod_pagespeed (the Docker and reverse-proxy shape), generated from the source.
+- [Choose a cache mode: safe vs aggressive](https://modpagespeed.com/docs/cache-modes/): Safe or aggressive Cache-Control for optimized responses in mod_pagespeed, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.
+- [Integrate with a CDN](https://modpagespeed.com/docs/cdn-integration/): Run mod_pagespeed behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.
+- [Domain configuration](https://modpagespeed.com/docs/domain-configuration/): Domain mapping in mod_pagespeed on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.
+- [HTTPS configuration](https://modpagespeed.com/docs/https-configuration/): Fetch HTTPS resources on nginx, Apache and IIS with mod_pagespeed: FetchHttps with certificate checks, MapOriginDomain to HTTP, or LoadFromFile.
 - [IIS configuration](https://modpagespeed.com/docs/iis-configuration/): mod_pagespeed on IIS via pagespeed.config, the native IIS module and successor to IISpeed: directive syntax, path matching, server and site-level config.
-- [ASP.NET Core settings](https://modpagespeed.com/docs/aspnet-configuration/): Configuration reference for the mod_pagespeed 2.1 ASP.NET Core middleware: appsettings.json PageSpeed options, cache and worker settings, and hot reload.
+- [ASP.NET Core settings](https://modpagespeed.com/docs/aspnet-configuration/): Configuration reference for the mod_pagespeed ASP.NET Core middleware: appsettings.json PageSpeed options, cache and worker settings, and hot reload.
 
 ## Filters
 
-- [Filter selection](https://modpagespeed.com/docs/filter-selection/): Choose which mod_pagespeed 2.1 filters run: RewriteLevel presets, the CoreFilters default, EnableFilters, DisableFilters, ForbidFilters and thresholds.
-- [Image filters](https://modpagespeed.com/docs/image-filters/): Image filters in mod_pagespeed 2.1 for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.
-- [CSS filters](https://modpagespeed.com/docs/css-filters/): CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.
-- [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
-- [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
+- [Filter selection](https://modpagespeed.com/docs/filter-selection/): Choose which mod_pagespeed filters run: RewriteLevel presets, the CoreFilters default, EnableFilters, DisableFilters, ForbidFilters and thresholds.
+- [Image filters](https://modpagespeed.com/docs/image-filters/): Image filters in mod_pagespeed for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.
+- [CSS filters](https://modpagespeed.com/docs/css-filters/): CSS filters in mod_pagespeed: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.
+- [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
+- [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
 - [Rule packs](https://modpagespeed.com/docs/rule-packs/): Rule packs for Apache, nginx and IIS: JSON rules for the canonical, title, description, hreflang and JSON-LD of your pages, in report mode first.
 - [Collapse whitespace (collapse_whitespace)](https://modpagespeed.com/docs/filters/collapse_whitespace/): Removes excess whitespace from HTML.
 - [Combine CSS (combine_css)](https://modpagespeed.com/docs/filters/combine_css/): Combines multiple CSS files into one.
@@ -116,15 +116,15 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Operate
 
-- [Run in production](https://modpagespeed.com/docs/deployment/): Run mod_pagespeed 2.1 in production: Docker Compose, Kubernetes with or without the chart, the packaged systemd unit, permissions, logs and cache sizing.
-- [ASP.NET Core in production](https://modpagespeed.com/docs/production-deployment/): Production deployment of the mod_pagespeed 2.1 ASP.NET Core middleware: configuration, health probes, multi-instance scale and zero-downtime restarts.
-- [mod_pagespeed admin console](https://modpagespeed.com/docs/admin-console/): mod_pagespeed 2.1 admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.
-- [Use the web console](https://modpagespeed.com/docs/workbench/): Inspect cache contents, monitor live throughput and bandwidth savings, and hot-reload configuration from the mod_pagespeed 2.1 web console at /console/.
+- [Run in production](https://modpagespeed.com/docs/deployment/): Run mod_pagespeed in production: Docker Compose, Kubernetes with or without the chart, the packaged systemd unit, permissions, logs and cache sizing.
+- [ASP.NET Core in production](https://modpagespeed.com/docs/production-deployment/): Production deployment of the mod_pagespeed ASP.NET Core middleware: configuration, health probes, multi-instance scale and zero-downtime restarts.
+- [mod_pagespeed admin console](https://modpagespeed.com/docs/admin-console/): mod_pagespeed admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.
+- [Use the web console](https://modpagespeed.com/docs/workbench/): Inspect cache contents, monitor live throughput and bandwidth savings, and hot-reload configuration from the mod_pagespeed web console at /console/.
 - [Browser analysis with headless Chrome](https://modpagespeed.com/docs/browser-analysis/): How the optimizer worker renders pages in headless Chrome to extract critical CSS, find the LCP element, measure JS coverage and gate visual regressions.
-- [Monitoring](https://modpagespeed.com/docs/monitoring/): Monitor mod_pagespeed 2.1: the admin console, the worker health socket and /v1/health, /v1/stats and Prometheus /v1/metrics, logs, and what to alert on.
-- [Uninstall and rollback](https://modpagespeed.com/docs/uninstall/): Remove mod_pagespeed 2.1 per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.
-- [Security hardening guide](https://modpagespeed.com/docs/security/): Security guidance for mod_pagespeed 2.1: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.
-- [Troubleshoot common issues](https://modpagespeed.com/docs/troubleshooting/): Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.
+- [Monitoring](https://modpagespeed.com/docs/monitoring/): Monitor mod_pagespeed: the admin console, the worker health socket and /v1/health, /v1/stats and Prometheus /v1/metrics, logs, and what to alert on.
+- [Uninstall and rollback](https://modpagespeed.com/docs/uninstall/): Remove mod_pagespeed per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.
+- [Security hardening guide](https://modpagespeed.com/docs/security/): Security guidance for mod_pagespeed: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.
+- [Troubleshoot common issues](https://modpagespeed.com/docs/troubleshooting/): Fix common mod_pagespeed issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.
 
 ## Agents
 
@@ -134,10 +134,10 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Reference
 
-- [API reference: IPC, sockets, and C API](https://modpagespeed.com/docs/api-reference/): mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.
-- [Call the worker HTTP API](https://modpagespeed.com/docs/http-api/): Optimizer worker HTTP API for mod_pagespeed 2.1: health, stats, Prometheus metrics, cache management, live config and WebSocket streaming, all via curl.
-- [Release notes](https://modpagespeed.com/docs/release-notes/): mod_pagespeed 2.1 release notes: the current release, the notes of every line, every release in one list, security updates and what changed since upstream.
-- [License](https://modpagespeed.com/docs/license/): mod_pagespeed 2.1 is licensed under the Apache License 2.0. We sell support; Priority and Enterprise add a private package repository (being set up).
+- [API reference: IPC, sockets, and C API](https://modpagespeed.com/docs/api-reference/): mod_pagespeed internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.
+- [Call the worker HTTP API](https://modpagespeed.com/docs/http-api/): Optimizer worker HTTP API for mod_pagespeed: health, stats, Prometheus metrics, cache management, live config and WebSocket streaming, all via curl.
+- [Release notes](https://modpagespeed.com/docs/release-notes/): mod_pagespeed release notes: the current release, the notes of every line, every release in one list, security updates and what changed since upstream.
+- [License](https://modpagespeed.com/docs/license/): mod_pagespeed is licensed under the Apache License 2.0. We sell support; Priority and Enterprise add a private package repository (being set up).
 - [PageSpeed filters reference](https://modpagespeed.com/docs/filters/): The image, CSS, JavaScript, HTML, and caching filters, what each one does, and which run by default.
 
 ## Release notes by line
@@ -147,13 +147,13 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Release notes: 2.5](https://modpagespeed.com/docs/release-notes-2-5/): mod_pagespeed 2.5 release notes: 2.5.2, a security update for the bundled nginx and libpng, and 2.5.0, with one version number from then on.
 - [Release notes: 2.2](https://modpagespeed.com/docs/release-notes-2-2/): mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.
 - [Release notes: 2.1](https://modpagespeed.com/docs/release-notes-2-1/): mod_pagespeed 2.1.0 release notes: the first release of the module and the optimizer worker as one product (packages 1.16.0), with hardened defaults.
-- [Release notes: the 2.0 optimizer worker](https://modpagespeed.com/docs/release-notes-2-0/): Release notes for the 2.0 optimizer worker line, 2.0.0-beta.1 to 2.0.42: every release of the out-of-process optimizer before the converged 2.1 line.
-- [Release notes: the 1.15 module](https://modpagespeed.com/docs/release-notes-1-15/): Release notes for the 1.15 module line, 1.15.0 to 1.15.0+r22: every package revision of the Apache, nginx and IIS module before the converged 2.1 line.
+- [Release notes: the 2.0 optimizer worker](https://modpagespeed.com/docs/release-notes-2-0/): Release notes for the 2.0 optimizer worker line, 2.0.0-beta.1 to 2.0.42: each out-of-process optimizer release before the lines converged in 2.1.0.
+- [Release notes: the 1.15 module](https://modpagespeed.com/docs/release-notes-1-15/): Release notes for the 1.15 module line, 1.15.0 to 1.15.0+r22: each Apache, nginx and IIS package revision before the lines converged in 2.1.0.
 - [Release notes: the 1.1 module](https://modpagespeed.com/docs/release-notes-1-1/): Release notes for the 1.1 module line, 1.1.0-beta.1 to 1.1.0+r24: the first releases of the maintained module, before the renumber to 1.15.0 on 2026-06-01.
 
 ## Tools
 
-- [Live demo](https://modpagespeed.com/demo/): Watch mod_pagespeed 2.1 optimize real sites: measured CSS/JS minification and WebP/AVIF transcoding, with modeled load-time projections.
+- [Live demo](https://modpagespeed.com/demo/): Watch mod_pagespeed optimize real sites: measured CSS/JS minification and WebP/AVIF transcoding, with modeled load-time projections.
 - [Optimization examples](https://modpagespeed.com/examples/): Every optimization the module performs, shown live and before/after per filter.
 - [Analyze a page](https://modpagespeed.com/analyze/): Score any URL with PageSpeed Insights and see which findings the product addresses.
 - [RenderPeek, the free AI-readability checker](https://modpagespeed.com/ai-readability/): Paste a URL and see what an AI agent reads on your page: the readable content with and without JavaScript, markup bloat, and how well the page is described for machines. No signup.
@@ -169,7 +169,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Features](https://modpagespeed.com/features/): Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS, and variant-aware caching: the full feature set.
 - [Support](https://modpagespeed.com/support/): What a support subscription buys, the three tiers, signed packages and images and how to verify what ships today, the hosting partner program and consulting.
 - [Pricing](https://modpagespeed.com/pricing/): What We-Amp sells: Standard support (a direct channel to the engineers who build the product, for up to 5 production servers; €490 a year; First response within 2 business days); Priority support (everything in Standard plus a private package repository (being set up), for up to 25 production servers; €1,900 a year; First response next business day; severity 1 (production down) within 8 business hours); Enterprise (everything in Priority plus a named engineer, custom build targets and backports, for unlimited servers and sites in one organization; from €7,500 a year; Severity 1 (production down) within 4 business hours; other severities per agreement). The software is free to run. Yearly prices per tier, Buy buttons for Standard and Priority, and a fixed-price agent-readiness audit.
-- [Software license](https://modpagespeed.com/license/): mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install and run, in development and in production.
+- [Software license](https://modpagespeed.com/license/): mod_pagespeed is open source under the Apache License 2.0: free to install and run, in development and in production.
 - [Security](https://modpagespeed.com/security/): Security policy: how to report a vulnerability, the threat model, supply-chain security and the safe harbor for researchers.
 - [Contact](https://modpagespeed.com/contact/): Setup help, support subscriptions, the hosting partner program, consulting and IISpeed license transfers; replies within one business day (CET). Security disclosure has its own channel.
 - [Is mod_pagespeed still maintained?](https://modpagespeed.com/mod-pagespeed-still-maintained/): Yes: who maintains it, what shipped, and how the archived open-source module and ngx_pagespeed move to the current product.

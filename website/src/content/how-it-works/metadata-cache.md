@@ -3,7 +3,7 @@ title: 'How the metadata cache avoids re-optimizing'
 description: "How mod_pagespeed avoids re-optimizing on every request: a metadata cache keyed by the output URL maps to the answer and skips rewrites that don't shrink."
 order: 20
 datePublished: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 ---
 
 A web optimizer faces an awkward bootstrapping problem. To rewrite a `<link>` or `<img>` tag, it has to know the optimized resource's URL. But that URL carries a [content hash](/blog/content-hash-urls/) computed from the optimized bytes — and you cannot compute those bytes without doing the full optimization. So on the surface, every page load looks like it requires re-optimizing every asset just to learn where the optimized version lives.

@@ -3,7 +3,7 @@ title: 'IIS configuration'
 description: 'mod_pagespeed on IIS via pagespeed.config, the native IIS module and successor to IISpeed: directive syntax, path matching, server and site-level config.'
 order: 26
 group: 'Configure'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 mod_pagespeed runs on IIS as a native, in-process module — the successor to IISpeed. This page documents the `pagespeed.config` file format it reads. For the directives that apply across every platform (Apache, nginx, IIS), see [Configuration](/docs/configuration/); to install the module first, see [Install on IIS](/docs/install-iis/).

@@ -3,7 +3,7 @@ title: 'HTML filters'
 description: 'HTML optimization filters in mod_pagespeed: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.'
 order: 46
 group: 'Filters'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 ## Overview

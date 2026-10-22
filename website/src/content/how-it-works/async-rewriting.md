@@ -3,7 +3,7 @@ title: 'How a server optimizer avoids adding latency'
 description: "How mod_pagespeed optimizes images, CSS, and JS without slowing the request: the second-request problem, and the optimizer worker that solves it."
 order: 10
 datePublished: 2026-06-13
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 ---
 A server-side optimizer has one hard constraint that never goes away: it sits in the request path. Every page the user asks for passes through it on the way to the browser. So the moment the optimizer decides to compress an image or minify a stylesheet, the user is waiting for that work to finish. Do it inline, and you have traded a smaller page for a slower one.
 

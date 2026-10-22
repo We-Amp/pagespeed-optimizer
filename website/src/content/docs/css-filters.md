@@ -3,7 +3,7 @@ title: 'CSS filters'
 description: 'CSS filters in mod_pagespeed: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.'
 order: 44
 group: 'Filters'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-22
 ---
 
 ## Overview

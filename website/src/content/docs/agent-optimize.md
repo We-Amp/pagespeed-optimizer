@@ -3,7 +3,7 @@ title: 'Serve Markdown to AI agents'
 description: 'Serve AI agents a rendered Markdown copy of your pages at the same URL, and synthesize an /llms.txt — off by default, nothing leaves your server.'
 order: 60
 group: 'Agents'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-22
 faq:
   - q: 'Does this change what browsers and search engines see?'
     a: 'No. Browsers and crawlers receive your normal HTML at the same URL. Only a request that explicitly negotiates the agent representation (Accept: text/markdown), on a deployment where you have enabled agent optimization, receives the rendered-Markdown copy. The response carries Vary: Accept so shared caches never mix the two.'

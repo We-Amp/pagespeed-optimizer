@@ -3,7 +3,7 @@ title: 'API reference: IPC, sockets, and C API'
 description: 'mod_pagespeed internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.'
 order: 65
 group: 'Reference'
-lastUpdated: 2026-10-19
+lastUpdated: 2026-10-22
 ---
 
 This page documents the internal protocols and interfaces of mod_pagespeed:

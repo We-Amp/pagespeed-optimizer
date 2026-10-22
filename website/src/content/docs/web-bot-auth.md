@@ -3,7 +3,7 @@ title: 'Verify AI crawlers with Web Bot Auth'
 description: 'Check RFC 9421 signatures from AI crawlers at your origin and label each request with a verified bot identity — observe-only, off by default.'
 order: 61
 group: 'Agents'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-22
 faq:
   - q: 'Does it ever block a request?'
     a: 'No. The verifier is observe-only: it labels signature-bearing requests with an x-verified-bot response header and counts verdicts in /v1/metrics. It never changes how a request is served — no blocking, no cache variation, no redirect.'
