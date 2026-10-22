@@ -39,6 +39,12 @@ try {
   [System.IO.File]::WriteAllText((Join-Path $target 'sentinel.txt'), 'x')
   [System.IO.File]::WriteAllText((Join-Path $keep 'a.txt'), 'x')
   New-Item -ItemType Junction -Path $link -Target $target | Out-Null
+  # A junction inside the junction target: the script must never list there.
+  $other = Join-Path $root 'other'
+  New-Item -ItemType Directory -Path $other | Out-Null
+  [System.IO.File]::WriteAllText((Join-Path $other 'o.txt'), 'x')
+  $inner = Join-Path $target 'inner'
+  New-Item -ItemType Junction -Path $inner -Target $other | Out-Null
 
   $out = $null
   $code = 0
@@ -56,6 +62,26 @@ try {
 
   $empty = Join-Path $root 'empty-ws'
   New-Item -ItemType Directory -Path $empty | Out-Null
+  if ((Test-Path -LiteralPath $inner) -and (Test-Path -LiteralPath (Join-Path $other 'o.txt'))) { Pass 'junction inside the target survives' } else { Fail 'junction inside the target survives' }
+
+  # bazel-external as a real directory holding one junction and one plain file.
+  $ws2 = Join-Path $root 'ws2'
+  $bx2 = Join-Path $ws2 'vendor\bazel-external'
+  $t2  = Join-Path $root 't2'
+  New-Item -ItemType Directory -Path $bx2, $t2 | Out-Null
+  [System.IO.File]::WriteAllText((Join-Path $t2 's2.txt'), 'x')
+  [System.IO.File]::WriteAllText((Join-Path $bx2 'plain.txt'), 'x')
+  New-Item -ItemType Junction -Path (Join-Path $bx2 'j') -Target $t2 | Out-Null
+  if (Test-Path -LiteralPath $script) { $null = (& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Workspace $ws2 2>&1 | Out-String) }
+  if ((-not (Test-Path -LiteralPath (Join-Path $bx2 'j'))) -and (Test-Path -LiteralPath $bx2) -and (Test-Path -LiteralPath (Join-Path $bx2 'plain.txt')) -and (Test-Path -LiteralPath (Join-Path $t2 's2.txt'))) { Pass 'real bazel-external: inner junction unlinked, directory and files kept' } else { Fail 'real bazel-external: inner junction unlinked, directory and files kept' }
+
+  # vendor itself a junction: unlinked, target kept.
+  $ws3 = Join-Path $root 'ws3'
+  New-Item -ItemType Directory -Path $ws3 | Out-Null
+  New-Item -ItemType Junction -Path (Join-Path $ws3 'vendor') -Target $t2 | Out-Null
+  if (Test-Path -LiteralPath $script) { $null = (& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Workspace $ws3 2>&1 | Out-String) }
+  if ((-not (Test-Path -LiteralPath (Join-Path $ws3 'vendor'))) -and (Test-Path -LiteralPath (Join-Path $t2 's2.txt'))) { Pass 'vendor junction unlinked, target kept' } else { Fail 'vendor junction unlinked, target kept' }
+
   $emptyCode = 127
   if (Test-Path -LiteralPath $script) {
     $null = (& powershell -NoProfile -ExecutionPolicy Bypass -File $script -Workspace $empty 2>&1 | Out-String)

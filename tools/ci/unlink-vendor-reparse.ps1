@@ -24,22 +24,52 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $reparse = [IO.FileAttributes]::ReparsePoint
+$isDir = [IO.FileAttributes]::Directory
 $count = 0
+$failed = 0
+
+# Remove one reparse point. A directory link or junction goes with
+# Directory.Delete(path, $false); a file symlink with File.Delete. Both remove
+# the link and never its target. A failure is a warning, never an error: this
+# is a cleanup helper and must not fail the leg.
+function Remove-Link {
+  param([System.IO.FileSystemInfo]$Entry)
+  try {
+    if (($Entry.Attributes -band $isDir) -ne 0) {
+      [IO.Directory]::Delete($Entry.FullName, $false)
+    } else {
+      [IO.File]::Delete($Entry.FullName)
+    }
+    $script:count += 1
+  } catch {
+    $script:failed += 1
+    Write-Host ("::warning::could not unlink " + $Entry.FullName + ": " + $_.Exception.Message)
+  }
+}
 
 function Remove-Links {
   param([string]$Dir)
   $di = New-Object System.IO.DirectoryInfo($Dir)
   foreach ($e in $di.GetFileSystemInfos()) {
-    if (($e.Attributes -band $reparse) -ne 0) {
-      [IO.Directory]::Delete($e.FullName, $false)
-      $script:count += 1
-    }
+    if (($e.Attributes -band $reparse) -ne 0) { Remove-Link $e }
   }
+}
+
+function Write-Summary {
+  Write-Host ("unlinked " + $count + " reparse point(s), " + $failed + " failed")
 }
 
 $vendor = Join-Path $Workspace 'vendor'
 if (-not (Test-Path -LiteralPath $vendor)) {
-  Write-Host 'unlinked 0 reparse point(s)'
+  Write-Summary
+  exit 0
+}
+
+# vendor itself a link: unlink it and stop; never list inside it.
+$vitem = Get-Item -LiteralPath $vendor -Force
+if (($vitem.Attributes -band $reparse) -ne 0) {
+  Remove-Link $vitem
+  Write-Summary
   exit 0
 }
 
@@ -52,5 +82,5 @@ if (Test-Path -LiteralPath $bx) {
   if (($item.Attributes -band $reparse) -eq 0) { Remove-Links $bx }
 }
 
-Write-Host ("unlinked " + $count + " reparse point(s)")
+Write-Summary
 exit 0
