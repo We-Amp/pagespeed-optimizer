@@ -9,7 +9,7 @@ one of two lanes, each a reusable workflow pinned to `main`:
 | Tag | Lane | Publishes |
 |---|---|---|
 | `optimizer-v<version>` | `pipeline-release-optimizer.yml` | a GitHub release with the host packages: deb and rpm for amd64 and arm64, a Windows x64 zip, `SHA256SUMS` and `SHA256SUMS.asc` |
-| `v<version>` | `pipeline-release-nuget.yml` | five NuGet packages on nuget.org (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore, WeAmp.PageSpeed.NativeAssets.Linux / .Windows / .macOS) and a draft GitHub release with the packages, SBOM, VEX, `SHA256SUMS` and `SHA256SUMS.asc` |
+| `v<version>` | `pipeline-release-nuget.yml` | seven NuGet packages on nuget.org (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore, WeAmp.PageSpeed.NativeAssets.Linux / .Windows / .macOS, and the sidecar packages WeAmp.PageSpeed.Sidecar / WeAmp.PageSpeed.Sidecar.NativeAssets.Linux) and a draft GitHub release with the packages, SBOM, VEX, `SHA256SUMS` and `SHA256SUMS.asc` |
 
 `optimizer-v*` never matches `v*`. `release-smoke.yml` runs
 `pipeline-release-smoke.yml` when a `v*` release is published: it installs
@@ -35,7 +35,7 @@ environment, so it needs no approval.
   (artifact `optimizer-release-dist`). The tag may not exist yet; the lane
   then builds the dispatched ref. The ref guard reports its verdict and
   does not stop a dry run.
-- NuGet lane: every build and test and the five `.nupkg` files (artifact
+- NuGet lane: every build and test and the seven `.nupkg` files (artifact
   `nupkg-<sha>`). The Windows binaries in a dry run are unsigned, because
   signing happens only inside the environment. The tag must exist and be
   reachable from `main`: the ref guard is enforced on NuGet dry runs, so the
@@ -87,7 +87,9 @@ From 2.5.0 the module release pairs with `optimizer-v` plus the same version,
 so the cut runs in this order: bump `VERSION.txt` to the release version on
 `main`, tag `optimizer-v<X>` on that commit, record the pin in the module
 repository (`install/debian/optimizer-pin.json`), then tag `module-v<X>`
-there (its `docs/ci/release.md` has the module side). Once the module
+there (its `docs/ci/release.md` has the module side). Before `v<X>` is
+tagged (or released from an existing tag), record that module release in
+`tools/ci/sidecar-pin.json` on `main` (see "The sidecar pin"). Once the module
 packages are published, `MODULE_PACKAGE_VERSION` in
 `website/src/data/product-facts.mjs` (1.19.0 today) moves to the same
 version: the scan's lifecycle sentence (`website/src/lib/scan/lifecycle.ts`)
@@ -223,6 +225,80 @@ smoke lane by hand with a manual dispatch.
 A dispatch whose tag starts with neither `optimizer-v` nor `v` fails in the
 `unsupported-tag` job of the caller instead of ending green with no jobs.
 
+## The sidecar pin
+
+The NuGet lane also publishes the ASP.NET Core sidecar packages,
+`WeAmp.PageSpeed.Sidecar` and `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`.
+Their native pair (nginx, the module built against that nginx and the
+launch shim, for linux-x64 and linux-arm64) is built, tested (live nginx
+tests included) and signed in the mod_pagespeed module release, as
+`pagespeed-sidecar-native-<X>-linux-<arch>.tar.gz` described by
+`sidecar-pair.json`; their managed code is `aspnetcore/` of that release's
+source tarball, `mod_pagespeed-<X>.tar.gz`. The lane builds neither from a
+branch of the module repository: the `sidecar-pack` job takes both from the
+module release named by `tools/ci/sidecar-pin.json`:
+
+| Field | Value |
+|---|---|
+| `tag` | the module release tag, `module-v<X>` |
+| `sha256sums_sha256` | sha256 of that release's `SHA256SUMS` |
+| `sidecar_pair_sha256` | sha256 of that release's `sidecar-pair.json` |
+| `release_key_fingerprint` | `411DEFDB571351D2B25AEFCC9C02B5BDCCE75313`, which must equal the fingerprint pinned in `tools/ci/release_checksums_sig.sh` |
+
+`tools/ci/sidecar_fetch.sh fetch` downloads `SHA256SUMS`, `SHA256SUMS.asc`,
+`sidecar-pair.json`, the two pair tarballs and the source tarball of exactly
+that tag (never "latest"), and refuses unless the `SHA256SUMS` digest is the
+pinned one, `SHA256SUMS.asc` verifies against `RELEASE-SIGNING-KEY.asc` with
+`release_checksums_sig.sh verify`, the `sidecar-pair.json` digest is the
+pinned one and `SHA256SUMS` lists it, the manifest names the pinned tag and
+version and both RIDs, every pair tarball matches the name, size and sha256
+in the manifest and in `SHA256SUMS` and holds exactly the files the
+manifest lists with their digests, and the source tarball has the digest
+`SHA256SUMS` lists. `stage` then writes `aspnetcore/` of the source tarball
+(regular files and directories only) with the pair of each RID (`nginx`,
+`ngx_pagespeed_module.so`, `pagespeed-nginx-launch`, `build-info.json`) in
+`WeAmp.PageSpeed.Sidecar.NativeAssets.Linux/runtimes/<rid>/native`. In the
+same job, so no verified input crosses a job boundary, `sidecar-pack` runs
+the sidecar test suite under .NET 8 and .NET 10 (locked restore; every test
+must run and pass), packs both packages with `-p:IncludeNet10=true` at the
+version of the `v<X>` tag (no fourth digit), and `check-packages` refuses
+unless the native package carries exactly the four files per RID at the
+digests of `sidecar-pair.json` plus its `buildTransitive` targets and the
+license files, and the managed package carries `lib/net8.0` and
+`lib/net10.0` and depends on the native package at the same version.
+`package` waits for `sidecar-pack`, adds the two packages to its five and
+requires seven; from there they take the path of the others: the
+source-control metadata guard, `SHA256SUMS` and its signature, the draft
+release and `publish-nuget`. A dry run runs the same path and pushes
+nothing. When a dry run's pin names another version than its tag, the
+sidecar packages carry the tag's version but contain the pinned module
+release: the run says so in its step summary, in the artifact name
+(`sidecar-nupkg-<sha>-contains-module-v<pinned>`) and in a
+`README-SIDECAR-PIN.txt` that travels with the packages into `nupkg-<sha>`.
+
+The pin, the script and the key are read from `main`, like the signing
+script, because the module release of a version is cut after the `v<X>`
+commit. A real run of `v<X>` refuses a pin other than `module-v<X>`; a dry
+run warns and uses the pinned release. Two consequences:
+
+- A real `v<X>` requires a published `module-v<X>` pinned on `main`. A
+  version the module release skips (for example 2.5.1) gets no NuGet
+  release.
+- Because the pin is read from `main`, a real re-run of an older `v<X>`
+  after the pin has moved on fails at the pin check: restore the pin to
+  `module-v<X>` on `main` first, or rehearse it as a dry run.
+
+To record the pin after the module release is published:
+
+```bash
+gh release download module-v<X> --repo We-Amp/mod_pagespeed --dir sidecar \
+  -p SHA256SUMS -p SHA256SUMS.asc -p sidecar-pair.json \
+  -p 'pagespeed-sidecar-native-<X>-linux-*.tar.gz' -p 'mod_pagespeed-<X>.tar.gz'
+sha256sum sidecar/SHA256SUMS sidecar/sidecar-pair.json   # the two pinned digests
+# edit tools/ci/sidecar-pin.json, then:
+tools/ci/sidecar_fetch.sh verify tools/ci/sidecar-pin.json sidecar RELEASE-SIGNING-KEY.asc
+```
+
 ## nuget.org Trusted Publishing (owner steps)
 
 `publish-nuget` exchanges the job's OIDC token for a short-lived nuget.org
@@ -242,6 +318,17 @@ Until the policy exists `publish-nuget` fails at the token exchange; dry
 runs are unaffected. The first successful publish locks the policy to the
 repository's ids.
 
+nuget.org scopes the policy to the package owner, not to package ids. Before
+the first real run that publishes the sidecar packages, the owner:
+
+- confirms in the nuget.org UI that this policy covers
+  `WeAmp.PageSpeed.Sidecar` and `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`
+  (both owned by the same account as the other five packages);
+- deletes the retired policy for the former private repository's sidecar
+  workflow (`sidecar-nuget.yml`, environment `1.15 sidecar nuget`): it would
+  still let a workflow in a retired repository push any package the account
+  owns, the sidecar packages included.
+
 ## Runners
 
 Fleet jobs (`fleet-heavy`, `fleet-windows`) follow `docs/ci/pipelines.md`:
@@ -257,6 +344,8 @@ runners. Jobs pass files only as workflow artifacts:
 | `native-linux-x64`, `native-linux-arm64`, `native-osx-arm64` | the builds | `package` |
 | `native-win-x64-unsigned` | Windows build | `sign-windows`; `package` in a dry run |
 | `native-win-x64` | `sign-windows` | `package` in a real run |
+| `sidecar-nupkg-<sha>` (dry run with another pin: `sidecar-nupkg-<sha>-contains-module-v<pinned>`) | `sidecar-pack` | `package` |
+| `sidecar-test-results-<sha>` | `sidecar-pack` | kept for inspection |
 | `nupkg-<sha>` | `package` | `publish-nuget` |
 | `release-sums-<sha>` | `package` (real run) | `sign-checksums`, `attach-signature` |
 | `release-signature-<sha>` | `sign-checksums` | `attach-signature` |

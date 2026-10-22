@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
-# pipeline-release-nuget.yml -- the 2.x NuGet release lane
-# (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore and the three
-# WeAmp.PageSpeed.NativeAssets.* packages), as a reusable workflow. The
+# pipeline-release-nuget.yml -- the NuGet release lane (WeAmp.PageSpeed,
+# WeAmp.PageSpeed.AspNetCore, the three WeAmp.PageSpeed.NativeAssets.*
+# packages, and the sidecar packages WeAmp.PageSpeed.Sidecar and
+# WeAmp.PageSpeed.Sidecar.NativeAssets.Linux), as a reusable workflow. The
 # caller (release.yml) holds the triggers and the concurrency group; this
 # file holds the jobs. See docs/ci/release.md and docs/ci/pipelines.md.
 #
@@ -18,8 +19,13 @@
 #        -> windows tests (fleet, or hosted twin)
 #     -> macOS arm64 build + tests (hosted)
 #     -> linux arm64 build + tests (hosted)
+#     -> sidecar-pack (hosted): the native pair and the source tarball of
+#        the mod_pagespeed module release named by tools/ci/sidecar-pin.json,
+#        verified against the pinned digests and the release signing key;
+#        the sidecar tests (.NET 8 and 10) and the two sidecar .nupkg
 #     -> package (hosted, `release` environment): the four native sets
-#        from workflow artifacts, five .nupkg, draft GitHub release, the two
+#        from workflow artifacts, five .nupkg plus the two sidecar .nupkg,
+#        draft GitHub release, the two
 #        repository_dispatch notifications
 #     -> sign-checksums (hosted, `release` environment): SHA256SUMS signed
 #        with the release signing key, verified against the published key
@@ -31,7 +37,7 @@
 #
 # Real run: a push of a v* tag, or a dispatch with dry_run false. Dry run
 # (a dispatch with dry_run true, the default): every build and test, the
-# five packages (with UNSIGNED Windows binaries) uploaded as a workflow
+# seven packages (with UNSIGNED Windows binaries) uploaded as a workflow
 # artifact, and nothing else; no job enters the `release` environment, so
 # a dry run needs no approval, creates no draft release, pushes nothing to
 # nuget.org and dispatches nothing.
@@ -1096,17 +1102,186 @@ jobs:
           fi
 
   # ---------------------------------------------------------------------
-  # Package: the four native sets from workflow artifacts, five .nupkg.
+  # Sidecar: WeAmp.PageSpeed.Sidecar and WeAmp.PageSpeed.Sidecar.NativeAssets.Linux.
+  # Their native pair (nginx, the module built against it and the launch
+  # shim, per RID) is built, tested and signed in the mod_pagespeed module
+  # release; their managed code is aspnetcore/ of that release's source
+  # tarball. This job takes both from the release named by
+  # tools/ci/sidecar-pin.json and verifies them (tools/ci/sidecar_fetch.sh):
+  # the pinned sha256 of SHA256SUMS, SHA256SUMS.asc against
+  # RELEASE-SIGNING-KEY.asc, the pinned sha256 of sidecar-pair.json, every
+  # pair tarball and file against it and SHA256SUMS, and the source tarball
+  # against SHA256SUMS. Never "latest", never a branch checkout of the module:
+  # a mismatch fails the job and therefore the release. Then, in the same job
+  # so no verified input crosses a job boundary: the xunit suite under .NET 8
+  # and .NET 10, and the two packages at the version of the v<X> tag. The
+  # pin, the script and the key come from main, never from the tree being
+  # released, because the module release is cut after the v<X> commit.
+  # Anonymous downloads; the job's read-only token goes to the API only.
+  # ---------------------------------------------------------------------
+  sidecar-pack:
+    name: Sidecar packages (fetch, verify, test, pack)
+    needs: ref-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      artifact: ${{ steps.pin.outputs.artifact }}
+    env:
+      RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
+      REAL_RUN: ${{ needs.ref-guard.outputs.real }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - name: Checkout main (pin, fetch script, published key)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trust
+          sparse-checkout: |
+            tools/ci/sidecar-pin.json
+            tools/ci/sidecar_fetch.sh
+            tools/ci/release_checksums_sig.sh
+            RELEASE-SIGNING-KEY.asc
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # v<X> takes the sidecar of module-v<X>. A dry run may rehearse with
+      # the pin as it is (the module release of a new version is cut after
+      # the v<X> commit); a real run refuses any other tag. Packages built
+      # from another module release say so in the step summary, in their
+      # artifact name and in a README-SIDECAR-PIN.txt next to them, so a
+      # rehearsal is never mistaken for a release build.
+      - name: The pin names this release's module tag
+        id: pin
+        run: |
+          set -euo pipefail
+          PIN_TAG="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("tag", ""))' trust/tools/ci/sidecar-pin.json)"
+          WANT="module-${RELEASE_TAG}"
+          ARTIFACT="sidecar-nupkg-${SHORT_SHA}"
+          if [ "$PIN_TAG" != "$WANT" ]; then
+            if [ "$REAL_RUN" = true ]; then
+              echo "::error::tools/ci/sidecar-pin.json on main pins '$PIN_TAG' but $RELEASE_TAG needs '$WANT'"
+              exit 1
+            fi
+            NOTE="DRY RUN ONLY: the sidecar packages of this run are labelled ${RELEASE_TAG#v} but contain the native pair and the managed code of ${PIN_TAG}, not of ${WANT}. They are a rehearsal of the pack path, not a release build."
+            echo "::warning::$NOTE"
+            printf '### Sidecar pin mismatch\n\n%s\n\n' "$NOTE" >> "$GITHUB_STEP_SUMMARY"
+            mkdir -p "${RUNNER_TEMP}/sidecar-nupkg"
+            printf '%s\n' "$NOTE" > "${RUNNER_TEMP}/sidecar-nupkg/README-SIDECAR-PIN.txt"
+            ARTIFACT="${ARTIFACT}-contains-${PIN_TAG}"
+          fi
+          echo "artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify against the pin, then stage
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PIN=trust/tools/ci/sidecar-pin.json
+          KEY=trust/RELEASE-SIGNING-KEY.asc
+          bash trust/tools/ci/sidecar_fetch.sh fetch "$PIN" "${RUNNER_TEMP}/sidecar" "$KEY" | tee -a "$GITHUB_STEP_SUMMARY"
+          bash trust/tools/ci/sidecar_fetch.sh stage "$PIN" "${RUNNER_TEMP}/sidecar" "$KEY" "${RUNNER_TEMP}/sidecar-work"
+
+      # The keyring holds only the public key; removed anyway in case the
+      # script's EXIT trap did not run.
+      - name: Remove the temporary keyrings
+        if: always()
+        run: |
+          for h in "${RUNNER_TEMP}"/gnupg.*; do
+            [ -d "$h" ] || continue
+            GNUPGHOME="$h" gpgconf --kill gpg-agent >/dev/null 2>&1 || true
+            rm -rf "$h"
+          done
+
+      # .NET 8 for the net8.0 test run, .NET 10 for net10.0 and the pack.
+      - name: Ensure .NET 8 and .NET 10 SDKs
+        run: |
+          set -euo pipefail
+          export PATH="$HOME/.dotnet:$PATH"
+          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+          curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
+          for c in 8.0 10.0; do
+            dotnet --list-sdks 2>/dev/null | grep -q "^${c%.0}\." \
+              || bash "${RUNNER_TEMP}/dotnet-install.sh" --channel "$c" --install-dir "$HOME/.dotnet"
+          done
+          dotnet --list-sdks
+
+      # Locked restore (the test project's lock files). Every test must run
+      # and pass; 201 is the floor the module lane holds the suite to. The
+      # live nginx tier ran against this pair in the module release.
+      - name: Test the sidecar (.NET 8 and .NET 10)
+        working-directory: ${{ runner.temp }}/sidecar-work/aspnetcore
+        run: |
+          set -euo pipefail
+          PROJ=WeAmp.PageSpeed.AspNetCore.Tests/WeAmp.PageSpeed.AspNetCore.Tests.csproj
+          for fw in net8.0 net10.0; do
+            props=()
+            [ "$fw" = net8.0 ] || props=(-p:IncludeNet10=true)
+            dotnet test "$PROJ" -c Release -f "$fw" -p:RestoreLockedMode=true ${props[@]+"${props[@]}"} \
+              --results-directory "${RUNNER_TEMP}/sidecar-results" --logger "trx;LogFileName=sidecar-${fw}.trx"
+            python3 -I - "${RUNNER_TEMP}/sidecar-results/sidecar-${fw}.trx" "$fw" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          c = next(e for e in ET.parse(sys.argv[1]).getroot().iter() if e.tag.endswith("}Counters"))
+          total, executed, passed = (int(c.get(k, 0)) for k in ("total", "executed", "passed"))
+          print("%s: %d of %d tests passed (%d executed)" % (sys.argv[2], passed, total, executed))
+          if not (total >= 201 and passed == executed == total):
+              sys.exit("::error::not every sidecar test ran and passed under %s" % sys.argv[2])
+          PY
+          done
+
+      # The version is the v<X> tag's, as for the other five packages.
+      - name: Pack the sidecar packages
+        working-directory: ${{ runner.temp }}/sidecar-work/aspnetcore
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_TAG#v}"
+          OUT="${RUNNER_TEMP}/sidecar-nupkg"
+          rm -f "$OUT"/*.nupkg
+          for proj in WeAmp.PageSpeed.Sidecar.NativeAssets.Linux/WeAmp.PageSpeed.Sidecar.NativeAssets.Linux.csproj \
+                      WeAmp.PageSpeed.AspNetCore/WeAmp.PageSpeed.AspNetCore.csproj; do
+            dotnet pack "$proj" -c Release -o "$OUT" -p:IncludeNet10=true \
+              -p:Version="$VERSION" -p:PackageVersion="$VERSION"
+          done
+          ls -lh "$OUT"
+          bash "${GITHUB_WORKSPACE}/trust/tools/ci/sidecar_fetch.sh" check-packages \
+            "${RUNNER_TEMP}/sidecar" "$OUT" "$VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the sidecar packages (input to package)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ steps.pin.outputs.artifact }}
+          path: ${{ runner.temp }}/sidecar-nupkg/*
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload the test results
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: sidecar-test-results-${{ needs.ref-guard.outputs.short_sha }}
+          path: ${{ runner.temp }}/sidecar-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # ---------------------------------------------------------------------
+  # Package: the four native sets from workflow artifacts, five .nupkg,
+  # plus the two sidecar .nupkg from sidecar-pack: seven in all. Waits for
+  # sidecar-pack, so a sidecar that does not verify, test or pack stops the
+  # release before anything is created.
   # One step list for the real run (inside the `release` environment: draft
   # release + notifications) and the dry run (no environment, no approval,
   # unsigned Windows binaries, nothing leaves the workflow).
   # ---------------------------------------------------------------------
   package:
     name: Package & Release
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, sidecar-pack, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real == 'true'
       && needs.security-gates.result == 'success'
+      && needs.sidecar-pack.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
       && needs.sign-windows.result == 'success'
@@ -1259,6 +1434,32 @@ jobs:
           ls -lh nupkg/
           [ "$(find nupkg -maxdepth 1 -name '*.nupkg' | wc -l)" -eq 5 ] || { echo "::error::expected 5 packages"; exit 1; }
 
+      # Packed and checked by sidecar-pack; from here on the seven packages
+      # take one path: the metadata guard, SHA256SUMS (and its signature),
+      # the draft release and publish-nuget.
+      - name: Download the sidecar packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.sidecar-pack.outputs.artifact }}
+          path: samples/aspnetcore/nupkg
+
+      - name: Expect seven packages
+        run: |
+          set -euo pipefail
+          cd samples/aspnetcore/nupkg
+          VERSION="${RELEASE_TAG#v}"
+          ls -lh
+          [ "$(find . -maxdepth 1 -name '*.nupkg' | wc -l)" -eq 7 ] || { echo "::error::expected 7 packages"; exit 1; }
+          for id in WeAmp.PageSpeed.Sidecar WeAmp.PageSpeed.Sidecar.NativeAssets.Linux; do
+            [ -s "${id}.${VERSION}.nupkg" ] || { echo "::error::missing ${id}.${VERSION}.nupkg"; exit 1; }
+          done
+          # Only a dry run with a pin of another version carries the note
+          # (a real run refuses that pin); it travels with the packages.
+          if [ -s README-SIDECAR-PIN.txt ]; then
+            [ "$REAL_RUN" != true ] || { echo "::error::README-SIDECAR-PIN.txt in a real run"; exit 1; }
+            { echo "### Sidecar pin mismatch"; echo; cat README-SIDECAR-PIN.txt; echo; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       # The packages carry no source-control metadata: no repository
       # url/commit/branch attributes and no SourceLink. A bare
       # `<repository type="git" />` (newer SDKs emit it from a git tree)
@@ -1345,7 +1546,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: nupkg-${{ needs.ref-guard.outputs.short_sha }}
-          path: samples/aspnetcore/nupkg/*.nupkg
+          path: |
+            samples/aspnetcore/nupkg/*.nupkg
+            samples/aspnetcore/nupkg/README-SIDECAR-PIN.txt
           retention-days: 7
           if-no-files-found: error
 
@@ -1416,10 +1619,11 @@ jobs:
 
   package-dry-run:
     name: Package (dry run)
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, sidecar-pack, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real != 'true'
       && needs.security-gates.result == 'success'
+      && needs.sidecar-pack.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
       && needs.macos-release-build.result == 'success'

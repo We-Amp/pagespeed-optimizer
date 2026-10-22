@@ -97,7 +97,8 @@ cmd_verify() {
   keys="$(primary_fprs "$key")"
   [ "$keys" = "$FPR_WANT" ] \
     || die "$key holds [$(printf '%s' "$keys" | tr '\n' ' ')], expected exactly the release signing key $FPR_WANT"
-  gpg --batch --quiet --import "$key" 2>/dev/null
+  gpg --batch --quiet --import "$key" 2>/dev/null \
+    || die "cannot import $key into the temporary keyring (GNUPGHOME $GNUPGHOME)"
   status="$(gpg --batch --status-fd 1 --verify "$sig" "$sums" 2>/dev/null)" \
     || die "$sig does not verify against the published release signing key"
   # gpg exits 0 and prints VALIDSIG also for a signature by a revoked or
