@@ -4,7 +4,7 @@ seoTitle: 'Install mod_pagespeed on Apache and nginx: 2.1 packages'
 description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
 order: 3
 group: 'Install'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 faq:
   - q: 'Is there a native nginx module for mod_pagespeed 2.1?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
@@ -156,15 +156,18 @@ module's own filters also work without the worker: leave out step 2 and the
    EOF
    ```
 
-   From the next release, the `nginx-module-pagespeed` package installs the
-   same four `location` lines as
-   `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
-   the file above by hand, under this name: the package leaves a hand-made
-   `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
-   packaged name makes the package upgrade stop and ask on Debian and Ubuntu
-   (on Enterprise Linux, rpm keeps the hand-made file and saves the packaged
-   copy beside it as `.rpmnew`). Include one of the
-   two files, not both: nginx rejects the duplicate `location` blocks.
+   From 2.5.2, the `nginx-module-pagespeed` package installs the same four
+   `location` lines as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`,
+   so you can include that file instead of creating the one above. The file
+   is not included anywhere on its own: add
+   `include /etc/nginx/snippets/pagespeed_admin_localhost.conf;` to each
+   `server {}` block that serves the admin pages. It is a conffile on Debian
+   and Ubuntu and `%config(noreplace)` on Enterprise Linux, so your edits
+   survive upgrades. A copy you made earlier at
+   `/etc/nginx/snippets/pagespeed_admin_restrict.conf` is left alone. Include
+   one of the two files, not both: nginx rejects the duplicate `location`
+   blocks. Remove the `include` lines before purging (deb) or removing (rpm)
+   the package, or `nginx -t` fails.
 
    Then, in each `server` block that should be optimized:
 

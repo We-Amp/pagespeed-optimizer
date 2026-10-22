@@ -3,7 +3,7 @@ title: 'mod_pagespeed admin console'
 description: 'mod_pagespeed 2.1 admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.'
 order: 52
 group: 'Operate'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 ---
 
 :::tip[Live console]
@@ -105,7 +105,7 @@ http {
 - **Block order does not matter for these paths.** `=` and `^~` blocks are chosen ahead of any regular-expression location, such as the one for `.pagespeed.` resources.
 - **These pages are reached by their own paths only.** A request that nginx rewrites (`rewrite`) or redirects internally to one of these paths is not served by the admin, statistics, console or message pages.
 
-The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself (`sudo mkdir -p /etc/nginx/snippets` first on Enterprise Linux). From the next release the package installs the same four lines itself as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`; include one of the two files, not both:
+The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself (`sudo mkdir -p /etc/nginx/snippets` first on Enterprise Linux). From 2.5.2 the package installs the same four lines itself as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. The file is not included anywhere on its own: add `include /etc/nginx/snippets/pagespeed_admin_localhost.conf;` to each `server {}` block that serves the admin pages. A copy you made earlier at `/etc/nginx/snippets/pagespeed_admin_restrict.conf` is left alone; include one of the two files, not both:
 
 ```nginx
 location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }

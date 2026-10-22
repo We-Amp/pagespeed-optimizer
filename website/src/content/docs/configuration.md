@@ -363,7 +363,7 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.5.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.5.0): 323 directives.
+Generated from the mod_pagespeed source at tag [`v2.5.2`](https://github.com/We-Amp/mod_pagespeed/tree/v2.5.2): 323 directives.
 
 Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (4) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (31) · [Images](#area-images) (43) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (10) · [Caching](#area-caching) (46) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (2) · [Experiments and analytics](#area-experiments-and-analytics) (11) · [Deprecated and ignored](#area-deprecated-and-ignored) (28).
 
@@ -2969,7 +2969,7 @@ Run an experiment to test the effectiveness of rewriters.
 - **Default:** `(empty)`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Deprecated and ignored: in-place optimization no longer varies its output by request header.
+Deprecated and ignored: it no longer affects in-place optimization. With the optimizer worker attached, in-place images are served in the format the request's Accept header selects, with Vary: Accept.
 
 #### CollectRefererStatistics {#collectrefererstatistics}
 
@@ -3163,7 +3163,7 @@ Removed option; the name is still accepted and ignored.
 - **Default:** `on`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Deprecated and ignored: in-place optimized resources are no longer browser-dependent, so they are never served as Cache-Control: private and never carry a Vary header.
+Deprecated and ignored: in-place optimized resources are no longer downgraded to Cache-Control: private for Internet Explorer. With the optimizer worker attached, in-place images vary by the request's Accept header and carry Vary: Accept.
 
 #### RefererStatisticsOutputLevel {#refererstatisticsoutputlevel}
 

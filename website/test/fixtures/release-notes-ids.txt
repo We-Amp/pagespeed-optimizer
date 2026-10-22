@@ -136,3 +136,6 @@ v1-19-0
 
 # The 2.5.0 release
 v2-5-0
+
+# The 2.5.2 release
+v2-5-2
