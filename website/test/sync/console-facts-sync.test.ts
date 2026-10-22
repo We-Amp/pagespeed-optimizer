@@ -72,7 +72,7 @@ describe('console-facing product facts (shared/product-facts.mjs)', () => {
   });
 
   it('2b. the product statement and the support-terms URL are the agreed values', () => {
-    expect(shared.PRODUCT_STATEMENT).toBe('mod_pagespeed 2.1 is open source (Apache-2.0).');
+    expect(shared.PRODUCT_STATEMENT).toBe('mod_pagespeed is open source (Apache-2.0).');
     expect(shared.SUPPORT_TERMS_URL).toBe('https://we-amp.com/licensing/');
   });
 
