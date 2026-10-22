@@ -118,7 +118,7 @@ inline constexpr int kViewportSiblingPollIterations = 900;
 // oversubscribed four to five times.  Ten minutes leaves a factor of five
 // over that.  Sanitizer builds are roughly an order of magnitude slower on
 // the encoders and get 20 minutes.  The target's 60-minute timeout is per
-// shard, and a shard runs about a quarter of this file's tests, so the budget
+// shard, and a shard runs about an eighth of this file's tests, so the budget
 // has to leave room for the rest of the shard; at 20 minutes a stalled worker
 // still reports through the wait's message rather than as a bare timeout
 // (and CI's retry of a failed test doubles whatever a stall costs).

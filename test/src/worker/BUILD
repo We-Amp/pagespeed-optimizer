@@ -421,7 +421,7 @@ gtest_test(
     # lanes: a genuinely hung worker reports at 3600s instead of 900s.
     timeout = "eternal",
     data = ["//test/lib/image:testdata"],
-    shard_count = 4,
+    shard_count = 8,
     deps = [
         "//lib/base:message_handler",
         "//lib/cache:freshness",
