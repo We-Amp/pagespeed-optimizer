@@ -13,7 +13,6 @@
     "The rename removes the entries; delete this file when both lists are empty."
   ],
   "pages": {
-    "/alternatives/ngx-pagespeed/": 15,
     "/blog/": 56,
     "/blog/agentic-web-at-the-origin/": 2,
     "/blog/air-gapped-headless-fetch-ssrf-pinning/": 2,
@@ -62,7 +61,6 @@
     "/blog/mod-pagespeed-content-security-policy/": 1,
     "/blog/mod-pagespeed-deprecated-2026/": 9,
     "/blog/mod-pagespeed-sites-run-2020-or-earlier/": 1,
-    "/blog/nginx-image-optimization-module/": 2,
     "/blog/ngx-pagespeed-wont-build-modern-nginx/": 3,
     "/blog/our-seccomp-soak-passed-then-chrome-called-mincore/": 1,
     "/blog/pagespeed-installed-base-2026/": 1,
@@ -80,7 +78,6 @@
     "/blog/serve-markdown-to-ai-agents/": 5,
     "/blog/serve-markdown-to-ai-crawlers-llms-txt/": 2,
     "/blog/server-injected-resource-hints-speculation-rules/": 4,
-    "/blog/server-side-critical-css-nginx/": 1,
     "/blog/single-url-cache-purge-optimizing-proxy/": 5,
     "/blog/ssimulacra2-image-quality-verification/": 6,
     "/blog/svg-auto-vectorization/": 5,
@@ -138,7 +135,6 @@
     "src/content/blog/mod-pagespeed-content-security-policy.md": 1,
     "src/content/blog/mod-pagespeed-deprecated-2026.md": 14,
     "src/content/blog/mod-pagespeed-sites-run-2020-or-earlier.md": 1,
-    "src/content/blog/nginx-image-optimization-module.md": 2,
     "src/content/blog/ngx-pagespeed-wont-build-modern-nginx.md": 3,
     "src/content/blog/pagespeed-installed-base-2026.md": 1,
     "src/content/blog/pay-per-crawl-at-the-origin.md": 2,
@@ -153,7 +149,6 @@
     "src/content/blog/serve-markdown-to-ai-agents.md": 1,
     "src/content/blog/serve-markdown-to-ai-crawlers-llms-txt.md": 1,
     "src/content/blog/server-injected-resource-hints-speculation-rules.md": 1,
-    "src/content/blog/server-side-critical-css-nginx.md": 1,
     "src/content/blog/single-url-cache-purge-optimizing-proxy.md": 1,
     "src/content/blog/ssimulacra2-image-quality-verification.md": 2,
     "src/content/blog/svg-auto-vectorization.md": 1,
@@ -163,7 +158,6 @@
     "src/content/blog/visual-regression-gating-optimizations.md": 1,
     "src/content/blog/which-ai-crawlers-sign-their-requests.md": 1,
     "src/content/blog/why-i-rebuilt-mod-pagespeed.md": 1,
-    "src/content/blog/wordpress-server-side-page-cache-plugin.md": 1,
-    "src/pages/alternatives/ngx-pagespeed.astro": 10
+    "src/content/blog/wordpress-server-side-page-cache-plugin.md": 1
   }
 }
