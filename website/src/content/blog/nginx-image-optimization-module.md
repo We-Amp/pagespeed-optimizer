@@ -2,14 +2,14 @@
 title: 'nginx image optimization module: automatic WebP, opt-in AVIF'
 description: 'A native nginx module that transcodes images to WebP and AVIF on serve, negotiates on Accept and caches the variant. Signed apt/yum packages, no compiling.'
 date: 2026-06-06
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-22
 author: 'Otto van der Schaaf'
 tags: ['nginx', 'image-optimization', 'webp', 'avif']
 product: '1.1'
 draft: false
 ---
 
-If you want nginx itself to convert images to WebP or AVIF, your options are narrow. You can write a transcoding pipeline yourself with libvips or ImageMagick, you can compile [ngx_pagespeed](https://ngxpagespeed.com/ngx-pagespeed-alternative/) against your nginx, or you can install a packaged module. This post is about the last option: a native nginx module that does the conversion in-process, picks the right format per request, and caches what it produces.
+If you want nginx itself to convert images to WebP or AVIF, your options are narrow. You can write a transcoding pipeline yourself with libvips or ImageMagick, you can compile [ngx_pagespeed](/alternatives/ngx-pagespeed/) against your nginx, or you can install a packaged module. This post is about the last option: a native nginx module that does the conversion in-process, picks the right format per request, and caches what it produces.
 
 The mod_pagespeed 2.1 module is that module. It runs inside nginx (and Apache) as a native module, with no sidecar or separate service in the request path. It installs from a signed apt or yum repository. The rest of this post covers what a server-layer image module actually does, how to install it, how to switch on AVIF, and where it fits against the do-it-yourself alternative: a libvips or ImageMagick script you wire in yourself.
 

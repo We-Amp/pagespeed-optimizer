@@ -27,7 +27,7 @@ const faq = [
   },
   {
     q: 'Native nginx module or Docker reverse proxy — which fits my stack?',
-    a: 'Both are mod_pagespeed. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: the package loads it, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module runs on its own by default; since 2.2.0 it can also hand in-place optimization to the optimizer worker: install the pagespeed-optimizer package of the same release and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block.',
+    a: 'Both are mod_pagespeed. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: the package loads it, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module runs on its own by default; since 2.2.0 (package 1.17.0) it can also hand in-place optimization to the optimizer worker: install the pagespeed-optimizer package of the same release and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block.',
   },
   {
     q: 'Why is the nginx module pinned to one exact nginx version?',
@@ -35,7 +35,7 @@ const faq = [
   },
   {
     q: 'Why did a routine apt upgrade break my self-built PageSpeed module?',
-    a: "A 2026-06-05 Ubuntu security update for CVE-2026-49975 inserted a field into the middle of nginx's internal request-headers struct, shifting every field after it by 8 bytes. A module compiled against the earlier nginx then read the wrong offsets and spun the worker on the first request it tried to optimize, while nginx -t still passed. Our Ubuntu and Enterprise Linux packages are built against the distribution's own patched nginx source, and the module checks its layout on the first request: if it does not recognize it, it logs one alert and passes responses through unoptimized instead of hanging the worker.",
+    a: "A 2026-06-05 Ubuntu security update for CVE-2026-49975 inserted a field into the middle of nginx's internal request-headers struct, shifting every field after it by 8 bytes. A module compiled against the earlier nginx then read the wrong offsets and spun the worker on the first request it tried to optimize, while nginx -t still passed. Our Ubuntu and Enterprise Linux packages are built against the distribution's own patched nginx source, and the module checks its layout on the first request: if it does not recognize it, it logs one alert per worker and passes responses through unoptimized instead of hanging the worker.",
   },
   {
     q: 'Does the nginx module generate AVIF?',
@@ -168,19 +168,15 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
         compile.
       </p>
       <p>
-        Each package depends on the stock nginx of its distribution, because nginx refuses to load a
-        module built for a different nginx version. A distribution's security patch can also move
-        the internal structures a module reads, so the Ubuntu and Enterprise Linux packages are
-        built against that distribution's own patched nginx source rather than upstream nginx.
-        Debian keeps such fixes out of the shared structures. The risk is real: an Ubuntu update for{' '}
-        <span class="whitespace-nowrap">CVE-2026-49975</span> shifted nginx's request-headers struct
-        by 8 bytes in June 2026, and a module built against the earlier nginx hung the worker on its
-        first optimized request while <code>nginx -t</code> still passed. As a second line of
-        defense the module checks its layout on the first request; if it does not recognize it, it
-        logs one alert and passes responses through unoptimized, so the site keeps serving.
-      </p>
-      <p>
-        <a href="/docs/installation-module/">Pinned nginx version per distribution</a>
+        Each package depends on the stock nginx of its distribution and is built against that
+        distribution's own patched nginx source, because nginx refuses to load a module built for a
+        different version. The module also checks its layout on the first request and passes
+        responses through unoptimized if it does not recognize it. The reasons are in the{' '}
+        <a href="#faq">questions below</a>, and the{' '}
+        <a href="/docs/installation-module/#nginx-compatibility">
+          pinned nginx version per distribution
+        </a>{' '}
+        is in the module guide.
       </p>
 
       <h2>Who maintains it</h2>
@@ -196,7 +192,7 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
           href="https://developers.googleblog.com/en/speed-up-your-sites-with-pagespeed-for-nginx/"
           rel="noopener noreferrer external"
         >
-          2013 ngx_pagespeed launch announcement
+          2013 ngx_pagespeed beta announcement
         </a>{' '}
         names We-Amp among the companies whose developers built the module, and the{' '}
         <a
@@ -368,7 +364,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         how the worker model works.
       </p>
 
-      <h2>Frequently asked questions</h2>
+      <h2 id="faq">Frequently asked questions</h2>
       {faq.map((entry) => (
         <>
           <h3>{entry.q}</h3>
