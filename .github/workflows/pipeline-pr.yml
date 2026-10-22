@@ -295,7 +295,7 @@ jobs:
         run: bash tools/ci/test_ensure_dev_image.sh
 
       - name: Post-merge tests never reuse cached results - self-test
-        run: bash tools/ci/test_post_merge_nocache.sh
+        run: bash tools/ci/test_post_merge_nocache.sh --selftest && bash tools/ci/test_post_merge_nocache.sh
 
       - name: Vendor-tarball publisher - self-test
         run: |
