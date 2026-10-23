@@ -6678,7 +6678,7 @@ static ngx_int_t ngx_http_pagespeed_init(ngx_conf_t* cf) {
     }
   }
 
-  ngx_log_error(NGX_LOG_NOTICE, cf->log, 0, "ModPageSpeed %s loaded",
+  ngx_log_error(NGX_LOG_NOTICE, cf->log, 0, "mod_pagespeed %s loaded",
                 pagespeed::kPageSpeedVersion);
 
   return NGX_OK;

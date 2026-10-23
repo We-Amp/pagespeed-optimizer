@@ -1107,7 +1107,7 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
       } else if (arg == "--allow-private-urls") {
         config.allow_private_urls = true;
       } else if (arg == "--version") {
-        std::cout << "ModPageSpeed " << pagespeed::kPageSpeedVersion << " ("
+        std::cout << "mod_pagespeed " << pagespeed::kPageSpeedVersion << " ("
                   << pagespeed::kBuildCommitShort << ")\n";
         return 0;
       } else if (arg == "--help") {
@@ -1328,7 +1328,7 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
   pagespeed::ServiceReportRunning();
 
   // Run worker
-  handler->Info("ModPageSpeed %s (%s) Factory Worker starting",
+  handler->Info("mod_pagespeed %s (%s) optimizer worker starting",
                 pagespeed::kPageSpeedVersion, pagespeed::kBuildCommitShort);
   worker.Run();
 
@@ -1336,7 +1336,7 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
   // during ~Worker() if a second signal arrives.
   g_worker = nullptr;
 
-  handler->Info("ModPageSpeed %s (%s) Factory Worker stopped",
+  handler->Info("mod_pagespeed %s (%s) optimizer worker stopped",
                 pagespeed::kPageSpeedVersion, pagespeed::kBuildCommitShort);
 
   return 0;

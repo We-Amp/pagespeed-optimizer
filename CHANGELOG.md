@@ -17,6 +17,10 @@ screen size rather than another one. Those copies are now stored too. After the 
 desktop browser requests it; no purge is needed. Sites without proactive image
 variants, the default, were not affected.
 
+Changed: the optimizer worker's log lines and `--version` output, and the nginx
+module's load notice, now name the product mod_pagespeed. The version number and
+build commit are unchanged.
+
 ## 2.5.2 - 2026-10-21
 
 Security: the bundled libpng is updated to 1.6.58, which fixes memory-safety
