@@ -1318,8 +1318,18 @@ jobs:
           rm -f "$OUT"/*.nupkg
           for proj in WeAmp.PageSpeed.Sidecar.NativeAssets.Linux/WeAmp.PageSpeed.Sidecar.NativeAssets.Linux.csproj \
                       WeAmp.PageSpeed.AspNetCore/WeAmp.PageSpeed.AspNetCore.csproj; do
+            # The module source pinned by sidecar-pin.json may predate the
+            # sidecar lock files, and locked mode without a lock file fails
+            # the restore; enable it only for a project that ships one.
+            lock=()
+            if [ -f "$(dirname "$proj")/packages.lock.json" ]; then
+              lock=(-p:RestoreLockedMode=true)
+              echo "Packing $proj: locked restore (packages.lock.json present)"
+            else
+              echo "Packing $proj: unlocked restore (no packages.lock.json in the pinned source)"
+            fi
             dotnet pack "$proj" -c Release -o "$OUT" -p:IncludeNet10=true \
-              -p:Version="$VERSION" -p:PackageVersion="$VERSION"
+              -p:Version="$VERSION" -p:PackageVersion="$VERSION" ${lock[@]+"${lock[@]}"}
           done
           ls -lh "$OUT"
           bash "${GITHUB_WORKSPACE}/trust/tools/ci/sidecar_fetch.sh" check-packages \
