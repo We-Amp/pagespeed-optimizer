@@ -5,7 +5,7 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'history', 'downloads']
 draft: false
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-24
 ---
 
 If you landed here, you probably ran something like this and got a
@@ -30,14 +30,16 @@ run on Debian or Ubuntu. It installs the signed apt repository at
 package:
 
 ```bash
-curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
-sudo apt install mod-pagespeed-stable
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo apt install mod-pagespeed
 ```
 
-The package name is unchanged (`mod-pagespeed-stable`), so `.deb`
-file paths in your config management carry over. Same filter syntax,
-same admin console at `/pagespeed_admin/`. Full instructions below, or
-jump straight to the [download page](/download/) for every platform.
+The package is now `mod-pagespeed`; it replaces `mod-pagespeed-stable`
+in one step and keeps your configuration (see the
+[migration guide](/docs/migrate-from-google-mod-pagespeed/)). Same filter
+syntax, same admin console at `/pagespeed_admin/`. Full instructions
+below, or jump straight to the [download page](/download/) for every
+platform.
 
 This post explains what happened to the original download, why the
 file might still be there, what's broken about installing it today,
@@ -155,28 +157,28 @@ the [mod_pagespeed site](/) has the full reference.
 **Debian / Ubuntu (Apache):**
 
 ```bash
-curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
-sudo apt install mod-pagespeed-stable
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo apt install mod-pagespeed
 ```
 
 **Debian / Ubuntu (nginx):**
 
 ```bash
-curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed
 ```
 
 **RHEL / Rocky / Fedora (Apache):**
 
 ```bash
-curl -fsSL https://packages.modpagespeed.com/setup-yum.sh | sudo bash
-sudo dnf install mod-pagespeed-stable
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo dnf install mod-pagespeed
 ```
 
 **RHEL / Rocky / Fedora (nginx):**
 
 ```bash
-curl -fsSL https://packages.modpagespeed.com/setup-yum.sh | sudo bash
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo dnf install nginx-module-pagespeed
 ```
 
@@ -252,22 +254,21 @@ server, the modern equivalents:
 If you already installed the 2018 build, here's the migration:
 
 ```bash
-# Stop the web server
-sudo systemctl stop apache2   # or nginx
+# Add the signed repository
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 
-# Remove the Google build (config files preserved by default)
-sudo apt purge mod-pagespeed-stable
+# Swap the packages in one run (keeps your pagespeed.conf)
+sudo apt-get install mod-pagespeed mod-pagespeed-stable-
 
-# Install the maintained build
-curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
-sudo apt install mod-pagespeed-stable
-
-# Restart
-sudo systemctl start apache2
-
-# Verify
+# Check, restart, verify
+sudo apache2ctl configtest && sudo systemctl restart apache2
 curl -sI http://localhost/ | grep -iE 'page-?speed'
 ```
+
+On RHEL, Rocky and AlmaLinux the swap is
+`sudo dnf swap mod-pagespeed-stable mod-pagespeed`; the
+[migration guide](/docs/migrate-from-google-mod-pagespeed/) has every step,
+including disabling the old repository and rolling back.
 
 Your existing `pagespeed.conf` continues to work. Same filter names,
 same admin console at `/pagespeed_admin/` (and `/pagespeed_global_admin`
@@ -276,9 +277,9 @@ in the module for the process-wide view). Cache directory under
 re-populated as new requests hit.
 
 If you used the `dl-ssl.google.com` URL in a Dockerfile, CI script, or
-Ansible role, swap the install line for the `packages.modpagespeed.com`
-apt/yum setup. The package name is unchanged (`mod-pagespeed-stable`);
-only the source repo differs.
+Ansible role, swap the install line for
+`curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh` and
+install `mod-pagespeed` instead of `mod-pagespeed-stable`.
 
 ## Why this page exists
 
@@ -295,12 +296,12 @@ The maintained continuation lives on [modpagespeed.com](/): mod_pagespeed. The o
 
 ```bash
 # Debian / Ubuntu
-curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
-sudo apt install mod-pagespeed-stable
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo apt install mod-pagespeed
 
 # RHEL / Rocky / Fedora
-curl -fsSL https://packages.modpagespeed.com/setup-yum.sh | sudo bash
-sudo dnf install mod-pagespeed-stable
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo dnf install mod-pagespeed
 ```
 
 mod_pagespeed 2 is the drop-in continuation. It optimizes out of the
