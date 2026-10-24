@@ -9,6 +9,8 @@ import {
   SOURCE_PUBLICATION,
   LICENSING_TERMS_URL,
   COMMERCIAL_EMAIL,
+  SUPPORT_TIERS,
+  RESPONSE_TARGETS_LINE,
 } from '../data/product-facts.mjs';
 
 // The effective date and the "Version YYYY-MM[-DD]" literal in the
@@ -17,6 +19,11 @@ import {
 // test/sync/terms-version-sync.test.ts guards it.
 const PRODUCT = `${PRODUCT_NAME}`;
 const LICENSE = SOURCE_PUBLICATION.license;
+// Each tier's first-response target is the last entry of its `includes` list,
+// as on the support and pricing pages; read it from there, never restate it.
+const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
+  .map((t) => `${t.name}: ${t.includes[t.includes.length - 1]}.`)
+  .join(' ');
 ---
 
 <BaseLayout
@@ -164,11 +171,8 @@ const LICENSE = SOURCE_PUBLICATION.license;
           carry a ticket number in the subject; keep it when you write back. Software helps us sort
           tickets and prepare a first draft, but every reply is read and approved by a person at
           We-Amp before it is sent. If you report a problem as production down (severity 1), only a
-          person can lower that rating. The first-response targets are: Standard, within 2 business
-          days; Priority, next business day, and severity 1 within 8 business hours; Enterprise,
-          severity 1 within 4 business hours, other severities per agreement. Response targets are
-          first-response times. Support runs on business days in the Netherlands, and business hours
-          are Central European Time (CET/CEST). The We-Amp support terms at
+          person can lower that rating. The first-response targets are as follows. {SUPPORT_TARGETS}
+          {RESPONSE_TARGETS_LINE} The We-Amp support terms at
           <a
             href={LICENSING_TERMS_URL}
             class="text-interactive hover:text-interactive-hover underline"
