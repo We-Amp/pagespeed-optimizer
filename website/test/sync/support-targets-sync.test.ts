@@ -25,12 +25,20 @@ const TERMS_HTML = path.join(DIST, 'terms/index.html');
 const SUPPORT_HTML = path.join(DIST, 'support/index.html');
 const BUILT = existsSync(TERMS_HTML) && existsSync(SUPPORT_HTML);
 
+// One pass with a lookup table, so each entity is decoded exactly once
+// (`&amp;lt;` stays `&lt;`, never becomes `<`).
+const ENTITIES: Record<string, string> = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  nbsp: ' ',
+  rsquo: "'",
+  '#39': "'",
+  '#x27': "'",
+};
 const decode = (s: string) =>
-  s
-    .replace(/&amp;/g, '&')
-    .replace(/&#39;|&#x27;|&rsquo;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&nbsp;/g, ' ');
+  s.replace(/&(amp|lt|gt|quot|nbsp|rsquo|#39|#x27);/g, (_m, e: string) => ENTITIES[e]);
 const textOf = (file: string) =>
   decode(readFileSync(file, 'utf8').replace(/<[^>]+>/g, ' '))
     .replace(/\s+/g, ' ')
