@@ -11,6 +11,7 @@ import {
   COMMERCIAL_EMAIL,
   SUPPORT_TIERS,
   RESPONSE_TARGETS_LINE,
+  tierTarget,
 } from '../data/product-facts.mjs';
 
 // The effective date and the "Version YYYY-MM[-DD]" literal in the
@@ -19,10 +20,11 @@ import {
 // test/sync/terms-version-sync.test.ts guards it.
 const PRODUCT = `${PRODUCT_NAME}`;
 const LICENSE = SOURCE_PUBLICATION.license;
-// Each tier's first-response target is the last entry of its `includes` list,
-// as on the support and pricing pages; read it from there, never restate it.
+// Each tier's first-response target comes through the shared tierTarget
+// helper, the same text the support and pricing pages show; never restate it.
+// test/sync/support-targets-sync.test.ts guards it.
 const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
-  .map((t) => `${t.name}: ${t.includes[t.includes.length - 1]}.`)
+  .map((t) => `${t.name}: ${tierTarget(t).replace(/\.$/, '')}.`)
   .join(' ');
 ---
 
