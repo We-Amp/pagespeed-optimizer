@@ -185,6 +185,10 @@ expect_bad bad-port 'rule e'
 # pipeline-full.yml@ci-dev (accepted by the good-tree case above); the same
 # call at a feature ref is rejected (bad-caller-full-ref above).
 
+# lint-scope: the lint job diff must keep --no-renames (good-queue-guard carries the pinned form).
+expect_bad bad-lint-scope-renames 'lint-scope'
+expect_bad bad-lint-scope-missing 'lint-scope'
+
 # The repository itself passes (self-test).
 REPO_ROOT="$(cd "${HERE}/../.." && pwd)"
 if out=$(bash "$CHECK" "${REPO_ROOT}" 2>&1); then

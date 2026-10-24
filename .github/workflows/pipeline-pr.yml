@@ -1372,10 +1372,13 @@ jobs:
           # list in one place.
           LINT_TRIGGER_PATHS='^(\.clang-tidy|test/\.clang-tidy|lib/image/generated/\.clang-tidy|docker/Dockerfile|docker/Dockerfile\.lint|BUILD|tools/ci/lint-compile-commands\.sh|tools/ci/lint-scope-expand\.sh|MODULE\.bazel|\.bazelrc)$'
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME}" = "merge_group" ]; then
-            git diff --name-status "${BASE}...HEAD" > "${CHANGED}"
+            git diff --no-renames --name-status "${BASE}...HEAD" > "${CHANGED}"
             if awk '{for (i = 2; i <= NF; i++) print $i}' "${CHANGED}" | grep -qE "${LINT_TRIGGER_PATHS}"; then
               MODE=full
             else
+              # --no-renames lists a rename as a delete of the old path plus an
+              # add of the new one, so the new path is linted and the old one
+              # is dropped with the other deletes.
               # Deleted .cc files are not lintable (they select zero TUs,
               # which the fail-closed N=0 assertion in the clang-tidy step
               # would reject). The vendored 1.15 kernels (lib/js by name

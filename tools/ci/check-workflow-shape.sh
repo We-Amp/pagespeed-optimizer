@@ -667,6 +667,34 @@ for wf in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
   fi
 done
 
+# --- lint-scope ----------------------------------------------------------------
+# The `lint` job of pipeline-pr.yml builds the clang-tidy file list from a diff
+# of the pull request range. Without --no-renames, a renamed file is listed
+# under its old path only (the path column the step reads), so the new path is
+# never linted. The lint job must hold exactly one git diff, in the pinned form
+# (a renamed job or a removed diff line fails too). A pipeline-pr.yml with
+# neither a lint job nor the 'Compute lint scope' step is not checked.
+# shellcheck disable=SC2016  # the text to match carries literal ${...}
+LS_DIFF='git diff --no-renames --name-status "${BASE}...HEAD" > "${CHANGED}"'
+for wf in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
+  [ "$(basename "${wf}")" = "pipeline-pr.yml" ] || continue
+  job="$(job_block "${wf}" lint)"
+  if [ -z "${job}" ] && ! grep -qF -- '- name: Compute lint scope' "${wf}"; then
+    continue
+  fi
+  n_diff=0
+  while IFS= read -r dl; do
+    dl="${dl#"${dl%%[![:space:]]*}"}"
+    n_diff=$((n_diff + 1))
+    if [ "${dl}" != "${LS_DIFF}" ]; then
+      err "${wf}: a git diff in the lint job must be exactly '${LS_DIFF}' (lint-scope)"
+    fi
+  done < <(printf '%s\n' "${job}" | grep -vE '^[[:space:]]*#' | grep -E 'git[[:space:]]+diff' || true)
+  if [ "${n_diff}" != "1" ]; then
+    err "${wf}: the lint job must hold exactly one git diff, '${LS_DIFF}' (found ${n_diff}) (lint-scope)"
+  fi
+done
+
 # --- event-guard --------------------------------------------------------------
 # Every workflow other than pipeline-pr.yml that has a fleet runs-on (any
 # runs-on that is not a plain hosted label) must carry the hosted job
