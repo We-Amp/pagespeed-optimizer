@@ -2,7 +2,7 @@
 title: 'Save-Data: lighter image variants for bandwidth-aware users'
 description: 'How mod_pagespeed reads the Save-Data request header to serve lighter image variants: a 30-50% bandwidth cut on top of format and viewport sizing.'
 date: 2026-02-06
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-25
 author: 'Otto van der Schaaf'
 tags: ['performance', 'images', 'save-data', 'bandwidth']
 draft: false
@@ -35,11 +35,11 @@ The worker uses two quality tiers when encoding images. Normal quality is the de
 | :----- | :-------------------------------- | :----------------------------- | --------------: |
 | JPEG   | 85                                | 60                             | ~30-40% smaller |
 | WebP   | 75                                | 50                             | ~25-35% smaller |
-| AVIF   | 25 (lower = better in AVIF scale) | 35 (higher = more compression) | ~20-30% smaller |
+| AVIF   | 60                                | 45                             | Smaller than the normal variant |
 
-These are not arbitrary numbers. Each was chosen by visual quality testing against common image categories -- product photography, editorial content, UI screenshots, and hero banners. The normal quality settings produce images that are visually indistinguishable from the source at typical viewing distances. The Save-Data settings produce images where compression artifacts are detectable on close inspection of fine detail but acceptable for the purpose of browsing -- particularly when the user has explicitly asked for reduced data.
+The AVIF Save-Data reduction was not re-measured at the shipped 60 and 45 defaults, so it is stated without a percentage. These are not arbitrary numbers. Each was chosen by visual quality testing against common image categories -- product photography, editorial content, UI screenshots, and hero banners. The normal quality settings produce images that are visually indistinguishable from the source at typical viewing distances. The Save-Data settings produce images where compression artifacts are detectable on close inspection of fine detail but acceptable for the purpose of browsing -- particularly when the user has explicitly asked for reduced data.
 
-For JPEG, dropping from quality 85 to 60 typically saves 30-40% of the file size. The perceptual quality drop is noticeable in smooth gradients and fine textures but invisible in most product photography and editorial imagery. WebP's quality scale is different from JPEG's, but the same principle applies: quality 50 produces visually acceptable results at significantly reduced file sizes. [AVIF is the most efficient codec](/blog/avif-vs-webp-2026/). Even at quality 35 -- more compressed than the normal quality 25 -- AVIF's psychovisual model keeps the result coherent. Compounded with format and viewport savings, the desktop AVIF Save-Data case reaches a 76% cut versus the original, as the bandwidth table below shows.
+For JPEG, dropping from quality 85 to 60 typically saves 30-40% of the file size. The perceptual quality drop is noticeable in smooth gradients and fine textures but invisible in most product photography and editorial imagery. WebP's quality scale is different from JPEG's, but the same principle applies: quality 50 produces visually acceptable results at significantly reduced file sizes. [AVIF is the most efficient codec](/blog/avif-vs-webp-2026/). Even at the Save-Data quality of 45 -- more compressed than the normal quality of 60 -- AVIF's psychovisual model keeps the result coherent. Compounded with format and viewport savings, the desktop AVIF Save-Data case reaches a 76% cut versus the original, as the bandwidth table below shows.
 
 ## Bandwidth savings in practice
 
@@ -126,19 +126,19 @@ The percentage of requests with `Save-Data: on` varies by geography and site aud
 The default quality settings are:
 
 ```
-Normal:    JPEG 85, WebP 75, AVIF 25
-Save-Data: JPEG 60, WebP 50, AVIF 35
+Normal:    JPEG 85, WebP 75, AVIF 60
+Save-Data: JPEG 60, WebP 50, AVIF 45
 ```
 
 These can be overridden at runtime with CLI flags:
 
 ```bash
 factory_worker --cache-path /data/cache.vol \
-  --jpeg-quality 80 --webp-quality 70 --avif-quality 30 \
+  --jpeg-quality 80 --webp-quality 70 --avif-quality 55 \
   --savedata-jpeg-quality 55 --savedata-webp-quality 40 --savedata-avif-quality 40
 ```
 
-The quality gap between normal and Save-Data modes (25 points for JPEG, 25 for WebP, 10 for AVIF) was tuned for broad applicability. Sites with primarily photographic content might prefer a narrower gap to preserve detail. Sites with predominantly UI screenshots or text-heavy imagery could widen the gap because these image types compress well even at low quality.
+The quality gap between normal and Save-Data modes (25 points for JPEG, 25 for WebP, 15 for AVIF at the shipped defaults) was tuned for broad applicability. Sites with primarily photographic content might prefer a narrower gap to preserve detail. Sites with predominantly UI screenshots or text-heavy imagery could widen the gap because these image types compress well even at low quality.
 
 ## Monitoring Save-Data impact
 

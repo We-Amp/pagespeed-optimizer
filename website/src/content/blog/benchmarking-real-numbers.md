@@ -2,7 +2,7 @@
 title: 'Benchmarking ModPageSpeed 2.0: real numbers on real sites'
 description: 'Measured ModPageSpeed 2.0 results on e-commerce, blog, news and portfolio sites: WebP/AVIF savings and LCP, FCP, CLS and Lighthouse gains, 3G to broadband.'
 date: 2026-02-05
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-25
 author: 'Otto van der Schaaf'
 tags: ['performance', 'benchmarks', 'image-optimization', 'core-web-vitals']
 draft: false
@@ -83,7 +83,7 @@ The photography portfolio site is image-dominated: 18 high-resolution photograph
 
 This is where the capability mask system pays off most. The 32-bit mask encodes image format (bits 0-1), [viewport class](/blog/viewport-aware-image-optimization/) (bits 2-3), pixel density (bit 4), Save-Data preference (bit 5), and transfer encoding (bits 6-7). The worker generates WebP, AVIF, and optimized-original variants proactively from a single decode pass when `proactive_image_variants` is enabled. It is off by default; these benchmarks were run with the flag turned on.
 
-AVIF proved particularly effective for photographic content. With `avif_quality` set to 25 (the default) and `avif_speed` at 6, AVIF output was 72% smaller than the original JPEG on average, with no perceptible quality loss at normal viewing distances. WebP at quality 75 achieved 48% reduction.
+AVIF proved particularly effective for photographic content. With `avif_speed` at 6 and AVIF quality set to 25 on the same 0-100 scale (well below the current `avif_quality` default of 60, so this is an upper-end result at a lower quality than shipped), AVIF output was 72% smaller than the original JPEG on average, with no perceptible quality loss at normal viewing distances. WebP at quality 75 achieved 48% reduction.
 
 **Results on broadband (median of 10 runs):**
 

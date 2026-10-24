@@ -2,7 +2,7 @@
 title: 'Automatic WebP/AVIF on nginx: one decode, 37 variants'
 description: 'Serve WebP and AVIF automatically on nginx, self-hosted. The mod_pagespeed worker decodes each image once and builds up to 37 responsive variants.'
 date: 2026-02-03
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-25
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'images', 'performance', 'nginx']
 product: '2.0'
@@ -83,7 +83,7 @@ The core of the proactive system is `ImageTranscoder::TranscodeMultiResized()`. 
 
 If the image is already narrower than the target width, no resize occurs. GIF input bypasses the resize path entirely and is routed to the animated-GIF-to-WebP pipeline.
 
-**Step 3: Encode.** The (possibly resized) pixel buffer is encoded into each requested output format. WebP uses lossy encoding at quality 75 (or 50 with Save-Data). AVIF uses the libaom encoder at quality 25 and speed 6 (or quality 35 with Save-Data). The optimized original re-encodes JPEG at quality 85 with progressive scanning, or runs PNG through optipng for lossless reduction. Each encode produces an independent output buffer.
+**Step 3: Encode.** The (possibly resized) pixel buffer is encoded into each requested output format. WebP uses lossy encoding at quality 75 (or 50 with Save-Data). AVIF uses the libaom encoder at the default `avif_quality` of 60 and speed 6 (or 45 with Save-Data), on a 0-100 scale where higher is better. The optimized original re-encodes JPEG at quality 85 with progressive scanning, or runs PNG through optipng for lossless reduction. Each encode produces an independent output buffer.
 
 **Step 4: Write.** Each output buffer is written to the Cyclone cache as an alternate identified by the appropriate capability mask. A Mobile/WebP/1x/SaveData-off variant gets one alternate ID, a Tablet/AVIF/2x/SaveData-on variant gets another. The variant writer checks whether each alternate already exists before writing, so re-processing the same image is idempotent.
 
