@@ -16750,6 +16750,79 @@ TEST_F(WorkerTest, OriginRefreshedUnchangedImageRestampsWithoutPurge) {
       << "variant freshness restamped from the re-fetched origin";
 }
 
+TEST_F(WorkerTest,
+       OriginRefreshedBeginsVaryingByAcceptPurgesInsteadOfRestamping) {
+  // An origin that was recorded without `Vary: Accept` and optimized, then
+  // starts negotiating on Accept with BYTE-IDENTICAL content.  The content
+  // hash matches, but the Vary set changed: the variant set is not restamped
+  // in place, it is purged, and (the marked origin never being optimized)
+  // the URL then serves the origin's own representation.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/refresh-begins-varying.jpg";
+  std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kImage;
+  notification.capability_mask = CapabilityMask().Encode();
+  SendNotification(notification);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
+
+  CapabilityMask webp_mask(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  ASSERT_TRUE(ReadVariantWithMeta(worker.cache(), url, webp_mask).has_value())
+      << "webp variant from the first pass";
+
+  // The freshness re-fetch re-records the identical body, now marked.
+  AlternateMetadata fresh_meta;
+  fresh_meta.content_type = ContentType::kImage;
+  fresh_meta.origin_content_type = "image/jpeg";
+  fresh_meta.flags = AlternateMetadata::kFlagOriginVariesAccept;
+  fresh_meta.cache_inserted_at = static_cast<uint32_t>(
+      std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count());
+  fresh_meta.origin_max_age = 300;
+  fresh_meta.origin_cc_flags = AlternateMetadata::kCCOriginHeaderPresent |
+                               AlternateMetadata::kCCOriginPublic;
+  CacheOriginalWithMeta(worker.cache(), url, jpeg, fresh_meta);
+
+  CacheNotification refresh = notification;
+  refresh.capability_mask = kOriginRefreshedSentinel;
+  SendNotification(refresh);
+  bool purged = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().origin_refresh_purges.load() >= 1) {
+      purged = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(purged) << "a flipped Vary set must purge the variant set";
+  WaitForWorkerIdle(worker);
+  EXPECT_EQ(worker.stats().origin_refresh_unchanged.load(), 0u)
+      << "must not be treated as an unchanged origin";
+  EXPECT_FALSE(ReadVariantWithMeta(worker.cache(), url, webp_mask).has_value())
+      << "the pre-existing variant must not survive the flip";
+}
+
 TEST_F(WorkerTest, UnchangedRefreshRestampCarriesTheHeadersSidecarFlagBits) {
   // Variants built before the bits existed are restamped (not rebuilt) when
   // the origin is unchanged across a freshness boundary; the restamp must
@@ -17010,6 +17083,100 @@ TEST_F(WorkerTest, OriginRefreshedUnchangedImageDefersThenRestampsOnNotify) {
   EXPECT_EQ(after->content, before->content);
   EXPECT_EQ(after->metadata.cache_inserted_at, reinserted_at)
       << "variant freshness adopted the re-recorded origin's stamp";
+}
+
+TEST_F(WorkerTest, OriginRefreshedDeferredThenMarkedReRecordPurgesNotRestamps) {
+  // Module shape (sentinel before the re-record) for an image whose origin
+  // begins negotiating on Accept.  The sentinel defers (the durable original
+  // still holds the old, hash-equal bytes).  The re-record then lands MARKED
+  // and is notified.  The identity slot holds the worker's own unmarked
+  // variant, so the guard must read the marker from the durable original;
+  // the set built before the flip is purged, never restamped.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/refresh-deferred-marked.jpg";
+  std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheDurableOriginal(worker.cache(), url, jpeg, "image/jpeg",
+                       ContentType::kImage,
+                       /*cache_inserted_at=*/1'700'000'000,
+                       /*origin_max_age=*/300);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kImage;
+  notification.capability_mask = CapabilityMask().Encode();
+  SendNotification(notification);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
+
+  CapabilityMask webp_mask(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  ASSERT_TRUE(ReadVariantWithMeta(worker.cache(), url, webp_mask).has_value())
+      << "webp variant from the first pass";
+  CapabilityMask identity_mask;
+  auto identity = ReadVariantWithMeta(worker.cache(), url, identity_mask);
+  ASSERT_TRUE(identity.has_value());
+  ASSERT_NE(identity->metadata.flags & AlternateMetadata::kFlagWorkerProcessed,
+            0)
+      << "the identity slot must hold the worker's own unmarked variant";
+
+  CacheNotification refresh = notification;
+  refresh.capability_mask = kOriginRefreshedSentinel;
+  SendNotification(refresh);
+  bool deferred = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().origin_refresh_deferred.load() >= 1) {
+      deferred = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(deferred) << "the sentinel must defer before the re-record";
+  WaitForWorkerIdle(worker);
+  ASSERT_TRUE(ReadVariantWithMeta(worker.cache(), url, webp_mask).has_value())
+      << "the deferral itself leaves the set in place";
+
+  // The re-record lands, same bytes, fresh stamp, now marked.
+  const uint32_t reinserted_at = static_cast<uint32_t>(
+      std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count());
+  CacheDurableOriginal(worker.cache(), url, jpeg, "image/jpeg",
+                       ContentType::kImage, reinserted_at, 300, "",
+                       AlternateMetadata::kFlagOriginVariesAccept);
+  const uint64_t hash_hits_before = worker.stats().content_hash_hits.load();
+  const uint64_t images_before = worker.stats().images_processed.load();
+  SendNotification(notification);
+  bool purged = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (!ReadVariantWithMeta(worker.cache(), url, webp_mask).has_value()) {
+      purged = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(purged) << "the pre-flip variant must not survive the marked "
+                         "re-record";
+  WaitForWorkerIdle(worker);
+  EXPECT_EQ(worker.stats().content_hash_hits.load(), hash_hits_before)
+      << "the marked re-record must not reach the restamp";
+  EXPECT_EQ(worker.stats().images_processed.load(), images_before)
+      << "a marked origin is never re-optimized";
+  EXPECT_FALSE(ReadVariantWithMeta(worker.cache(), url, webp_mask).has_value());
 }
 
 TEST_F(WorkerTest, OriginRefreshedChangedImageStillPurgesAndRebuilds) {

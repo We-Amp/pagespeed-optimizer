@@ -21,6 +21,11 @@ Changed: the optimizer worker's log lines and `--version` output, and the nginx
 module's load notice, now name the product mod_pagespeed. The version number and
 build commit are unchanged.
 
+Fixed: when an origin that was already cached and optimized starts sending
+`Vary: Accept` for a URL, the optimized copies stored before the change were
+kept and kept being served until a purge. They are now dropped at the next
+origin refresh, and the URL is served as the origin sends it.
+
 ## 2.5.2 - 2026-10-21
 
 Security: the bundled libpng is updated to 1.6.58, which fixes memory-safety

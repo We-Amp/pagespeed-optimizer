@@ -300,6 +300,24 @@ uint8_t InheritedVariantFlags(const AlternateMetadata& source) {
   return source.flags & kVariantInheritedFlags;
 }
 
+// Whether a refreshed origin reference may carry the existing variant set
+// forward by restamping it in place.  It may not when the response forbids
+// shared storage, and it may not when the response now negotiates on
+// `Accept` (kFlagOriginVariesAccept): a marked origin is never optimized, so
+// any variant set already stored was derived while the URL was an ordinary
+// resource and would otherwise keep being served in place of the origin's own
+// negotiated representation.  A restamp is the "same bytes, same identity"
+// verdict; a flipped Vary set is a new identity, so the caller purges.
+bool CanRestampVariantSet(const AlternateMetadata& fresh_origin_meta) {
+  const bool storage_forbidden = (fresh_origin_meta.origin_cc_flags &
+                                  (AlternateMetadata::kCCOriginNoStore |
+                                   AlternateMetadata::kCCOriginPrivate)) != 0;
+  const bool negotiates_by_accept =
+      (fresh_origin_meta.flags & AlternateMetadata::kFlagOriginVariesAccept) !=
+      0;
+  return !storage_forbidden && !negotiates_by_accept;
+}
+
 // Build variant metadata from the original read result's metadata.
 AlternateMetadata CreateWorkerMetadata(const AlternateMetadata& base,
                                        ContentType type, uint8_t flags,
@@ -4282,14 +4300,12 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   }
   // A re-recorded response that forbids shared storage must not extend the
   // copies' life: purge instead of restamping (as HandleOriginRefreshed does).
-  const bool storage_forbidden = (pristine.meta.origin_cc_flags &
-                                  (AlternateMetadata::kCCOriginNoStore |
-                                   AlternateMetadata::kCCOriginPrivate)) != 0;
+  const bool may_restamp = CanRestampVariantSet(pristine.meta);
   if (limited && !(have_oracle && !hash_matches)) {
     // Inside the window and not provably changed: leave the copies alone.
     return OriginRecheck::kRestamped;
   }
-  if (hash_matches && !storage_forbidden) {
+  if (hash_matches && may_restamp) {
     PurgeDispatchGen gen = CapturePurgeGen(
         notification.url, notification.hostname, notification.scheme);
     PurgeCheck fence = [this, url = notification.url,
@@ -4489,6 +4505,14 @@ void Worker::HandleNotification(const CacheNotification& notification,
         "optimized)",
         notification.url.c_str());
     stats_.notifications_skipped_dedup.fetch_add(1, std::memory_order_relaxed);
+    // Skipping alone would leave a variant set derived before the flip in
+    // place with nothing left to remove it (an image's origin-refresh sentinel
+    // defers to this notification).  Drop the derived copies; the marked
+    // original is kept.  Under the purge-generation lock, as the recheck does.
+    PurgeDerivedCopiesAndBumpGeneration(notification.url, notification.hostname,
+                                        notification.scheme);
+    ClearUrlProcessingState(notification.url, notification.hostname,
+                            notification.scheme);
     return;
   }
 
@@ -6063,9 +6087,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
             // lifetime instead of paying a re-fetch per request.  Skipped
             // when the reference forbids shared storage — a restamp must
             // never extend the life of content the origin recalled.
-            if (have_pristine && (pristine.meta.origin_cc_flags &
-                                  (AlternateMetadata::kCCOriginNoStore |
-                                   AlternateMetadata::kCCOriginPrivate)) == 0) {
+            if (have_pristine && CanRestampVariantSet(pristine.meta)) {
               PurgeCheck restamp_fence = [this, url = notification.url,
                                           hostname = notification.hostname,
                                           scheme = notification.scheme,
@@ -6082,6 +6104,19 @@ void Worker::HandleNotification(const CacheNotification& notification,
                     "variant(s) from the fresh origin reference",
                     notification.url.c_str(), restamped);
               }
+            } else if (have_pristine) {
+              // The fresh reference forbids shared storage or now negotiates
+              // on Accept: the set built before that must not be carried
+              // forward, so drop the derived copies instead of restamping.
+              PurgeDerivedCopiesAndBumpGeneration(
+                  notification.url, notification.hostname, notification.scheme);
+              ClearUrlProcessingState(notification.url, notification.hostname,
+                                      notification.scheme);
+              LogInfo(
+                  "Content hash unchanged for %s but the fresh origin "
+                  "reference may not be restamped; derived copies purged",
+                  notification.url.c_str());
+              return;
             }
             LogInfo(
                 "Content hash unchanged, all requested variants exist, "
@@ -7213,11 +7248,8 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
           static_cast<int64_t>(pristine.meta.cache_inserted_at) > now_sec;
       // A re-fetched origin response that forbids shared storage must not
       // extend the variant set's life — purge instead (fail-safe).
-      const bool storage_forbidden =
-          (pristine.meta.origin_cc_flags &
-           (AlternateMetadata::kCCOriginNoStore |
-            AlternateMetadata::kCCOriginPrivate)) != 0;
-      if (reference_fresh && !storage_forbidden) {
+      const bool may_restamp = CanRestampVariantSet(pristine.meta);
+      if (reference_fresh && may_restamp) {
         PurgeDispatchGen restamp_gen = CapturePurgeGen(
             notification.url, notification.hostname, notification.scheme);
         PurgeCheck restamp_fence =
@@ -7260,10 +7292,12 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
             "stale and this content type cannot defer — purging",
             notification.url.c_str());
       } else {
-        // reference_fresh && storage_forbidden: fall through to the purge.
+        // reference_fresh && !may_restamp: fall through to the purge (the
+        // refreshed origin forbids shared storage, or now negotiates on
+        // Accept so the variant set built before that is stale).
         LogInfo(
             "Origin refresh for %s: unchanged content but the refreshed "
-            "origin forbids shared storage — purging",
+            "origin forbids shared storage or now varies on Accept, purging",
             notification.url.c_str());
       }
     } else if (!pristine.found) {
@@ -7561,10 +7595,28 @@ CacheNotification Worker::MakeOriginRefreshRebuild(
 bool Worker::OriginNegotiatesByAccept(
     const CacheNotification& notification) const {
   if (cache_ == nullptr) return false;
+  // Observe the on-disk entries, not this process's RAM copies: the
+  // origin-refresh sentinel's pristine read can leave the old unmarked
+  // original in RAM, and a marked re-record from another process does not
+  // evict it.  Same eviction as ReadPristineOrigin.
+  cache_->EvictAlternateFromRamCache(
+      notification.url, notification.hostname, notification.scheme,
+      static_cast<AlternateId>(SentinelId::kOriginalContent));
+  cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
+                                     notification.scheme,
+                                     MaskToId(CapabilityMask()));
   auto identity =
       cache_->ReadAlternate(notification.url, notification.hostname,
                             notification.scheme, MaskToId(CapabilityMask()));
-  if (identity.has_value() && identity->is_valid()) {
+  // Only a genuine original carries the origin's marker.  The worker's own
+  // variant in this slot (kFlagWorkerProcessed: the recompressed same-format
+  // image, minified text) is derived and never inherits it, so answering from
+  // it would report "not negotiating" for a URL whose durable original was
+  // re-recorded as marked.  Such a slot falls through to the durable original,
+  // the same rule ReadPristineOrigin applies.
+  if (identity.has_value() && identity->is_valid() &&
+      (identity->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) ==
+          0) {
     return (identity->metadata.flags &
             AlternateMetadata::kFlagOriginVariesAccept) != 0;
   }
@@ -8411,6 +8463,21 @@ void Worker::HandleMgmtCommand(uv_stream_t* client,
                });
     }
     delete wctx;
+  }
+}
+
+void Worker::PurgeDerivedCopiesAndBumpGeneration(const std::string& norm_url,
+                                                 const std::string& norm_host,
+                                                 const std::string& scheme) {
+  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme);
+  std::lock_guard<std::mutex> lock(purge_gen_mutex_);
+  BumpPurgeGenerationLocked(gen_key);
+  auto purged = cache_->RemoveDerivedAlternates(norm_url, norm_host, scheme);
+  if (!purged.has_value()) {
+    LogWarning(
+        "Purge of derived copies for %s failed (%s): stale copies may remain "
+        "until the next notification",
+        norm_url.c_str(), make_error_code(purged.error()).message().c_str());
   }
 }
 

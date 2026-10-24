@@ -1498,6 +1498,15 @@ class Worker {
                                 const std::string& norm_host,
                                 const std::string& scheme);
 
+  // Bump the purge generation for a URL and remove every derived alternate
+  // as one step under purge_gen_mutex_, keeping the origin's own recording
+  // (the marked original of a URL that now negotiates on Accept).  Inputs must
+  // be pre-normalized.  Failure is logged; stale copies then remain until the
+  // next notification.
+  void PurgeDerivedCopiesAndBumpGeneration(const std::string& norm_url,
+                                           const std::string& norm_host,
+                                           const std::string& scheme);
+
   // Increment the per-URL purge generation, seeding from
   // purge_generation_previous_ when the key only survives there (rotation
   // monotonicity — issue #652 review), then rotate the maps on overflow.
