@@ -89,9 +89,11 @@ are generated from it:
 - **Drift gate:** CI's JS-kernel drift check re-runs the
   sync on PRs touching `lib/js/**`, pushes to main, weekly, and on
   dispatch. Any byte difference is RED.
-- **Behavior gate:** the `js-kernel-differential` job in `ci.yml` builds
-  `corpus/js_minify_probe` and verifies `corpus/goldens/manifest.json`
-  (`gen_goldens.py --check`). The manifest is byte-shared with the 1.15
+- **Behavior gate:** the `js-kernel-differential` job in
+  `.github/workflows/pipeline-pr.yml` (required check `pr / JS Kernel
+  Differential (vendored goldens)`, called from `ci.yml`) runs on every pull
+  request, with no path filter. It builds `corpus/js_minify_probe` and
+  verifies `corpus/goldens/manifest.json` (`gen_goldens.py --check`). The manifest is byte-shared with the 1.15
   repo — one expectation gates both.
 - **Hotfix valve:** a pin on a pushed-but-unmerged 1.15 branch is allowed
   only via `SYNC_ALLOW_UNMERGED_PIN` (drift workflow honors it on
