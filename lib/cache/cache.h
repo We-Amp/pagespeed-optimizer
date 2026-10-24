@@ -1088,6 +1088,31 @@ class PageSpeedCache {
   // Deleting it is an operator step, and the upgrade guide says so.
   static void RemoveVolumeFiles(const std::string& volume_path);
 
+  // Classify a Create() failure: true iff the on-disk volume itself is
+  // damaged, so a delete-and-recreate retry (RemoveVolumeFiles + Create)
+  // has a chance to succeed.  Only Corrupted qualifies: a file too small
+  // to hold a volume header, or a header that fails validation.  At the
+  // pinned storage layer such a volume is reset in place inside Create()
+  // when no other process holds it, so the error does not surface today;
+  // the classification exists so a build that reports the damage directly
+  // still recovers.
+  //
+  // False covers everything a delete cannot fix and must not be used to
+  // fix.  ResetRefusedLivePeer and IncompatibleVersion both mean another
+  // process may hold the volume open: the storage layer refuses to reset
+  // under a live peer on purpose, and its remaining IncompatibleVersion
+  // path on open fires only when a peer raced this open in.  Deleting the
+  // files in either case would split the two processes onto different
+  // volumes with no reset signal, silently losing the peer's writes until
+  // it restarts, so the caller logs the reason and degrades instead.
+  // IoError is excluded as a whole because the ownership, permission and
+  // symlink refusals share it with genuine I/O failures
+  // (CaptureVolumePathsAndChmod reports its refusals as IoError, and so does
+  // the storage layer's own open), so the code alone cannot tell them apart
+  // and a refusal must never be "fixed" by deleting the file it refuses.
+  // The rest are configuration, geometry and contention errors.
+  static bool OpenFailureIsDamagedVolume(cyclone::CacheError error);
+
   // Total capacity of the backing volume(s), in bytes.
   //
   // This is deliberately a value and not the cache: it is the whole of what

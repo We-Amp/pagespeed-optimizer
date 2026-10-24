@@ -4,6 +4,17 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: the optimizer worker's recovery for a cache volume that failed to open
+deleted the configured cache path, which is not where the volume file lives:
+the real file has the cache format and geometry in its name, so the deletion
+removed nothing and the retry reopened the same damaged volume. The site then
+ran unoptimized until the file was removed by hand, on every restart. The
+recovery now removes the real volume files for a damaged volume. For a
+permission, symlink or I/O error, or a volume another running process still
+holds, nothing is deleted: the reason is logged and the worker starts in
+degraded mode. For a held volume, restart the web server so the cache can be
+reset.
+
 Fixed: with the nginx module and proactive image variants turned on
 (`PAGESPEED_PROACTIVE_IMAGE_VARIANTS=true` in the container, or the worker flag
 `--proactive-image-variants`), browsers could be served the original upload,

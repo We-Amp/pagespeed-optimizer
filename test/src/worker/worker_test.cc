@@ -25,6 +25,7 @@ inline int setenv(const char* name, const char* value, int) {
 }
 inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #else
+#include <fcntl.h>
 #include <unistd.h>
 #endif
 
@@ -13898,47 +13899,188 @@ TEST_F(WorkerTest, AgentOptimizeServeTogglesFollowOperatorFlagsOnly) {
 // Cache Corruption Recovery Tests
 // =============================================================================
 
-TEST_F(WorkerTest, CacheCorruptionRecoveryDeletesAndRetries) {
-  // When the cache file is corrupt, Worker::Initialize() should delete it
-  // and retry.  Covers lines 317-337 (auto-recovery path).
+// The file on disk is the structural-fingerprint sibling of the configured
+// path, not the configured path itself (#428).  Whether that file is ever
+// deleted by the recovery depends on who holds it:
+//
+// With no other process holding the volume, a damaged volume never reaches
+// the recovery at all: the storage layer resets it in place inside Create()
+// and the worker starts healthy.  This is what #428 looks like at this pin,
+// and it needs no lock support, so the test below runs on every platform.
+TEST_F(WorkerTest, DamagedVolumeWithNoPeerIsResetInPlace) {
+  const uint64_t volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  std::string volume_file;
+  {
+    PageSpeedCacheConfig create_config;
+    create_config.volume_path = cache_path_;
+    create_config.volume_size = volume_size;
+    auto created = PageSpeedCache::Create(create_config);
+    ASSERT_TRUE(created.has_value());
+    volume_file = (*created)->VolumeFilePath();
+    ASSERT_FALSE(volume_file.empty());
+    ASSERT_NE(volume_file, cache_path_)
+        << "expected the fingerprinted volume path, not the configured one";
+  }  // Closed: no peer holds the volume.
+
+  // Truncate the real volume file to less than its 64-byte header: the
+  // shape a full disk or a power loss leaves behind.
+  std::error_code ec;
+  std::filesystem::resize_file(volume_file, 16, ec);
+  ASSERT_FALSE(ec) << "truncate failed: " << ec.message();
+  ASSERT_EQ(std::filesystem::file_size(volume_file),
+            static_cast<std::uintmax_t>(16));
+
   WorkerConfig config;
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
-  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
-
-  // Create a corrupt file at the cache path.  Cyclone expects a valid
-  // volume file; random bytes will fail the open.
-  {
-    std::ofstream corrupt(cache_path_, std::ios::binary);
-    ASSERT_TRUE(corrupt.is_open());
-    std::string garbage(4096, '\xDE');
-    corrupt.write(garbage.data(), garbage.size());
-    corrupt.close();
-    // Verify the corrupt file exists.
-    ASSERT_TRUE(std::filesystem::exists(cache_path_));
-    ASSERT_GT(std::filesystem::file_size(cache_path_), 0u);
-  }
+  config.cache_size_bytes = volume_size;
 
   NullMessageHandler handler;
   Worker worker(config, &handler);
 
-  // Initialize should succeed: the worker detects the corrupt cache,
-  // deletes it, and recreates a fresh one.
+  // The open resets the damaged volume in place: healthy start, no
+  // recovery involved.
   EXPECT_TRUE(worker.Initialize())
-      << "Worker should recover from corrupt cache file";
+      << "the worker should start healthy on a damaged volume with no peer";
   EXPECT_NE(worker.cache(), nullptr)
-      << "Cache should be available after recovery";
+      << "the damaged volume should have been reset in place";
 
-  // Verify the cache is functional by writing and reading.
+  // Full size again: the same file, re-initialized.
+  EXPECT_EQ(std::filesystem::file_size(volume_file),
+            static_cast<std::uintmax_t>(volume_size));
+
+  // The reset cache is functional.
   std::string url = "http://example.com/recovery-test";
   std::string content = "recovered content";
   CacheOriginal(worker.cache(), url, content);
   CapabilityMask default_mask;
   std::string read_back = ReadVariant(worker.cache(), url, default_mask);
-  EXPECT_EQ(read_back, content) << "Recovered cache should be fully functional";
+  EXPECT_EQ(read_back, content) << "the reset cache should be fully functional";
 
   worker.Shutdown();
 }
+
+// With a live peer holding the damaged volume, the storage layer needs to
+// reset the volume and another process holds it, so it refuses on purpose
+// (ResetRefusedLivePeer): the cure it names is to drain the peer, not to
+// touch the volume.  The worker must start degraded and delete nothing: a
+// delete-and-recreate would put the two processes on different volume files
+// with no reset signal, and the peer (normally the web-server module) would
+// keep writing an inode the worker never reads, silently losing its writes
+// until the web server restarts (#428).
+//
+// The peer here is an ordinary PageSpeedCache on the same path, standing in
+// for the web-server process that holds the volume while the worker
+// restarts; its shared lifetime lock is what turns the worker's open of the
+// truncated volume into the refusal.
+//
+// POSIX with OFD locks only: macOS has no F_OFD_SETLK, so the storage
+// layer's reset gate degrades there and resets the damaged volume in place
+// even under a peer.  No Windows CI lane runs worker_test today, and
+// truncating a file another process has mapped is refused on Windows in any
+// case, so the _WIN32 arm is deliberately absent.
+#if defined(F_OFD_SETLK)
+TEST_F(WorkerTest, CacheOpenUnderLivePeerStartsDegradedAndDeletesNothing) {
+  const uint64_t volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  {
+    PageSpeedCacheConfig peer_config;
+    peer_config.volume_path = cache_path_;
+    peer_config.volume_size = volume_size;
+    auto peer = PageSpeedCache::Create(peer_config);
+    ASSERT_TRUE(peer.has_value());
+    const std::string volume_file = (*peer)->VolumeFilePath();
+    ASSERT_FALSE(volume_file.empty());
+    ASSERT_NE(volume_file, cache_path_)
+        << "expected the fingerprinted volume path, not the configured one";
+
+    // Truncate the real volume file to less than its 64-byte header: the
+    // shape a full disk or a power loss leaves behind.
+    std::error_code ec;
+    std::filesystem::resize_file(volume_file, 16, ec);
+    ASSERT_FALSE(ec) << "truncate failed: " << ec.message();
+    ASSERT_EQ(std::filesystem::file_size(volume_file),
+              static_cast<std::uintmax_t>(16));
+
+    WorkerConfig config;
+    config.socket_path = socket_path_;
+    config.cache_path = cache_path_;
+    config.cache_size_bytes = volume_size;
+
+    NullMessageHandler handler;
+    Worker worker(config, &handler);
+
+    // Degraded, nothing deleted: the volume file is still the peer's,
+    // untouched at its truncated size.
+    EXPECT_TRUE(worker.Initialize())
+        << "a live peer still starts the worker, degraded";
+    EXPECT_EQ(worker.cache(), nullptr)
+        << "a volume another process holds must not be recovered by deletion";
+    EXPECT_TRUE(std::filesystem::exists(volume_file))
+        << "the volume file a live peer holds was deleted";
+    EXPECT_EQ(std::filesystem::file_size(volume_file),
+              static_cast<std::uintmax_t>(16))
+        << "the volume file a live peer holds was replaced";
+
+    worker.Shutdown();
+  }  // The peer closes last, on its own inode.
+}
+#endif  // defined(F_OFD_SETLK)
+
+#ifndef _WIN32
+// A symlink at the volume path is a refusal, not damage: the open reaches
+// the mode check (which opens the path O_NOFOLLOW and sees ELOOP), Create()
+// reports IoError, and the recovery must not delete anything -- a file this
+// process was refused is not this process's to remove (#428).  POSIX only:
+// the refusal is detected through O_NOFOLLOW/ELOOP and planting a symlink
+// on Windows needs privileges.
+TEST_F(WorkerTest, CacheOpenRefusalDoesNotDeleteTheVolumeFiles) {
+  const uint64_t volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  std::string volume_file;
+  {
+    PageSpeedCacheConfig create_config;
+    create_config.volume_path = cache_path_;
+    create_config.volume_size = volume_size;
+    auto created = PageSpeedCache::Create(create_config);
+    ASSERT_TRUE(created.has_value());
+    volume_file = (*created)->VolumeFilePath();
+  }
+  ASSERT_FALSE(volume_file.empty());
+
+  // Replace the volume with a symlink to a copy of itself: the storage
+  // layer opens the target through the link (a valid volume), and the mode
+  // check refuses the symlink.
+  const std::string decoy = volume_file + ".target";
+  std::error_code ec;
+  std::filesystem::copy_file(volume_file, decoy, ec);
+  ASSERT_FALSE(ec) << "copy failed: " << ec.message();
+  ASSERT_EQ(::unlink(volume_file.c_str()), 0);
+  ASSERT_EQ(::symlink(decoy.c_str(), volume_file.c_str()), 0);
+
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = volume_size;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+
+  // Degraded mode, not recovery: a refusal must not be "fixed" by deleting
+  // the volume files.
+  EXPECT_TRUE(worker.Initialize())
+      << "a refusal still starts the worker, degraded";
+  EXPECT_EQ(worker.cache(), nullptr)
+      << "a refused volume must not be recovered by deletion";
+
+  // Nothing was deleted: the symlink is still in place (a recovery would
+  // have unlinked the name) and so is its target.
+  EXPECT_TRUE(std::filesystem::is_symlink(volume_file))
+      << "the symlinked volume name was deleted for a refusal";
+  EXPECT_TRUE(std::filesystem::exists(decoy))
+      << "the symlink target was deleted for a refusal";
+
+  worker.Shutdown();
+}
+#endif  // !_WIN32
 
 #ifndef _WIN32
 // POSIX only: the cache-directory check is uid/mode-based, and on Windows
