@@ -1821,12 +1821,10 @@ static bool ps_zerocopy_copy_out(ngx_http_request_t* r, ReadResult* rr,
   if (owned == nullptr) {
     return false;  // cannot de-alias safely: fail closed (rare).
   }
-  if (size != 0) {
-    ngx_memcpy(owned, content.data(), size);
-  }
-  const pagespeed::LeaseRenewal rv = rr->renew_lease_strict();
+  const bool ok = pagespeed::ps_barrier::CopyThenVerify(
+      content.data(), size, owned, [rr] { return rr->renew_lease_strict(); });
   rr->release();  // copied out: drop the pin regardless of the verdict.
-  if (rv == pagespeed::LeaseRenewal::kTorn) {
+  if (!ok) {
     pagespeed::RecordZerocopyCopyThenVerifyDiscard(g_serve_stats);
     return false;  // region overwritten mid/pre-copy: torn body.
   }
@@ -1864,11 +1862,9 @@ static bool ps_zerocopy_dealias_tail(ngx_http_request_t* r, ReadResult* rr,
   if (owned == nullptr) {
     return false;
   }
-  if (rem != 0) {
-    ngx_memcpy(owned, src, rem);
-  }
-  const pagespeed::LeaseRenewal rv = rr->renew_lease_strict();
-  if (rv == pagespeed::LeaseRenewal::kTorn) {
+  const bool ok = pagespeed::ps_barrier::CopyThenVerify(
+      src, rem, owned, [rr] { return rr->renew_lease_strict(); });
+  if (!ok) {
     pagespeed::RecordZerocopyCopyThenVerifyDiscard(g_serve_stats);
     return false;
   }

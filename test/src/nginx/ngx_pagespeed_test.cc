@@ -1347,8 +1347,11 @@ class ZeroCopyLiveWrapTest : public ::testing::Test {
     }
     return wh->close_sync().has_value();
   }
-  // Drive Cyclone to a forced-past-lease wrap while the victim's stripe lease is
-  // kept live by re-reading it (mirrors the module's timer re-stamp). Returns
+  // Drive Cyclone to a forced-past-lease wrap while the victim's stripe lease
+  // is kept live by re-reading it: every 8 warm writes AND in the deadline
+  // loop (mirrors the module's timer re-stamp). Without the warm re-reads the
+  // 30s read lease can lapse on a slow (sanitizer) runner, and the wrap over
+  // the victim is then an ordinary wrap that never counts as forced. Returns
   // true once Cyclone reports >= 1 forced wrap.
   bool ForceWrap(const std::string& victim_url) {
     const std::string filler(64 * 1024, 'x');
@@ -1359,11 +1362,21 @@ class ZeroCopyLiveWrapTest : public ::testing::Test {
     // fills start dropping (lease-deferred wrap), so also stop on failure.
     constexpr int kWarmWrites =
         static_cast<int>((10 * 1024 * 1024) / (64 * 1024)) + 8;
+    const auto warm_start = std::chrono::steady_clock::now();
     for (int warm = 0; warm < kWarmWrites; ++warm) {
+      // Re-read the victim so its read lease cannot lapse mid-warm however
+      // slow the runner is (see the comment above).
+      if (warm % 8 == 0) {
+        (void)cache_->ReadBestAlternate(victim_url, "example.com", "https",
+                                        Mask());  // keep the lease live
+      }
       if (!WriteFiller("/warm/" + std::to_string(warm) + ".bin", filler)) {
         break;
       }
     }
+    warm_elapsed_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(
+                           std::chrono::steady_clock::now() - warm_start)
+                           .count();
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(15);
     int attempt = 0;
     while (std::chrono::steady_clock::now() < deadline) {
@@ -1375,9 +1388,22 @@ class ZeroCopyLiveWrapTest : public ::testing::Test {
     }
     return cache_->Stats().wraps_forced_past_lease >= 1;
   }
+
+  // Failure diagnostic for the ForceWrap() asserts: warm-phase duration and
+  // the forced-wrap counter, so a future flake explains itself.
+  std::string WrapFailDiag() const {
+    uint64_t forced = 0;
+    if (cache_) {
+      forced = cache_->Stats().wraps_forced_past_lease;
+    }
+    return "warm " + std::to_string(warm_elapsed_ms_) +
+           " ms, wraps_forced_past_lease " + std::to_string(forced);
+  }
   std::string cache_dir_;
   std::string cache_path_;
   std::unique_ptr<PageSpeedCache> cache_;
+  // Warm-phase duration of the last ForceWrap() call (failure diagnostics).
+  long long warm_elapsed_ms_ = 0;
 };
 
 // F3.1: a live forced wrap under a held alias must drive the barrier to kAbort.
@@ -1398,7 +1424,8 @@ TEST_F(ZeroCopyLiveWrapTest, ForcedWrapDrivesBarrierToAbort) {
                                  psb::kBarrierMarginNs),
             psb::BarrierAction::kAlias);
 
-  ASSERT_TRUE(ForceWrap("/victim.bin")) << "Cyclone never forced a wrap";
+  ASSERT_TRUE(ForceWrap("/victim.bin"))
+      << "Cyclone never forced a wrap (" << WrapFailDiag() << ")";
 
   // The forced wrap moved the stripe epoch: the REAL strict renew now reports
   // kTorn, and the barrier maps that to kAbort — the aliased serve fails closed
@@ -1411,29 +1438,51 @@ TEST_F(ZeroCopyLiveWrapTest, ForcedWrapDrivesBarrierToAbort) {
       << "a torn borrow must ABORT (no foreign bytes on the wire)";
 }
 
-// F3.1: copy-then-verify — a de-alias copy racing a committed wrap is discarded.
-TEST_F(ZeroCopyLiveWrapTest, CopyThenVerifyDiscardsTornCopy) {
-  CreateWrapProneCache();
-  const std::string victim_bytes(4096, 'V');
-  ASSERT_TRUE(WriteFiller("/victim2.bin", victim_bytes));
+// F3.1: copy-then-verify, driven through the ps_barrier::CopyThenVerify seam
+// that ps_zerocopy_copy_out / ps_zerocopy_dealias_tail share. The tear is
+// INJECTED by the verify callback instead of raced for against a live wrap:
+// driving a real Cyclone wrap made the old case fail in its setup on a slow
+// (sanitizer) runner, where the victim's read lease lapsed during the warm
+// phase and the wrap was an ordinary one that never counted as forced.
+// Torn verdict: the callback reports the wrap landing mid-copy (overwriting
+// the source from under the copy); the copy is discarded, never served.
+TEST(ZeroCopyCopyThenVerifyTest, TornVerdictDiscards) {
+  std::string src(4096, 'V');
+  std::string dst(src.size(), '\0');
+  const bool ok =
+      psb::CopyThenVerify(src.data(), src.size(), dst.data(), [&src] {
+        src.assign(src.size(), 'X');
+        return LeaseRenewal::kTorn;
+      });
+  EXPECT_FALSE(ok);
+}
 
-  auto borrow =
-      cache_->ReadBestAlternate("/victim2.bin", "example.com", "https", Mask());
-  ASSERT_TRUE(borrow.has_value());
-  ASSERT_TRUE(borrow->is_valid());
+// Clean path: the copy happens BEFORE verify (the property the protocol
+// depends on), verify returns kOk, and the intact copy is kept.
+TEST(ZeroCopyCopyThenVerifyTest, CleanCopyVerifiesAndKeepsBytes) {
+  const std::string src(4096, 'V');
+  std::string dst(src.size(), '\0');
+  bool verified_after_copy = false;
+  const bool ok = psb::CopyThenVerify(src.data(), src.size(), dst.data(), [&] {
+    verified_after_copy = (dst == src);
+    return LeaseRenewal::kOk;
+  });
+  EXPECT_TRUE(ok);
+  EXPECT_EQ(dst, src);
+  EXPECT_TRUE(verified_after_copy);
+}
 
-  ASSERT_TRUE(ForceWrap("/victim2.bin"));
-
-  // Model ps_zerocopy_copy_out: copy the (now possibly overwritten) aliased
-  // bytes, then re-verify with a strict renew. The wrap already committed, so
-  // the re-check reports kTorn and the module DISCARDS the copy (serve fails
-  // closed) rather than trust/serve possibly-torn bytes.
-  auto content = borrow->content();
-  const std::string owned(reinterpret_cast<const char*>(content.data()),
-                          content.size());
-  EXPECT_EQ(borrow->renew_lease_strict(), LeaseRenewal::kTorn)
-      << "post-copy verify must catch the committed wrap";
-  (void)owned;  // discarded on kTorn — never served
+// Only kTorn discards: the wrap-in-flight and leases-off verdicts keep the
+// (verified) copy, matching the module's copy sites.
+TEST(ZeroCopyCopyThenVerifyTest, NonTornVerdictsKeepTheCopy) {
+  for (const LeaseRenewal verdict :
+       {LeaseRenewal::kCopyNow, LeaseRenewal::kLeasesOff}) {
+    const std::string src(64, 'V');
+    std::string dst(src.size(), '\0');
+    EXPECT_TRUE(psb::CopyThenVerify(src.data(), src.size(), dst.data(),
+                                    [verdict] { return verdict; }))
+        << "verdict " << static_cast<int>(verdict);
+  }
 }
 
 // F3.2: the emit-time copy gate forces copy for h2/h3, Range, subrequests, and
@@ -1496,7 +1545,8 @@ TEST_F(ZeroCopyLiveWrapTest, H2CopyGateServesCorrectBytesUnderWrap) {
 
   // Force a REAL wrap over the borrowed region (the held lease defers it only
   // until the 300ms ceiling).
-  ASSERT_TRUE(ForceWrap("/h2.bin")) << "Cyclone never forced a wrap";
+  ASSERT_TRUE(ForceWrap("/h2.bin"))
+      << "Cyclone never forced a wrap (" << WrapFailDiag() << ")";
 
   // The wrap genuinely invalidated the aliased view: had we served the alias
   // (the non-gated path), these would be foreign bytes.

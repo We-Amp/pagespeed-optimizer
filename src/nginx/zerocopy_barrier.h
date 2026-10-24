@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "lib/cache/cache.h"  // pagespeed::LeaseRenewal, ReadResult::kNoForcedWrap
 
@@ -124,6 +125,20 @@ constexpr SendfileTailSpan MapSendfileTail(std::uint64_t file_pos,
     return {false, 0, 0};
   }
   return {true, static_cast<size_t>(offset), static_cast<size_t>(length)};
+}
+
+// Copy-then-verify core of ps_zerocopy_copy_out / ps_zerocopy_dealias_tail:
+// memcpy src->dst, THEN call verify() (the strict lease renew). Returns false
+// (discard) on a kTorn verdict: the region may have been overwritten mid-copy.
+// verify is a seam: production passes rr->renew_lease_strict, tests inject the
+// verdict (and the torn source) deterministically instead of racing for it.
+template <typename Verify>
+inline bool CopyThenVerify(const void* src, size_t n, void* dst,
+                           Verify&& verify) {
+  if (n != 0) {
+    std::memcpy(dst, src, n);
+  }
+  return verify() != LeaseRenewal::kTorn;
 }
 
 // Repoint a (fully or partially) aliased buffer at request-owned memory after
