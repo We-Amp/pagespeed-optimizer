@@ -299,7 +299,7 @@ void PrintUsage(const char* program) {
          "enable\n"
       << "  --agent-optimize-llms-txt  Publish a synthesized /llms.txt site "
          "index\n"
-         "                             (implies --agent-optimize)\n"
+         "                             (requires --agent-optimize)\n"
       << "  --agent-optimize-sitemap-url URL  Sitemap to build /llms.txt from\n"
       << "  --[no-]agent-optimize-respect-ai-directives  Honor robots AI rules "
          "(default: on)\n"

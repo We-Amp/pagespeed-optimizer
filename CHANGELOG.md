@@ -4,6 +4,8 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: the optimizer worker's `--help` text said `--agent-optimize-llms-txt` implies `--agent-optimize`. It does not: `/llms.txt` is published only when both flags are set, so the help now says the flag requires `--agent-optimize`.
+
 Fixed: with the nginx module, a compressed (gzip or Brotli) optimized response
 served right after the origin confirmed it unchanged (a 304 cache revalidation,
 visible as `X-PageSpeed: REVALIDATED`) was sent without its `Content-Encoding`
