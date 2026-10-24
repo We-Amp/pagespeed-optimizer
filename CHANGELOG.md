@@ -97,6 +97,13 @@ Fixed: when an origin that was already cached and optimized starts sending
 `Vary: Accept` for a URL, the optimized copies stored before the change were
 kept and kept being served until a purge. They are now dropped at the next
 origin refresh, and the URL is served as the origin sends it.
+Fixed: C API: `ps_notify_worker` now reports an invalid-argument error for a
+notification that cannot be serialized instead of success. This includes a
+scheme other than "http" or "https", which `ps_notify_worker` now rejects up
+front exactly like `ps_notify_worker_ex` always did; previously such a call
+opened a connection, sent nothing, and returned success. Embedders of the
+public C API are affected; the nginx module does not use this entry point and
+is not affected.
 
 ## 2.5.2 - 2026-10-21
 

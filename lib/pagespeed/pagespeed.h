@@ -1346,6 +1346,15 @@ ps_parse_cache_control(const char* header_value, ps_cache_control_t* out);
 
 /* ---------- worker notification ---------- */
 
+/* Send a fire-and-forget notification to the worker over the socket at
+ * `socket_path`: new content has been recorded in the cache and is ready to
+ * be optimized. `scheme` must be "http" or "https".
+ *
+ * Returns PS_ERR_INVALID_ARG if `socket_path`, url, hostname or scheme is
+ * NULL, if scheme is neither "http" nor "https", if the content type is out
+ * of range, or if the notification cannot be serialized; no connection is
+ * attempted in any of those cases. PS_ERR_IO if the notification could not
+ * be delivered. */
 PS_EXPORT PS_NODISCARD ps_error_t ps_notify_worker(
     const char* socket_path, const char* url, const char* hostname,
     const char* scheme, ps_content_type_t content_type, uint32_t mask);
@@ -1468,9 +1477,10 @@ PS_EXPORT void ps_notify_params_init_sized(ps_notify_params_t* params,
  * Returns PS_ERR_INVALID_ARG if `socket_path` or `params` is NULL, if
  * `params->struct_size` is unset or smaller than its first field, if url,
  * hostname or scheme is NULL, if scheme is neither "http" nor "https", if the
- * content type is out of range, or if the options context violates any of the
- * rules documented on the struct. PS_ERR_IO if the notification could not be
- * delivered. */
+ * content type is out of range, if the options context violates any of the
+ * rules documented on the struct, or if the notification cannot be
+ * serialized; no connection is attempted in any of those cases. PS_ERR_IO if
+ * the notification could not be delivered. */
 PS_EXPORT PS_NODISCARD ps_error_t
 ps_notify_worker_ex(const char* socket_path, const ps_notify_params_t* params);
 

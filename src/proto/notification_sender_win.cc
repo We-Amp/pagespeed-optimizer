@@ -125,14 +125,25 @@ NotificationSendResult SendNotification(std::string_view socket_path,
     return result;
   }
 
+  // Serialize before connecting: an empty serialization means Serialize
+  // refused the notification (bad scheme, oversized fields, half an option
+  // context), and no connection could deliver it. Connecting first would open
+  // a connection only to write nothing and report success.
+  std::vector<char> data = notification.Serialize();
+  if (data.empty()) {
+    result.invalid_argument = true;
+    result.error_message =
+        "Notification could not be serialized (invalid scheme or field "
+        "lengths)";
+    return result;
+  }
+
   std::string pipe_name = ToPipeName(socket_path);
 
   HANDLE h = ConnectPipe(pipe_name, result);
   if (h == INVALID_HANDLE_VALUE) {
     return result;
   }
-
-  std::vector<char> data = notification.Serialize();
 
   if (!WriteAll(h, data.data(), data.size())) {
     CloseHandle(h);

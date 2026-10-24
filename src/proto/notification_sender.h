@@ -26,11 +26,18 @@ struct NotificationSendResult {
   std::string error_message;
   int retries_attempted = 0;
   int connect_errno = 0;  // errno from connect() if it failed
+  // True when the notification itself was refused: Serialize produced no
+  // bytes, so no connection and no retry could deliver it. Everything else
+  // is a delivery (IO) failure, so callers map this field to their
+  // invalid-argument error.
+  bool invalid_argument = false;
 };
 
 // Send a CacheNotification to the worker via Unix socket.
 // This is fire-and-forget: no response is expected.
 // The function connects, sends, and closes in one call.
+// A notification that cannot be serialized fails without connecting
+// (invalid_argument set on the result).
 [[nodiscard]] NotificationSendResult SendNotification(
     std::string_view socket_path, const CacheNotification& notification);
 
