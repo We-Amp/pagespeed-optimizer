@@ -576,6 +576,31 @@ class TestRevalidatedStatusLine:
         assert status_line == "HTTP/1.1 200 OK", status_line
         assert body == hit.content
 
+    def test_revalidated_serve_matches_the_hit_etag(self, client, origin_client):
+        """The same bytes carry the same ETag on a HIT and on a revalidated
+        serve: a client holding the HIT copy gets a 304 once the origin has
+        confirmed the stale entry, instead of a full 200."""
+        path = "/sidecar/reval.css"
+        serve_control(origin_client, rp="no-referrer")
+        hit = optimized_hit(client, origin_client, path)
+        hit_etag = hit.headers.get("ETag")
+        assert hit_etag and hit_etag.startswith('W/"ps-'), hit.headers
+
+        time.sleep(2.5)  # past max-age=1: the entry is stale
+        status_line, header_lines, body = raw_get(path, {"If-None-Match": hit_etag})
+        assert status_line == "HTTP/1.1 304 Not Modified", status_line
+        assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
+        assert raw_header(header_lines, "ETag") == [hit_etag]
+        assert body == b""
+
+        # Without the conditional header the revalidated 200 carries the
+        # same tag.
+        time.sleep(2.5)
+        revalidated = client.get(path, headers=IDENTITY)
+        assert revalidated.status_code == 200
+        assert x_pagespeed(revalidated) == "REVALIDATED", revalidated.headers
+        assert revalidated.headers.get("ETag") == hit_etag
+
 
 class TestRevalidatedUnstorable:
     """A 304 to the module's own revalidation that makes the entry no longer
