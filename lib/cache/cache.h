@@ -1058,7 +1058,15 @@ class PageSpeedCache {
   // in-flight read/write operations complete.
   // Increments the generation file ({volume_path}.gen) on success so
   // that other processes (e.g., nginx) can detect the reset.
-  [[nodiscard]] std::expected<void, cyclone::CacheError> ResetVolume();
+  //
+  // Fails, without changing the generation, when the volume files could not
+  // be removed (see RemoveVolumeFiles): the volume is reattached so this
+  // object keeps serving its old entries, CacheError::Busy is returned, and
+  // `detail`, when given, receives an operator-facing explanation.  If no
+  // cache could be reopened at all, the object answers NotInitialized (or a
+  // miss) from every method until a later reset succeeds.
+  [[nodiscard]] std::expected<void, cyclone::CacheError> ResetVolume(
+      std::string* detail = nullptr);
 
   // Read the generation counter from a .gen file.
   // Returns 0 if the file is missing or unreadable.
@@ -1086,7 +1094,13 @@ class PageSpeedCache {
   //
   // Consequence: nothing in this process reclaims another format's volume.
   // Deleting it is an operator step, and the upgrade guide says so.
-  static void RemoveVolumeFiles(const std::string& volume_path);
+  //
+  // Returns false when a file that exists could not be removed (on Windows,
+  // typically because another process has it open); the first such path is
+  // stored in `failed_path` when given.  A file that is already absent counts
+  // as removed.  The remaining files are still attempted.
+  static bool RemoveVolumeFiles(const std::string& volume_path,
+                                std::string* failed_path = nullptr);
 
   // Classify a Create() failure: true iff the on-disk volume itself is
   // damaged, so a delete-and-recreate retry (RemoveVolumeFiles + Create)
