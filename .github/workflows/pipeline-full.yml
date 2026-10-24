@@ -759,21 +759,16 @@ jobs:
             "sharedlib:${GITHUB_WORKSPACE}/.ci-artifacts/libpagespeed.so"
 
       # SDK 10 ships reference packs for both net8.0 and net10.0, the target
-      # framework matrix of the managed packages. The installer goes to the
-      # runner user's home, which is on no default PATH, so export first and
-      # let the guard see an SDK left by an earlier job.
+      # framework matrix of the managed packages. The later steps put
+      # $HOME/.dotnet first on PATH, so the pinned action installs there
+      # (its Linux default, /usr/share/dotnet, may not be writable by the
+      # runner user and would leave an older SDK in $HOME/.dotnet in front).
       - name: Ensure .NET 10 SDK
-        run: |
-          export PATH="$HOME/.dotnet:$PATH"
-          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
-          if dotnet --list-sdks 2>/dev/null | grep -q '10\.'; then
-            echo ".NET 10 SDK already installed"
-          else
-            echo "Installing .NET 10 SDK..."
-            curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
-            bash "${RUNNER_TEMP}/dotnet-install.sh" --channel 10.0
-          fi
-          dotnet --list-sdks
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          DOTNET_INSTALL_DIR: ~/.dotnet
+        with:
+          dotnet-version: 10.0.x
 
       - name: Pack NuGet packages
         run: |
@@ -1381,18 +1376,9 @@ jobs:
 
       # SDK 10 ships reference packs for both net8.0 and net10.0.
       - name: Ensure .NET 10 SDK
-        shell: powershell
-        run: |
-          $sdks = & "C:\Program Files\dotnet\dotnet.exe" --list-sdks 2>&1
-          if ($sdks -match '10\.') {
-            Write-Host ".NET 10 SDK already installed"
-          } else {
-            Write-Host "Installing .NET 10 SDK..."
-            $installer = "$env:TEMP\dotnet-install.ps1"
-            Invoke-WebRequest -Uri 'https://dot.net/v1/dotnet-install.ps1' -OutFile $installer
-            & $installer -Channel 10.0 -InstallDir "C:\Program Files\dotnet"
-          }
-          "C:\Program Files\dotnet" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
 
       - name: Pack NuGet packages
         shell: bash
@@ -1608,17 +1594,11 @@ jobs:
             "sharedlib:${GITHUB_WORKSPACE}/.ci-artifacts/libpagespeed.so"
 
       - name: Ensure .NET 10 SDK
-        run: |
-          export PATH="$HOME/.dotnet:$PATH"
-          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
-          if dotnet --list-sdks 2>/dev/null | grep -q '10\.'; then
-            echo ".NET 10 SDK already installed"
-          else
-            echo "Installing .NET 10 SDK..."
-            curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
-            bash "${RUNNER_TEMP}/dotnet-install.sh" --channel 10.0
-          fi
-          dotnet --list-sdks
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          DOTNET_INSTALL_DIR: ~/.dotnet
+        with:
+          dotnet-version: 10.0.x
 
       - name: Pack NuGet packages
         run: |

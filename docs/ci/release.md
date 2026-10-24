@@ -31,7 +31,7 @@ workflow artifacts. It creates no release and no tag, pushes nothing to
 nuget.org, sends no notification and never enters the `release`
 environment, so it needs no approval.
 
-- Optimizer lane: the five packages and `SHA256SUMS`, validated fail-closed
+- Optimizer lane: the four packages, the win-x64 zip and `SHA256SUMS`, validated fail-closed
   (artifact `optimizer-release-dist`). The tag may not exist yet; the lane
   then builds the dispatched ref. The ref guard reports its verdict and
   does not stop a dry run.

@@ -258,17 +258,9 @@ jobs:
             "sharedlib:${GITHUB_WORKSPACE}/.ci-artifacts/libpagespeed.dylib"
 
       - name: Ensure .NET 10 SDK
-        run: |
-          export PATH="$HOME/.dotnet:$PATH"
-          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
-          if dotnet --list-sdks 2>/dev/null | grep -q '10\.'; then
-            echo ".NET 10 SDK already installed"
-          else
-            echo "Installing .NET 10 SDK..."
-            curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
-            bash "${RUNNER_TEMP}/dotnet-install.sh" --channel 10.0
-          fi
-          dotnet --list-sdks
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
 
       - name: Pack NuGet packages
         run: |
