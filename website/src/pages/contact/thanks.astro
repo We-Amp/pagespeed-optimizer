@@ -15,7 +15,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
       An engineer replies within one business day (CET).
     </p>
     <div class="mt-10 flex flex-wrap justify-center gap-4">
-      <a href="/" class="btn-primary" data-umami-event="cta_thanks_home">
+      <a id="thanks-back" href="/" class="btn-primary" data-umami-event="cta_thanks_home">
         Back to the home page
       </a>
       <a href="/contact/" class="btn-secondary" data-umami-event="cta_thanks_contact">
@@ -24,3 +24,17 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
     </div>
   </section>
 </BaseLayout>
+
+<script>
+  // Point the first button back at the page the visitor came from, when the
+  // `from` or `redirect` query value is a safe root-relative path.
+  import { safeReturnPath } from '../../lib/return-path';
+
+  const params = new URLSearchParams(window.location.search);
+  const target = safeReturnPath(params.get('from')) ?? safeReturnPath(params.get('redirect'));
+  const link = document.getElementById('thanks-back');
+  if (link && target && !target.startsWith('/contact/thanks')) {
+    link.setAttribute('href', target);
+    link.textContent = 'Back to where you were';
+  }
+</script>

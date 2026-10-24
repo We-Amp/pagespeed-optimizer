@@ -5,7 +5,7 @@
 // pages and the contact page, checked against the built output. Skips itself
 // before `npm run build`, like scan-landing-seo.test.ts.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { parse, parseFragment } from 'parse5';
@@ -87,5 +87,18 @@ describe.skipIf(!BUILT)('no-JavaScript inquiry forms (built output)', () => {
     for (const n of ['email', 'name', 'topic', 'message', 'company']) expect(names).toContain(n);
     // The page-load timestamp is filled by script, so it is empty in the HTML.
     expect(attr(hidden(form, 't')!, 'value')).toBe('');
+  });
+});
+
+describe.skipIf(!BUILT)('/contact/thanks/ (built output)', () => {
+  it('is noindex, stays out of the sitemap and links back home by default', () => {
+    const page = html('/contact/thanks/');
+    expect(page).toMatch(/<meta[^>]+name="robots"[^>]+noindex/);
+    const doc = parse(page) as unknown as Node;
+    const back = all(doc, 'a').find((a) => attr(a, 'id') === 'thanks-back')!;
+    expect(attr(back, 'href')).toBe('/');
+    for (const f of readdirSync(DIST).filter((n) => /^sitemap.*\.xml$/.test(n))) {
+      expect(readFileSync(path.join(DIST, f), 'utf8')).not.toContain('/contact/thanks/');
+    }
   });
 });
