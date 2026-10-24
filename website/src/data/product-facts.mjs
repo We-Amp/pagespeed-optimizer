@@ -429,6 +429,57 @@ export function editionClause(formats = IMAGE_FORMAT_SUPPORT.map((r) => r.format
 // 2.0-derived list, so the public contract does not move.
 export const IMAGE_FORMATS = /* @__PURE__ */ formatsFor(CURRENT_LINE);
 
+// --- Capability support (the non-format facts the exclusivity rules guard) ----
+//
+// The machine-checkable counterpart of IMAGE_FORMAT_SUPPORT for the capabilities
+// that copy keeps trying to fence to 2.0. test/content-accuracy.test.ts ties
+// each exclusivity rule to one of these rows (its "anchor"), so a change to a
+// fact fails the test that names it instead of leaving a rule enforcing a fact
+// that stopped being true. Same allowlist discipline as the format table: an
+// absent edition is an edition we do not claim, and Envoy never appears.
+//
+// Editions are the marketing line labels (V1_LINE, V2_LINE), as in the format
+// table. Ports are listed only where the product source states them.
+export const CAPABILITY_SUPPORT = [
+  {
+    // Zero-copy serving from the Cyclone cache, opt-in via CycloneZeroCopy /
+    // CycloneZeroCopyServe; on the 1.15 line as of v1.15.0+r19.
+    capability: 'zero-copy-serving',
+    editions: {
+      [V1_LINE]: { ports: ['nginx', 'Apache', 'IIS'] },
+      [V2_LINE]: {},
+    },
+  },
+  {
+    // The cache varies on client capability: image format, mobile UA,
+    // Save-Data and small-screen on the 1.15 line.
+    capability: 'variant-aware-caching',
+    editions: {
+      [V1_LINE]: {},
+      [V2_LINE]: {},
+    },
+  },
+];
+
+/** Edition labels that carry `capability`, in table order. */
+export function capabilityEditions(capability) {
+  const row = CAPABILITY_SUPPORT.find((r) => r.capability === capability);
+  return Object.keys(row?.editions ?? {});
+}
+
+// What IS 2.0-only is narrower than the categories above. Copy may fence these
+// to 2.0, and the exclusivity rules deliberately do not flag a sentence that
+// names one of them. Each entry is a plain-language label, not a regex.
+export const V2_ONLY_PROPERTIES = [
+  'tablet and desktop viewport classes',
+  'pixel density (Sec-CH-DPR) in the cache key',
+  'transfer-encoding alternates',
+  'proactive generation of the full variant matrix',
+  'SVG auto-vectorization',
+  'Jpegli',
+  'ML-predicted quality',
+];
+
 // --- Native packages (the signed apt/yum repository) -------------------------
 // The package names the repository serves; the release manifest carries the
 // repository URL and the release version, not these names. The generated
