@@ -17,8 +17,9 @@
 
 namespace pagespeed {
 
-// Maximum time (ms) to wait for connect + write to complete.
-// This bounds the worst-case stall of the nginx worker process.
+// Maximum time (ms) to wait for connect + write to complete. This bounds
+// each individual wait, not the whole send: the timer restarts whenever a
+// write makes progress.
 static constexpr int kSendTimeoutMs = 50;
 
 // Create a non-blocking Unix stream socket and connect it to socket_path,
