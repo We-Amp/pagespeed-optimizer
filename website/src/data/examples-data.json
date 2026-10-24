@@ -4527,7 +4527,7 @@
       "attempts": 2,
       "psHeader": "1.16.0-rc.5",
       "before": {
-        "html": "<!-- This example demonstrates proxying & optimizing a resource served on\n     another domain — gstatic.com, which does not run PageSpeed. -->\n\n<!--\n   A sample photo hosted on Google's static content server\n   (www.gstatic.com). With ModPagespeedMapProxyDomain configured on this vhost\n   (see corp deploy/CLAUDE.md), PageSpeed rewrites the reference to a same-\n   origin, recompressed, long-cacheable URL served from this domain.\n-->\n<img src=\"https://www.gstatic.com/webp/gallery/2.jpg\" width=\"550\" height=\"404\"/>\n",
+        "html": "<!-- This example demonstrates proxying & optimizing a resource served on\n     another domain — gstatic.com, which does not run PageSpeed. -->\n\n<!--\n   A sample photo hosted on Google's static content server\n   (www.gstatic.com). With ModPagespeedMapProxyDomain configured on this vhost\n   (to proxy the image), PageSpeed rewrites the reference to a same-\n   origin, recompressed, long-cacheable URL served from this domain.\n-->\n<img src=\"https://www.gstatic.com/webp/gallery/2.jpg\" width=\"550\" height=\"404\"/>\n",
         "htmlBytes": 519,
         "requestCount": 2,
         "resourceCount": 1,
@@ -4535,7 +4535,7 @@
         "resourcesMeasured": 1
       },
       "after": {
-        "html": "<!-- This example demonstrates proxying & optimizing a resource served on\n     another domain — gstatic.com, which does not run PageSpeed. -->\n\n<!--\n   A sample photo hosted on Google's static content server\n   (www.gstatic.com). With ModPagespeedMapProxyDomain configured on this vhost\n   (see corp deploy/CLAUDE.md), PageSpeed rewrites the reference to a same-\n   origin, recompressed, long-cacheable URL served from this domain.\n-->\n<head/><img src=\"https://demo-httpd-1.1.modpagespeed.com/gstatic/x2.jpg.pagespeed.ic.c1VMOX81-x.avif\" width=\"550\" height=\"404\"/>\n<script type=\"speculationrules\">{\"prefetch\":[{\"where\":{\"href_matches\":\"/*\"},\"eagerness\":\"moderate\"}]}</script>",
+        "html": "<!-- This example demonstrates proxying & optimizing a resource served on\n     another domain — gstatic.com, which does not run PageSpeed. -->\n\n<!--\n   A sample photo hosted on Google's static content server\n   (www.gstatic.com). With ModPagespeedMapProxyDomain configured on this vhost\n   (to proxy the image), PageSpeed rewrites the reference to a same-\n   origin, recompressed, long-cacheable URL served from this domain.\n-->\n<head/><img src=\"https://demo-httpd-1.1.modpagespeed.com/gstatic/x2.jpg.pagespeed.ic.c1VMOX81-x.avif\" width=\"550\" height=\"404\"/>\n<script type=\"speculationrules\">{\"prefetch\":[{\"where\":{\"href_matches\":\"/*\"},\"eagerness\":\"moderate\"}]}</script>",
         "htmlBytes": 677,
         "requestCount": 2,
         "resourceCount": 1,
@@ -4555,7 +4555,7 @@
         },
         {
           "t": " ",
-          "s": "   (see corp deploy/CLAUDE.md), PageSpeed rewrites the reference to a same-"
+          "s": "   (to proxy the image), PageSpeed rewrites the reference to a same-"
         },
         {
           "t": " ",
