@@ -211,6 +211,57 @@ CUR=push-root-commit-runs
 run_scope CI_SCOPE=push
 check "${CUR}" true "pipeline_change=true"
 
+# Rename detection and the multi-commit push range.
+rename_repo() { # <from> <to>: a root commit holding <from>, then a commit moving it to <to>
+  rm -rf "${REPO}"
+  git init -q "${REPO}"
+  git -C "${REPO}" config user.email t@example.invalid
+  git -C "${REPO}" config user.name t
+  mkdir -p "${REPO}/$(dirname "$1")" "${REPO}/$(dirname "$2")"
+  echo x > "${REPO}/$1"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -q -m "root"
+  git -C "${REPO}" mv "$1" "$2"
+  git -C "${REPO}" commit -q -m "move"
+  SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
+}
+
+rename_repo tools/ci/a.sh docs/a.sh
+CUR=push-rename-out-of-tools-ci-runs
+run_scope CI_SCOPE=push
+check "${CUR}" true "pipeline_change=true" "would_skip=false"
+
+# Three commits, the pipeline change in the first of them.
+make_repo
+BEFORE_VAL="$(git -C "${REPO}" rev-parse HEAD)"
+for f in tools/ci/a.sh src/b.cc docs/c.md; do
+  mkdir -p "${REPO}/$(dirname "${f}")"
+  echo x > "${REPO}/${f}"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -q -m "change ${f}"
+done
+SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
+CUR=push-batch-nontip-pipeline-change-runs
+run_scope CI_SCOPE=push BEFORE_SHA="${BEFORE_VAL}"
+check "${CUR}" true "pipeline_change=true" "would_skip=false"
+CUR=push-batch-tip-only-would-miss
+run_scope CI_SCOPE=push
+check "${CUR}" false "pipeline_change=false"
+
+CUR=push-before-unreachable-runs
+run_scope CI_SCOPE=push BEFORE_SHA=1111111111111111111111111111111111111111
+check "${CUR}" true "pipeline_change=true"
+
+CUR=push-before-zero-runs
+run_scope CI_SCOPE=push BEFORE_SHA=0000000000000000000000000000000000000000
+check "${CUR}" true "pipeline_change=true"
+
+# The path filter of the workflow's diff step: the source of a rename is listed.
+rename_repo src/x.cc docs/x.cc
+CUR=pr-rename-filter-sees-source
+listed="$(git -C "${REPO}" diff --no-renames --name-only HEAD^...HEAD)"
+if [ "${listed}" = "$(printf 'docs/x.cc\nsrc/x.cc')" ]; then pass "${CUR}"; else fail "${CUR}: listed '${listed}'"; fi
+
 make_repo src/a.cc
 CUR=pull-request-at-push-scope-runs
 run_scope CI_SCOPE=push GITHUB_EVENT_NAME=pull_request

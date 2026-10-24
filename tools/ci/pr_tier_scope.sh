@@ -12,7 +12,9 @@
 #
 # Env: GITHUB_EVENT_NAME, GITHUB_REPOSITORY, CI_SCOPE (the repository
 # variable), SHA (the commit under test), GH_TOKEN (checks: read),
-# FORK_OR_BOT, PR_FULL. Run from a checkout of SHA with its parent commit.
+# FORK_OR_BOT, PR_FULL, BEFORE_SHA (the push's previous tip, optional). Run
+# from a checkout of SHA with its parent commit; with BEFORE_SHA, also with
+# that commit.
 #
 # Stdout: exactly two lines, `fleet=<true|false>` and `heavy=<true|false>`.
 # Everything else goes to stderr: one `fleet scope:` line and, on a push, one
@@ -40,13 +42,27 @@ fleet=true
 heavy=true
 reason="event ${event:-none}"
 
-# pipeline_change: the pushed commit touches the PR tier's own definition,
-# or it has no parent to compare with.
+# pipeline_change: the push touches the PR tier's own definition, or there is
+# no sound range to compare. With BEFORE_SHA set (a push carries up to a few
+# squashed commits), the range is BEFORE_SHA..HEAD; an all-zero or unreachable
+# BEFORE_SHA is a change. Without it, the range is HEAD^..HEAD. Renames are not
+# detected: git lists only the destination of a rename by default, which would
+# hide a move out of a pipeline path.
 pipeline_change() {
-  local changed
+  local changed base
   git rev-parse -q --verify "HEAD^{commit}" >/dev/null 2>&1 || return 0
-  git rev-parse -q --verify "HEAD^^{commit}" >/dev/null 2>&1 || return 0
-  changed="$(git diff --name-only HEAD^ HEAD 2>/dev/null)" || return 0
+  if [ -n "${BEFORE_SHA:-}" ]; then
+    case "${BEFORE_SHA}" in
+      *[!0]*) ;;
+      *) return 0 ;;
+    esac
+    git rev-parse -q --verify "${BEFORE_SHA}^{commit}" >/dev/null 2>&1 || return 0
+    base="${BEFORE_SHA}"
+  else
+    git rev-parse -q --verify "HEAD^^{commit}" >/dev/null 2>&1 || return 0
+    base="HEAD^"
+  fi
+  changed="$(git diff --no-renames --name-only "${base}" HEAD 2>/dev/null)" || return 0
   # A here-string, not a pipe: grep -q exits at the first match, and under
   # pipefail a writer killed by SIGPIPE would turn a match into a miss.
   grep -qE '^(\.github/workflows/(pipeline-pr|ci)\.yml$|\.github/actions/|tools/ci/)' <<< "${changed}"

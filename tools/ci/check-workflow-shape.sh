@@ -591,6 +591,7 @@ fs_expected() {
     '          CI_SCOPE: ${{ vars.CI_SCOPE }}' \
     '          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
     '          SHA: ${{ github.sha }}' \
+    '          BEFORE_SHA: ${{ github.event.before }}' \
     "          FORK_OR_BOT: \${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}" \
     "          PR_FULL: \${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:pr-full') }}" \
     '        run: |' \
@@ -642,6 +643,16 @@ for wf in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
       fs_err "the changes job must publish '${o}: \${{ steps.scope.outputs.${o} }}'"
     fi
   done
+  # Every git diff in the changes job (the path-filter diff step) must be the
+  # pinned form: without --no-renames, a rename lists only its destination and
+  # a move out of a filtered path would go unseen.
+  while IFS= read -r dl; do
+    dl="${dl#"${dl%%[![:space:]]*}"}"
+    # shellcheck disable=SC2016  # the text to match carries literal ${...}
+    if [ "${dl}" != 'git diff --no-renames --name-only "${BASE}...HEAD" > "${changed}"' ]; then
+      fs_err "a git diff in the changes job must be exactly 'git diff --no-renames --name-only \"\${BASE}...HEAD\" > \"\${changed}\"'"
+    fi
+  done < <(printf '%s\n' "${job}" | grep -vE '^[[:space:]]*#' | grep -E 'git[[:space:]]+diff' || true)
   # No other read of the script, in any spelling, outside the scope step.
   rest="$(awk -v n="      - name: ${FS_STEP}" '
     $0 == n { skip = 1; next }
