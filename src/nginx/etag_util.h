@@ -10,13 +10,15 @@
 // Format:
 //   With stored content identity (see ContentIdentity64):
 //     W/"ps-<mask8><flags2>-<identity16>-<length16>"
-//   Without any identity signal:
-//     W/"ps-<mask8><flags2>-<length16>"
-//   The no-signal arm covers two populations: pre-v7 cache entries (which
-//   age out) and entries from origins that emit neither ETag nor
-//   Last-Modified and are not agent-optimized (a permanent population —
-//   for those, length remains the only content discriminator and a
-//   same-length revision still reuses its tag).
+//   Without any identity signal: NO ETag is emitted (FormatHitETag
+//     returns 0).  A mask+flags+length-only tag would validate any
+//     revision of the same optimized length, answering 304 for changed
+//     bytes (a false 304 pins a stale copy at the client); an absent
+//     validator can never do that.  The no-signal arm covers pre-v7 cache entries
+//     (which age out) and entries from origins that emit neither ETag nor
+//     Last-Modified that the worker has not stamped (the worker stamps
+//     every variant it writes from a raw origin input, so this population
+//     shrinks to entries it has not yet processed).
 //
 // Rationale (RFC 9110 §8.8.3 — an entity tag identifies one representation):
 //   * <mask8><flags2> pins the representation recipe: capability mask
@@ -37,14 +39,9 @@
 //     conditional-request comparison needs to distinguish.  The validator
 //     stays weak because the module cannot promise byte-identity across
 //     re-optimizations of the same source.
-//   * <length16> is kept as a cheap secondary discriminator (it is the only
-//     content signal legacy entries have, and it still catches revisions on
-//     entries whose origin re-uses validators incorrectly).
-//   * The legacy arm emits the EXACT pre-identity format so pre-v7 cache
-//     entries keep their historical tags (no cold-cache revalidation storm),
-//     while entries that do carry identity change tag shape once — a
-//     returning client's If-None-Match with the old tag then misses and
-//     receives a one-time full 200 (correct direction).
+//   * <length16> is kept as a cheap secondary discriminator (it still
+//     catches revisions on entries whose origin re-uses validators
+//     incorrectly).
 
 #include <cstddef>
 #include <cstdint>
@@ -68,13 +65,17 @@ inline constexpr size_t kHitETagBufSize = 52;
 //      domain separator, and the Last-Modified timestamp.  Opaque, cheap,
 //      and refreshed by the revalidation restamp path whenever the origin
 //      revises its validators.
-//   3. nullopt: caller must fall back to the legacy mask+flags+length tag.
+//   3. nullopt: caller must emit no ETag at all (never a length-only tag,
+//      which would validate a same-length revision of the same variant).
 std::optional<uint64_t> ContentIdentity64(const AlternateMetadata& meta);
 
 // Formats the weak ETag for a cache-HIT response into buf.
 // body_len is the size of the encoded variant bytes actually served.
 // Returns the number of characters written (excluding the NUL), or 0 when
-// buf_size is too small (callers must suppress the header, never truncate).
+// buf_size is too small (callers must suppress the header, never truncate)
+// or when the metadata carries no content-identity signal (the caller must
+// then emit no ETag header; with no tag there is no 304, so a stale copy
+// can never be confirmed).
 size_t FormatHitETag(const AlternateMetadata& meta, size_t body_len, char* buf,
                      size_t buf_size);
 

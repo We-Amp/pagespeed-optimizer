@@ -28,6 +28,7 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include <unistd.h>
 #endif
 
+#include <array>
 #include <chrono>
 #include <cstdarg>
 #include <cstdint>
@@ -36,6 +37,7 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -46,6 +48,7 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
+#include "sha256.hpp"
 #include "src/browser/optimization_profile.h"
 #include "src/browser/template_detector.h"
 #include "src/proto/worker_ipc.h"
@@ -115,6 +118,13 @@ inline constexpr std::chrono::minutes kWorkerStallBudget{
 
 // Helper to read a test image file into a string.
 std::string ReadTestFile(const std::string& filename);
+
+// SHA-256 of a byte string, the same value the worker stamps into
+// AlternateMetadata::origin_html_hash (issue #434).
+inline std::array<std::byte, 32> Sha256Of(std::string_view content) {
+  return cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+      reinterpret_cast<const std::byte*>(content.data()), content.size()));
+}
 
 // Helper: open a cross-platform IPC pipe connection to the worker
 intptr_t ConnectToSocket(const std::string& path);
@@ -259,7 +269,9 @@ class WorkerTest : public ::testing::Test {
   // URL is normalized to path-only (matching worker's NormalizeCacheUrl).
   void CacheOriginal(PageSpeedCache* cache, const std::string& url,
                      const std::string& content,
-                     const std::string& hostname = "", uint8_t flags = 0) {
+                     const std::string& hostname = "", uint8_t flags = 0,
+                     const std::array<std::byte, 32>* source_binding = nullptr,
+                     const std::string& origin_content_type = "") {
     std::string effective_url = StripSchemeAuthority(url);
     CapabilityMask default_mask;  // Desktop/Identity = 0x08
     AlternateId id =
@@ -267,7 +279,11 @@ class WorkerTest : public ::testing::Test {
     AlternateMetadata meta;
     meta.full_mask = default_mask.Encode();
     meta.content_type = ContentType::kOther;
+    meta.origin_content_type = origin_content_type;
     meta.flags = flags;
+    if (source_binding != nullptr) {
+      meta.origin_html_hash = *source_binding;
+    }
     auto wh = cache->WriteAlternate(effective_url, hostname, "https", id,
                                     content.size(), meta);
     ASSERT_TRUE(wh.has_value()) << "Failed to open write handle";
@@ -382,6 +398,40 @@ class WorkerTest : public ::testing::Test {
         std::string(reinterpret_cast<const char*>(content.data()),
                     content.size()),
         result->metadata};
+  }
+
+  // Issue #434 source-binding property checker: walk the URL's whole
+  // alternate family and assert that every WORKER-WRITTEN variant (flags
+  // carry kFlagWorkerProcessed) carries |expected| in
+  // metadata.origin_html_hash.  The front end's own recording (flag clear)
+  // keeps its all-zero binding by design: it is not a worker variant, and
+  // the serve path falls to the origin validators or emits no ETag for it.
+  // Sentinels (IsSentinel) are not variants and are skipped.  Counts the
+  // worker-written variants into *worker_written so callers can assert the
+  // check was non-vacuous.
+  void CheckSourceBinding(PageSpeedCache* cache, const std::string& url,
+                          const std::array<std::byte, 32>& expected,
+                          size_t* worker_written,
+                          const std::string& hostname = "") {
+    *worker_written = 0;
+    std::string effective_url = StripSchemeAuthority(url);
+    auto alts = cache->ListAlternates(effective_url, hostname, "https");
+    ASSERT_TRUE(alts.has_value()) << "no alternates listed for " << url;
+    for (const auto& alt : *alts) {
+      if (IsSentinel(static_cast<AlternateId>(alt.id))) continue;
+      auto rr = cache->ReadAlternate(effective_url, hostname, "https",
+                                     static_cast<AlternateId>(alt.id));
+      ASSERT_TRUE(rr.has_value())
+          << "alternate 0x" << std::hex << static_cast<int>(alt.id)
+          << " listed but unreadable";
+      if ((rr->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) == 0) {
+        continue;  // the front end's own recording, not a worker variant
+      }
+      ++*worker_written;
+      EXPECT_EQ(rr->metadata.origin_html_hash, expected)
+          << "worker variant 0x" << std::hex << static_cast<int>(alt.id)
+          << " of " << url << " does not carry the expected source binding";
+    }
   }
 
   // Helper: read a sentinel entry from cache.

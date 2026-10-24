@@ -45,7 +45,7 @@ VOL=/tmp/test-ps-301-1.vol
   --origin_html_hash "$(printf 'bb%.0s' $(seq 32))"
 
 # Legacy entry: no content hash, no origin validators (pre-v7 shape) —
-# must keep the historical mask+flags+length tag.
+# must emit no ETag at all (never a length-only tag).
 "$SEED" \
   --cache "$VOL" \
   --url "/legacy.css" \

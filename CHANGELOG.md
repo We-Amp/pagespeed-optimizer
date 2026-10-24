@@ -39,6 +39,16 @@ screen size rather than another one. Those copies are now stored too. After the 
 desktop browser requests it; no purge is needed. Sites without proactive image
 variants, the default, were not affected.
 
+Fixed: an optimized script, stylesheet, image or page whose origin sends
+neither `ETag` nor `Last-Modified` could be answered `304 Not Modified` after
+it changed, when the new optimized version had the same size. Browsers then
+kept the old version. Optimized responses now carry a validator derived from
+the source content. When no content identity is available, no `ETag` is sent,
+so a stale copy can never be confirmed. After the upgrade, clients may
+download some optimized resources once more, because their validators change;
+resources without any validator are revalidated with a full response until
+the optimizer has processed them again.
+
 Changed: the optimizer worker's log lines and `--version` output, and the nginx
 module's load notice, now name the product mod_pagespeed. The version number and
 build commit are unchanged.

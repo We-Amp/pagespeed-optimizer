@@ -330,6 +330,21 @@ AlternateMetadata CreateWorkerMetadata(const AlternateMetadata& base,
   return m;
 }
 
+// Stamp the SHA-256 of the RAW origin input onto a variant's metadata
+// (issue #434): the tier-1 identity of the front ends' derived ETag.  The
+// caller owns the gate: stamp only when the input entry's flags lack
+// kFlagWorkerProcessed, i.e. the hashed bytes are the origin's own and not
+// the worker's earlier output (the Issue-B trap: hashing optimized bytes
+// here would re-bind every re-optimization and poison the agent-markdown
+// equality gate).  A worker-processed input keeps the inherited stamp,
+// which CreateWorkerMetadata and every `meta = origin_meta` copy already
+// carry forward, so the binding stays pinned to the true origin revision
+// across re-optimizations.
+void StampSourceBinding(AlternateMetadata* m,
+                        const std::array<std::byte, 32>& h) {
+  m->origin_html_hash = h;
+}
+
 // Detect gzip-compressed content by checking the magic bytes (RFC 1952).
 bool IsGzipCompressed(std::string_view content) {
   return content.size() >= 2 && static_cast<uint8_t>(content[0]) == 0x1f &&
@@ -649,12 +664,15 @@ void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
 // (RecheckRecordedOriginal).  Only a front end's own recording may seed the
 // oracle (|genuine|), and only once every coded copy the configuration enables
 // exists (a level of 0 disables that encoding, so its copy is never expected)
-// and no purge has fenced the writes.
+// and no purge has fenced the writes.  |hash| is the SHA-256 of the raw
+// source, computed by the caller (hoisted once per run, issue #434: the same
+// value also stamps the variant metadata's source binding).
 void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
                       std::string_view hostname, std::string_view scheme,
                       const CapabilityMask& identity_mask,
-                      std::string_view source, bool genuine, int gzip_level,
-                      int brotli_level, const PurgeCheck& purge_check) {
+                      const std::array<std::byte, 32>& hash, bool genuine,
+                      int gzip_level, int brotli_level,
+                      const PurgeCheck& purge_check) {
   if (!genuine || (purge_check && purge_check())) return;
   CapabilityMask gz_mask = identity_mask;
   gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
@@ -668,8 +686,6 @@ void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
       !VariantExistsForMask(cache, url, hostname, scheme, br_mask)) {
     return;
   }
-  auto hash = cyclone::crypto::SHA256::hash(std::span<const std::byte>(
-      reinterpret_cast<const std::byte*>(source.data()), source.size()));
   auto wh =
       cache->WriteSentinel(url, hostname, scheme, SentinelId::kContentHash, 32);
   if (wh) {
@@ -3847,11 +3863,25 @@ void Worker::WriteTextVariant(
   const bool source_genuine =
       record_source_hash && (read_result.metadata.flags &
                              AlternateMetadata::kFlagWorkerProcessed) == 0;
+  // Issue #434: SHA-256 of the raw origin input, computed once here over the
+  // owned, de-aliased copy the callers pass in, and reused below for both
+  // the variant stamps and the change oracle: RecordSourceHash takes it
+  // rather than re-hashing.  Zero (unbound) when the input is not genuine;
+  // a worker-processed input then keeps the inherited stamp.
+  const std::array<std::byte, 32> source_hash =
+      source_genuine
+          ? cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(original_input.data()),
+                original_input.size()))
+          : std::array<std::byte, 32>{};
   if (minified.size() < original_input.size()) {
     CapabilityMask mask = NormalizeMaskForDedup(notification.capability_mask);
     AlternateMetadata variant_meta = CreateWorkerMetadata(
         read_result.metadata, content_type,
         AlternateMetadata::kFlagWorkerProcessed, original_input.size());
+    if (source_genuine) {
+      StampSourceBinding(&variant_meta, source_hash);
+    }
 
     // Release the read handle — minified data owns the output and
     // metadata has been copied.  See HTML path comment.
@@ -3900,9 +3930,8 @@ void Worker::WriteTextVariant(
                               minified, variant_meta, cfg->gzip_level,
                               cfg->brotli_level, stats_, purge_check, this);
       RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                       notification.scheme, mask, original_input,
-                       source_genuine, cfg->gzip_level, cfg->brotli_level,
-                       purge_check);
+                       notification.scheme, mask, source_hash, source_genuine,
+                       cfg->gzip_level, cfg->brotli_level, purge_check);
       // Clear tentative cooldown on success (matches HTML path).
       {
         std::string ck = ComposeInternalKey(
@@ -3930,6 +3959,11 @@ void Worker::WriteTextVariant(
     AlternateMetadata orig_meta = CreateWorkerMetadata(
         read_result.metadata, content_type,
         AlternateMetadata::kFlagWorkerProcessed, original_input.size());
+    // Same source binding as the minified branch: these compressed copies
+    // are built from the raw input too (issue #434).
+    if (source_genuine) {
+      StampSourceBinding(&orig_meta, source_hash);
+    }
     // De-alias the origin borrow (issue #934): own the bytes and drop the
     // read handle before compressing.  gzip+brotli over the live borrow pin
     // this stripe's read lease across the compress+write, so at cache-full
@@ -3957,7 +3991,7 @@ void Worker::WriteTextVariant(
                             owned_input, orig_meta, cfg->gzip_level,
                             cfg->brotli_level, stats_, purge_check, this);
     RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                     notification.scheme, mask, owned_input, source_genuine,
+                     notification.scheme, mask, source_hash, source_genuine,
                      cfg->gzip_level, cfg->brotli_level, purge_check);
     // Clear tentative cooldown on success (matches HTML path).
     {
@@ -4941,8 +4975,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // variant) so an origin change invalidates them as a unit.  It is the
       // oracle the serve-time equality gate (Gap#2) and the store-time
       // re-validation (Gap#3) read.  Gated behind agent_optimize so disabling it
-      // leaves the HTML *processing path* byte-identical (no SHA-256, no
-      // ReadAlternate, no Remove, no WriteSentinel).  NOTE: the v7 cache WIRE
+      // leaves this block's machinery out of the path (no ReadAlternate, no
+      // Remove, no WriteSentinel).  The sentinel's SHA-256 is not the only
+      // hash left, though: the variant stamp at the optimized-identity write
+      // (issue #434) hashes a raw read once per run with agent_optimize off
+      // too.  NOTE: the v7 cache WIRE
       // FORMAT (P2.1) always carries the 64-byte (zero-when-unbound) hash suffix
       // on every variant regardless of the flag — that is the intended,
       // test-covered format cost, NOT part of the processing-path OFF claim.
@@ -4951,6 +4988,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // The computed hash is also carried to the agent render (P2.3) so its
       // store-time re-validation (Gap#3) can prove the binding is still live.
       // -----------------------------------------------------------------
+      // The identity metadata carries kFlagWorkerProcessed exactly when the
+      // read is the worker's own output (alternate_metadata.h:69).  Computed
+      // once here because two consumers need it: the agent_optimize block
+      // below (the raw-vs-derived oracle question) and the variant stamp at
+      // the optimized-identity write (the source-binding rule, issue #434).
+      const bool worker_processed_identity =
+          (html_read_result->metadata.flags &
+           AlternateMetadata::kFlagWorkerProcessed) != 0;
+
       std::optional<std::array<std::byte, 32>> agent_origin_html_hash;
       if (cfg->browser_analysis.agent_optimize) {
         // Issue B: the read slot (0x08) FLIPS between the raw origin body
@@ -4963,15 +5009,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
         // variant), and the in-flight HTML write is then fenced by its now-stale
         // dispatch baseline, double-counting write_failures+errors.
         //
-        // The identity metadata carries kFlagWorkerProcessed exactly when the
-        // read is the worker's own output (alternate_metadata.h:69).  In that
-        // case we MUST NOT re-hash; instead we reuse the DURABLE raw-origin hash
-        // — persisted onto the identity's metadata.origin_html_hash when raw was
-        // last read (see the optimized-identity write below), with a fallback to
-        // the live kContentHash sentinel for legacy/unplumbed blobs.
-        const bool worker_processed_identity =
-            (html_read_result->metadata.flags &
-             AlternateMetadata::kFlagWorkerProcessed) != 0;
+        // In that case we MUST NOT re-hash; instead we reuse the DURABLE
+        // raw-origin hash: persisted onto the identity's
+        // metadata.origin_html_hash when raw was last read (see the
+        // optimized-identity write below), with a fallback to the live
+        // kContentHash sentinel for legacy/unplumbed blobs.
 
         // The live sentinel as written over RAW on a prior raw-read run.
         auto stored = cache_->ReadAlternate(
@@ -5724,10 +5766,22 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // worker-processed slot, not raw — reuses it instead of re-hashing
       // optimized bytes.  Without this the identity inherits the nginx-written
       // raw original's all-zero hash and the binding oracle is lost after the
-      // first optimize.  Only stamp when agent_optimize ran and produced a
-      // raw-origin hash (raw read or durable reuse); otherwise leave inherited.
+      // first optimize.
+      //
+      // Source binding (issue #434): the agent branch stamps the hash it
+      // derived (raw read or durable reuse).  With agent_optimize off the
+      // raw read is hashed here instead, so every HTML variant carries a
+      // tier-1 identity for the derived ETag.  A worker-processed read
+      // (agent or not) keeps the inherited stamp: never hash the worker's
+      // own output into the binding.
       if (agent_origin_html_hash.has_value()) {
         html_variant_meta.origin_html_hash = *agent_origin_html_hash;
+      } else if (!worker_processed_identity) {
+        StampSourceBinding(
+            &html_variant_meta,
+            cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(html_content.data()),
+                html_content.size())));
       }
 
       // The origin borrow was already de-aliased (copied + released) right
@@ -5891,6 +5945,18 @@ void Worker::HandleNotification(const CacheNotification& notification,
           return;
         }
         img_read_result->release();
+        // Source binding (issue #434): SHA-256 of the raw SVG bytes stamps
+        // every compressed variant written below; a worker-processed input
+        // keeps the inherited stamp.  The same hash seeds the change oracle.
+        const std::array<std::byte, 32> svg_hash =
+            svg_source_genuine
+                ? cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                      reinterpret_cast<const std::byte*>(svg_data.data()),
+                      svg_data.size()))
+                : std::array<std::byte, 32>{};
+        if (svg_source_genuine) {
+          StampSourceBinding(&svg_origin_meta, svg_hash);
+        }
         svg_origin_meta.content_type = ContentType::kImage;
         svg_origin_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
                                 InheritedVariantFlags(svg_origin_meta);
@@ -5902,7 +5968,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
             notification.scheme, CapabilityMask(), svg_data, svg_origin_meta,
             cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
         RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                         notification.scheme, CapabilityMask(), svg_data,
+                         notification.scheme, CapabilityMask(), svg_hash,
                          svg_source_genuine, cfg->gzip_level, cfg->brotli_level,
                          purge_check);
         mark_image_slot_decided(
@@ -5960,6 +6026,18 @@ void Worker::HandleNotification(const CacheNotification& notification,
           return;
         }
         img_read_result->release();
+        // Source binding (issue #434): same rule as the SVG branch: stamp
+        // the compressed variants with the SHA-256 of the raw bytes when the
+        // input is genuine, keep the inherited stamp otherwise.
+        const std::array<std::byte, 32> passthrough_hash =
+            source_genuine
+                ? cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                      reinterpret_cast<const std::byte*>(data.data()),
+                      data.size()))
+                : std::array<std::byte, 32>{};
+        if (source_genuine) {
+          StampSourceBinding(&meta, passthrough_hash);
+        }
         meta.content_type = ContentType::kImage;
         meta.flags = AlternateMetadata::kFlagWorkerProcessed |
                      InheritedVariantFlags(meta);
@@ -5970,9 +6048,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                 CapabilityMask(), data, meta, cfg->gzip_level,
                                 cfg->brotli_level, stats_, purge_check, this);
         RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                         notification.scheme, CapabilityMask(), data,
-                         source_genuine, cfg->gzip_level, cfg->brotli_level,
-                         purge_check);
+                         notification.scheme, CapabilityMask(),
+                         passthrough_hash, source_genuine, cfg->gzip_level,
+                         cfg->brotli_level, purge_check);
         mark_image_slot_decided(
             CapabilityMask::Decode(notification.capability_mask));
         return;
@@ -6195,6 +6273,16 @@ void Worker::HandleNotification(const CacheNotification& notification,
         origin_bytes = std::move(pristine.bytes);
         origin_meta = pristine.meta;
         image_data = origin_bytes;
+      }
+      // Source binding (issue #434): every variant of this pass (the raster
+      // matrix, the SVG vectorization) derives from origin_meta, so one
+      // stamp here binds them all.  origin_hash is SHA-256 of the pristine
+      // reference when one was found (origin_meta is then the reference's
+      // flag-clear metadata) and of the read slot otherwise: stamp only in
+      // the raw case; a worker-processed source keeps the inherited stamp
+      // (never re-hash the worker's own output into the binding).
+      if ((origin_meta.flags & AlternateMetadata::kFlagWorkerProcessed) == 0) {
+        StampSourceBinding(&origin_meta, origin_hash);
       }
 
       // ---------------------------------------------------------------
@@ -7772,7 +7860,7 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
       // the copy so the warmup matrix never defers its own writes behind
       // the worker's own read lease at cache-full.
       const std::string origin_bytes(image_data);
-      const AlternateMetadata origin_meta = img_read->metadata;
+      AlternateMetadata origin_meta = img_read->metadata;
       // Verify the copy is untorn before releasing (issue #934):
       // same contract as the proactive image path.  On a wrap-torn copy,
       // skip this warmup URL — a later notification re-reads a settled slot.
@@ -7787,6 +7875,16 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
       }
       img_read->release();
       image_data = origin_bytes;
+      // Source binding (issue #434), same rule as the notification pass:
+      // stamp the warmup matrix with the SHA-256 of the raw input; a
+      // worker-processed source keeps the inherited stamp.
+      if ((origin_meta.flags & AlternateMetadata::kFlagWorkerProcessed) == 0) {
+        StampSourceBinding(
+            &origin_meta,
+            cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(origin_bytes.data()),
+                origin_bytes.size())));
+      }
 
       const CapabilityMask::ImageFormat all_fmts[] = {
           CapabilityMask::ImageFormat::kWebP,

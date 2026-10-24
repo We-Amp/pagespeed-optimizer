@@ -66,23 +66,31 @@ TEST(EtagUtilTest, StableAcrossCalls) {
   EXPECT_EQ(first, "W/\"ps-0000000800-aaaaaaaaaaaaaaaa-000000000000000d\"");
 }
 
-// (iii) No content hash and no origin validators (pre-v7 entry) → the exact
-// legacy mask+flags+length tag, no crash, no empty identity section.
-TEST(EtagUtilTest, MissingIdentityFallsBackToLegacyTag) {
+// (iii) No content hash and no origin validators (pre-v7 entry) → NO tag:
+// FormatHitETag returns 0 and the caller emits no ETag header. A
+// mask+flags+length-only tag would validate any revision of the same
+// optimized length, answering 304 for changed bytes; with no tag there is
+// no 304 at all, so a stale copy can never be confirmed.
+TEST(EtagUtilTest, MissingIdentityEmitsNoTag) {
   AlternateMetadata meta = BaseMeta();
 
   EXPECT_FALSE(ContentIdentity64(meta).has_value());
-  EXPECT_EQ(Format(meta, kBodyLen), "W/\"ps-0000000800-000000000000000d\"");
+  char buf[kHitETagBufSize];
+  EXPECT_EQ(FormatHitETag(meta, kBodyLen, buf, sizeof(buf)), 0u);
 }
 
-// (iv) Upgrade path: an entry that gains a content identity changes tag, so
-// a client holding the old-format tag gets a full 200 exactly once.
-TEST(EtagUtilTest, IdentityTagNeverEqualsLegacyTag) {
-  AlternateMetadata legacy = BaseMeta();
+// (iv) Upgrade path: an entry without identity emits no tag, so its client
+// holds no validator; once the entry carries identity it emits one. There is
+// no shape the two could share, and the formerly-untagged client gets a full
+// 200 exactly once (correct direction).
+TEST(EtagUtilTest, GainingIdentityGivesTheEntryAValidator) {
+  AlternateMetadata untagged = BaseMeta();
   AlternateMetadata hashed = BaseMeta();
   hashed.origin_html_hash = FillHash(0xAA);
 
-  EXPECT_NE(Format(legacy, kBodyLen), Format(hashed, kBodyLen));
+  char buf[kHitETagBufSize];
+  EXPECT_EQ(FormatHitETag(untagged, kBodyLen, buf, sizeof(buf)), 0u);
+  EXPECT_GT(FormatHitETag(hashed, kBodyLen, buf, sizeof(buf)), 0u);
 }
 
 // Tier-1 identity is the first 8 bytes of origin_html_hash, big-endian.
@@ -181,16 +189,21 @@ TEST(EtagUtilTest, OriginVariesAcceptSeparatesValidators) {
 
   EXPECT_NE(Format(unmarked, kBodyLen), Format(marked, kBodyLen));
 
-  // Also across the legacy (no content-identity) arm, which is the shape a
-  // marked entry actually takes when its origin sends neither ETag nor
-  // Last-Modified — the population most likely to hold marked entries.
-  AlternateMetadata legacy_unmarked = BaseMeta();
-  AlternateMetadata legacy_marked = legacy_unmarked;
-  legacy_marked.flags |= AlternateMetadata::kFlagOriginVariesAccept;
+  // Also on the no-identity arm, which is the shape a marked entry takes
+  // when its origin sends neither ETag nor Last-Modified and the worker has
+  // not stamped it: the population most likely to hold marked entries.
+  // Neither entry emits a tag at all, so neither can ever validate the
+  // other's response: the separation holds structurally (no shared
+  // validator) rather than through the flags byte.
+  AlternateMetadata untagged_unmarked = BaseMeta();
+  AlternateMetadata untagged_marked = untagged_unmarked;
+  untagged_marked.flags |= AlternateMetadata::kFlagOriginVariesAccept;
 
-  EXPECT_FALSE(ContentIdentity64(legacy_unmarked).has_value());
-  EXPECT_FALSE(ContentIdentity64(legacy_marked).has_value());
-  EXPECT_NE(Format(legacy_unmarked, kBodyLen), Format(legacy_marked, kBodyLen));
+  char buf[kHitETagBufSize];
+  EXPECT_FALSE(ContentIdentity64(untagged_unmarked).has_value());
+  EXPECT_FALSE(ContentIdentity64(untagged_marked).has_value());
+  EXPECT_EQ(FormatHitETag(untagged_unmarked, kBodyLen, buf, sizeof(buf)), 0u);
+  EXPECT_EQ(FormatHitETag(untagged_marked, kBodyLen, buf, sizeof(buf)), 0u);
 
   // And the marker is independent of the other assigned flag bits: an entry
   // that is marked AND needs revalidation is a third distinct validator.
