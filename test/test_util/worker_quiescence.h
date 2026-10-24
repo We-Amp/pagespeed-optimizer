@@ -50,6 +50,24 @@ inline constexpr bool kSanitizerBuild = false;
 inline constexpr bool kSanitizerBuild = false;
 #endif
 
+// True in ThreadSanitizer builds only.  TSan additionally serialises and
+// shadows every thread, which pushes codec-bound tests (whole-output
+// byte-size rules of the image encoders) past their shard budget without
+// adding any race coverage; tests use it to skip such cases in the TSan
+// lane while kSanitizerBuild keeps them in the plain and AddressSanitizer
+// lanes.  Same detection forms as kSanitizerBuild above.
+#if defined(__SANITIZE_THREAD__)
+inline constexpr bool kThreadSanitizerBuild = true;
+#elif defined(__clang__)
+#if __has_feature(thread_sanitizer)
+inline constexpr bool kThreadSanitizerBuild = true;
+#else
+inline constexpr bool kThreadSanitizerBuild = false;
+#endif
+#else
+inline constexpr bool kThreadSanitizerBuild = false;
+#endif
+
 // The worker's dispatch state as its own event loop reports it.
 struct WorkerLoopState {
   uint64_t notifications_received = 0;

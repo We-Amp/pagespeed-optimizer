@@ -4575,6 +4575,19 @@ TEST_F(WorkerTest, CacheFullVariantWritesNotStarvedByOwnLease) {
   // unoptimized-build runtime reasonable; still several transcode
   // iterations' worth of write opportunities after the lease decays.
   config.proactive_savedata_variants = false;
+  // Under a sanitizer trim further: 3 viewport combinations, AVIF at its
+  // fastest speed, no quality verification.  The property under test is
+  // lease decay -- some variant write must land once the origin read's
+  // single lease stamp has expired -- and 3 combinations still give several
+  // write opportunities after the decay; the codec settings do not enter
+  // it.  Untrimmed, the 6-combination encode matrix alone ran 2724 s under
+  // TSan on a slower CI host (issue #436) and pushed its shard past the
+  // 3600 s budget.
+  if (pagespeed::test::kSanitizerBuild) {
+    config.avif_speed = 10;
+    config.quality_verify = false;
+    config.proactive_density_variants = false;  // 3 combinations, not 6
+  }
 
   NullMessageHandler handler;
   Worker worker(config, &handler);
@@ -15912,6 +15925,17 @@ TEST_F(WorkerTest, ImageVariantsCarryTheHeadersSidecarFlagBits) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
   config.proactive_image_variants = true;
   config.proactive_viewport_variants = true;
+  // Under a sanitizer drop the density and Save-Data axes and encode AVIF
+  // at its fastest speed: 3 viewport combinations still leave several
+  // worker-written alternates to check the sidecar bits on (the assertion
+  // wants >= 2; each viewport contributes WebP and AVIF besides the
+  // optimized original).  Untrimmed this test ran 762 s under TSan on a
+  // slower CI host (issue #436).
+  if (pagespeed::test::kSanitizerBuild) {
+    config.proactive_density_variants = false;
+    config.proactive_savedata_variants = false;
+    config.avif_speed = 10;
+  }
 
   NullMessageHandler handler;
   Worker worker(config, &handler);
@@ -20798,6 +20822,11 @@ class VariantSizeTest : public WorkerTest {
 };
 
 void VariantSizeTest::ReplayReportedClients(Layout layout) {
+  if (pagespeed::test::kThreadSanitizerBuild) {
+    GTEST_SKIP() << "checks the encoder byte-size rules on a 1200x800 "
+                    "plasma, not concurrency; too slow under TSan (issue "
+                    "#436) and still covered by the plain and ASan lanes";
+  }
   WorkerConfig config;
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
@@ -20915,6 +20944,11 @@ TEST_F(VariantSizeTest, ReportedClientsIdentitySlotLayout) {
 // The warmup (hot URL) matrix writes variants through its own path; it
 // keeps the same size rules.
 TEST_F(VariantSizeTest, WarmupMatrixKeepsTheSizeRules) {
+  if (pagespeed::test::kThreadSanitizerBuild) {
+    GTEST_SKIP() << "checks the encoder byte-size rules on a 1200x800 "
+                    "plasma, not concurrency; too slow under TSan (issue "
+                    "#436) and still covered by the plain and ASan lanes";
+  }
   for (Layout layout : {Layout::kDurableOriginal, Layout::kIdentitySlot}) {
     SCOPED_TRACE(layout == Layout::kIdentitySlot ? "identity slot"
                                                  : "durable original");

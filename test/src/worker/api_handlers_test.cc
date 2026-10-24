@@ -49,7 +49,13 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
     config_->jpeg_quality = 85;
     config_->webp_quality = 75;
     config_->avif_quality = 60;
-    config_->cache_path = "/tmp/test";
+    // A per-test cache path: PATCH /v1/config persists pagespeed.json (and,
+    // when disable_html or cache_mode change, pagespeed-shared.conf) into
+    // parent_path(cache_path), with an fsync.  Sharing one fixed /tmp path
+    // let one test's fsync'd write collide with the next test's read of
+    // the same file; with a fresh directory each case writes only its own.
+    // Tests that assert on the file set their own TempDir and override it.
+    config_->cache_path = tmp_.path() + "/cache.vol";
 
     // ApiContext holds a std::mutex (Issue #167) and is non-movable;
     // construct directly via new to skip the temporary + move.
@@ -114,7 +120,12 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
     // sends it).  Inject it so handler-behavior tests reach the handler.
     std::string wire = test::InjectCsrfHeaderForV1Mutations(request);
     int port = server_->bound_port();
-    int sock = test::ConnectTcp(port, 2);
+    // The read budget has to cover a synchronous config-file fsync on the
+    // server's event-loop thread (PATCH /v1/config): a busy disk under a
+    // sanitizer can hold the response past the old 2 s budget, after which
+    // the client read timed out and the JSON came back null (issue #421).
+    // It is a ceiling: a fast response still returns at EOF.
+    int sock = test::ConnectTcp(port, 30);
 
     if (sock < 0) return "";
 
@@ -141,6 +152,9 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
   }
 
   uv_loop_t* loop_ = nullptr;
+  // Per-test directory backing config_->cache_path; destroyed with the
+  // fixture, after TearDown has joined the loop thread that fsyncs into it.
+  pagespeed::test::TempDir tmp_;
   WorkerStats stats_;
   std::shared_ptr<WorkerConfig> config_;
   std::unique_ptr<ApiContext> ctx_;
