@@ -61,6 +61,8 @@ const char* ApiErrorCodeString(ApiErrorCode code) {
       return "SERVICE_UNAVAILABLE";
     case ApiErrorCode::kGatewayTimeout:
       return "GATEWAY_TIMEOUT";
+    case ApiErrorCode::kBadGateway:
+      return "BAD_GATEWAY";
   }
   return "UNKNOWN";
 }
@@ -89,6 +91,8 @@ int ApiErrorCodeStatus(ApiErrorCode code) {
       return 503;
     case ApiErrorCode::kGatewayTimeout:
       return 504;
+    case ApiErrorCode::kBadGateway:
+      return 502;
   }
   return 500;
 }
