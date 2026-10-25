@@ -412,6 +412,27 @@ gtest_test(
 gtest_test(
     name = "worker_test",
     size = "large",
+    # One target, many topic files: the single 21k-line translation unit this
+    # replaced dominated both compile and lint time. The target name, shard
+    # count and test ids are unchanged, so exclusions by name keep working.
+    srcs = [
+        "worker_agent_markdown_test.cc",
+        "worker_cooldown_purge_test.cc",
+        "worker_critical_css_test.cc",
+        "worker_css_js_test.cc",
+        "worker_dedup_heal_test.cc",
+        "worker_durable_original_test.cc",
+        "worker_html_test.cc",
+        "worker_image_siblings_test.cc",
+        "worker_image_test.cc",
+        "worker_lifecycle_test.cc",
+        "worker_mgmt_test.cc",
+        "worker_notify_test.cc",
+        "worker_origin_refresh_test.cc",
+        "worker_peer_rewrite_test.cc",
+        "worker_test_fixture.cc",
+        "worker_test_fixture.h",
+    ],
     # TSan runs the full proactive image matrices (no early-exit polls left),
     # which under the ~10x slowdown can push a shard past the 900s "large"
     # cap on slower hosts; the sanitizer-scaled failure-path poll ceilings
