@@ -92,12 +92,12 @@ the release commit is the head of `main`. The gate accepts only runs on `main`.
 Runs are serialized per tag and never cancelled in progress: two real
 releases for the same tag cannot race, and a release build always runs out.
 
-### The asset contract
+### The release asset contract
 
-A real run publishes a GitHub release with exactly seven assets: the six
-below, which the manifest job validates as a set, and `SHA256SUMS.asc`, the
-detached signature over `SHA256SUMS` made with the release signing key by the
-`sign-checksums` job:
+The lane builds and validates eight files (the manifest job checks them as a
+set), and a real run publishes ten: the eight, plus the two signatures that
+the `sign-checksums` job makes over `SHA256SUMS`. Exactly these, no more and
+no fewer:
 
 | Asset | Contents |
 |---|---|
@@ -106,8 +106,11 @@ detached signature over `SHA256SUMS` made with the release signing key by the
 | `pagespeed-optimizer_<version>_amd64.deb` | the same, deb hosts |
 | `pagespeed-optimizer_<version>_arm64.deb` | the same, arm64 |
 | `pagespeed-optimizer-<version>-win-x64.zip` | worker + client library for Windows x64 (`factory_worker.exe`, `pagespeed.dll`, `LICENSE`, `NOTICE`) |
-| `SHA256SUMS` | checksums for the other five assets |
-| `SHA256SUMS.asc` | signature over `SHA256SUMS` (release signing key, `RELEASE-SIGNING-KEY.asc`) |
+| `pagespeed-optimizer-<version>.spdx.json` | software bill of materials (SPDX 2.3) |
+| `pagespeed-optimizer-<version>.vex.json` | known vulnerabilities in bundled components that do not affect these packages, with the reason (OpenVEX) |
+| `SHA256SUMS` | checksums for the other seven files |
+| `SHA256SUMS.asc` | PGP signature over `SHA256SUMS` (release signing key, `RELEASE-SIGNING-KEY.asc`) |
+| `SHA256SUMS.sigstore.json` | Sigstore signature over `SHA256SUMS` (keyless cosign bundle) |
 
 The serving-module packages download these assets by name and verify them
 against SHA256SUMS, so the set and the names are a contract. Asset names
@@ -117,11 +120,50 @@ derived from the tag, never hand-typed. A `-<pre>` tag produces a release
 marked as a prerelease.
 
 Validation is fail-closed at two points. The manifest job checks that the
-set is exactly the six assets, all present and non-empty, that
-`sha256sum -c` passes, and that the package-internal versions are the
+set is exactly the eight files, all present and non-empty, that
+`sha256sum -c` passes and `SHA256SUMS` lists seven files, that the SBOM and
+VEX file are well-formed, and that the package-internal versions are the
 derived tilde form. The release job re-verifies SHA256SUMS across the job
 boundary before publishing anything. The release job also refuses to publish
-without a non-empty `SHA256SUMS.asc`.
+without a non-empty `SHA256SUMS.asc` and `SHA256SUMS.sigstore.json`.
+
+Every real run also records a build provenance attestation for the five
+packages, the SBOM and the VEX file, and an SBOM attestation for each
+package, in GitHub's attestation store (docs/ci/release.md, "Sigstore and
+attestations"). A dry run signs and attests nothing.
+
+#### Verifying a release
+
+Download the assets of the release, then, from the download directory:
+
+```bash
+# Checksums (works on any Linux host; Windows has Get-FileHash)
+sha256sum --check --ignore-missing SHA256SUMS
+
+# PGP signature on SHA256SUMS, release key fingerprint
+# 411D EFDB 5713 51D2 B25A EFCC 9C02 B5BD CCE7 5313
+gpg --import RELEASE-SIGNING-KEY.asc
+gpg --verify SHA256SUMS.asc SHA256SUMS
+
+# Sigstore signature on SHA256SUMS (needs cosign)
+cosign verify-blob SHA256SUMS --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-github-workflow-ref refs/tags/optimizer-v<version>
+
+# Build provenance and SBOM attestations of one package (needs the GitHub CLI)
+gh attestation verify <package file> --repo We-Amp/pagespeed-optimizer \
+  --cert-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \
+  --source-ref refs/tags/optimizer-v<version>
+gh attestation verify <package file> --repo We-Amp/pagespeed-optimizer \
+  --cert-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \
+  --source-ref refs/tags/optimizer-v<version> \
+  --predicate-type https://spdx.dev/Document/v2.3
+```
+
+Replace `<version>` with the release version. The Sigstore bundle is in the
+current bundle format: use cosign v2.4 or newer. The PGP check and the
+checksums need nothing beyond `gpg` and `sha256sum`.
 
 ### The glibc floor gate
 

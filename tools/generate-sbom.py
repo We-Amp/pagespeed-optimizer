@@ -11,8 +11,11 @@ commit hash.
 Usage:
     tools/generate-sbom.py            # Generate sbom/mod_pagespeed-2.1.spdx.json
     tools/generate-sbom.py --verify   # Compare generated SBOM with checked-in copy
+    tools/generate-sbom.py --name pagespeed-optimizer-2.5.3 --version 2.5.3 \\
+        --output dist/pagespeed-optimizer-2.5.3.spdx.json   # a release copy
 """
 
+import argparse
 import json
 import os
 import re
@@ -27,7 +30,8 @@ from pathlib import Path
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODULE_BAZEL = os.path.join(REPO_ROOT, "MODULE.bazel")
 SBOM_DIR = os.path.join(REPO_ROOT, "sbom")
-SBOM_PATH = os.path.join(SBOM_DIR, "mod_pagespeed-2.1.spdx.json")
+DEFAULT_NAME = "mod_pagespeed-2.1"
+SBOM_PATH = os.path.join(SBOM_DIR, DEFAULT_NAME + ".spdx.json")
 
 # ---------------------------------------------------------------------------
 # License mapping: name -> (spdx_license, copyright_holder, homepage_url)
@@ -765,20 +769,27 @@ def make_package(
     return pkg
 
 
-def generate_sbom():
-    """Generate the full SPDX 2.3 JSON document."""
+def generate_sbom(doc_name=DEFAULT_NAME, version=None):
+    """Generate the full SPDX 2.3 JSON document.
+
+    With the defaults the document is the committed sbom/ copy. A release
+    passes its own name and version (--name, --version) so the shipped
+    document names the release.
+    """
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Root package version reads from VERSION.txt at repo root.
+    # Root package version: the caller's, else VERSION.txt at repo root.
     version_file = Path(__file__).parent.parent / "VERSION.txt"
-    root_version = (
+    root_version = version or (
         version_file.read_text().strip() if version_file.exists() else "0.0.0"
     )
+    # SPDX ids allow letters, digits, "." and "-" only.
+    root_id = "SPDXRef-Package-" + re.sub(r"[^A-Za-z0-9.-]", "-", doc_name)
 
     # Root package.
     root_pkg = {
-        "SPDXID": "SPDXRef-Package-mod-pagespeed-2.1",
-        "name": "mod_pagespeed-2.1",
+        "SPDXID": root_id,
+        "name": doc_name,
         "versionInfo": root_version,
         "supplier": "Organization: We-Amp B.V.",
         "downloadLocation": "https://github.com/We-Amp/pagespeed-optimizer",
@@ -808,7 +819,7 @@ def generate_sbom():
         packages.append(pkg)
         relationships.append(
             {
-                "spdxElementId": "SPDXRef-Package-mod-pagespeed-2.1",
+                "spdxElementId": root_id,
                 "relationshipType": "DEPENDS_ON",
                 "relatedSpdxElement": pkg["SPDXID"],
             }
@@ -828,7 +839,7 @@ def generate_sbom():
     packages.append(cyclone_pkg)
     relationships.append(
         {
-            "spdxElementId": "SPDXRef-Package-mod-pagespeed-2.1",
+            "spdxElementId": root_id,
             "relationshipType": "DEPENDS_ON",
             "relatedSpdxElement": cyclone_pkg["SPDXID"],
         }
@@ -854,7 +865,7 @@ def generate_sbom():
         packages.append(pkg)
         relationships.append(
             {
-                "spdxElementId": "SPDXRef-Package-mod-pagespeed-2.1",
+                "spdxElementId": root_id,
                 "relationshipType": "DEPENDS_ON",
                 "relatedSpdxElement": pkg["SPDXID"],
             }
@@ -875,7 +886,7 @@ def generate_sbom():
         packages.append(pkg)
         relationships.append(
             {
-                "spdxElementId": "SPDXRef-Package-mod-pagespeed-2.1",
+                "spdxElementId": root_id,
                 "relationshipType": "DEPENDS_ON",
                 "relatedSpdxElement": pkg["SPDXID"],
             }
@@ -897,7 +908,7 @@ def generate_sbom():
         packages.append(pkg)
         relationships.append(
             {
-                "spdxElementId": "SPDXRef-Package-mod-pagespeed-2.1",
+                "spdxElementId": root_id,
                 "relationshipType": "DEPENDS_ON",
                 "relatedSpdxElement": pkg["SPDXID"],
             }
@@ -909,7 +920,7 @@ def generate_sbom():
         {
             "spdxElementId": "SPDXRef-DOCUMENT",
             "relationshipType": "DESCRIBES",
-            "relatedSpdxElement": "SPDXRef-Package-mod-pagespeed-2.1",
+            "relatedSpdxElement": root_id,
         },
     )
 
@@ -917,8 +928,8 @@ def generate_sbom():
         "spdxVersion": "SPDX-2.3",
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
-        "name": "mod_pagespeed-2.1",
-        "documentNamespace": f"https://spdx.org/spdxdocs/mod_pagespeed-2.1-{now}",
+        "name": doc_name,
+        "documentNamespace": f"https://spdx.org/spdxdocs/{doc_name}-{now}",
         "creationInfo": {
             "created": now,
             "creators": [
@@ -935,9 +946,17 @@ def generate_sbom():
 
 
 def main():
-    verify = "--verify" in sys.argv
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("--verify", action="store_true")
+    parser.add_argument("--name", default=DEFAULT_NAME)
+    parser.add_argument("--version", default=None)
+    parser.add_argument("--output", default=None)
+    args = parser.parse_args()
+    verify = args.verify
+    if verify and (args.output or args.name != DEFAULT_NAME or args.version):
+        parser.error("--verify checks the committed copy; it takes no other option")
 
-    doc = generate_sbom()
+    doc = generate_sbom(args.name, args.version)
     output = json.dumps(doc, indent=2) + "\n"
 
     if verify:
@@ -985,10 +1004,11 @@ def main():
             )
             sys.exit(1)
     else:
-        os.makedirs(SBOM_DIR, exist_ok=True)
-        with open(SBOM_PATH, "w") as f:
+        out_path = args.output or SBOM_PATH
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        with open(out_path, "w") as f:
             f.write(output)
-        print(f"Generated {SBOM_PATH}")
+        print(f"Generated {out_path}")
         # Count packages (excluding root).
         pkg_count = len(doc["packages"]) - 1
         print(

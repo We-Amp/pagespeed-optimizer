@@ -58,6 +58,8 @@ read and write access. The ASP.NET Core middleware's notification client
 had the same problem under an IIS application pool identity and is fixed the
 same way.
 
+Added: releases of the host packages now include a software bill of materials (`pagespeed-optimizer-<version>.spdx.json`, SPDX 2.3) and a VEX file (`pagespeed-optimizer-<version>.vex.json`, OpenVEX) that lists known vulnerabilities in bundled components that do not affect these packages, with the reason for each. Both files are listed in `SHA256SUMS`. Each package also has a build provenance attestation and an SBOM attestation, recorded in the public Sigstore transparency log, and `SHA256SUMS` now has a Sigstore signature, `SHA256SUMS.sigstore.json`, next to the existing PGP signature. To check a package, use the `gh attestation verify` and `cosign verify-blob` commands in RELEASING.md. The existing check with `gpg` and `sha256sum` works as before. See RELEASING.md for all verification commands.
+
 Fixed: with the nginx module and proactive image variants turned on
 (`PAGESPEED_PROACTIVE_IMAGE_VARIANTS=true` in the container, or the worker flag
 `--proactive-image-variants`), browsers could be served the original upload,

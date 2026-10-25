@@ -14,8 +14,14 @@
 #   pagespeed-optimizer_<upstream>_amd64.deb
 #   pagespeed-optimizer_<upstream>_arm64.deb
 #   pagespeed-optimizer-<upstream>-win-x64.zip
-#   SHA256SUMS
+#   pagespeed-optimizer-<upstream>.spdx.json   (SBOM, SPDX 2.3)
+#   pagespeed-optimizer-<upstream>.vex.json    (VEX, OpenVEX)
+#   SHA256SUMS                                 (lists the seven files above)
 #   SHA256SUMS.asc   (real runs; the release signing key, see docs/ci/release.md)
+#   SHA256SUMS.sigstore.json   (real runs; keyless cosign bundle on SHA256SUMS)
+# Real runs also record a build provenance attestation for the five packages,
+# the SBOM and the VEX file, and an SBOM attestation for each package, in the
+# GitHub attestation store (Sigstore, keyless; docs/ci/release.md).
 # Asset NAMES carry the upstream SemVer spelling (`-rc.N`): GitHub sanitizes
 # asset names, replacing '~' with '.', which would break `sha256sum -c` for
 # every downloader. The package-internal Version keeps the dpkg/rpm tilde
@@ -25,9 +31,9 @@
 #   * push of a tag matching optimizer-v*          -> REAL run
 #   * workflow_dispatch { tag, dry_run: true  }    -> build + validate only
 #   * workflow_dispatch { tag, dry_run: false }    -> REAL run
-# A dry run builds the four packages and the win-x64 zip, validates the
-# six-asset set (those five files and SHA256SUMS) and the sums fail-closed,
-# and uploads them as a workflow artifact; it
+# A dry run builds all five packages, generates the SBOM and VEX file and
+# runs the grype gate, validates the asset set and SHA256SUMS fail-closed,
+# and uploads them as a workflow artifact; it signs and attests nothing,
 # creates NO release and NO tag and never enters the `release` environment.
 # A real run REQUIRES the tag to already exist on the remote (it never
 # creates the tag itself; cutting the GA tag is the owner's act), passes the
@@ -693,14 +699,116 @@ jobs:
       - name: Require a green CI run of this commit
         run: bash tools/ci/ci_release_gate.sh
 
+  # Release security gates, hosted: the SBOM and VEX file that ship with the
+  # release, and grype over the shipped SBOM with the shipped VEX applied.
+  # The SBOM is generated from the sources of the tag (generate-sbom.py reads
+  # MODULE.bazel and the curated tables, never the binaries), so no build is
+  # needed. The grype database is the pinned one (tools/sbom/grype-db-pin.json,
+  # imported with auto-update off), so a release is reproducible; its age is
+  # enforced here as on the nightly. `manifest` waits for this job.
+  security-gates:
+    name: Security gates (SBOM, VEX, grype)
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      UPSTREAM: ${{ needs.version.outputs.upstream }}
+      SYFT_VERSION: v1.44.0
+      GRYPE_VERSION: v0.112.0
+      # Isolated, job-local grype database cache so the pinned import cannot
+      # be clobbered by a live-database auto-update.
+      GRYPE_DB_CACHE_DIR: ${{ github.workspace }}/.grype-db-pinned
+      GRYPE_DB_AUTO_UPDATE: "false"
+      GRYPE_DB_VALIDATE_AGE: "false"
+    steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.checkout_ref }}
+          persist-credentials: false
+
+      - name: Verify the checkout is the resolved tag commit
+        if: ${{ needs.version.outputs.tag_sha != '' }}
+        env:
+          WANT: ${{ needs.version.outputs.tag_sha }}
+        run: |
+          set -euo pipefail
+          GOT="$(git rev-parse HEAD)"
+          [ "$WANT" = "$GOT" ] || { echo "::error::tag moved: resolved $WANT, checked out $GOT"; exit 1; }
+
+      # generate-sbom.py needs Python 3.11+ (datetime.UTC).
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Generate the SBOM (SPDX 2.3) for this release
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tools/generate-sbom.py --name "pagespeed-optimizer-${UPSTREAM}" \
+            --version "$UPSTREAM" --output "out/pagespeed-optimizer-${UPSTREAM}.spdx.json"
+          python3 tools/sbom/check-spdx-structure.py "out/pagespeed-optimizer-${UPSTREAM}.spdx.json"
+
+      # The VEX statements live in sbom/*.vex.json; the release copy is the
+      # same statements under a release-stamped document id. A malformed
+      # statement is silently ignored by the scanner, so validate before and
+      # after, and fail when there is no VEX file at all (it is a release asset).
+      - name: Validate and stamp the VEX file
+        run: |
+          set -euo pipefail
+          python3 tools/ci/validate-vex.py sbom/
+          shopt -s nullglob
+          vex_files=(sbom/*.vex.json)
+          [ "${#vex_files[@]}" -eq 1 ] || { echo "::error::expected exactly one sbom/*.vex.json, found ${#vex_files[@]}"; exit 1; }
+          jq --arg id "https://we-amp.com/vex/pagespeed-optimizer-${UPSTREAM}" '."@id" = $id' \
+            "${vex_files[0]}" > "out/pagespeed-optimizer-${UPSTREAM}.vex.json"
+          python3 tools/ci/validate-vex.py out/
+
+      - name: Ensure pinned syft + grype
+        run: bash tools/ci/ensure-syft-grype.sh
+
+      - name: Provision the pinned grype DB (age enforced)
+        run: bash tools/sbom/provision-grype-db.sh --enforce-age
+
+      - name: Vulnerability scan (grype on the shipped SBOM, shipped VEX applied)
+        run: |
+          set -uo pipefail
+          rc=0
+          grype "sbom:out/pagespeed-optimizer-${UPSTREAM}.spdx.json" \
+            --vex "out/pagespeed-optimizer-${UPSTREAM}.vex.json" \
+            --fail-on medium -o table > "${RUNNER_TEMP}/grype.txt" || rc=$?
+          cat "${RUNNER_TEMP}/grype.txt"
+          {
+            echo "### grype on the release SBOM (pinned DB, VEX applied, fails on medium and above)"
+            echo ""
+            echo '```'
+            cat "${RUNNER_TEMP}/grype.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      - name: Upload the SBOM and VEX file
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-sbom-vex
+          path: out/*
+          if-no-files-found: error
+
   manifest:
     name: Validate asset set + SHA256SUMS
-    needs: [version, ci-release-gate, build-amd64, build-amd64-hosted, build-arm64, build-windows, build-windows-hosted]
+    needs: [version, ci-release-gate, security-gates, build-amd64, build-amd64-hosted, build-arm64, build-windows, build-windows-hosted]
     # Exactly one of each fleet/hosted pair runs; the other is skipped.
     if: >-
       ${{ !cancelled()
       && needs.version.result == 'success'
       && needs.ci-release-gate.result == 'success'
+      && needs.security-gates.result == 'success'
       && needs.build-arm64.result == 'success'
       && (needs.build-amd64.result == 'success' || needs.build-amd64-hosted.result == 'success')
       && (needs.build-windows.result == 'success' || needs.build-windows-hosted.result == 'success') }}
@@ -713,6 +821,14 @@ jobs:
           path: dist
           pattern: optimizer-*
           merge-multiple: true
+
+      # The SBOM and the VEX file from the security gates join the packages;
+      # they are named for the upstream version and are summed with them.
+      - name: Download the SBOM and VEX file
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-sbom-vex
+          path: dist
 
       # Rename the tilde package-version spelling to the upstream SemVer
       # spelling for the asset names (GitHub would sanitize '~' to '.',
@@ -732,8 +848,9 @@ jobs:
           sha256sum -- * > SHA256SUMS
           cat SHA256SUMS
 
-      # Fail closed on ANY contract deviation: exactly the six assets, all
-      # present and non-empty, sums verify, and the package-internal
+      # Fail closed on ANY contract deviation: exactly the eight assets (the
+      # five packages, the SBOM, the VEX file and SHA256SUMS; SHA256SUMS.asc
+      # and SHA256SUMS.sigstore.json join in the release job), all present and non-empty, sums verify, and the package-internal
       # versions carry the tilde package version the serving module's
       # exact-version dependency will name. The glibc floor must stay at
       # 2.34 (the RHEL 9 / Debian 12 contract); a noble-built binary would
@@ -753,10 +870,12 @@ jobs:
             "pagespeed-optimizer_${UPSTREAM}_amd64.deb"
             "pagespeed-optimizer_${UPSTREAM}_arm64.deb"
             "pagespeed-optimizer-${UPSTREAM}-win-x64.zip"
+            "pagespeed-optimizer-${UPSTREAM}.spdx.json"
+            "pagespeed-optimizer-${UPSTREAM}.vex.json"
             "SHA256SUMS"
           )
           mapfile -t ACTUAL < <(find . -maxdepth 1 -type f -printf '%f\n' | sort)
-          [ "${#ACTUAL[@]}" -eq 6 ] || { echo "::error::asset count ${#ACTUAL[@]} != 6: ${ACTUAL[*]}"; exit 1; }
+          [ "${#ACTUAL[@]}" -eq 8 ] || { echo "::error::asset count ${#ACTUAL[@]} != 8: ${ACTUAL[*]}"; exit 1; }
           # The Windows zip: exactly the worker, its client library and the
           # two licence files.
           unzip -Z1 "pagespeed-optimizer-${UPSTREAM}-win-x64.zip" | sort | tr '\n' ' ' | grep -qx 'LICENSE NOTICE factory_worker.exe pagespeed.dll ' \
@@ -766,6 +885,13 @@ jobs:
             [ -s "$f" ] || { echo "::error::empty asset '$f'"; exit 1; }
           done
           sha256sum -c SHA256SUMS
+          # SHA256SUMS lists the seven files it covers, not itself.
+          [ "$(wc -l < SHA256SUMS)" -eq 7 ] || { echo "::error::SHA256SUMS lists $(wc -l < SHA256SUMS) files != 7"; exit 1; }
+          # The SBOM and the VEX file are JSON documents of the right kind.
+          jq -e '.spdxVersion == "SPDX-2.3" and (.packages | length) > 0' "pagespeed-optimizer-${UPSTREAM}.spdx.json" >/dev/null \
+            || { echo "::error::the SBOM is not an SPDX 2.3 document with packages"; exit 1; }
+          jq -e '(."@context" | tostring | contains("openvex.dev")) and (.statements | type) == "array"' "pagespeed-optimizer-${UPSTREAM}.vex.json" >/dev/null \
+            || { echo "::error::the VEX file is not an OpenVEX document with a statements array"; exit 1; }
           for deb in ./*.deb; do
             v="$(dpkg-deb -f "$deb" Version)"
             [ "$v" = "$PKG_VERSION" ] || { echo "::error::$deb Version '$v' != '$PKG_VERSION'"; exit 1; }
@@ -801,16 +927,25 @@ jobs:
           if-no-files-found: error
 
   # Real runs only, inside the protected `release` environment. The release
-  # signing key lives in this one job, which holds no write token. The
-  # signing script and the published public key come from main, never from
-  # the tree being released.
+  # signing key lives in this one job, which holds no write token to the
+  # repository contents: the OIDC token and attestations: write are what the
+  # keyless signature and the attestations need, and the key material is
+  # gone (the keyrings are removed) before either is used. The signing
+  # script and the published public key come from main, never from the tree
+  # being released. Signs with two independent mechanisms: the release key
+  # (SHA256SUMS.asc) and Sigstore (SHA256SUMS.sigstore.json, plus the
+  # attestations), whose identity is this workflow on main.
   sign-checksums:
-    name: Sign SHA256SUMS
+    name: Sign SHA256SUMS (release key, Sigstore) and attest
     needs: [version, manifest]
     if: ${{ !cancelled() && needs.manifest.result == 'success' && needs.version.outputs.dry_run == 'false' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     environment: release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - name: Checkout main (signing script, published key)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -860,11 +995,66 @@ jobs:
             rm -rf "$h"
           done
 
-      - name: Upload the signature
+      # The build provenance attestation covers the five packages, the SBOM
+      # and the VEX file; the SBOM attestation binds the SBOM to each of the
+      # five packages. They prove which workflow run produced these digests
+      # (the amd64 package and the Windows zip build on the project's own
+      # runners, so they do not prove an isolated build).
+      - name: Attest build provenance (packages, SBOM, VEX)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.zip
+            dist/*.spdx.json
+            dist/*.vex.json
+
+      - name: Attest the SBOM for each package
+        uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.zip
+          sbom-path: dist/pagespeed-optimizer-${{ needs.version.outputs.upstream }}.spdx.json
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # Keyless: the certificate names this workflow file on main as the
+      # signer (the SAN is the job workflow ref), not a person or a key.
+      - name: Sign SHA256SUMS with cosign (keyless bundle)
+        run: cosign sign-blob --yes --bundle signature/SHA256SUMS.sigstore.json dist/SHA256SUMS
+
+      - name: Verify the Sigstore signature and one attestation, as a consumer would
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ needs.version.outputs.upstream }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          # The signer is this workflow on main, and a real run always starts
+          # on the release tag (the release environment admits tag refs only).
+          IDENTITY='https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main'
+          cosign verify-blob dist/SHA256SUMS --bundle signature/SHA256SUMS.sigstore.json \
+            --certificate-identity "$IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-github-workflow-ref "refs/tags/${TAG}"
+          gh attestation verify "dist/pagespeed-optimizer_${UPSTREAM}_amd64.deb" --repo We-Amp/pagespeed-optimizer \
+            --cert-identity "$IDENTITY" --source-ref "refs/tags/${TAG}"
+          gh attestation verify "dist/pagespeed-optimizer_${UPSTREAM}_amd64.deb" --repo We-Amp/pagespeed-optimizer \
+            --cert-identity "$IDENTITY" --source-ref "refs/tags/${TAG}" \
+            --predicate-type https://spdx.dev/Document/v2.3
+          echo "Sigstore signature and attestations verified against the pinned workflow identity" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the signatures
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: optimizer-release-signature
-          path: signature/SHA256SUMS.asc
+          path: |
+            signature/SHA256SUMS.asc
+            signature/SHA256SUMS.sigstore.json
           if-no-files-found: error
 
   # Real runs only, inside the protected `release` environment (required
@@ -907,7 +1097,7 @@ jobs:
           name: optimizer-release-dist
           path: dist
 
-      - name: Download the signature
+      - name: Download the signatures
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: optimizer-release-signature
@@ -919,6 +1109,7 @@ jobs:
           cd dist
           sha256sum -c SHA256SUMS
           [ -s SHA256SUMS.asc ] || { echo "::error::SHA256SUMS.asc is missing"; exit 1; }
+          [ -s SHA256SUMS.sigstore.json ] || { echo "::error::SHA256SUMS.sigstore.json is missing"; exit 1; }
 
       - name: Create release
         env:
@@ -930,7 +1121,31 @@ jobs:
           set -euo pipefail
           FLAGS=(--verify-tag)
           [ "$PRERELEASE" = "true" ] && FLAGS+=(--prerelease)
+          # The notes carry the verification commands next to the assets.
+          # The code lines are indented, so no backtick fences are needed.
+          cat > "${RUNNER_TEMP}/notes.md" <<NOTES
+          The pagespeed-optimizer host packages (optimization daemon + the libpagespeed.so client library serving modules bind), version \`$PKG_VERSION\`, for deb and rpm hosts on amd64 and arm64, and a Windows x64 zip (factory_worker.exe + pagespeed.dll). Install alongside the matching serving-module package, which depends on this package at this exact version.
+
+          The release also carries a software bill of materials (\`pagespeed-optimizer-<version>.spdx.json\`) and a VEX file (\`pagespeed-optimizer-<version>.vex.json\`); both are listed in SHA256SUMS.
+
+          Verify downloads against SHA256SUMS, and SHA256SUMS against SHA256SUMS.asc with the release signing key 411D EFDB 5713 51D2 B25A EFCC 9C02 B5BD CCE7 5313 (RELEASE-SIGNING-KEY.asc in this repository):
+
+              sha256sum --check --ignore-missing SHA256SUMS
+              gpg --verify SHA256SUMS.asc SHA256SUMS
+
+          SHA256SUMS also has a Sigstore signature, and every package has a build provenance attestation and an SBOM attestation:
+
+              cosign verify-blob SHA256SUMS --bundle SHA256SUMS.sigstore.json \\
+                --certificate-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \\
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com \\
+                --certificate-github-workflow-ref refs/tags/optimizer-v<version>
+              gh attestation verify <package file> --repo We-Amp/pagespeed-optimizer \\
+                --cert-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \\
+                --source-ref refs/tags/optimizer-v<version>
+
+          RELEASING.md in this repository lists all verification commands.
+          NOTES
           gh release create "$TAG" "${FLAGS[@]}" \
             --title "pagespeed-optimizer $PKG_VERSION" \
-            --notes "The pagespeed-optimizer host packages (optimization daemon + the libpagespeed.so client library serving modules bind), version \`$PKG_VERSION\`, for deb and rpm hosts on amd64 and arm64, and a Windows x64 zip (factory_worker.exe + pagespeed.dll). Install alongside the matching serving-module package, which depends on this package at this exact version. Verify downloads against SHA256SUMS, and SHA256SUMS against SHA256SUMS.asc with the release signing key 411D EFDB 5713 51D2 B25A EFCC 9C02 B5BD CCE7 5313 (RELEASE-SIGNING-KEY.asc in this repository)." \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
             ./dist/*
