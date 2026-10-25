@@ -71,7 +71,7 @@ mkdir -p "$CACHE_DIR" "$RUN_DIR"
 
 # --- happy path -----------------------------------------------------------
 "$BINARY" --cache-dir "$CACHE_DIR" --socket "$RUN_DIR/notify.sock" \
-  --cache-size 16777216 --log-level warning &
+  --cache-size 16777216 --log-level warning >"$TMP/worker.log" 2>&1 &
 echo $! > "$TMP/worker.pid"
 
 # Wait for ALL THREE sockets, not just the notification one.
@@ -85,9 +85,15 @@ echo $! > "$TMP/worker.pid"
 # machine it is: `FAIL: mgmt socket mode 0660 -- expected [660], got []` with
 # the socket simply not there yet. Reproduced 1 run in 12 under load, against
 # a binary whose sources had not changed at all.
-for _ in $(seq 1 100); do
+#
+# The budget is 60 s, not 10: on a busy build host the daemon needs well over
+# 10 s to open its cache volume and start listening, and a quiet host still
+# breaks out of the loop in a fraction of a second. If the daemon has already
+# exited there is nothing left to wait for, so stop polling early.
+for _ in $(seq 1 600); do
   [[ -S "$RUN_DIR/notify.sock" && -S "$RUN_DIR/notify.sock.health" && \
      -S "$RUN_DIR/notify.sock.mgmt" ]] && break
+  kill -0 "$(cat "$TMP/worker.pid")" 2>/dev/null || break
   sleep 0.1
 done
 # Name the socket that never showed up: a bare "daemon did not start" sends
@@ -95,7 +101,17 @@ done
 # the health socket was not checked here at all.
 for sock in notify.sock notify.sock.health notify.sock.mgmt; do
   [[ -S "$RUN_DIR/$sock" ]] || {
-    echo "FAIL: daemon did not start ($sock never appeared)" >&2; exit 1; }
+    echo "FAIL: daemon did not start ($sock never appeared)" >&2
+    if kill -0 "$(cat "$TMP/worker.pid")" 2>/dev/null; then
+      echo "daemon is still running after 60 s" >&2
+    else
+      status=0
+      wait "$(cat "$TMP/worker.pid")" 2>/dev/null || status=$?
+      echo "daemon exited with status $status" >&2
+    fi
+    echo "--- daemon output (last 50 lines of $TMP/worker.log) ---" >&2
+    tail -n 50 "$TMP/worker.log" >&2 || true
+    exit 1; }
 done
 # The volume, shared config and serve-stats are all created before the sockets
 # are bound, so by here they exist. Kept as a cheap explicit guard.
@@ -168,8 +184,10 @@ if [[ "$(id -u)" -eq 0 ]]; then
   "$BINARY" --cache-dir "$BYSTANDER" --socket "$RUN_DIR/b.sock" \
     --cache-size 16777216 --log-level warning >"$TMP/bystander.log" 2>&1 &
   bystander_pid=$!
-  for _ in $(seq 1 50); do
+  # Same start budget as the happy path: 60 s at 0.1 s polling.
+  for _ in $(seq 1 600); do
     [[ -S "$RUN_DIR/b.sock" ]] && break
+    kill -0 "$bystander_pid" 2>/dev/null || break
     sleep 0.1
   done
   check "foreign-owned bystander does not refuse" "1" \
@@ -181,6 +199,8 @@ else
 fi
 
 if [[ "$fails" -gt 0 ]]; then
+  echo "--- daemon output (last 50 lines of $TMP/worker.log) ---" >&2
+  tail -n 50 "$TMP/worker.log" >&2 || true
   echo "smoke: $fails FAILURE(S)" >&2; exit 1
 fi
 echo "smoke: all checks passed"
