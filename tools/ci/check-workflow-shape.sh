@@ -35,8 +35,9 @@
 #       narrowed by `&& needs.changes.outputs.<name> == 'true'`. The
 #       fleet-only guard also has a switch form that tests `!= 'false'`
 #       (unset means on). A job routed by the switch expression carries no
-#       guard: it always runs, hosted or on the fleet; its if: is empty or
-#       just `needs.changes.outputs.<name> == 'true'`. The release lanes keep
+#       guard: it always runs, hosted or on the fleet; its if: is empty,
+#       just `needs.changes.outputs.<name> == 'true'`, or exactly
+#       `${{ github.event_name != 'push' }}` (skip a push to main). The release lanes keep
 #       the plain expression and the original guards;
 #   (f) in a workflow_call workflow: a top-level `permissions:` block is
 #       required and must grant no write access; write access to GitHub (a
@@ -218,11 +219,14 @@ is_fleet_switch_route() {
   return 1
 }
 
-# The only if: a switch-routed job may carry: none, or the path filter alone.
+# The only if: a switch-routed job may carry: none, the path filter alone, or
+# the push exclusion (a job that runs for a pull request or a dispatch but
+# never on a push to main).
 is_switch_if() {
   local v="$1" name
   [ -z "${v}" ] && return 0
   case "${v}" in
+    "\${{ github.event_name != 'push' }}") return 0 ;;
     "\${{ needs.changes.outputs."*" == 'true' }}")
       name="${v#\$\{\{ needs.changes.outputs.}"; name="${name% == \'true\' \}\}}"
       printf '%s' "${name}" | grep -qE '^[a-z][a-z_]*$' && return 0
@@ -322,7 +326,7 @@ EOT
       elif is_fleet_switch_route "${val}"; then
         if_val="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${job}" '$1=="KEY" && $2==j && $3=="if" {print $5}')"
         if ! is_switch_if "${if_val}"; then
-          err "${wf}:${lineno}: switch-routed job '${job}' may carry no if: or only a needs.changes.outputs.<name> == 'true' path filter (rule d)"
+          err "${wf}:${lineno}: switch-routed job '${job}' may carry no if:, only a needs.changes.outputs.<name> == 'true' path filter, or exactly \${{ github.event_name != 'push' }} (rule d)"
         fi
       elif is_fleet_route "${val}"; then
         # A fleet job carries the fleet guard verbatim as its if: (the

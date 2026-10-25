@@ -1325,17 +1325,22 @@ jobs:
           echo "LINT_IMAGE=${LINT_IMAGE}" >> "$GITHUB_ENV"
 
       # Decide WHICH translation units clang-tidy lints this run:
-      #   * push / workflow_dispatch          -> full   (whole tree; the post-merge safety net)
+      #   * push to the default branch         -> none   (the whole-tree clang-tidy runs in the nightly tier;
+      #                                                   clang-format still runs)
+      #   * workflow_dispatch                 -> full   (whole tree; release-candidate runs)
       #   * PR touching a header (.h/.hpp)     -> full   (re-checks all dependents)
       #   * PR touching only .cc files         -> scoped (just those files)
       #   * PR touching neither .cc nor a hdr  -> none   (clang-tidy skipped; clang-format still runs)
       # A header change falls back to "full" because clang-tidy must re-check
-      # every dependent TU; push-to-main also runs full as the post-merge net.
+      # every dependent TU. A push to main lints nothing here: the merge queue
+      # already linted the merged change, and the whole-tree clang-tidy runs
+      # in the nightly instead of on every push.
       - name: Compute lint scope
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
         run: |
           MODE=full
+          [ "${GITHUB_EVENT_NAME}" != "push" ] || MODE=none
           LIST="${GITHUB_WORKSPACE}/.lint-files.txt"
           CHANGED="${RUNNER_TEMP}/lint-changed.txt"
           : > "$LIST"
