@@ -175,24 +175,23 @@ For high-traffic URLs, the interceptor builds the full variant matrix ahead of d
 
 The trade-off for proactive variant generation is cache storage. Generating up to 37 variants per image increases the cache footprint significantly compared to storing only the original.
 
-For a 200 KB JPEG source image:
+For a 161 KB JPEG source image (1600x900 pixels, measured on 2026-10-25 at the shipped encoder defaults with proactive variant generation on):
 
-| Variant                            | Typical Size |
-| ---------------------------------- | ------------ |
-| WebP (Desktop, 1x, normal)         | 110 KB       |
-| WebP (Desktop, 1x, Save-Data)      | 70 KB        |
-| WebP (Mobile 480px, 1x, normal)    | 18 KB        |
-| WebP (Mobile 480px, 1x, Save-Data) | 12 KB        |
-| AVIF (Desktop, 1x, normal)         | 64 KB        |
-| AVIF (Desktop, 1x, Save-Data)      | 48 KB        |
-| AVIF (Mobile 480px, 1x, normal)    | 10 KB        |
-| AVIF (Mobile 480px, 1x, Save-Data) | 8 KB         |
-| Optimized JPEG (Desktop, 1x)       | 170 KB       |
-| Optimized JPEG (Mobile 480px, 1x)  | 28 KB        |
+| Variant                            | Measured Size |
+| ---------------------------------- | ------------- |
+| WebP (Desktop, 1x, normal)         | 36 KB         |
+| WebP (Mobile 480px, 1x, normal)    | 23 KB         |
+| WebP (Mobile 480px, 1x, Save-Data) | 16 KB         |
+| AVIF (Desktop, 1x, normal)         | 46 KB         |
+| AVIF (Desktop, 1x, Save-Data)      | 21 KB         |
+| AVIF (Mobile 480px, 1x, normal)    | 20 KB         |
+| AVIF (Mobile 480px, 1x, Save-Data) | 8 KB          |
+| Optimized JPEG (Desktop, 1x)       | 54 KB         |
+| Optimized JPEG (Mobile 480px, 1x)  | 25 KB         |
 
-The full 37-variant set for this image totals roughly 1.5 MB -- about 7.5x the original size. For a 1,000-image catalog, that is 1.5 GB of cache. The Cyclone cache handles this with LRU eviction: set `cache_size_bytes` to your available disk budget, and the least-recently-accessed variants get evicted first. Mobile/Save-Data/AVIF variants for a rarely-viewed product image will be evicted long before the Desktop/WebP variant of the hero banner.
+The nine measured variants of this image total about 250 KB, 1.5x the 161 KB original; the full 37-variant set adds the tablet and 2x density renditions, which were not measured here. For a 1,000-image catalog, the nine measured variants alone take roughly 250 MB of cache. The Cyclone cache handles this with LRU eviction: set `cache_size_bytes` to your available disk budget, and the least-recently-accessed variants get evicted first. Mobile/Save-Data/AVIF variants for a rarely-viewed product image will be evicted long before the Desktop/WebP variant of the hero banner.
 
-The resized variants are where the real bandwidth savings come from. That 200 KB JPEG, served as a 480px-wide AVIF to a [mobile device with Save-Data enabled](/blog/save-data-bandwidth/), drops to 8 KB -- a 96% reduction. The storage cost of 1.5 MB per image is paid once on disk; the bandwidth saving of 192 KB per mobile page view is paid on every request. Because the variant matrix lives in your own Cyclone cache rather than a third-party CDN, those savings come without the [per-image processing fees or egress charges](/blog/economics-of-image-optimization/) of a third-party service -- one of the practical benefits of [keeping image optimization self-hosted](/blog/self-hosted-image-optimization/).
+The resized variants are where the real bandwidth savings come from. That 161 KB JPEG, served as a 480px-wide AVIF to a [mobile device with Save-Data enabled](/blog/save-data-bandwidth/), drops to 8 KB -- a 95% reduction. The storage cost per image is paid once on disk; the bandwidth saving of 153 KB per mobile page view is paid on every request. Because the variant matrix lives in your own Cyclone cache rather than a third-party CDN, those savings come without the [per-image processing fees or egress charges](/blog/economics-of-image-optimization/) of a third-party service -- one of the practical benefits of [keeping image optimization self-hosted](/blog/self-hosted-image-optimization/).
 
 ## Configuration reference
 

@@ -21,7 +21,7 @@ Each test site was loaded 10 times with ModPageSpeed 2.0 enabled and 10 times ag
 
 Measurements were captured using Lighthouse CI (the same performance category [PageSpeed Insights](/pagespeed-insights/) reports), WebPageTest (filmstrip + waterfall), and Chrome DevTools Protocol (network transfer sizes). Core Web Vitals -- Largest Contentful Paint (LCP), First Contentful Paint (FCP), Cumulative Layout Shift (CLS), and Total Blocking Time (TBT) -- are the primary metrics.
 
-The portfolio section is the exception: it was re-measured on 2026-10-25 for transfer bytes only, by requesting every image variant through nginx with the worker at its shipped defaults and comparing the response sizes with the originals. That section names its corpus and settings.
+The portfolio section is the exception: it was re-measured on 2026-10-25 for response bytes only, by requesting every image variant through nginx with the worker at its shipped defaults and comparing the response sizes with the originals. That section names its corpus and settings.
 
 ## E-commerce results
 
@@ -85,9 +85,9 @@ The photography portfolio page is image-dominated: 18 photographs, minimal CSS, 
 
 This is where the capability mask system pays off most. The 32-bit mask encodes image format (bits 0-1), [viewport class](/blog/viewport-aware-image-optimization/) (bits 2-3), pixel density (bit 4), Save-Data preference (bit 5), and transfer encoding (bits 6-7). The worker generates WebP, AVIF, and optimized-original variants proactively from a single decode pass when `proactive_image_variants` is enabled. It is off by default; these benchmarks were run with the flag turned on.
 
-AVIF proved the most effective format for photographic content, with WebP close behind. At the shipped defaults (`avif_speed` 6 and `avif_quality` 60 as the starting point, with the learned quality model and SSIMULACRA2 verification choosing the final quality per image), the AVIF variants were 55% smaller than the original JPEGs by total bytes, 60% on average per image. WebP came out 52% smaller by total (53% per image) and the re-encoded JPEG 36% smaller (42% per image). One AVIF and two WebP variants had not finished encoding inside the five-minute measurement window and are left out of those totals. For comparison, pinning AVIF quality at 25, as an earlier version of this post did, takes the AVIF total down by 87% at a quality well below the shipped default; that setting is not what ships.
+AVIF proved the most effective format for photographic content, with WebP close behind. At the shipped defaults (`avif_speed` 6 and `avif_quality` 60 as the starting point, with the learned quality model and SSIMULACRA2 verification choosing the final quality per image), the AVIF variants were 55% smaller than the original JPEGs by total bytes, 60% on average per image. WebP came out 52% smaller by total (53% per image) and the re-encoded JPEG 36% smaller (42% per image). One AVIF and two WebP variants had not finished encoding inside the five-minute measurement window and are left out of those totals. For comparison, pinning AVIF quality at 25 with the learned model off, as an earlier version of this post did, takes the AVIF total down by 87% at a quality well below the shipped default; that setting is not what ships.
 
-**Image bytes on the wire (desktop, Save-Data off):**
+**Image bytes served (desktop, Save-Data off; the measured ratios applied to the full 6.9 MB):**
 
 | Metric            | Without | With (AVIF client) | With (WebP client) |
 | ----------------- | ------- | ------------------ | ------------------ |
