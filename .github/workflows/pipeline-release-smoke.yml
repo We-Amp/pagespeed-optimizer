@@ -95,31 +95,16 @@ jobs:
       # ----------------------------------------------------------
       - name: Ensure .NET 10 SDK (Linux/macOS)
         if: matrix.os != 'windows'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Put the macOS dotnet location on PATH
+        if: matrix.os == 'macos'
         shell: bash
         run: |
-          set -euo pipefail
-          if [ "${{ matrix.os }}" = "macos" ]; then
-            export PATH="$PATH_PREFIX_MAC:$PATH"
-          fi
-          # Must precede the guard: $HOME/.dotnet is on no default PATH and
-          # PATH_PREFIX_MAC does not contain it either, so the guard never saw
-          # an installed SDK and re-ran the installer every time -- which
-          # extracts in place and can get the muxer SIGKILLed. The GITHUB_PATH
-          # echo is hoisted out of the branch too: once the guard starts
-          # passing, later steps must still find dotnet.
-          export PATH="$HOME/.dotnet:$PATH"
-          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
-          if dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
-            echo ".NET 10 SDK already installed"
-          else
-            curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
-            bash "${RUNNER_TEMP}/dotnet-install.sh" --channel 10.0
-          fi
-          # Ensure mac dotnet location is on PATH for later steps
-          if [ "${{ matrix.os }}" = "macos" ]; then
-            echo "/usr/local/share/dotnet" >> "$GITHUB_PATH"
-            echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
-          fi
+          echo "/usr/local/share/dotnet" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
           dotnet --list-sdks
 
       # ----------------------------------------------------------
@@ -595,24 +580,9 @@ jobs:
 
       - name: Ensure .NET 10 SDK (Windows)
         if: matrix.os == 'windows'
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $hasTen = $false
-          try {
-            $sdks = & dotnet --list-sdks 2>$null
-            if ($sdks -match '^10\.') { $hasTen = $true }
-          } catch { }
-          if ($hasTen) {
-            Write-Host ".NET 10 SDK already installed"
-          } else {
-            $script = Join-Path $env:RUNNER_TEMP "dotnet-install.ps1"
-            Invoke-WebRequest -UseBasicParsing -Uri https://dot.net/v1/dotnet-install.ps1 -OutFile $script
-            & $script -Channel 10.0 -InstallDir "$env:USERPROFILE\.dotnet"
-            "$env:USERPROFILE\.dotnet" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-            $env:PATH = "$env:USERPROFILE\.dotnet;$env:PATH"
-          }
-          & dotnet --list-sdks
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
 
       - name: Wait for nuget.org indexing (Windows)
         if: matrix.os == 'windows'
