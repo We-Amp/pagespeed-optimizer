@@ -102,6 +102,13 @@ gtest_test(
 )
 
 gtest_test(
+    name = "header_key_util_test",
+    deps = [
+        "//src/nginx:header_key_util",
+    ],
+)
+
+gtest_test(
     name = "mime_util_test",
     deps = [
         "//src/nginx:mime_util",
