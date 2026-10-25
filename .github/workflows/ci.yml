@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
-# The thin CI caller. Step 2 of the cutover renames this file over ci.yml
-# (and drops ci.yml from tools/ci/workflow-shape-allowlist.txt). It holds
-# the triggers and the concurrency group only; every job lives in the
+# The thin CI caller. It holds the triggers, the concurrency group, the
+# permissions and the aggregate `CI gate` job; every other job lives in the
 # reusable workflows, pinned to main. See docs/ci/pipelines.md.
 #
-# Required checks after the switch are named `pr / <job name>` (for
-# example `pr / Linux Build`) plus `CI gate`.
+# Required checks are named `pr / <job name>` (for example `pr / Linux Build`)
+# plus `CI gate`.
 
 name: CI
 
