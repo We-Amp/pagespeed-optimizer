@@ -20,6 +20,14 @@
 
 namespace pagespeed {
 
+#ifdef _WIN32
+// The access the sender requests when it opens the worker's pipe:
+// FILE_READ_DATA | FILE_WRITE_DATA | SYNCHRONIZE. Not GENERIC_WRITE, which
+// includes FILE_APPEND_DATA, the same bit as FILE_CREATE_PIPE_INSTANCE that
+// the worker's access rules withhold from other accounts.
+inline constexpr unsigned long kNotificationPipeDesiredAccess = 0x00100003;
+#endif
+
 // Result of a send operation.
 struct NotificationSendResult {
   bool success = false;

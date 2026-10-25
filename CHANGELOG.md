@@ -34,6 +34,14 @@ reset.
 Fixed: request headers the nginx module adds for conditional revalidation now
 carry a lowercase key and hash like every other request header, so later
 request processing handles them correctly.
+Fixed: on Windows, the client library's notification sender could not reach an
+optimizer worker running under a different account than the caller, for example
+an IIS application pool identity with the worker under a service account. It
+asked for more access to the worker's pipe than the worker grants other
+accounts, and the connection failed with access denied. It now asks only for
+read and write access. The ASP.NET Core middleware's notification client
+had the same problem under an IIS application pool identity and is fixed the
+same way.
 
 Fixed: with the nginx module and proactive image variants turned on
 (`PAGESPEED_PROACTIVE_IMAGE_VARIANTS=true` in the container, or the worker flag

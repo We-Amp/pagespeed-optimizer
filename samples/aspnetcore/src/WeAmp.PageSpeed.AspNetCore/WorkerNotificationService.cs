@@ -6,6 +6,7 @@ using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
+using Microsoft.Win32.SafeHandles;
 using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
@@ -238,6 +239,109 @@ public sealed class WorkerNotificationService : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Connects the client end for the worker's pipe. The access is spelled
+    /// out (write data and synchronize): <c>PipeDirection.Out</c> would ask
+    /// for GENERIC_WRITE, which includes the pipe-instance right the worker
+    /// withholds from other accounts, so the connect would be denied for an
+    /// application pool identity.
+    /// </summary>
+    internal static async ValueTask<NamedPipeClientStream> ConnectPipeClientAsync(
+        string pipeName, CancellationToken ct)
+    {
+#if NET9_0_OR_GREATER
+        var pipe = new NamedPipeClientStream(
+            ".", pipeName,
+            PipeAccessRights.WriteData | PipeAccessRights.Synchronize,
+            PipeOptions.Asynchronous,
+            TokenImpersonationLevel.Identification,
+            HandleInheritability.None);
+        try
+        {
+            await pipe.ConnectAsync(ct);
+            return pipe;
+        }
+        catch
+        {
+            pipe.Dispose();
+            throw;
+        }
+#else
+        // The PipeAccessRights constructor needs .NET 9, so open the pipe
+        // directly: wait for a free instance, then open with the narrow
+        // access, as the stock connect does.
+        var fullName = @"\\.\pipe\" + pipeName;
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            var handle = NativePipe.CreateFileW(
+                fullName, NativePipe.FileWriteData | NativePipe.Synchronize,
+                0, IntPtr.Zero, NativePipe.OpenExisting,
+                NativePipe.FileFlagOverlapped | NativePipe.SecurityQosPresent |
+                    NativePipe.SecurityIdentification,
+                IntPtr.Zero);
+            if (!handle.IsInvalid)
+            {
+                try
+                {
+                    return new NamedPipeClientStream(
+                        PipeDirection.Out, isAsync: true, isConnected: true,
+                        handle);
+                }
+                catch
+                {
+                    handle.Dispose();
+                    throw;
+                }
+            }
+
+            int error = Marshal.GetLastWin32Error();
+            handle.Dispose();
+            if (error == NativePipe.ErrorPipeBusy)
+            {
+                // Every instance is taken: wait briefly for one, then retry.
+                NativePipe.WaitNamedPipeW(fullName, 50);
+            }
+            else if (error == NativePipe.ErrorFileNotFound)
+            {
+                // Not created yet; the stock connect keeps trying as well.
+                await Task.Delay(10, ct);
+            }
+            else
+            {
+                // Access denied surfaces as UnauthorizedAccessException, as
+                // on the stock path.
+                throw Marshal.GetExceptionForHR(
+                    unchecked((int)0x80070000) | error)!;
+            }
+        }
+#endif
+    }
+
+#if !NET9_0_OR_GREATER
+    private static class NativePipe
+    {
+        public const uint FileWriteData = 0x2;
+        public const uint Synchronize = 0x100000;
+        public const uint OpenExisting = 3;
+        public const uint FileFlagOverlapped = 0x40000000;
+        public const uint SecurityQosPresent = 0x100000;
+        public const uint SecurityIdentification = 0x10000;
+        public const int ErrorFileNotFound = 2;
+        public const int ErrorPipeBusy = 231;
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        public static extern SafePipeHandle CreateFileW(
+            string fileName, uint desiredAccess, uint shareMode,
+            IntPtr securityAttributes, uint creationDisposition,
+            uint flagsAndAttributes, IntPtr templateFile);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool WaitNamedPipeW(string name, uint timeoutMs);
+    }
+#endif
+
     private async ValueTask EnsureConnectedAsync(
         string socketPath, CancellationToken ct)
     {
@@ -264,20 +368,8 @@ public sealed class WorkerNotificationService : BackgroundService
 
             // Least privilege: identification level only; the worker never
             // acts as its clients.
-            var pipe = new NamedPipeClientStream(
-                ".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous,
-                TokenImpersonationLevel.Identification);
-            try
-            {
-                await pipe.ConnectAsync(ct);
-                _pipe = pipe;
-                _connectedPath = socketPath;
-            }
-            catch
-            {
-                pipe.Dispose();
-                throw;
-            }
+            _pipe = await ConnectPipeClientAsync(pipeName, ct);
+            _connectedPath = socketPath;
         }
         else
         {

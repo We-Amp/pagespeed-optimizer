@@ -23,6 +23,7 @@ gtest_test(
     deps = [
         "//src/proto:notification_sender",
         "//src/proto:worker_ipc",
+        "//src/worker:pipe_dacl",
     ],
 )
 
