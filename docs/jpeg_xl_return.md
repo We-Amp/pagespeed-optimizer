@@ -824,7 +824,7 @@ Add JXL conversion tests:
 - Add JXL MIME type assertion (`format_bits == 3` → `"image/jxl"`)
 - Update `uint8_t` casts to `uint16_t`
 
-### 7.8 `test/src/worker/worker_test.cc`
+### 7.8 `test/src/worker/worker_notify_test.cc`
 
 - Update sentinel mask assertions for new bit layout
 - Update default mask values
@@ -1262,7 +1262,7 @@ documented. Migration guide for existing deployments.
 | `test/lib/cache/cache_test.cc` | Default mask `0x08`→`0x0010`, JXL variant |
 | `test/src/worker/image_transcoder_test.cc` | JXL conversion tests |
 | `test/src/worker/cache_handlers_test.cc` | MIME type, cast updates, range validation |
-| `test/src/worker/worker_test.cc` | Sentinels, default mask, JXL gen |
+| `test/src/worker/worker_notify_test.cc` | Sentinels, default mask, JXL gen |
 | `reference/cyclone/test/` | Document header round-trip, 16-bit IDs, version bump |
 | `tools/e2e/test_user_stories.py` | JXL negotiation E2E |
 | `tools/stress/test_proactive_variant.py` | JXL in by_format |

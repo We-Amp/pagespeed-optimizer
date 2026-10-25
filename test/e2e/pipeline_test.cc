@@ -379,7 +379,7 @@ TEST_F(PipelineTest, ImagePipelineEndToEnd) {
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
   // Disable proactive variants for predictable single-variant output.
-  // Proactive generation is tested separately in worker_test.cc.
+  // Proactive generation is tested separately in worker_image_test.cc.
   config.proactive_image_variants = false;
   // Disable SSIMULACRA2 verification: the re-encode loop can push WebP
   // quality above the original JPEG size, triggering the size gate.
