@@ -1325,7 +1325,7 @@ jobs:
           echo "LINT_IMAGE=${LINT_IMAGE}" >> "$GITHUB_ENV"
 
       # Decide WHICH translation units clang-tidy lints this run:
-      #   * push to the default branch         -> none   (the whole-tree sweep belongs to the nightly tier;
+      #   * push to the default branch         -> none   (the whole-tree clang-tidy runs in the nightly tier;
       #                                                   clang-format still runs)
       #   * workflow_dispatch                 -> full   (whole tree; release-candidate runs)
       #   * PR touching a header (.h/.hpp)     -> full   (re-checks all dependents)

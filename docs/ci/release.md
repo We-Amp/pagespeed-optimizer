@@ -118,7 +118,8 @@ concluded `success` and these jobs of the latest attempt are all `success`:
 No other job of that run may be `failure`, `cancelled` or `timed_out`, except
 `full / Daemon Privilege Rig (arm64)`, which is `continue-on-error`. A
 `full=true` dispatch of `CI` on the release commit satisfies this. A push run
-whose pull-request tier was skipped does not, by design.
+does not: a push to `main` skips `full / Lint (whole tree)` (the whole-tree lint
+for `main` runs in the nightly), so a release always needs the dispatch.
 
 The gate polls a run that is still in flight (up to 60 minutes), retries
 transient API errors, and refuses after two consecutive checks that find

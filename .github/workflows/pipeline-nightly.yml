@@ -2551,9 +2551,9 @@ jobs:
     name: Lint (whole tree)
     needs: periodic-vendor
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
-      # A whole-tree lint takes tens of minutes, longer on a cold lint cache or
+    # A whole-tree lint takes tens of minutes, longer on a cold lint cache or
     # a hosted runner (which also builds the image first).
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - name: Unlock a previous run's vendored toolchain files
         # bazel vendor leaves read-only toolchain directories under vendor/;

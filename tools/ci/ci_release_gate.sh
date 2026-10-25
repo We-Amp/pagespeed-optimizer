@@ -9,7 +9,7 @@
 # REQUIRED below is success and no other job is failure, cancelled or
 # timed_out (the arm64 daemon privilege rig is the one job allowed to be red;
 # it is continue-on-error in ci.yml). A full=true dispatch satisfies this. A
-# push run whose pull-request tier was skipped does not, by design.
+# push run does not: it skips full / Lint (whole tree), by design.
 #
 #   * Every API call is retried on a transient failure (HTTP 5xx, timeouts,
 #     connection errors) with backoff 10/20/40/80 s; a 4xx is not retried.
