@@ -1,6 +1,6 @@
 ---
 title: 'Save-Data: lighter image variants for bandwidth-aware users'
-description: 'How mod_pagespeed reads the Save-Data request header to serve lighter image variants: a 30-50% bandwidth cut on top of format and viewport sizing.'
+description: 'How mod_pagespeed reads the Save-Data request header to serve lighter image variants: a further 24-45% cut on top of format and viewport sizing, measured at the shipped defaults.'
 date: 2026-02-06
 lastUpdated: 2026-10-25
 author: 'Otto van der Schaaf'
@@ -33,35 +33,35 @@ The worker uses two quality tiers when encoding images. Normal quality is the de
 
 | Format | Normal Quality                    | Save-Data Quality              |       Reduction |
 | :----- | :-------------------------------- | :----------------------------- | --------------: |
-| JPEG   | 85                                | 60                             | ~30-40% smaller |
-| WebP   | 75                                | 50                             | ~25-35% smaller |
-| AVIF   | 60                                | 45                             | Smaller than the normal variant |
+| JPEG   | 85                                | 60                             |     24% smaller |
+| WebP   | 75                                | 50                             |     33% smaller |
+| AVIF   | 60                                | 45                             |     45% smaller |
 
-The AVIF Save-Data reduction was not re-measured at the shipped 60 and 45 defaults, so it is stated without a percentage. These are not arbitrary numbers. Each was chosen by visual quality testing against common image categories -- product photography, editorial content, UI screenshots, and hero banners. The normal quality settings produce images that are visually indistinguishable from the source at typical viewing distances. The Save-Data settings produce images where compression artifacts are detectable on close inspection of fine detail but acceptable for the purpose of browsing -- particularly when the user has explicitly asked for reduced data.
+The reduction column was measured on 2026-10-25 at the shipped defaults over 18 photographs (2400x1600 pixels, desktop size), comparing each Save-Data variant with the normal variant of the same format by total bytes. With the learned quality model on, the quality values in the table are starting points; the worker picks the final quality per image. These are not arbitrary numbers. Each was chosen by visual quality testing against common image categories -- product photography, editorial content, UI screenshots, and hero banners. The normal quality settings produce images that are visually indistinguishable from the source at typical viewing distances. The Save-Data settings produce images where compression artifacts are detectable on close inspection of fine detail but acceptable for the purpose of browsing -- particularly when the user has explicitly asked for reduced data.
 
-For JPEG, dropping from quality 85 to 60 typically saves 30-40% of the file size. The perceptual quality drop is noticeable in smooth gradients and fine textures but invisible in most product photography and editorial imagery. WebP's quality scale is different from JPEG's, but the same principle applies: quality 50 produces visually acceptable results at significantly reduced file sizes. [AVIF is the most efficient codec](/blog/avif-vs-webp-2026/). Even at the Save-Data quality of 45 -- more compressed than the normal quality of 60 -- AVIF's psychovisual model keeps the result coherent. Compounded with format and viewport savings, the desktop AVIF Save-Data case reaches a 76% cut versus the original, as the bandwidth table below shows.
+For JPEG, the Save-Data tier saved 24% of the file size on that corpus. The perceptual quality drop is noticeable in smooth gradients and fine textures but invisible in most product photography and editorial imagery. WebP's quality scale is different from JPEG's, but the same principle applies: quality 50 produces visually acceptable results at significantly reduced file sizes. [AVIF is the most efficient codec](/blog/avif-vs-webp-2026/). Even at the Save-Data quality of 45 -- more compressed than the normal quality of 60 -- AVIF's psychovisual model keeps the result coherent. Compounded with format and viewport savings, the desktop AVIF Save-Data case reaches an 87% cut versus the original, as the bandwidth table below shows.
 
 ## Bandwidth savings in practice
 
-The compound effect of Save-Data quality reduction on top of modern codec compression and viewport-based resizing is substantial. Consider a 200 KB JPEG hero image served to different client configurations:
+The compound effect of Save-Data quality reduction on top of modern codec compression and viewport-based resizing is substantial. Take a 161 KB JPEG hero image (1600x900 pixels, from the same photo library) served to different client configurations, measured at the shipped defaults:
 
 | Client Configuration          |   Size | Savings vs Original |
 | :---------------------------- | -----: | ------------------: |
-| Desktop, JPEG, normal         | 170 KB |                 15% |
-| Desktop, WebP, normal         | 110 KB |                 45% |
-| Desktop, AVIF, normal         |  64 KB |                 68% |
-| Desktop, WebP, Save-Data      |  70 KB |                 65% |
-| Desktop, AVIF, Save-Data      |  48 KB |                 76% |
-| Mobile 480px, WebP, normal    |  18 KB |                 91% |
-| Mobile 480px, AVIF, normal    |  10 KB |                 95% |
-| Mobile 480px, WebP, Save-Data |  12 KB |                 94% |
-| Mobile 480px, AVIF, Save-Data |   8 KB |                 96% |
+| Desktop, JPEG, normal         |  54 KB |                 67% |
+| Desktop, WebP, normal         |  36 KB |                 78% |
+| Desktop, AVIF, normal         |  46 KB |                 72% |
+| Desktop, JPEG, Save-Data      |  44 KB |                 73% |
+| Desktop, AVIF, Save-Data      |  21 KB |                 87% |
+| Mobile 480px, WebP, normal    |  23 KB |                 86% |
+| Mobile 480px, AVIF, normal    |  20 KB |                 88% |
+| Mobile 480px, WebP, Save-Data |  16 KB |                 90% |
+| Mobile 480px, AVIF, Save-Data |   8 KB |                 95% |
 
-The Save-Data column shows an additional 30-50% reduction compared to the same format at normal quality. For the mobile AVIF case, the user receives an 8 KB image instead of a 200 KB original -- a 96% reduction. On a page with 20 product images, this means the user downloads 160 KB instead of 4 MB. On a metered mobile connection at $10/GB, the per-page saving is roughly 4 cents. That adds up -- [the economics of image optimization](/blog/economics-of-image-optimization/) works the numbers through in full.
+Save-Data takes a further 24-45% off the same format at normal quality, depending on the format. For the mobile AVIF case, the user receives an 8 KB image instead of a 161 KB original -- a 95% reduction. On a page with 20 such images, this means the user downloads 170 KB instead of 3.2 MB. On a metered mobile connection at $10/GB, the per-page saving is roughly 3 cents. That adds up -- [the economics of image optimization](/blog/economics-of-image-optimization/) works the numbers through in full.
 
 Save-Data is not either-or with other optimizations. It stacks. Viewport resizing reduces dimensions. Modern codecs reduce bits per pixel. Save-Data reduces quality. Each layer compounds on the previous one.
 
-To put the bandwidth numbers in context: the HTTP Archive reports that the median mobile page loads 1.0 MB of images. A site running mod_pagespeed with AVIF support serving mobile Save-Data users would reduce that to roughly 50-80 KB of images -- a 92-95% reduction. For users on metered connections, this is the difference between a page that costs a fraction of a cent to load and one that costs several cents.
+To put the bandwidth numbers in context: the HTTP Archive reports that the median mobile page loads 1.0 MB of images. A site running mod_pagespeed with AVIF support serving mobile Save-Data users would reduce that to roughly 50-60 KB of images -- a 94-95% reduction, if its images behave like the photographs measured here. For users on metered connections, this is the difference between a page that costs a fraction of a cent to load and one that costs several cents.
 
 ## Interaction with viewport resizing
 
@@ -109,7 +109,7 @@ The baseline fallback preserves the Save-Data bit because serving a normal-quali
 
 The user profiles that enable Save-Data are worth understanding because they represent a specific, underserved audience.
 
-**Users on metered connections.** In much of the world, mobile data is expensive relative to income. A user in India, Brazil, or Nigeria on a prepaid mobile plan has a direct financial incentive to enable data saving. Serving them 8 KB instead of 200 KB per image is not a nice-to-have -- it determines whether they can afford to browse the site at all.
+**Users on metered connections.** In much of the world, mobile data is expensive relative to income. A user in India, Brazil, or Nigeria on a prepaid mobile plan has a direct financial incentive to enable data saving. Serving them 8 KB instead of 161 KB per image is not a nice-to-have -- it determines whether they can afford to browse the site at all.
 
 **Users on slow connections.** Even without cost pressure, a user on a congested 3G network benefits from smaller payloads. A page that loads in 3 seconds with Save-Data on might take 15 seconds without it. The quality difference in the images is invisible compared to the difference in wait time.
 
@@ -144,7 +144,7 @@ The quality gap between normal and Save-Data modes (25 points for JPEG, 25 for W
 
 The worker's health endpoint and management socket report aggregate statistics that include Save-Data variants. The `proactive_variants_written` counter increments for each sibling variant written, including Save-Data siblings. The per-format counters (`webp_generated`, `avif_generated`, `jpeg_optimized`, `png_optimized`) count all variants regardless of Save-Data status.
 
-To measure the bandwidth impact of Save-Data support specifically, compare the average response size for requests with and without the `Save-Data: on` header in your nginx access logs. The expected difference for image responses is 30-50% on top of whatever format and viewport optimization is already in effect.
+To measure the bandwidth impact of Save-Data support specifically, compare the average response size for requests with and without the `Save-Data: on` header in your nginx access logs. The measured difference for image responses on the photo corpus above was 24-45%, on top of whatever format and viewport optimization is already in effect.
 
 A useful nginx log format addition for Save-Data analysis:
 
