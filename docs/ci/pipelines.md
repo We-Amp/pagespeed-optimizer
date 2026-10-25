@@ -181,8 +181,9 @@ set the job runs slower, never fails for that reason. In `pipeline-pr.yml`:
   compile-database recipe (`tools/ci/lint-compile-commands.sh`, the root
   `BUILD`), the expander, `MODULE.bazel` or `.bazelrc` lints the whole tree,
   because only the whole tree can show the effect of such a change. The path
-  list is `LINT_TRIGGER_PATHS` in the "Compute lint scope" step. Pushes to
-  `main` and full-tier dispatches always lint the whole tree. The self-test is
+  list is `LINT_TRIGGER_PATHS` in the "Compute lint scope" step. The
+  whole-tree lint runs in the nightly and on `workflow_dispatch`; a pull
+  request that changes a lint trigger file also lints the whole tree. The self-test is
   `tools/ci/test_lint_scope_expand.sh`.
 
 ### Release lanes: hosted twins
