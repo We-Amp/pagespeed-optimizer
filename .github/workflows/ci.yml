@@ -37,8 +37,10 @@ permissions:
 jobs:
   pr:
     # The called pipeline requests pull-requests: read for the release-note
-    # gate; a called workflow cannot exceed what its caller grants.
+    # gate and checks: read for its fleet scope (reads the commit's check
+    # suites); a called workflow cannot exceed what its caller grants.
     permissions:
+      checks: read
       contents: read
       pull-requests: read
     uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-pr.yml@main

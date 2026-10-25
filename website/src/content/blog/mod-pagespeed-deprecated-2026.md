@@ -5,7 +5,7 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'migration', 'security']
 draft: false
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-24
 ---
 
 _Disclosure: I founded We-Amp, which develops mod_pagespeed._
@@ -34,18 +34,19 @@ dotnet add package WeAmp.PageSpeed.AspNetCore
 
 ```bash
 # mod_pagespeed (Apache) — Debian/Ubuntu
-curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
-sudo apt install mod-pagespeed-stable
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo apt install mod-pagespeed
 ```
 
 ```bash
 # mod_pagespeed (Apache) — RHEL/Fedora
-curl -fsSL https://packages.modpagespeed.com/setup-yum.sh | sudo bash
-sudo dnf install mod-pagespeed-stable
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo dnf install mod-pagespeed
 ```
 
 ```bash
 # mod_pagespeed (nginx) — Debian/Ubuntu / RHEL/Fedora
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed
 ```
 
