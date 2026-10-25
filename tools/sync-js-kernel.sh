@@ -30,7 +30,7 @@
 # keeps the floor at the last MERGED pin and moves it at reconciliation.
 # tools/ci/check-floor-ratchet.sh additionally enforces that the floor
 # itself never moves backwards relative to origin/main — as a REQUIRED
-# check in ci.yml's js-kernel-differential job and as the advisory RATCHET
+# check in the js-kernel-differential job of pipeline-pr.yml and as the advisory RATCHET
 # step in the drift workflow.
 #
 # Usage:
