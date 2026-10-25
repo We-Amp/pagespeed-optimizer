@@ -26,7 +26,11 @@
 #
 # When a compilation database path is given, the result is intersected with its
 # "file" entries. A TU absent from the database would lint nothing and exit 0,
-# a false green, so it is dropped here rather than handed to run-clang-tidy.
+# a false green, so it is dropped here rather than handed to run-clang-tidy;
+# the dropped paths are listed on stderr. The caller decides what a dropped
+# changed .cc means (the lint job fails on it). Exit status 2 means the given
+# database holds no lib/, src/ or test/ entries at all (an unreadable or
+# drifted format), which must never be read as an empty scope.
 #
 # No mapfile and no `declare -A`: this must also run under the macOS system
 # bash 3.2 that the local reproduction path uses.
@@ -77,7 +81,7 @@ done < "${WORK}/closure"
 
 # Carve-outs that mirror the lint job's changed-.cc filter: the vendored 1.15
 # JS and HTML kernel TUs are style-lint exceptions and are never tidied, and
-# the two nginx/Windows-only TUs never reach the Linux compilation database.
+# the nginx and Windows-only TUs never reach the Linux compilation database.
 # Keep this list in lockstep with the "Compute lint scope" step.
 #
 # An empty scope must emit NOTHING, not a blank line: a blank line would reach
@@ -93,7 +97,19 @@ if [ -n "${COMPDB}" ] && [ -s "${COMPDB}" ]; then
   grep -oE '"file": *"[^"]+"' "${COMPDB}" 2>/dev/null \
     | sed -E 's/^"file": *"//; s/"$//; s#^\./##; s#^/workspace/##' \
     | sort -u > "${WORK}/compdb-files" || true
+  if ! grep -qE '^(lib|src|test)/' "${WORK}/compdb-files"; then
+    echo "lint-scope-expand: ${COMPDB} has no lib/, src/ or test/ entries" >&2
+    exit 2
+  fi
+  comm -23 "${WORK}/candidates" "${WORK}/compdb-files" > "${WORK}/dropped" || true
+  if [ -s "${WORK}/dropped" ]; then
+    echo "lint-scope-expand: $(wc -l < "${WORK}/dropped" | tr -d ' ') TU(s) not in the compilation database, not linted:" >&2
+    sed 's/^/  /' "${WORK}/dropped" >&2
+  fi
   comm -12 "${WORK}/candidates" "${WORK}/compdb-files" || true
+elif [ -n "${COMPDB}" ]; then
+  echo "lint-scope-expand: ${COMPDB} is missing or empty" >&2
+  exit 2
 else
   cat "${WORK}/candidates"
 fi

@@ -41,6 +41,14 @@ printf '#include "lib/b/leaf.h"\n' > src/six.cc
 printf '#include "lib/a/pair.h"\n' > src/seven.cc
 printf '#include "lib/a/pair.h"\n' > src/eight.cc
 
+# An include cycle (cyc_a.h <-> cyc_b.h) must terminate.
+printf '#include "lib/a/cyc_b.h"\n' > lib/a/cyc_a.h
+printf '#include "lib/a/cyc_a.h"\n' > lib/a/cyc_b.h
+printf '#include "lib/a/cyc_a.h"\n' > src/cyc_user.cc
+# A vendored html kernel TU is carved out even though it includes the header.
+mkdir -p lib/html
+printf '#include "lib/a/leaf.h"\n' > lib/html/html_name.cc
+
 CC="${WORK}/cc.txt"
 HDR="${WORK}/hdr.txt"
 DB="${WORK}/compile_commands.json"
@@ -101,9 +109,25 @@ run_case "TU outside the compile database is dropped" "" $'lib/a/leaf.h\n' \
 
 run_case "changed .cc absent from the database is dropped" $'src/nginx/early_hints.cc\n' "" "" "${DB}"
 
+run_case "include cycle terminates" "" $'lib/a/cyc_a.h\n' "src/cyc_user.cc"
+
+run_case "vendored lib/html stem is carved out" $'lib/html/html_name.cc\n' "" ""
+
 run_case "empty inputs" "" "" ""
 
 run_case "blank lines in the input lists" $'\n\nsrc/two.cc\n\n' $'\n\n' "src/two.cc"
+
+# A compilation database with no lib/src/test entries exits 2, never "empty scope".
+printf '[{"file": "external/x/y.cc"}]' > "${WORK}/bad.json"
+printf 'src/two.cc\n' > "${CC}"; : > "${HDR}"
+rc=0
+"${EXPAND}" "${CC}" "${HDR}" "${WORK}/bad.json" > /dev/null 2>&1 || rc=$?
+if [ "${rc}" -eq 2 ]; then pass "compdb without lib/src/test entries exits 2"; else
+  fail "compdb without lib/src/test entries: exit ${rc}, want 2"
+fi
+rc=0
+"${EXPAND}" "${CC}" "${HDR}" "${WORK}/missing.json" > /dev/null 2>&1 || rc=$?
+if [ "${rc}" -eq 2 ]; then pass "missing compdb exits 2"; else fail "missing compdb: exit ${rc}, want 2"; fi
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "${FAILS} case(s) failed"
