@@ -9,7 +9,11 @@
 // One of the topic files of //test/src/worker:worker_test; the shared fixture
 // lives in worker_test_fixture.h.
 
+// clang-format off
+// The fixture header goes first: it includes worker.h and then undefines the
+// Win32 FormatMessage macro before any other header is parsed.
 #include "test/src/worker/worker_test_fixture.h"
+// clang-format on
 
 #include <cstddef>
 #include <cstdint>
