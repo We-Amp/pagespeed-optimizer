@@ -1,7 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+
+// The current terms version, read the way test/sync/terms-version-sync.test.ts
+// reads it: TERMS_VERSION_WEB in the pricing page, kept in lockstep with the
+// "Version" line on /terms/. No hand edit here when the terms change.
+const TERMS_VERSION_WEB = (() => {
+  const src = readFileSync(new URL('../src/pages/pricing.astro', import.meta.url), 'utf8');
+  const m = src.match(/TERMS_VERSION_WEB\s*=\s*'([^']+)'/);
+  if (!m) throw new Error('terms-privacy.spec: TERMS_VERSION_WEB not found in pricing.astro');
+  return m[1];
+})();
 
 test.describe('/terms/ page', () => {
   test('has correct page title', async ({ page }) => {
@@ -16,11 +27,11 @@ test.describe('/terms/ page', () => {
     await expect(page.locator('main h1')).toHaveText(/Terms of Service/i);
   });
 
-  test('displays version identifier 2026-10-20', async ({ page }) => {
+  test('displays the current terms version identifier', async ({ page }) => {
     await page.goto('/terms/');
     // Scoped to main: the telemetry strip shows a capture date (2026-10-..)
     // until its live value replaces it, which also matches a bare '2026-10'.
-    await expect(page.locator('main').getByText('Version 2026-10-20')).toBeVisible();
+    await expect(page.locator('main').getByText(`Version ${TERMS_VERSION_WEB}`)).toBeVisible();
   });
 
   test('displays effective date October 2026', async ({ page }) => {

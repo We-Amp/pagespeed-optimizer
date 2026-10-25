@@ -41,7 +41,7 @@ Rules that follow from the shape:
 | Tier | Workflow | Runs on | Holds |
 |---|---|---|---|
 | PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint, the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, and the path-filtered CSS and JS fuzz smokes. Later changes add the Linux arm64 build and tests |
-| Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests |
+| Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests; the whole-tree lint (`lint-full`) |
 | Nightly | `pipeline-nightly.yml` | `nightly.yml`: daily at 21:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the nightly image leg of the dependency scan |
 | Sweep | `pipeline-sweep.yml` | `sweep-queued.yml`: hourly and on dispatch | cancels runs that wait for a runner nobody serves (see "The queued-run sweep") |
 
@@ -78,7 +78,8 @@ runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_reque
 ```
 
 Such a job carries no `if:` guard (it always runs, on one side or the other),
-except a path filter alone (`needs.changes.outputs.<name> == 'true'`). Jobs
+except a path filter alone (`needs.changes.outputs.<name> == 'true'`) or, on
+`vendor` only, the fleet-scope guard `needs.changes.outputs.fleet == 'true'`. Jobs
 with no hosted twin keep the plain routing expression and a fleet-only guard
 whose `FLEET_ENABLED` term is `!= 'false'`: they are skipped, not failed,
 while the switch is off, and a `fleet-off-notice` job in each tier says so in
@@ -302,6 +303,61 @@ branch is restricted so that only administrators can update it (or the
 `@ci-dev` allow-list entries are removed), and `ci-dev` has been pushed again
 from the default branch. Until then the policy above applies.
 
+## CI_SCOPE: the fleet scope of the PR tier
+
+The `changes` job of `pipeline-pr.yml` decides, in its step `Decide the fleet
+scope`, whether the fleet legs of the PR tier run. It publishes two outputs,
+`fleet` and `heavy` (equal for now); `vendor` runs only when `fleet` is
+`true`, and every other fleet leg needs `vendor` (the fuzz smokes, which need
+only `changes`, never run outside a pull request or a merge group), so
+`fleet=false` skips them all. The hosted jobs of the PR tier and the whole
+full tier run as before.
+
+- `merge_group` and `workflow_dispatch` always run the whole PR tier. The step
+  decides them inline, whatever `CI_SCOPE` says, so a merge group and the
+  release candidate dispatch (`full: true`) never skip a fleet leg.
+- For every other event the step reads `tools/ci/pr_tier_scope.sh` from
+  `origin/main` with `git show`, never from the tree under test, and runs
+  that copy. A missing script, a failing script or any output other than
+  exactly the two lines `fleet=<true|false>` and `heavy=<true|false>` runs the
+  whole tier and leaves a warning.
+- The repository variable `CI_SCOPE`, lowercased, sets the level. Unset,
+  `full` or any value the script does not know runs everything. `push`,
+  `pr-build` and `pr` turn on the push rule.
+- **The push rule.** A push to `main` skips the fleet legs when the merge
+  queue already proved the same commit and the commit does not change the PR
+  tier itself. Proof: the commit has a completed, successful GitHub Actions
+  check suite on a `gh-readonly-queue/` branch
+  (`gh api repos/<repo>/commits/<sha>/check-suites?app_id=15368`, up to 3
+  tries, 2 and 4 s apart; an empty or unparseable answer after the last try
+  counts as no proof). A change to the PR tier: any path under
+  `.github/actions/` or `tools/ci/`, or `.github/workflows/pipeline-pr.yml` or
+  `.github/workflows/ci.yml`, in the pushed commit; a commit without a parent
+  counts as one. The callers grant `checks: read` to the `pr` job for the
+  lookup.
+- **Log lines.** The script writes one line
+  `fleet scope: event=<event> scope=<level> fleet=<bool> heavy=<bool> reason=<text>`
+  and, on every push whatever the level,
+  `shadow: would_skip=<bool> proof=<true|false|error> pipeline_change=<bool>`:
+  what the push rule decides for this commit, so the rule can be measured
+  with `CI_SCOPE` unset before it acts. When the commit changes the PR tier,
+  the proof is not looked up and the line says `proof=false`.
+- **Rollback.** Set the variable back:
+  `gh variable set CI_SCOPE --body full --repo We-Amp/pagespeed-optimizer` (or
+  delete it). The next run takes it; nothing else changes.
+- **Coverage on a skipped push.** The fleet legs ran on the same commit in the
+  merge queue, so a skipped push loses no check of the merged tree, with one
+  difference: on a push the PR tier's `lint` used to lint the whole tree,
+  while in the merge queue it lints only the pull request's files (the whole
+  tree when a header changed). The whole-tree lint therefore runs in the full
+  tier, as `full / Lint (whole tree)` (`lint-full`), on every push to `main`
+  and on every full-tier dispatch. Until `CI_SCOPE` enables the push rule, a
+  push runs both lints (the PR tier's whole-tree `lint` and `lint-full`). The hosted checks of the PR tier (Apache
+  RAT, license headers and SBOM drift, the blocking and the report-only
+  dependency scans and the others) are not fleet legs and still run on every
+  push. `tools/ci/test_pr_tier_scope.sh` covers the script against a fake
+  `gh`, and the workflow-shape gate (`fleet-scope`) pins the step.
+
 ## Required checks
 
 Until the caller switch, `ci.yml` keeps its four hosted jobs and their check
@@ -376,8 +432,16 @@ job and fails the build when the shape breaks:
   `git show`) and only the guard's own env keys; no other line names the
   script in any spelling, and the job has no glob, `find`, `source` or
   `GITHUB_ENV` write under `tools/ci/`; `BASH_ENV`, `PATH`, `GIT_DIR`, `GIT_WORK_TREE` and `GIT_CONFIG*` are not
-  set at workflow level or in that job; `vendor` has `needs: changes` and no
-  `if:` (see "Merge-queue runs");
+  set at workflow level or in that job; `vendor` has `needs: changes` and
+  either no `if:` or exactly `if: ${{ needs.changes.outputs.fleet == 'true' }}`
+  (see "Merge-queue runs");
+- **(fleet-scope)** in `pipeline-pr.yml`: the `changes` job holds the step
+  `Decide the fleet scope` right after the merge-queue guard step (so before
+  the path-filter diff), in exactly its spec text (comment and blank lines
+  aside): it decides `merge_group` and `workflow_dispatch` inline and reads
+  `tools/ci/pr_tier_scope.sh` from `origin/${DEFAULT_BRANCH}`. The job
+  publishes `fleet` and `heavy` from that step, and no other line names the
+  script (see "CI_SCOPE: the fleet scope of the PR tier");
 - **(e)** `.github/` and `tools/ci/` carry no LAN address literals, no
   `.home` names, no `:9090`, no `self-hosted` and none of the retired runner
   label words.
