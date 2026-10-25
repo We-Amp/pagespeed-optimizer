@@ -1353,10 +1353,13 @@ jobs:
           : > "$LIST"
           : > "$HDRS"
           # Paths whose change can only be proven by linting the whole tree:
-          # the clang-tidy configuration, the lint image and compile-database
-          # recipe, the scope expander itself, the toolchain and dependency
-          # pins, and this workflow file. Keep this list in one place.
-          LINT_TRIGGER_PATHS='^(\.clang-tidy|test/\.clang-tidy|lib/image/generated/\.clang-tidy|docker/Dockerfile\.lint|tools/ci/lint-compile-commands\.sh|tools/ci/lint-scope-expand\.sh|tools/run-clang-tidy\.sh|MODULE\.bazel|MODULE\.bazel\.lock|\.bazelrc|\.github/workflows/pipeline-pr\.yml)$'
+          # the clang-tidy configuration, the lint image (docker/Dockerfile is
+          # its base) and compile-database recipe (the root BUILD defines
+          # //:refresh_all, i.e. the compdb contents), the scope expander
+          # itself, and the toolchain and dependency pins. Workflow edits are
+          # not listed: the whole-tree run on dispatch covers them. Keep this
+          # list in one place.
+          LINT_TRIGGER_PATHS='^(\.clang-tidy|test/\.clang-tidy|lib/image/generated/\.clang-tidy|docker/Dockerfile|docker/Dockerfile\.lint|BUILD|tools/ci/lint-compile-commands\.sh|tools/ci/lint-scope-expand\.sh|MODULE\.bazel|\.bazelrc)$'
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME}" = "merge_group" ]; then
             git diff --name-status "${BASE}...HEAD" > "${CHANGED}"
             if awk '{for (i = 2; i <= NF; i++) print $i}' "${CHANGED}" | grep -qE "${LINT_TRIGGER_PATHS}"; then
@@ -1369,7 +1372,7 @@ jobs:
               # and lib/html/CLAUDE.md) are style-lint carve-outs, and the
               # no-compdb list carries .cc files that never reach the Linux
               # compile_commands.json.
-              awk '$1 != "D" {print $2}' "${CHANGED}" \
+              awk '$1 != "D" {print $NF}' "${CHANGED}" \
                 | grep -E '^(lib|src|test)/.*\.cc$' \
                 | grep -vE '^lib/js/(js_[a-z_0-9]+\.(h|cc)|source_map\.h|corpus/)' \
                 | grep -vE '^lib/html/(content_type|doctype|empty_html_filter|html_element|html_event|html_filter|html_keywords|html_lexer|html_name|html_node|html_parse|html_parse_probe|html_parse_recorder|html_writer_filter)\.(h|cc|gperf)$' \
@@ -1467,7 +1470,21 @@ jobs:
                 bash /workspace/tools/ci/lint-scope-expand.sh \
                   /workspace/.lint-files.txt /workspace/.lint-headers.txt \
                   /workspace/compile_commands.json \
-                  > /workspace/.lint-targets.txt
+                  > /workspace/.lint-targets.txt || {
+                  echo "::error::lint-scope-expand.sh failed (exit $?) -- failing closed"
+                  exit 1
+                }
+                # A changed .cc with no compilation-database entry would go
+                # unlinted forever (a new .cc with no BUILD entry, or a manual
+                # target missing from //:refresh_all): fail, never skip.
+                sort -u /workspace/.lint-files.txt > /tmp/lint-want.txt
+                sort -u /workspace/.lint-targets.txt > /tmp/lint-have.txt
+                comm -23 /tmp/lint-want.txt /tmp/lint-have.txt > /tmp/lint-missing.txt
+                if [ -s /tmp/lint-missing.txt ]; then
+                  echo "::error::changed .cc file(s) with no compile_commands.json entry (add them to a BUILD target reachable from //:refresh_all):"
+                  cat /tmp/lint-missing.txt
+                  exit 1
+                fi
                 # An empty target list means the changed files reach no TU in
                 # the compilation database. SKIP clang-tidy; never fall
                 # through to the full tree.

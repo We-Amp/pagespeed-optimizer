@@ -171,17 +171,18 @@ set the job runs slower, never fails for that reason. In `pipeline-pr.yml`:
 - **Lint scope on a pull request.** A changed `.cc` file is linted; a changed
   header lints the `.cc` files that include it, directly or through other
   headers (`tools/ci/lint-scope-expand.sh`, run inside the lint container and
-  limited to the files in `compile_commands.json`). When the changed files
-  reach no translation unit in the compilation database, clang-tidy is skipped
-  with a log line; it never falls back to the whole tree. A change to the
-  clang-tidy configuration (`.clang-tidy`, `test/.clang-tidy`,
-  `lib/image/generated/.clang-tidy`), the lint image or compile-database
-  recipe (`docker/Dockerfile.lint`, `tools/ci/lint-compile-commands.sh`), the
-  expander, `tools/run-clang-tidy.sh`, `MODULE.bazel`, `MODULE.bazel.lock`,
-  `.bazelrc` or `pipeline-pr.yml` itself lints the whole tree, because only
-  the whole tree can show the effect of such a change. The path list is
-  `LINT_TRIGGER_PATHS` in the "Compute lint scope" step. Pushes to `main` and
-  full-tier dispatches always lint the whole tree. The self-test is
+  limited to the files in `compile_commands.json`). A changed `.cc` file with
+  no compilation-database entry fails the job; a dependent of a header that is
+  not in the database is listed in the log and skipped. When the changed files
+  reach no translation unit at all, clang-tidy is skipped with a log line; it
+  never falls back to the whole tree. A change to the clang-tidy configuration
+  (`.clang-tidy`, `test/.clang-tidy`, `lib/image/generated/.clang-tidy`), the
+  lint image (`docker/Dockerfile`, `docker/Dockerfile.lint`), the
+  compile-database recipe (`tools/ci/lint-compile-commands.sh`, the root
+  `BUILD`), the expander, `MODULE.bazel` or `.bazelrc` lints the whole tree,
+  because only the whole tree can show the effect of such a change. The path
+  list is `LINT_TRIGGER_PATHS` in the "Compute lint scope" step. Pushes to
+  `main` and full-tier dispatches always lint the whole tree. The self-test is
   `tools/ci/test_lint_scope_expand.sh`.
 
 ### Release lanes: hosted twins
