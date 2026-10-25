@@ -18,7 +18,7 @@
 #   fleet-light   linux-pkg-smoke, http-compliance (fleet only),
 #                 async-css-probe-markup (fleet only),
 #                 container-cache-sharing (fleet only)
-#   fleet-windows windows-build, windows-pkg-smoke
+#   fleet-windows windows-build, windows-pkg-smoke, windows-unit-tests
 #   hosted arm64  linux-arm64-build, linux-arm64-unit-tests,
 #                 linux-arm64-pkg-smoke, daemon-privilege-rig-arm64
 #
@@ -1178,9 +1178,8 @@ jobs:
   # ---------------------------------------------------------------------
   # Windows: a build of the two shipped binaries, then the NuGet package
   # smoke around them. This build exists to feed the smoke; it builds only
-  # those two binaries. The full Windows build and the Windows unit suite run
-  # nowhere yet (the PR tier has no Windows job); they are tracked for the step
-  # that adds Windows to the PR tier. Everything is optional
+  # those two binaries. The Windows unit suite follows in windows-unit-tests.
+  # Everything is optional
   # runner environment: CI_WIN_VENDOR_DIR (a vendor tarball), and
   # BAZEL_REMOTE_CACHE_URL (a remote cache). Without them Bazel fetches its
   # dependencies and builds cold.
@@ -1448,6 +1447,158 @@ jobs:
         with:
           name: full-smoke-crash-dump-windows
           path: ${{ runner.temp }}/smoke-crash-dumps/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Windows unit tests (native MSVC): the whole //test/... tree, after the
+  # Windows build. Same runner class, checkout, vendor tarball and toolchain
+  # steps as the build job. Test logs are uploaded on failure.
+  windows-unit-tests:
+    name: Windows Unit Tests
+    needs: windows-build
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
+    timeout-minutes: 120
+    steps:
+      # The fleet runners carry the same setting; byte-compared fixtures need LF.
+      - name: Check out with LF line endings (hosted runner)
+        if: runner.environment == 'github-hosted'
+        shell: powershell
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
+      # A previous build leaves vendor\bazel-external as a junction into a Bazel
+      # output base full of nested junctions; the checkout clean walks that loop.
+      # Remove only the links (never their targets) before the checkout.
+      - name: Unlink vendor reparse points before checkout (build runner)
+        if: runner.environment != 'github-hosted'
+        shell: powershell
+        run: |
+          $s = Join-Path $env:GITHUB_WORKSPACE 'tools\ci\unlink-vendor-reparse.ps1'
+          if (Test-Path -LiteralPath $s) { & $s -Workspace $env:GITHUB_WORKSPACE } else { Write-Host 'no previous checkout' }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Stamp GIT_COMMIT
+        shell: bash
+        run: echo -n "$GITHUB_SHA" > GIT_COMMIT
+
+      # A vendor tarball on the runner makes the dependency fetch local.
+      - name: Use a local vendor tarball when the runner has one
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          if [ -z "${CI_WIN_VENDOR_DIR:-}" ]; then
+            echo "::notice::no runner-local vendor tarball: Bazel fetches its dependencies (docs/ci/runner-environment.md)"
+            exit 0
+          fi
+          # The directory is shared with the Linux jobs of the same machine,
+          # which publish into it and prune it: stage a private copy, check
+          # it against the sidecar digest (retrying a copy that is short or
+          # mid-publish), then extract only that copy. The workspace goes in
+          # as a Windows path to the Windows tar; the MSYS tar read the
+          # backslashes in it as escapes and could not open the directory.
+          rc=0
+          powershell -NoProfile -ExecutionPolicy Bypass -File tools/ci/fetch-vendor-tarball.ps1 \
+            -Name "pagespeed-optimizer-${SHORT_SHA}.tar.zst" \
+            -Dest "$GITHUB_WORKSPACE" \
+            -StageDir "${RUNNER_TEMP}/vendor-stage" \
+            -SearchDirs "${CI_WIN_VENDOR_DIR}" || rc=$?
+          if [ "$rc" -eq 4 ]; then
+            echo "::notice::no runner-local vendor tarball: Bazel fetches its dependencies (docs/ci/runner-environment.md)"
+          elif [ "$rc" -ne 0 ]; then
+            exit "$rc"
+          fi
+          echo -n "$GITHUB_SHA" > GIT_COMMIT
+
+      - name: Set up MSVC environment
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $vsDir = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath 2>$null
+          if (-not $vsDir -or -not (Test-Path "$vsDir\VC\Auxiliary\Build\vcvars64.bat")) {
+            $vsDir = @(
+              "C:\Program Files\Microsoft Visual Studio\2022\Community",
+              "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools",
+              "C:\Program Files\Microsoft Visual Studio\2022\BuildTools",
+              "C:\Program Files (x86)\Microsoft Visual Studio\2022\Community"
+            ) | Where-Object { Test-Path "$_\VC\Auxiliary\Build\vcvars64.bat" } | Select-Object -First 1
+          }
+          if (-not $vsDir) { Write-Error "No Visual Studio installation found"; exit 1 }
+          $vsDir = "$vsDir\VC\Auxiliary\Build"
+          # Full path to cmd: a POSIX shell's cmd on PATH can shadow it.
+          & "$env:SystemRoot\System32\cmd.exe" /c "`"$vsDir\vcvars64.bat`" >nul 2>&1 && set" | ForEach-Object {
+            if ($_ -match '^(INCLUDE|LIB|PATH)=(.*)$') {
+              echo "$($Matches[1])=$($Matches[2])" >> $env:GITHUB_ENV
+            }
+          }
+          # POSIX coreutils and Ninja for the genrule builds.
+          $extra = "C:\msys64\usr\bin"
+          $ninjaCmd = Get-Command ninja -ErrorAction SilentlyContinue
+          if ($ninjaCmd) { $extra = "$extra;" + (Split-Path $ninjaCmd.Source) }
+          echo "PATH=$extra;$env:PATH" >> $env:GITHUB_ENV
+
+      - name: Ensure bazel
+        shell: bash
+        run: |
+          if command -v bazelisk >/dev/null 2>&1; then
+            echo "BAZEL_BIN=bazelisk" >> "$GITHUB_ENV"
+          elif command -v bazel >/dev/null 2>&1; then
+            echo "BAZEL_BIN=bazel" >> "$GITHUB_ENV"
+          else
+            npm install -g @bazel/bazelisk@1.28.1
+            echo "BAZEL_BIN=bazelisk" >> "$GITHUB_ENV"
+          fi
+          if [ -x /c/msys64/usr/bin/bash.exe ]; then
+            printf '%s\n' 'BAZEL_SH=C:\msys64\usr\bin\bash.exe' >> "$GITHUB_ENV"
+          fi
+
+      - name: Run the unit tests
+        shell: bash
+        run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget || exit 1
+          set -euo pipefail
+          FLAGS=(--config=windows "--jobs=${SLOT_JOBS}" --nostamp)
+          if [ -d vendor ]; then
+            FLAGS+=(--vendor_dir=vendor)
+          fi
+          if [ -n "${BAZEL_REMOTE_CACHE_URL:-}" ]; then
+            echo "using the remote cache"
+            FLAGS+=("--remote_cache=${BAZEL_REMOTE_CACHE_URL}")
+          else
+            echo "::notice::BAZEL_REMOTE_CACHE_URL not set: building without the remote cache (docs/ci/runner-environment.md)"
+          fi
+          # A short output root keeps Windows path lengths in bounds.
+          OUT_ROOT="${CI_WIN_BAZEL_OUTPUT_ROOT:-${SYSTEMDRIVE:-C:}/b}"
+          OUT_ROOT="${OUT_ROOT//\\//}"
+          "$BAZEL_BIN" --output_user_root="$OUT_ROOT" shutdown || true
+          # The same target set as the pull request tier's Windows Unit Tests;
+          # a full-tier run never reuses cached test results. A flaky test is
+          # retried once (test:windows in .bazelrc).
+          "$BAZEL_BIN" --output_user_root="$OUT_ROOT" test "${FLAGS[@]}" \
+            --nocache_test_results --test_output=errors --keep_going -- //test/...
+
+      - name: Stage the test logs
+        if: failure()
+        continue-on-error: true
+        shell: bash
+        run: |
+          OUT_ROOT="${CI_WIN_BAZEL_OUTPUT_ROOT:-${SYSTEMDRIVE:-C:}/b}"
+          OUT_ROOT="${OUT_ROOT//\\//}"
+          TESTLOGS="$("$BAZEL_BIN" --output_user_root="$OUT_ROOT" info bazel-testlogs 2>/dev/null | tr -d '\r')"
+          rm -rf .ci-test-logs; mkdir -p .ci-test-logs
+          [ -n "$TESTLOGS" ] && [ -d "$TESTLOGS" ] || exit 0
+          (cd "$TESTLOGS" && find . \( -name test.log -o -name test.xml \) -exec cp --parents {} "$GITHUB_WORKSPACE/.ci-test-logs" \;) || true
+
+      - name: Upload the test logs
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: full-test-logs-win-x64
+          path: .ci-test-logs
           if-no-files-found: ignore
           retention-days: 7
 
