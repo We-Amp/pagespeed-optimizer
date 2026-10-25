@@ -14,7 +14,7 @@
 # current despite the frozen base (pins without an upgrade pass
 # re-freeze whatever CVEs the base carried). Do NOT bump to 24.04: the
 # whole point of jammy is the GLIBC_2.34 / RHEL 9 floor explained above.
-FROM ubuntu:22.04@sha256:4f838adc7181d9039ac795a7d0aba05a9bd9ecd480d294483169c5def983b64d
+FROM ubuntu:22.04@sha256:0a9887931b0e38af2e3487ed39e29436b0535c4f3f52e57745baaf79d1898956
 
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
