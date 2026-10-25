@@ -168,6 +168,21 @@ set the job runs slower, never fails for that reason. In `pipeline-pr.yml`:
 - **Lint** keeps its Bazel state in a per-runner cache directory under the
   runner's home, which persists on a fleet runner and is empty on a hosted
   one. No credential enters the lint containers.
+- **Lint scope on a pull request.** A changed `.cc` file is linted; a changed
+  header lints the `.cc` files that include it, directly or through other
+  headers (`tools/ci/lint-scope-expand.sh`, run inside the lint container and
+  limited to the files in `compile_commands.json`). When the changed files
+  reach no translation unit in the compilation database, clang-tidy is skipped
+  with a log line; it never falls back to the whole tree. A change to the
+  clang-tidy configuration (`.clang-tidy`, `test/.clang-tidy`,
+  `lib/image/generated/.clang-tidy`), the lint image or compile-database
+  recipe (`docker/Dockerfile.lint`, `tools/ci/lint-compile-commands.sh`), the
+  expander, `tools/run-clang-tidy.sh`, `MODULE.bazel`, `MODULE.bazel.lock`,
+  `.bazelrc` or `pipeline-pr.yml` itself lints the whole tree, because only
+  the whole tree can show the effect of such a change. The path list is
+  `LINT_TRIGGER_PATHS` in the "Compute lint scope" step. Pushes to `main` and
+  full-tier dispatches always lint the whole tree. The self-test is
+  `tools/ci/test_lint_scope_expand.sh`.
 
 ### Release lanes: hosted twins
 
@@ -349,8 +364,8 @@ full tier run as before.
   merge queue, so a skipped push loses no check of the merged tree, with one
   difference: a push to `main` no longer runs a whole-tree clang-tidy. The PR
   tier's `lint` computes its scope per event (scoped or none by the changed
-  files on a pull request or in the merge queue, the whole tree when a header
-  changed, the whole tree on a `workflow_dispatch`) and on a push runs
+  files on a pull request or in the merge queue, with the dependents of a
+  changed header included, and the whole tree on a `workflow_dispatch`) and on a push runs
   clang-format only. The full tier's `lint-full` runs for a `ci:full` pull
   request and for a dispatch with `full: true`, and is skipped on a push. The
   whole-tree lint for `main` lives in the nightly, as `nightly / Lint (whole
