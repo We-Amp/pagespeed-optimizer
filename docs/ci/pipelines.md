@@ -185,6 +185,13 @@ set the job runs slower, never fails for that reason. In `pipeline-pr.yml`:
   whole-tree lint runs in the nightly and on `workflow_dispatch`; a pull
   request that changes a lint trigger file also lints the whole tree. The self-test is
   `tools/ci/test_lint_scope_expand.sh`.
+- **Static analyzer scope.** The clang static analyzer (`clang-analyzer-*`)
+  runs on `lib/` and `src/` only and is turned off for `test/` in
+  `test/.clang-tidy`. Measured reason: it accounts for about 96% of clang-tidy
+  CPU on the test tree (the largest test unit took 33.6 minutes
+  single-threaded with it and 100 seconds without it), and the test tree is
+  88% of a whole-tree lint. `test/.clang-tidy` is itself a lint trigger file
+  (listed above), so a change to it lints the whole tree.
 
 ### Release lanes: hosted twins
 
