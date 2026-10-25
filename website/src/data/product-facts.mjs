@@ -234,7 +234,10 @@ export const ARTIFACT_ACCESS = {
 // The support ladder as markdown bullets and one line, with each tier's yearly
 // price (pure helpers — see the purity rule below).
 const tierPrice = (t) => `${t.prices.from ? 'from ' : ''}${formatEur(t.prices.annualEur)} a year`;
-const tierTarget = (t) => t.includes[t.includes.length - 1];
+// A tier's first-response target: by convention the last entry of `includes`,
+// which is what the tier cards show. Pages that state the target outside the
+// cards (the terms of service) read it through this helper.
+export const tierTarget = (t) => t.includes[t.includes.length - 1];
 const ladderMd = (rows) =>
   rows.map((t) => `- ${t.name} — ${t.note}; ${tierPrice(t)}; ${tierTarget(t)}`).join('\n');
 const ladderLine = (rows) =>

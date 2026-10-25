@@ -503,6 +503,16 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 180
     steps: &windows-package-steps
+      # A previous build leaves vendor\bazel-external as a junction into a Bazel
+      # output base full of nested junctions; the checkout clean walks that loop.
+      # Remove only the links (never their targets) before the checkout.
+      - name: Unlink vendor reparse points before checkout (build runner)
+        if: runner.environment != 'github-hosted'
+        shell: powershell
+        run: |
+          $s = Join-Path $env:GITHUB_WORKSPACE 'tools\ci\unlink-vendor-reparse.ps1'
+          if (Test-Path -LiteralPath $s) { & $s -Workspace $env:GITHUB_WORKSPACE } else { Write-Host 'no previous checkout' }
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -657,13 +667,39 @@ jobs:
     timeout-minutes: 240
     steps: *windows-package-steps
 
+  ci-release-gate:
+    name: CI run of the release commit
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    # Reads the workflow runs of this public repository with the default
+    # read-only token; no extra permission is requested. The script comes
+    # from main, never from the tree being released.
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # A dry run of a tag that is not on the remote yet has no tag_sha; it
+      # builds the dispatched ref, so that commit is the one to check.
+      RELEASE_SHA: ${{ needs.version.outputs.tag_sha || github.sha }}
+      DRY_RUN: ${{ needs.version.outputs.dry_run }}
+    steps:
+      - name: Checkout main (gate script)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          sparse-checkout: tools/ci
+          persist-credentials: false
+
+      - name: Require a green CI run of this commit
+        run: bash tools/ci/ci_release_gate.sh
+
   manifest:
     name: Validate asset set + SHA256SUMS
-    needs: [version, build-amd64, build-amd64-hosted, build-arm64, build-windows, build-windows-hosted]
+    needs: [version, ci-release-gate, build-amd64, build-amd64-hosted, build-arm64, build-windows, build-windows-hosted]
     # Exactly one of each fleet/hosted pair runs; the other is skipped.
     if: >-
       ${{ !cancelled()
       && needs.version.result == 'success'
+      && needs.ci-release-gate.result == 'success'
       && needs.build-arm64.result == 'success'
       && (needs.build-amd64.result == 'success' || needs.build-amd64-hosted.result == 'success')
       && (needs.build-windows.result == 'success' || needs.build-windows-hosted.result == 'success') }}
