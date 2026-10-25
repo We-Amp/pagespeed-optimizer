@@ -384,6 +384,8 @@ jobs:
         run: tools/ci/test_release_checksums_sig.sh
       - name: Release tag version guard self-test
         run: tools/ci/check_optimizer_tag_version.sh --self-test
+      - name: Release CI gate self-test
+        run: tools/ci/test_ci_release_gate.sh
 
   # Path filters for the fuzz smokes: a hosted job diffs the pull request's
   # files and publishes one boolean per filter. A fleet job that needs a

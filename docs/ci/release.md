@@ -100,6 +100,36 @@ Known stale wording, left for the website copy pass: the 2.0.x sentence
 there says a setup "moves to 2.1 today", which reads wrong once 2.5.0 is the
 current release.
 
+## The CI gate
+
+Both lanes run a hosted job, `CI run of the release commit`
+(`ci-release-gate`), that executes `tools/ci/ci_release_gate.sh` from a
+sparse checkout of `main`. The optimizer `manifest` job and the NuGet
+`package` and `package-dry-run` jobs need it, so nothing is assembled
+or published without it. It passes when a `ci.yml` run on `main` with
+`head_sha` equal to the release commit (event `push` or `workflow_dispatch`)
+concluded `success` and these jobs of the latest attempt are all `success`:
+
+- `pr / Linux Build`, `pr / Linux Unit Tests`, `pr / Windows Build`,
+  `pr / Windows Unit Tests`, `pr / Lint (clang-tidy + clang-format)`;
+- `full / Linux Build`, `full / Windows Build`, `full / Linux ASan + UBSan`,
+  `full / Linux TSan`, `full / Lint (whole tree)`.
+
+No other job of that run may be `failure`, `cancelled` or `timed_out`, except
+`full / Daemon Privilege Rig (arm64)`, which is `continue-on-error`. A
+`full=true` dispatch of `CI` on the release commit satisfies this. A push run
+whose pull-request tier was skipped does not, by design.
+
+The gate polls a run that is still in flight (up to 60 minutes), retries
+transient API errors, and refuses after two consecutive checks that find
+completed runs and no passing one, or when the API keeps failing. The log ends
+with `ci gate passed in ci.yml run <id> (<event>)` or
+`ci gate refuses this release: <reason>`. On a dry run a refusal that the
+gate reaches is a `::warning::` and the job stays green, so read the log line,
+not the job colour. A dry run of an optimizer tag that is not on the remote yet
+checks the commit of the dispatched ref. The 75-minute job timeout still turns
+a dry run red. The self-test is `tools/ci/test_ci_release_gate.sh`.
+
 ## The `release` environment
 
 | Setting | Value |

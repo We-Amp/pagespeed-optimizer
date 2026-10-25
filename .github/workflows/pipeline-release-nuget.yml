@@ -189,6 +189,29 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "tag=${REF#refs/tags/} sha=$SHA real=$REAL"
 
+  ci-release-gate:
+    name: CI run of the release commit
+    needs: ref-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    # Reads the workflow runs of this public repository with the default
+    # read-only token; no extra permission is requested. The script comes
+    # from main, never from the tree being released.
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      DRY_RUN: ${{ needs.ref-guard.outputs.real != 'true' }}
+    steps:
+      - name: Checkout main (gate script)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          sparse-checkout: tools/ci
+          persist-credentials: false
+
+      - name: Require a green CI run of this commit
+        run: bash tools/ci/ci_release_gate.sh
+
   # ---------------------------------------------------------------------
   # Vendor: one hermetic tree (source, vendor/, GIT_COMMIT) for every
   # platform, as the `release-source` workflow artifact.
@@ -1364,9 +1387,10 @@ jobs:
   # ---------------------------------------------------------------------
   package:
     name: Package & Release
-    needs: [ref-guard, security-gates, sidecar-pack, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
+    needs: [ref-guard, ci-release-gate, security-gates, sidecar-pack, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real == 'true'
+      && needs.ci-release-gate.result == 'success'
       && needs.security-gates.result == 'success'
       && needs.sidecar-pack.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
@@ -1706,9 +1730,10 @@ jobs:
 
   package-dry-run:
     name: Package (dry run)
-    needs: [ref-guard, security-gates, sidecar-pack, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
+    needs: [ref-guard, ci-release-gate, security-gates, sidecar-pack, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real != 'true'
+      && needs.ci-release-gate.result == 'success'
       && needs.security-gates.result == 'success'
       && needs.sidecar-pack.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
