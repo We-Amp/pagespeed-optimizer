@@ -305,6 +305,9 @@ jobs:
       - name: Slot-budget helper - self-test
         run: bash tools/ci/test_slot_budget.sh
 
+      - name: Windows vendor unlink step - self-test
+        run: bash tools/ci/test_windows_unlink_step.sh
+
       - name: Merge-queue fork guard - self-test
         run: bash tools/ci/test_queue_fork_guard.sh
 
