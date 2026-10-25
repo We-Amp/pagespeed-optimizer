@@ -5,8 +5,9 @@
 // worker_test_fixture.h.
 
 // clang-format off
-// The fixture header goes first: it includes worker.h and then undefines the
-// Win32 FormatMessage macro before any other header is parsed.
+// Keep the fixture header first: it preserves the old worker_test.cc include
+// order (worker.h before any Windows header), which Windows builds have proven.
+// See lib/base/message_handler.h for the FormatMessage macro interaction.
 #include "test/src/worker/worker_test_fixture.h"
 // clang-format on
 
