@@ -1768,14 +1768,14 @@ jobs:
                       "${GITHUB_WORKSPACE}/.rig-artifacts" || true
 
 
-  # The whole-tree lint, once per merge: clang-tidy over every translation
-  # unit in lint scope and clang-format over the tree, the same steps as the PR
-  # tier's `lint` with the scope fixed to the whole tree. The PR tier lints a
-  # pull request's own files; this job is the post-merge net for what a scoped
-  # lint cannot see, and it runs on a push even when the PR tier's build
-  # runner legs are skipped (see "CI_SCOPE" in docs/ci/pipelines.md).
+  # The whole-tree lint: clang-tidy over every translation unit in lint scope
+  # and clang-format over the tree, the same steps as the PR tier's `lint`
+  # with the scope fixed to the whole tree. It runs for a pull request
+  # labelled ci:full and for a dispatch with full=true, not on a push to main:
+  # the nightly carries the whole-tree lint for main (see pipeline-nightly.yml).
   lint-full:
     name: Lint (whole tree)
+    if: ${{ github.event_name != 'push' }}
     needs: vendor
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     # A whole-tree lint takes tens of minutes, longer on a cold lint cache or

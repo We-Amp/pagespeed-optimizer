@@ -40,9 +40,9 @@ Rules that follow from the shape:
 
 | Tier | Workflow | Runs on | Holds |
 |---|---|---|---|
-| PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint, the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, and the path-filtered CSS and JS fuzz smokes. Later changes add the Linux arm64 build and tests |
-| Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests; the whole-tree lint (`lint-full`) |
-| Nightly | `pipeline-nightly.yml` | `nightly.yml`: daily at 21:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the nightly image leg of the dependency scan |
+| PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint (clang-format only on a push to `main`; clang-tidy scoped or skipped by the changed files on a pull request, whole tree on a dispatch), the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, and the path-filtered CSS and JS fuzz smokes. Later changes add the Linux arm64 build and tests |
+| Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests; the whole-tree lint (`lint-full`, for `ci:full` pull requests and dispatches with `full: true` only, not on a push) |
+| Nightly | `pipeline-nightly.yml` | `nightly.yml`: daily at 21:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the whole-tree lint (`lint-full`, the post-merge clang-tidy net for `main`); the nightly image leg of the dependency scan |
 | Sweep | `pipeline-sweep.yml` | `sweep-queued.yml`: hourly and on dispatch | cancels runs that wait for a runner nobody serves (see "The queued-run sweep") |
 
 The `ci:full` label is read when a pull request run starts (open, push,
@@ -347,12 +347,17 @@ full tier run as before.
   delete it). The next run takes it; nothing else changes.
 - **Coverage on a skipped push.** The fleet legs ran on the same commit in the
   merge queue, so a skipped push loses no check of the merged tree, with one
-  difference: on a push the PR tier's `lint` used to lint the whole tree,
-  while in the merge queue it lints only the pull request's files (the whole
-  tree when a header changed). The whole-tree lint therefore runs in the full
-  tier, as `full / Lint (whole tree)` (`lint-full`), on every push to `main`
-  and on every full-tier dispatch. Until `CI_SCOPE` enables the push rule, a
-  push runs both lints (the PR tier's whole-tree `lint` and `lint-full`). The hosted checks of the PR tier (Apache
+  difference: a push to `main` no longer runs a whole-tree clang-tidy. The PR
+  tier's `lint` computes its scope per event (scoped or none by the changed
+  files on a pull request or in the merge queue, the whole tree when a header
+  changed, the whole tree on a `workflow_dispatch`) and on a push runs
+  clang-format only. The full tier's `lint-full` runs for a `ci:full` pull
+  request and for a dispatch with `full: true`, and is skipped on a push. The
+  whole-tree lint for `main` lives in the nightly, as `nightly / Lint (whole
+  tree)` (`lint-full` in `pipeline-nightly.yml`, a deliberate twin of the full
+  tier's job: changes to one must be mirrored in the other). TSan,
+  ASan, the privilege rigs and the arm64 legs stay on every push.
+  The hosted checks of the PR tier (Apache
   RAT, license headers and SBOM drift, the blocking and the report-only
   dependency scans and the others) are not fleet legs and still run on every
   push. `tools/ci/test_pr_tier_scope.sh` covers the script against a fake

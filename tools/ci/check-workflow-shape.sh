@@ -218,11 +218,14 @@ is_fleet_switch_route() {
   return 1
 }
 
-# The only if: a switch-routed job may carry: none, or the path filter alone.
+# The only if: a switch-routed job may carry: none, the path filter alone, or
+# the push exclusion (a job that runs for a pull request or a dispatch but
+# never on a push to main).
 is_switch_if() {
   local v="$1" name
   [ -z "${v}" ] && return 0
   case "${v}" in
+    "\${{ github.event_name != 'push' }}") return 0 ;;
     "\${{ needs.changes.outputs."*" == 'true' }}")
       name="${v#\$\{\{ needs.changes.outputs.}"; name="${name% == \'true\' \}\}}"
       printf '%s' "${name}" | grep -qE '^[a-z][a-z_]*$' && return 0

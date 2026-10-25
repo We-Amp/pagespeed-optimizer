@@ -9,7 +9,7 @@
 # Jobs by class:
 #   macOS (hosted macos-15, arm64)
 #                 macos-build, macos-unit-tests, macos-pkg-smoke
-#   fleet-heavy   periodic-vendor, periodic-build-x64,
+#   fleet-heavy   periodic-vendor, periodic-build-x64, lint-full,
 #                 css-fuzz-nightly, css-fuzz-shadow (dispatch only),
 #                 the x64 legs (fleet only, they mount the container
 #                 socket or run privileged containers):
@@ -2537,6 +2537,255 @@ jobs:
         if: steps.findings.outcome != 'success'
         run: echo "::warning::no findings artifact from the scan job; the findings issue was left alone"
 
+
+  # The whole-tree lint for main: clang-tidy over every translation unit in
+  # lint scope and clang-format over the tree. A push to main no longer runs
+  # a whole-tree lint (the PR tier's `lint` is clang-format only on a push,
+  # and the full tier's `lint-full` skips a push), so this nightly job is the
+  # post-merge net.
+  # This is a deliberate twin of pipeline-full.yml's `lint-full`, kept in this
+  # file because the fleet runner group admits only the existing pipeline
+  # workflows; changes to one must be mirrored in the other. The vendored
+  # tree comes from `periodic-vendor`, as in `periodic-build-x64`.
+  lint-full:
+    name: Lint (whole tree)
+    needs: periodic-vendor
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+      # A whole-tree lint takes tens of minutes, longer on a cold lint cache or
+    # a hosted runner (which also builds the image first).
+    timeout-minutes: 120
+    steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Restore vendored dependencies (cache channel)
+        if: needs.periodic-vendor.outputs.channel == 'cache'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: vendor
+          key: optimizer-vendor-${{ hashFiles('MODULE.bazel', '.bazelversion', 'bazel/**', 'third_party/**') }}
+          fail-on-cache-miss: true
+
+      - name: Extract the vendored workspace (hub channel)
+        if: needs.periodic-vendor.outputs.channel == 'hub'
+        run: |
+          args=(--sha "${{ needs.periodic-vendor.outputs.short_sha }}" --dest "${GITHUB_WORKSPACE}" --prefix pagespeed-optimizer)
+          if [ -n "${CI_VENDOR_DIR:-}" ]; then
+            args+=(--local "${CI_VENDOR_DIR}/pagespeed-optimizer-${{ needs.periodic-vendor.outputs.short_sha }}.tar.zst")
+          fi
+          bash tools/ci/extract-vendor-tarball.sh "${args[@]}"
+
+      - name: Docker preflight
+        run: tools/ci/docker-preflight.sh
+
+      - name: Ensure the lint image
+        run: |
+          # Content-hashed tags and per-host flocks
+          # (tools/ci/ensure-dev-image.sh): --derived ensures the base
+          # pagespeed2-dev image first, then builds pagespeed2-lint on top
+          # under its own lock, and prints the lint image's name.
+          LINT_IMAGE=$(bash tools/ci/ensure-dev-image.sh --tag-latest \
+            --derived pagespeed2-lint Dockerfile.lint x64 docker)
+          echo "LINT_IMAGE=${LINT_IMAGE}" >> "$GITHUB_ENV"
+
+      # The whole tree, always (the PR tier's `lint` computes a scope instead).
+      - name: Set the lint scope
+        run: |
+          MODE=full
+          echo "LINT_MODE=${MODE}" >> "$GITHUB_ENV"
+          echo "lint scope: mode=${MODE}"
+
+      - name: clang-tidy
+        run: |
+          # Generate compile_commands.json and run clang-tidy in a single
+          # container so that Bazel's external/ symlinks remain valid for
+          # clang-tidy. The dependency repos are public and fetched over
+          # https, so no credential of any kind enters the container.
+          #
+          # The container runs as the runner user so nothing root-owned
+          # lands in the checkout (a root-owned compile_commands.json would
+          # break the NEXT job's checkout on a persistent runner). HOME and
+          # the lint Bazel state live in a per-runner cache dir mounted at
+          # /cache, outside the checkout, because Bazel refuses a repository
+          # cache inside the main repository. The dir persists across jobs
+          # on a fleet runner (a cold full lint is tens of minutes) and is
+          # simply empty on a hosted runner. The dir name is suffixed per
+          # runner instance because two instances can share one host's home;
+          # the name is never logged.
+          RUNNER_TAG="${RUNNER_NAME//[^A-Za-z0-9_.-]/_}"
+          LINT_OUT="${HOME}/.cache/optimizer-lint${RUNNER_TAG:+-${RUNNER_TAG}}"
+          mkdir -p "${LINT_OUT}"
+          # Per-slot budget: memory cap only when the runner sets one (no
+          # default cap), and the shared parallelism for Bazel and
+          # run-clang-tidy.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget || exit 1
+          MEM_ARGS=()
+          [ -z "${SLOT_MEM}" ] || MEM_ARGS=(--memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}")
+          docker run --rm \
+            "${MEM_ARGS[@]}" \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/cache \
+            -e CI_SLOT_CPUS="${SLOT_CPUS}" -e CI_SLOT_MEM_GB="${SLOT_MEM_GB}" \
+            -e LINT_MODE="${LINT_MODE:-full}" \
+            -e BAZEL_REPO_CACHE=/cache/bazel-repo \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "${LINT_OUT}:/cache" \
+            "${LINT_IMAGE}" \
+            bash -c '
+              set -e
+              # Toolchain guard: a stale lint image linting with the wrong
+              # clang-tidy major produces misleading verdicts in both
+              # directions. Assert the pinned major up front so it fails
+              # loudly instead.
+              CT_MAJOR=$(clang-tidy-20 --version | sed -n "s/.*version \([0-9][0-9]*\).*/\1/p" | head -1)
+              if [ "${CT_MAJOR}" != "20" ]; then
+                echo "::error::clang-tidy-20 reports major version ${CT_MAJOR:-unknown}, expected 20 -- stale lint image?"
+                clang-tidy-20 --version || true
+                exit 1
+              fi
+              # Nothing in the lint scope changed: skip the expensive
+              # compile_commands generation entirely (clang-format still runs
+              # in the next step). This makes docs/CI-only PRs near-instant.
+              if [ "${LINT_MODE}" = "none" ]; then
+                echo "lint scope: no .cc/.h changed in lint scope -- skipping compile-commands + clang-tidy."
+                exit 0
+              fi
+              # Anchor CWD + BUILD_WORKSPACE_DIRECTORY at /workspace so
+              # hedrons refresh_all writes compile_commands.json next to the
+              # source tree (run-clang-tidy below reads it via -p
+              # /workspace).
+              cd /workspace
+              export BUILD_WORKSPACE_DIRECTORY=/workspace
+              /workspace/tools/ci/lint-compile-commands.sh
+              # Sanity gate: the compile_commands.json must still exist
+              # *immediately* before run-clang-tidy reads it.
+              if [ ! -s /workspace/compile_commands.json ]; then
+                echo "::error::compile_commands.json disappeared between lint-compile-commands.sh and run-clang-tidy"
+                ls -la /workspace/compile_commands.json 2>&1 || true
+                exit 1
+              fi
+              # Lint scope (computed by the "Compute lint scope" step; "none"
+              # already short-circuited above):
+              #   scoped -> only the .cc files changed in this PR.
+              #   full   -> the whole (lib|src|test) tree.
+              if [ "${LINT_MODE}" = "scoped" ]; then
+                mapfile -t CT_TARGETS < <(sed "s#^#/workspace/#" /workspace/.lint-files.txt)
+                echo "lint scope: scoped to ${#CT_TARGETS[@]} changed file(s):"
+                printf "  %s\n" "${CT_TARGETS[@]}"
+              else
+                # The lookahead excludes the VENDORED 1.15 JS kernel TUs and
+                # the VENDORED 1.15 HTML kernel TUs (explicit stem list --
+                # the native lib/html .cc files stay linted). run-clang-tidy
+                # matches these as Python regexes, so the lookahead is valid
+                # here (unlike in -header-filter, which is LLVM ERE).
+                CT_TARGETS=("/workspace/(lib/(?!js/|html/(content_type|doctype|empty_html_filter|html_element|html_event|html_filter|html_keywords|html_lexer|html_node|html_parse|html_parse_probe|html_writer_filter)\.cc$)|src/|test/).*\.cc")
+                echo "lint scope: full tree (vendored lib/js excluded)."
+              fi
+              # -extra-arg=-stdlib=libc++ is required: Hedron
+              # compile_commands.json does not propagate Bazel
+              # --cxxopt=-stdlib=libc++ from build:libc++ on linux, so
+              # clang-tidy falls back to the base images libstdc++ which
+              # lacks <expected> (C++23).
+              # -header-filter must tolerate RELATIVE paths: clang-tidy
+              # matches it against the header path as recorded by the
+              # compilation (workspace-relative, e.g. ./lib/js/foo.h), NOT
+              # the absolutized TU path.
+              # -exclude-header-filter suppresses diagnostics located in the
+              # VENDORED 1.15 kernel headers (JS by name shape, HTML by the
+              # explicit stem list the sync tool asserts); the compat/*.h
+              # headers deliberately do NOT match and stay fully linted.
+              # LLVM ERE -- no lookahead.
+              # run-clang-tidy defaults to every host CPU; honour the slot.
+              CT_J=()
+              # With a memory cap, also allow at most one process per 2 GiB.
+              if [ -n "${CI_SLOT_CPUS:-}" ]; then
+                ct_j="${CI_SLOT_CPUS}"
+                if [ -n "${CI_SLOT_MEM_GB:-}" ]; then
+                  mem_j=$(( CI_SLOT_MEM_GB / 2 )); [ "${mem_j}" -ge 1 ] || mem_j=1
+                  [ "${ct_j}" -le "${mem_j}" ] || ct_j="${mem_j}"
+                fi
+                CT_J=(-j "${ct_j}")
+              fi
+              run-clang-tidy-20 \
+                "${CT_J[@]}" \
+                -clang-tidy-binary=clang-tidy-20 \
+                -p /workspace \
+                -extra-arg=-stdlib=libc++ \
+                -header-filter="^(\./)?(lib|src|test)/.*\.(h|hpp)$" \
+                -exclude-header-filter="^(\./)?(lib/js/(js_[a-z_0-9]+\.(h|hpp)|source_map\.h|corpus/.*)|lib/html/(content_type|doctype|empty_html_filter|html_element|html_event|html_filter|html_keywords|html_lexer|html_name|html_node|html_parse|html_parse_recorder|html_writer_filter)\.h)$" \
+                "${CT_TARGETS[@]}" \
+                2>&1 | tee /tmp/ct-out.txt
+              CT_EXIT=${PIPESTATUS[0]}
+              # Fail-closed TU-count assertion: if run-clang-tidy selected
+              # zero TUs, the gate would pass vacuously. Parse its "Running
+              # clang-tidy for N files out of M" line and fail on N=0 or on
+              # the line missing entirely.
+              CT_N=$(grep -oE "Running clang-tidy for [0-9]+ files" /tmp/ct-out.txt | grep -oE "[0-9]+" | head -1)
+              if [ -z "${CT_N}" ] || [ "${CT_N}" -eq 0 ]; then
+                echo "::error::run-clang-tidy selected ${CT_N:-no} TUs (expected >0) -- the lint gate would pass vacuously; failing closed"
+                exit 1
+              fi
+              echo "run-clang-tidy selected ${CT_N} TUs"
+              if [ "$CT_EXIT" -ne 0 ]; then
+                echo "=== clang-tidy ERRORS ==="
+                grep -E "error:|warning: " /tmp/ct-out.txt | grep -v "^--$" | head -80 || tail -80 /tmp/ct-out.txt
+                exit "$CT_EXIT"
+              fi
+            '
+
+      - name: clang-format check
+        run: |
+          RUNNER_TAG="${RUNNER_NAME//[^A-Za-z0-9_.-]/_}"
+          LINT_OUT="${HOME}/.cache/optimizer-lint${RUNNER_TAG:+-${RUNNER_TAG}}"
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/workspace \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -v "${LINT_OUT}:/workspace/.cache" \
+            -w /workspace \
+            "${LINT_IMAGE}" \
+            bash -c '
+              # Toolchain guard: same rationale as the clang-tidy step -- a
+              # stale image formatting with the wrong major gives a
+              # misleading whole-tree --Werror verdict.
+              CF_MAJOR=$(clang-format-20 --version | sed -n "s/.*version \([0-9][0-9]*\).*/\1/p" | head -1)
+              if [ "${CF_MAJOR}" != "20" ]; then
+                echo "::error::clang-format-20 reports major version ${CF_MAJOR:-unknown}, expected 20 -- stale lint image?"
+                clang-format-20 --version || true
+                exit 1
+              fi
+              # The ! -path excludes mirror the vendored-name invariants: the
+              # vendored 1.15 kernels keep their canonical formatting
+              # (style-lint carve-out ONLY; see lib/js/CLAUDE.md and
+              # lib/html/CLAUDE.md). The compat/ dirs stay format-checked.
+              # NOTE: the lib/js entries are find globs, deliberately broader
+              # than the js_[a-z_0-9]+ lint stems (find -path cannot express
+              # that class); the lib/html entries are the EXACT vendored
+              # names.
+              find lib src test/lib test/src test/test_util -type f \
+                \( -name "*.cc" -o -name "*.cpp" -o -name "*.h" -o -name "*.hpp" \) \
+                ! -path "lib/js/js_*" ! -path "lib/js/source_map.h" \
+                ! -path "lib/js/corpus/*" \
+                ! -path "lib/html/content_type.h" ! -path "lib/html/content_type.cc" \
+                ! -path "lib/html/doctype.h" ! -path "lib/html/doctype.cc" \
+                ! -path "lib/html/empty_html_filter.h" ! -path "lib/html/empty_html_filter.cc" \
+                ! -path "lib/html/html_element.h" ! -path "lib/html/html_element.cc" \
+                ! -path "lib/html/html_event.h" ! -path "lib/html/html_event.cc" \
+                ! -path "lib/html/html_filter.h" ! -path "lib/html/html_filter.cc" \
+                ! -path "lib/html/html_keywords.h" ! -path "lib/html/html_keywords.cc" \
+                ! -path "lib/html/html_lexer.h" ! -path "lib/html/html_lexer.cc" \
+                ! -path "lib/html/html_name.h" \
+                ! -path "lib/html/html_node.h" ! -path "lib/html/html_node.cc" \
+                ! -path "lib/html/html_parse.h" ! -path "lib/html/html_parse.cc" \
+                ! -path "lib/html/html_parse_probe.cc" ! -path "lib/html/html_parse_recorder.h" \
+                ! -path "lib/html/html_writer_filter.h" ! -path "lib/html/html_writer_filter.cc" \
+                | xargs clang-format-20 --dry-run --Werror
+            '
 
   # Kill switch notice. While the repository variable FLEET_ENABLED is 'false'
   # every build runner job here runs on its hosted twin, and the jobs that
