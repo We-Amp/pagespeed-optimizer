@@ -1049,6 +1049,7 @@ jobs:
           fi
           echo "BUILD_CONFIG_NAME=${BUILD_CONFIG_NAME}" >> "$GITHUB_ENV"
           docker run --rm --init "${EXTRA_DOCKER[@]}" \
+            ${SLOT_CPUS:+--cpus="${SLOT_CPUS}"} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
@@ -1258,6 +1259,7 @@ jobs:
             echo "::notice::BAZEL_CACHE_HOST not set: testing without the remote cache (docs/ci/runner-environment.md)"
           fi
           docker run --rm --init "${EXTRA_DOCKER[@]}" \
+            ${SLOT_CPUS:+--cpus="${SLOT_CPUS}"} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
@@ -1390,6 +1392,7 @@ jobs:
           slot_budget || exit 1
           MEM_ARGS=()
           [ -z "${SLOT_MEM}" ] || MEM_ARGS=(--memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}")
+          [ -z "${SLOT_CPUS}" ] || MEM_ARGS+=(--cpus="${SLOT_CPUS}")
           docker run --rm \
             "${MEM_ARGS[@]}" \
             --user "$(id -u):$(id -g)" \
@@ -1846,6 +1849,7 @@ jobs:
             echo "::notice::BAZEL_CACHE_HOST not set: compiling without the remote cache (docs/ci/runner-environment.md)"
           fi
           docker run --rm --init "${EXTRA_DOCKER[@]}" \
+            ${SLOT_CPUS:+--cpus="${SLOT_CPUS}"} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \

@@ -347,6 +347,7 @@ jobs:
           fi
           echo "BUILD_CONFIG_NAME=${BUILD_CONFIG_NAME}" >> "$GITHUB_ENV"
           docker run --rm --init "${EXTRA_DOCKER[@]}" \
+            ${SLOT_CPUS:+--cpus="${SLOT_CPUS}"} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
@@ -534,6 +535,7 @@ jobs:
           # is fetched from a release download at analysis time; it is not a
           # test and a failed download must not fail the sanitizer lane.
           docker run --rm --init "${EXTRA_DOCKER[@]}" \
+            ${SLOT_CPUS:+--cpus="${SLOT_CPUS}"} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --shm-size=512m \
             --user "$(id -u):$(id -g)" \
@@ -612,6 +614,7 @@ jobs:
             echo "::notice::BAZEL_CACHE_HOST not set: running without the remote cache (docs/ci/runner-environment.md)"
           fi
           docker run --rm --init "${EXTRA_DOCKER[@]}" \
+            ${SLOT_CPUS:+--cpus="${SLOT_CPUS}"} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --shm-size=512m \
             --security-opt seccomp=unconfined \
@@ -1853,6 +1856,7 @@ jobs:
           slot_budget || exit 1
           MEM_ARGS=()
           [ -z "${SLOT_MEM}" ] || MEM_ARGS=(--memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}")
+          [ -z "${SLOT_CPUS}" ] || MEM_ARGS+=(--cpus="${SLOT_CPUS}")
           docker run --rm \
             "${MEM_ARGS[@]}" \
             --user "$(id -u):$(id -g)" \
