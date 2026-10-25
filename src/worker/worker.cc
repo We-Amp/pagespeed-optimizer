@@ -1397,28 +1397,65 @@ bool Worker::Initialize() {
 
     auto cache_result = PageSpeedCache::Create(cache_config);
     if (!cache_result.has_value()) {
-      // Auto-recovery: delete the corrupt/missing file and retry once.
-      LogWarning(
-          "Cache open failed at %s, attempting recovery "
-          "(delete and recreate)",
-          config_.cache_path.c_str());
-#ifdef _WIN32
-      _unlink(config_.cache_path.c_str());
-#else
-      unlink(config_.cache_path.c_str());
-#endif
-      cache_result = PageSpeedCache::Create(cache_config);
-      if (!cache_result.has_value()) {
+      const cyclone::CacheError open_error = cache_result.error();
+      if (PageSpeedCache::OpenFailureIsDamagedVolume(open_error)) {
+        // Auto-recovery: delete the damaged volume file(s) and retry once.
+        // The file on disk is not the configured path but its
+        // structural-fingerprint sibling, so unlinking the configured path
+        // removed nothing and the retry reopened the same damaged volume
+        // (#428).  RemoveVolumeFiles removes the real files.  At the
+        // pinned storage layer a damaged volume with no live peer is
+        // reset in place inside Create() and never reaches this branch;
+        // it is the backstop for a build that reports the damage
+        // directly.
+        LogWarning(
+            "Cache open failed at %s (%s), attempting recovery "
+            "(delete and recreate)",
+            config_.cache_path.c_str(),
+            make_error_code(open_error).message().c_str());
+        PageSpeedCache::RemoveVolumeFiles(config_.cache_path);
+        cache_result = PageSpeedCache::Create(cache_config);
+        if (!cache_result.has_value()) {
+          LogError(
+              "Cache unavailable at %s even after recreation (%s). "
+              "Starting in degraded mode.",
+              config_.cache_path.c_str(),
+              make_error_code(cache_result.error()).message().c_str());
+          cache_degraded_ = true;
+          // cache_ stays nullptr. Continue with event loop setup so
+          // health/mgmt sockets are available and the process isn't dead.
+        } else {
+          LogInfo("Cache recovered successfully at %s",
+                  config_.cache_path.c_str());
+        }
+      } else if (open_error == cyclone::CacheError::ResetRefusedLivePeer) {
+        // Another live process (normally the web server module) holds the
+        // volume and the storage layer refused the reset on purpose.
+        // Deleting the files here would split the two processes onto
+        // different volumes with no reset signal: the peer would keep
+        // writing an inode this process never reads, losing its writes
+        // until it restarts.  Degrade and name the operator's cure.
         LogError(
-            "Cache unavailable at %s even after recreation. "
-            "Starting in degraded mode.",
-            config_.cache_path.c_str());
+            "Cache open failed at %s (%s): another process holds the cache "
+            "volume; starting degraded. Restart the web server so the cache "
+            "can be reset.",
+            config_.cache_path.c_str(),
+            make_error_code(open_error).message().c_str());
         cache_degraded_ = true;
-        // cache_ stays nullptr. Continue with event loop setup so
-        // health/mgmt sockets are available and the process isn't dead.
+        // cache_ stays nullptr, as above.
       } else {
-        LogInfo("Cache recovered successfully at %s",
-                config_.cache_path.c_str());
+        // A refusal (ownership, permission, symlink, I/O) or a
+        // configuration or environment failure: deleting the volume cannot
+        // fix it, and a file this process was refused is not this
+        // process's to remove.  Log the error and degrade without the
+        // delete.
+        LogError(
+            "Cache open failed at %s (%s), not a damaged volume; skipping "
+            "the delete-and-recreate recovery. Starting in degraded mode.",
+            config_.cache_path.c_str(),
+            make_error_code(open_error).message().c_str());
+        cache_degraded_ = true;
+        // cache_ stays nullptr, as above.
       }
     }
     if (cache_result.has_value()) {

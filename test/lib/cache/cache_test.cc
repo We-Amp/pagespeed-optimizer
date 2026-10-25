@@ -1694,6 +1694,52 @@ TEST_F(PageSpeedCacheTest, ResetKeepsAnEarlierFormatVolumeAndClearsThisFormat) {
       << "the recovery path must still remove this format's volume";
 }
 
+// The classification the worker's startup recovery consults (#428): which
+// Create() failures mean the volume file is damaged (so a
+// delete-and-recreate retry may fix the open) and which are live peers,
+// refusals or environment failures the recovery must leave alone.
+TEST_F(PageSpeedCacheTest, OpenFailureIsDamagedVolumeClassification) {
+  // The damaged-volume error: a file too small for a volume header, or a
+  // header that fails validation.  At the pinned storage layer such a
+  // volume is reset in place inside Create() when no peer holds it, so
+  // the classification is a backstop for a build that reports it directly.
+  EXPECT_TRUE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::Corrupted))
+      << "a truncated file or an invalid header is the damaged-volume error";
+
+  // A live peer, never damage: ResetRefusedLivePeer means the volume
+  // needs a reset and another process holds it, and the remaining
+  // IncompatibleVersion path on open fires only when a peer raced the
+  // open in.  Deleting under a possible live peer splits two processes
+  // onto different volume files with no reset signal, so the recovery
+  // must leave the files alone.
+  EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::ResetRefusedLivePeer))
+      << "a volume another live process holds must not be deleted";
+  EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::IncompatibleVersion))
+      << "a peer racing the open in must not be deleted for";
+
+  // IoError is the refusal code: the ownership, permission and symlink
+  // refusals share it with genuine I/O failures, so it must never be
+  // treated as damage.
+  EXPECT_FALSE(
+      PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError::IoError));
+  // Configuration, geometry and environment failures a delete cannot fix.
+  EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::InvalidArgument));
+  EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::InvalidConfiguration));
+  EXPECT_FALSE(
+      PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError::Busy));
+  EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::NotInitialized));
+  EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::InternalError));
+  EXPECT_FALSE(
+      PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError::Success));
+}
+
 // ========== Coverage: Stats, handler logging, edge cases ==========
 
 TEST_F(PageSpeedCacheTest, StatsReturnsValidResult) {

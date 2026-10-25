@@ -1523,6 +1523,45 @@ bool IsFingerprintSibling(const std::string& name, const std::string& stem,
 
 }  // namespace
 
+bool PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError error) {
+  switch (error) {
+    case cyclone::CacheError::Corrupted:
+      // read_header() reports a file too small to hold the 64-byte volume
+      // header, or one whose header fails validation, as Corrupted: the
+      // truncated-after-a-full-disk and torn-after-a-power-loss shapes.
+      // At the pinned storage layer open() absorbs this into its
+      // needs-reset path (a damaged volume with no live peer is reset in
+      // place and never reported as an error), so the classifier holds it
+      // as a backstop for a build that reports the damage directly.
+      return true;
+    case cyclone::CacheError::IncompatibleVersion:
+      // Not another format's rollback volume: that lives under a different
+      // fingerprinted name, which RemoveVolumeFiles leaves alone.  A
+      // format or geometry mismatch at this build's own name is reset in
+      // place by open() (auto-reset is on), so the only
+      // IncompatibleVersion Create() can return at this pin is the storage
+      // layer's fail-closed path when a peer raced this open in.  A
+      // possible live peer: never delete.
+    case cyclone::CacheError::ResetRefusedLivePeer:
+      // The volume needs a reset and another live process (normally the
+      // web server module) holds it: the storage layer refused on purpose,
+      // and the cure it names is to drain the peer, not to touch the
+      // volume.  Deleting the files here would split the two processes
+      // onto different volumes with no reset signal: the peer keeps
+      // writing an inode this process never reads, and its writes are
+      // silently lost until it restarts.  The caller logs the refusal and
+      // degrades.
+      return false;
+    default:
+      // IoError is the case that must not be guessed at: the ownership,
+      // permission and symlink refusals share it with genuine I/O failures
+      // (see the declaration), so none of them may be treated as damage.
+      // The rest are configuration, geometry and contention errors a
+      // delete cannot fix.
+      return false;
+  }
+}
+
 void PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path) {
   namespace fs = std::filesystem;
   std::error_code ec;
