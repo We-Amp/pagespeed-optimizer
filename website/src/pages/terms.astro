@@ -9,6 +9,9 @@ import {
   SOURCE_PUBLICATION,
   LICENSING_TERMS_URL,
   COMMERCIAL_EMAIL,
+  SUPPORT_TIERS,
+  RESPONSE_TARGETS_LINE,
+  tierTarget,
 } from '../data/product-facts.mjs';
 
 // The effective date and the "Version YYYY-MM[-DD]" literal in the
@@ -17,6 +20,12 @@ import {
 // test/sync/terms-version-sync.test.ts guards it.
 const PRODUCT = `${PRODUCT_NAME}`;
 const LICENSE = SOURCE_PUBLICATION.license;
+// Each tier's first-response target comes through the shared tierTarget
+// helper, the same text the support and pricing pages show; never restate it.
+// test/sync/support-targets-sync.test.ts guards it.
+const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
+  .map((t) => `${t.name}: ${tierTarget(t).replace(/\.$/, '')}.`)
+  .join(' ');
 ---
 
 <BaseLayout
@@ -26,7 +35,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Terms of Service</h1>
     <p class="mt-4 text-sm text-text-annotation">
-      Effective date: 20 October 2026 &middot; Version 2026-10-20
+      Effective date: 24 October 2026 &middot; Version 2026-10-24
     </p>
     <p class="mt-6 text-lg text-text-muted">
       These terms are written in plain language. If something is unclear, email
@@ -157,6 +166,29 @@ const LICENSE = SOURCE_PUBLICATION.license;
           subscription grants no rights in the software beyond the {LICENSE}, and it does not make
           us responsible for your deployment (see
           <em>Your responsibilities</em>).
+        </p>
+        <p class="mt-2 text-text-muted">
+          <strong>How support works.</strong> Support is by email to the support address we give you
+          when your subscription starts, unless your agreement names another channel. Our replies
+          carry a ticket number in the subject; keep it when you write back. Software helps us sort
+          tickets and prepare a first draft, but every reply is read and approved by a person at
+          We-Amp before it is sent. If you report a problem as production down (severity 1), only a
+          person can lower that rating. The first-response targets are as follows. {SUPPORT_TARGETS}
+          {RESPONSE_TARGETS_LINE} The We-Amp support terms at
+          <a
+            href={LICENSING_TERMS_URL}
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            we-amp.com/licensing/
+          </a>{' '}
+          apply alongside these terms, and the privacy notice at
+          <a
+            href="https://we-amp.com/privacy/"
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            we-amp.com/privacy/
+          </a>{' '}
+          describes how we handle support mail.
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Ordering and payment.</strong> Prices are published on the
