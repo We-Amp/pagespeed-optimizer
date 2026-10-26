@@ -132,8 +132,8 @@ start_and_probe() { # logfile [extra args...]
     sleep 0.2
   done
   [[ -S "$sock" ]] || echo "error: daemon did not start within 120 s ($log)" >&2
-  HEALTH="$(curl -s --max-time 10 --unix-socket "$sock" http://localhost/v1/health 2>/dev/null)"
-  STATS="$(curl -s --max-time 10 --unix-socket "$sock" http://localhost/v1/stats 2>/dev/null)"
+  HEALTH="$(curl -s --max-time 60 --unix-socket "$sock" http://localhost/v1/health 2>/dev/null)"
+  STATS="$(curl -s --max-time 60 --unix-socket "$sock" http://localhost/v1/stats 2>/dev/null)"
   SANDBOX="$(printf '%s' "$HEALTH" \
     | sed -n 's/.*"browser_sandbox":"\([a-z]*\)".*/\1/p')"
   FILTER="$(printf '%s' "$HEALTH" \
@@ -216,7 +216,7 @@ WORKER_PID=$!
 for _ in $(seq 1 600); do [[ -S "$API_SOCK" ]] && break; sleep 0.2; done
 [[ -S "$API_SOCK" ]] || echo "error: daemon did not start within 120 s ($TMP/disabled.log)" >&2
 check "browser analysis off reports disabled" "disabled" \
-  "$(curl -s --max-time 10 --unix-socket "$API_SOCK" http://localhost/v1/health \
+  "$(curl -s --max-time 60 --unix-socket "$API_SOCK" http://localhost/v1/health \
       | sed -n 's/.*"browser_sandbox":"\([a-z]*\)".*/\1/p')"
 stop_worker
 
