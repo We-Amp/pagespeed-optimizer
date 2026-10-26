@@ -233,6 +233,13 @@ gtest_test(
 )
 
 gtest_test(
+    name = "cpu_budget_test",
+    deps = [
+        "//src/worker:cpu_budget",
+    ],
+)
+
+gtest_test(
     name = "webbotauth_warmer_test",
     deps = [
         "//src/crypto/webbotauth:webbotauth_core",

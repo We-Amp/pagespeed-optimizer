@@ -490,6 +490,14 @@ cc_library(
     ],
 )
 
+# Default thread count from the container CPU budget (affinity, cgroup quota).
+cc_library(
+    name = "cpu_budget",
+    srcs = ["cpu_budget.cc"],
+    hdrs = ["cpu_budget.h"],
+    visibility = ["//visibility:public"],
+)
+
 # Host aliases file (worker-written, nginx-read hostname mapping)
 cc_library(
     name = "host_aliases",
@@ -749,6 +757,7 @@ cc_binary(
     deps = [
         ":cache_dir",
         ":config_file",
+        ":cpu_budget",
         ":http_server",
         ":shared_config",
         ":syscall_selftest",

@@ -7955,7 +7955,7 @@ back to copying.
 
 Thread pool size for notification processing (default: auto)
 
-`auto` sizes the pool from the available CPU cores. See
+`auto` sizes the pool from the CPUs the worker may use, following the CPU limit of its container or cgroup. See
 [Threading and memory](https://modpagespeed.com/docs/worker-configuration/#threading).
 
 #### --max-connections
@@ -9583,11 +9583,18 @@ flag that lies.
 ## Threading and memory
 
 [`--num-threads`](https://modpagespeed.com/docs/worker-configuration/#--num-threads) sizes the notification thread pool (the
-default is based on the available CPU cores) and
+default follows the CPU limit of the container or cgroup) and
 [`--ram-cache-size`](https://modpagespeed.com/docs/worker-configuration/#--ram-cache-size) the RAM cache tier (the default is 6%
 of `--cache-size`, between 16 and 256 MB). The RAM cache uses write-around
 semantics: writes go directly to disk, reads populate the RAM cache on miss.
 This prevents cross-process staling between nginx and the worker.
+
+When `--num-threads` is not set, the pool size is the number of CPUs the worker
+may use, between 2 and 128. That is the smallest of the CPUs the process is
+allowed to run on and the CPU limit of its container (for example
+`docker run --cpus=12`), so a container limited to 12 CPUs on a larger host
+starts 12 threads. The worker logs the chosen size and where it came from at
+startup. Setting `--num-threads` explicitly overrides this.
 
 ## Pre-compressed text variants
 

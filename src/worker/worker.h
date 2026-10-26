@@ -434,7 +434,7 @@ struct WorkerConfig {
   // without a RuntimeDirectory fail the bind loudly — pass --socket for
   // ad-hoc/dev use.
   std::string socket_path = "/run/pagespeed-optimizer/notify.sock";
-  int num_threads = 0;  // 0 = auto (clamp hardware_concurrency to [2, 128])
+  int num_threads = 0;  // 0 = auto (CPU budget clamped to [2, 128])
   size_t max_request_size = 10ULL * 1024 * 1024;  // 10MB
 
   // Cache configuration
