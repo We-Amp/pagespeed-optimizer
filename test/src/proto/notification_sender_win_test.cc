@@ -6,9 +6,8 @@
 #include <gtest/gtest.h>
 
 #ifdef _WIN32
-#include <windows.h>
-
 #include <sddl.h>
+#include <windows.h>
 
 #include <cstdio>
 #include <string>
@@ -90,8 +89,8 @@ TEST(NotificationSenderWinTest, ConnectsToAPipeThatGrantsOnlyTheClientMask) {
   DWORD needed = 0;
   GetTokenInformation(token, TokenUser, nullptr, 0, &needed);
   std::string user(needed, '\0');
-  ASSERT_TRUE(GetTokenInformation(token, TokenUser, user.data(), needed,
-                                  &needed));
+  ASSERT_TRUE(
+      GetTokenInformation(token, TokenUser, user.data(), needed, &needed));
   CloseHandle(token);
   char* sid_text = nullptr;
   ASSERT_TRUE(ConvertSidToStringSidA(
