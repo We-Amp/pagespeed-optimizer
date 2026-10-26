@@ -299,8 +299,10 @@ gtest_test(
     ],
 )
 
+# integration test (starts the worker); medium gives it 300 s
 gtest_test(
     name = "websocket_test",
+    size = "medium",
     deps = [
         "//lib/base:message_handler",
         "//src/worker:websocket",
@@ -382,8 +384,10 @@ gtest_test(
     ],
 )
 
+# integration test (starts the worker); medium gives it 300 s
 gtest_test(
     name = "worker_api_test",
+    size = "medium",
     deps = [
         "//lib/base:message_handler",
         "//src/worker:serve_stats",
