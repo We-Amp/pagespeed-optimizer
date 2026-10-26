@@ -197,9 +197,10 @@ A new MDX component used in a docs page needs its text form in `docs-markdown.mj
 
 These bind every customer-facing string: pages, docs, blog, templates, metadata.
 
-- The product is **mod_pagespeed 2.1** (lowercase, underscore). "ModPageSpeed 2.0" and
+- The product is **mod_pagespeed** (lowercase, underscore), with no line number; versions
+  appear only as release facts ("since 2.5.0"). "ModPageSpeed 2.0" and
   "mod_pagespeed 1.15" name the predecessor lines and appear only as predecessors;
-  1.15 upgrades to 2.1 in place, so never frame them as two products to choose between.
+  1.15 upgrades to the current release in place, so never frame them as two products to choose between.
 - **"worker", never "daemon".** Also: optimize (not supercharge), self-hosted (not
   on-prem), variant (not copy), original (not unoptimized), serves (not delivers).
 - Sentence-case headings. Short sentences, active voice, no filler; name trade-offs.
@@ -207,7 +208,7 @@ These bind every customer-facing string: pages, docs, blog, templates, metadata.
   repository names or work-item ids. `tools/ci/check-public-hygiene.sh` (run from the
   repository root) is the gate and CI fails on a hit.
 - Provenance: mod_pagespeed is an open-source project originally developed at Google;
-  mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed
+  the current mod_pagespeed is developed by We-Amp B.V. and is not affiliated with or endorsed
   by Google. Say nothing beyond that about the relationship, and never disparage the
   original authors' work.
 - Support tiers, license and publication claims come from `src/data/product-facts.mjs`

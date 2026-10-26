@@ -1,6 +1,6 @@
 ---
 name: install-modpagespeed
-description: Install mod_pagespeed 2.1 on the web server a project uses (nginx, Apache, IIS, ASP.NET Core, Docker or Helm) by running the matching machine-readable recipe from modpagespeed.com, then verify it with the response-header check; or diagnose an installed one with the read-only diagnose recipe. Use when asked to install, enable or verify mod_pagespeed or PageSpeed optimization, to make an nginx, Apache, IIS or ASP.NET Core site faster with it, or to diagnose or troubleshoot an installed module or worker ("is it working").
+description: Install mod_pagespeed on the web server a project uses (nginx, Apache, IIS, ASP.NET Core, Docker or Helm) by running the matching machine-readable recipe from modpagespeed.com, then verify it with the response-header check; or diagnose an installed one with the read-only diagnose recipe. Use when asked to install, enable or verify mod_pagespeed or PageSpeed optimization, to make an nginx, Apache, IIS or ASP.NET Core site faster with it, or to diagnose or troubleshoot an installed module or worker ("is it working").
 ---
 
 # Install mod_pagespeed

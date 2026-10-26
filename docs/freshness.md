@@ -1,19 +1,18 @@
 # Cache Freshness: Conditional Revalidation & Origin CC Guidance
 
 **Status:** Implemented
-**Baseline:** AlternateMetadata v5 (`kCurrentVersion = 5`), as implemented
-**Depends on:** `http-cache-compliance.md` (implemented)
+**Baseline:** designed against AlternateMetadata v5; the current format is v8 (`kCurrentVersion` in `lib/classify/alternate_metadata.h`)
 **RFC references:** RFC 9111 (HTTP Caching), RFC 9110 (HTTP Semantics)
 
 ---
 
 ## 1. Problem Statement
 
-mod_pagespeed 2.1 acts as a shared cache. When origin content changes (deploy, CMS
+mod_pagespeed acts as a shared cache. When origin content changes (deploy, CMS
 publish, config update), the cache may serve stale content until `max-age`
-expires. Current behavior on stale content:
+expires. Behavior on stale content before this design:
 
-| Scenario | Current Behavior | Impact |
+| Scenario | Behavior before | Impact |
 |----------|-----------------|--------|
 | Stale + `must-revalidate` | Full re-fetch from origin | Correct but wasteful |
 | Stale + no `must-revalidate` | Serve stale (with SWR) | May be acceptable |

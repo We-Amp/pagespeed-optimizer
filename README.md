@@ -165,6 +165,8 @@ curl -s -o /dev/null -D - http://localhost/style.css | grep -i x-pagespeed
 | `pagespeed_cache_path PATH` | (required) | Path to Cyclone cache file |
 | `pagespeed_disallow PATTERN` | (none) | Exclude URL patterns from optimization |
 
+These three are the minimum. The module also takes `pagespeed_cache_mode`, the max-age family (`pagespeed_max_age`, `pagespeed_html_max_age`, `pagespeed_css_max_age`, `pagespeed_image_max_age`, `pagespeed_immutable_max_age`, `pagespeed_stale_if_error_max_age`), `pagespeed_synthesize_swr`, `pagespeed_conditional_revalidation`, `pagespeed_hot_threshold`, `pagespeed_force_refresh`, `pagespeed_force_refresh_html` and `pagespeed_trust_x_forwarded_proto`; see [cache modes](https://modpagespeed.com/docs/cache-modes/) and [cache control](https://modpagespeed.com/docs/cache-control/).
+
 The worker socket path and HTML processing toggle are configured on
 the worker side and shared with nginx automatically via `pagespeed-shared.conf`
 (written next to the cache file). See the
@@ -178,7 +180,7 @@ the worker side and shared with nginx automatically via `pagespeed-shared.conf`
 | `--cache-dir DIR` | `/var/cache/pagespeed-optimizer/v3` | Directory holding the cache volume, shared config and serve-stats |
 | `--cache-path PATH` | (derived from `--cache-dir`) | Expert override: full cache volume file stem |
 | `--socket PATH` | `/run/pagespeed-optimizer/notify.sock` | Unix socket path |
-| `--cache-size BYTES` | `104857600` | Cache size (100MB) |
+| `--cache-size BYTES` | `1073741824` | Cache size (1 GiB) |
 | `--max-connections N` | `128` | Max simultaneous connections |
 | `--max-buffer-size BYTES` | `1048576` | Max per-client buffer (1MB) |
 | `--connection-timeout MS` | `30000` | Idle connection timeout |
