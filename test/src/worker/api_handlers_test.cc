@@ -9,6 +9,8 @@
 #include "src/worker/api_handlers.h"
 
 #include <cerrno>
+#include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -19,6 +21,7 @@
 #include <thread>
 
 #ifndef _WIN32
+#include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -42,31 +45,41 @@ using json = nlohmann::json;
 class ApiHandlersIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
+#ifndef _WIN32
+    // A client may close while the server still writes; ignore SIGPIPE as
+    // the daemon does so the write fails with EPIPE instead of killing the
+    // test process.
+    struct sigaction ignore{};
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    sigaction(SIGPIPE, &ignore, &saved_sigpipe_);
+#endif
     loop_ = new uv_loop_t;
     uv_loop_init(loop_);
 
-    config_ = std::make_shared<WorkerConfig>();
-    config_->jpeg_quality = 85;
-    config_->webp_quality = 75;
-    config_->avif_quality = 60;
+    auto cfg = std::make_shared<WorkerConfig>();
+    cfg->jpeg_quality = 85;
+    cfg->webp_quality = 75;
+    cfg->avif_quality = 60;
     // A per-test cache path: PATCH /v1/config persists pagespeed.json (and,
     // when disable_html or cache_mode change, pagespeed-shared.conf) into
     // parent_path(cache_path), with an fsync.  Sharing one fixed /tmp path
     // let one test's fsync'd write collide with the next test's read of
     // the same file; with a fresh directory each case writes only its own.
     // Tests that assert on the file set their own TempDir and override it.
-    config_->cache_path = tmp_.path() + "/cache.vol";
+    cfg->cache_path = tmp_.path() + "/cache.vol";
+    live_config_.store(cfg);
 
     // ApiContext holds a std::mutex (Issue #167) and is non-movable;
     // construct directly via new to skip the temporary + move.
     ctx_ = std::unique_ptr<ApiContext>(new ApiContext{
         .stats = stats_,
         .get_config = [this]() -> std::shared_ptr<const WorkerConfig> {
-          return config_;
+          return live_config_.load();
         },
         .update_config =
             [this](std::shared_ptr<const WorkerConfig> c) {
-              config_ = std::const_pointer_cast<WorkerConfig>(c);
+              live_config_.store(std::const_pointer_cast<WorkerConfig>(c));
             },
         .http_active_connections = [] { return 5; },
         .in_flight_work = [] { return 2; },
@@ -99,6 +112,9 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
     server_.reset();
     uv_loop_close(loop_);
     delete loop_;
+#ifndef _WIN32
+    sigaction(SIGPIPE, &saved_sigpipe_, nullptr);
+#endif
   }
 
   void StartLoopThread() {
@@ -130,18 +146,57 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
     if (sock < 0) return "";
 
     ssize_t sent = test::SocketWrite(sock, wire.data(), wire.size());
-    (void)sent;
+    int write_err = errno;
+    if (sent < 0) {
+      std::fprintf(stderr, "SendRequest: write failed: errno=%d (%s) of %zu\n",
+                   write_err, std::strerror(write_err), wire.size());
+    } else if (sent != static_cast<ssize_t>(wire.size())) {
+      std::fprintf(stderr, "SendRequest: short write: sent=%zd of %zu\n", sent,
+                   wire.size());
+    }
     test::SocketShutdown(sock, SHUT_WR);
     std::string response;
     char buf[4096];
     while (true) {
       ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
-      if (n < 0 && errno == EINTR) continue;
-      if (n <= 0) break;
+      int read_err = errno;
+      if (n < 0 && read_err == EINTR) continue;
+      if (n <= 0) {
+        if (response.empty()) {
+          if (n < 0) {
+            std::fprintf(stderr,
+                         "SendRequest: empty response: read=%zd errno=%d (%s) "
+                         "request_bytes=%zu sent=%zd\n",
+                         n, read_err, std::strerror(read_err), wire.size(),
+                         sent);
+          } else {
+            std::fprintf(stderr,
+                         "SendRequest: empty response: end of stream, "
+                         "request_bytes=%zu sent=%zd\n",
+                         wire.size(), sent);
+          }
+        }
+        break;
+      }
       response.append(buf, n);
     }
     test::CloseSocket(sock);
     return response;
+  }
+
+  // The fixture's live config.  The event-loop thread replaces it (via
+  // update_config) while the test thread reads it, so every access goes
+  // through the same AtomicSharedPtr the worker uses.
+  std::shared_ptr<WorkerConfig> config() const { return live_config_.load(); }
+
+  // Copy, modify and republish the config.  The pointee of a published
+  // snapshot is never written; the store/load pair orders the change before
+  // any later request handled on the loop thread.
+  template <typename Fn>
+  void MutateConfig(Fn&& fn) {
+    auto next = std::make_shared<WorkerConfig>(*live_config_.load());
+    fn(*next);
+    live_config_.store(std::move(next));
   }
 
   // Extract JSON body from HTTP response.
@@ -152,11 +207,14 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
   }
 
   uv_loop_t* loop_ = nullptr;
-  // Per-test directory backing config_->cache_path; destroyed with the
+  // Per-test directory backing the config cache_path; destroyed with the
   // fixture, after TearDown has joined the loop thread that fsyncs into it.
   pagespeed::test::TempDir tmp_;
   WorkerStats stats_;
-  std::shared_ptr<WorkerConfig> config_;
+  AtomicSharedPtr<WorkerConfig> live_config_;
+#ifndef _WIN32
+  struct sigaction saved_sigpipe_{};
+#endif
   std::unique_ptr<ApiContext> ctx_;
   std::unique_ptr<NullMessageHandler> handler_;
   std::unique_ptr<HttpServer> server_;
@@ -220,7 +278,8 @@ TEST_F(ApiHandlersIntegrationTest, ConfigGetCarriesNoLicensingKeys) {
 TEST_F(ApiHandlersIntegrationTest,
        ConfigPatchRetiredLicensingKeysRejectedNonFatal) {
   pagespeed::test::TempDir tmp;
-  config_->cache_path = tmp.path() + "/cache.vol";
+  MutateConfig(
+      [&](WorkerConfig& c) { c.cache_path = tmp.path() + "/cache.vol"; });
   std::string body =
       R"({"license_key": "abc.def.ghi", "license_renewal_url": "https://r.example", "disable_html": true})";
   std::string request =
@@ -238,10 +297,10 @@ TEST_F(ApiHandlersIntegrationTest,
             std::string::npos);
   EXPECT_FALSE(j["applied"].contains("license_key"));
   EXPECT_TRUE(j["applied"].contains("disable_html"));
-  EXPECT_TRUE(config_->disable_html);
+  EXPECT_TRUE(config()->disable_html);
 
   // The shared config this PATCH rewrote carries no license key of any kind.
-  std::ifstream f(SharedConfigFilePath(config_->cache_path));
+  std::ifstream f(SharedConfigFilePath(config()->cache_path));
   ASSERT_TRUE(f.is_open());
   std::string raw((std::istreambuf_iterator<char>(f)),
                   std::istreambuf_iterator<char>());
@@ -543,8 +602,8 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchAppliesFields) {
   EXPECT_TRUE(j["rejected"].empty());
 
   // Verify the config was actually updated.
-  EXPECT_EQ(config_->avif_quality, 20);
-  EXPECT_FLOAT_EQ(config_->target_ssimulacra2, 75.0f);
+  EXPECT_EQ(config()->avif_quality, 20);
+  EXPECT_FLOAT_EQ(config()->target_ssimulacra2, 75.0f);
 }
 
 TEST_F(ApiHandlersIntegrationTest, ConfigPatchRejectsNonReloadable) {
@@ -576,7 +635,7 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchClampsQuality) {
   json j = ParseJsonBody(resp);
   // Should be clamped to 100.
   EXPECT_EQ(j["applied"]["jpeg_quality"], 100);
-  EXPECT_EQ(config_->jpeg_quality, 100);
+  EXPECT_EQ(config()->jpeg_quality, 100);
 }
 
 TEST_F(ApiHandlersIntegrationTest, ConfigPatchWarnsHighSsimulacra2) {
@@ -621,7 +680,7 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchViewportValidation) {
   json j = ParseJsonBody(resp);
   EXPECT_TRUE(j["rejected"].contains("mobile_width"));
   // Original config unchanged.
-  EXPECT_EQ(config_->mobile_width, 480u);
+  EXPECT_EQ(config()->mobile_width, 480u);
 }
 
 // =============================================================================
@@ -635,14 +694,15 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchPreservesWebBotAuthSharedFields) {
   // at worker startup — survive an unrelated runtime PATCH instead of being
   // silently reset (which disabled the feature in nginx until restart).
   pagespeed::test::TempDir tmp;
-  config_->cache_path = tmp.path() + "/cache.vol";
+  MutateConfig(
+      [&](WorkerConfig& c) { c.cache_path = tmp.path() + "/cache.vol"; });
 
   SharedConfig seeded;
   seeded.web_bot_auth = true;
   seeded.web_bot_auth_verified_bots = "kid1=crawler";
   seeded.web_bot_auth_directory_hosts = "keys.example.com";
   seeded.rsl_cap_enforcement = true;
-  std::string shared_path = SharedConfigFilePath(config_->cache_path);
+  std::string shared_path = SharedConfigFilePath(config()->cache_path);
   ASSERT_TRUE(WriteSharedConfigFile(shared_path, seeded));
 
   // PATCH a shared-but-unrelated key (disable_html) to trigger the rewrite.
@@ -1276,7 +1336,7 @@ TEST_F(ApiHandlersIntegrationTest, HealthStatusCacheDegraded) {
 }
 
 TEST_F(ApiHandlersIntegrationTest, HealthStatusNoCacheConfigured) {
-  config_->cache_path.clear();
+  MutateConfig([](WorkerConfig& c) { c.cache_path.clear(); });
   std::string resp =
       SendRequest("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
   json j = ParseJsonBody(resp);
@@ -1291,7 +1351,7 @@ TEST_F(ApiHandlersIntegrationTest, HealthStatusNoCacheConfigured) {
 TEST_F(ApiHandlersIntegrationTest, HealthStatusCacheDegradedAndUnconfigured) {
   // Both cache checks fail independently.
   cache_degraded_ = true;
-  config_->cache_path.clear();
+  MutateConfig([](WorkerConfig& c) { c.cache_path.clear(); });
   std::string resp =
       SendRequest("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
   json j = ParseJsonBody(resp);
@@ -1341,8 +1401,38 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchSequentialUpdatesPreserved) {
   EXPECT_NE(r2.find("200 OK"), std::string::npos);
 
   // Both fields must reflect the last value written.
-  EXPECT_EQ(config_->jpeg_quality, 42);
-  EXPECT_EQ(config_->webp_quality, 33);
+  EXPECT_EQ(config()->jpeg_quality, 42);
+  EXPECT_EQ(config()->webp_quality, 33);
+}
+
+// The loop thread publishes the PATCHed config while this thread reads it, and
+// nothing orders the two when the client never waits for the response.  Fire
+// the PATCH, close the socket without reading, and poll config() until the
+// value shows up.  Under ThreadSanitizer this reports a race if the fixture's
+// config slot is not synchronised.
+TEST_F(ApiHandlersIntegrationTest, ConfigPatchObservedWithoutReadingResponse) {
+  std::string body = "{\"jpeg_quality\": 61}";
+  std::string request = test::InjectCsrfHeaderForV1Mutations(
+      "PATCH /v1/config HTTP/1.1\r\n"
+      "Host: localhost\r\n"
+      "Content-Type: application/json\r\n"
+      "Content-Length: " +
+      std::to_string(body.size()) + "\r\n\r\n" + body);
+  int sock = test::ConnectTcp(server_->bound_port(), 30);
+  ASSERT_GE(sock, 0);
+  ASSERT_EQ(test::SocketWrite(sock, request.data(), request.size()),
+            static_cast<ssize_t>(request.size()));
+  test::CloseSocket(sock);
+
+  // Bounded wait: the request has been written in full, so the loop thread
+  // applies it; the budget only has to cover a slow config-file fsync.
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  while (config()->jpeg_quality != 61 &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  EXPECT_EQ(config()->jpeg_quality, 61);
 }
 
 // =============================================================================
@@ -1362,7 +1452,7 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchRejectsWrongContentType) {
   EXPECT_NE(resp.find("415"), std::string::npos);
   EXPECT_NE(resp.find("UNSUPPORTED_MEDIA_TYPE"), std::string::npos);
   // Config unchanged.
-  EXPECT_EQ(config_->jpeg_quality, 85);
+  EXPECT_EQ(config()->jpeg_quality, 85);
 }
 
 TEST_F(ApiHandlersIntegrationTest, ConfigPatchAcceptsJsonContentType) {
@@ -1376,7 +1466,7 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchAcceptsJsonContentType) {
 
   std::string resp = SendRequest(request);
   EXPECT_NE(resp.find("200 OK"), std::string::npos);
-  EXPECT_EQ(config_->jpeg_quality, 50);
+  EXPECT_EQ(config()->jpeg_quality, 50);
 }
 
 TEST_F(ApiHandlersIntegrationTest, ConfigPatchNoContentTypeHeader) {
