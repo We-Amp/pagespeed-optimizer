@@ -278,6 +278,53 @@ top-level `permissions:` block with no write access, and a write permission
 (quoted or not) is allowed only on a job with a hosted `runs-on`. The report
 jobs check out `main` for the tools they run, because they hold a write token.
 
+### The nightly-red issue
+
+`nightly.yml` ends with the hosted job `nightly-red` (`Nightly full-tier
+report`): `needs: [full]`, runs whenever `full` was not skipped,
+`actions: read`, `contents: read` and `issues: write`, no secret. It runs
+`tools/ci/nightly_red_report.sh` from `main`. The caller sees one result
+for `full`, and a `continue-on-error` job never turns it red, so the script
+reads the run's own job list and judges each `full / <job>` itself:
+
+- **skipped** never counts as green, and is never listed as failed either;
+  the issue names skipped jobs on a line of their own.
+- **green** is `success`, plus a success of every step named for the job in
+  `RUNTIME_STEP_CHECKS` (`<job name>=<step name>` lines). This repository
+  leaves it empty.
+- **failed** is everything else (failure, cancelled, timed out, a green job
+  whose checked step did not succeed).
+
+When a job failed, the script opens one issue titled `Nightly full tier red`
+with the label `nightly-red` (created on first use), or comments on the open
+one and replaces its body. Per failed job the body lists the job, the SHA,
+the failing targets from its log (`tools/ci/failing_targets.sh`; `none
+extracted` when the log names none, `timeout-only` when every one timed
+out, `from the whole job log` when the failed-steps log was not available
+and the whole job log was read instead, so a line from a retried step can
+appear), the last completed run in which that job was green and the commit
+count since, and a marker line `<!-- nightly-red-job: <job name> -->`. A
+`Skipped` line lists the skipped jobs, or `none`. The last green is searched
+in the completed runs on `main` of `nightly.yml`, of `ci.yml`'s
+`workflow_dispatch` and of `ci.yml`'s push, created before this run (the
+run's own creation time, which a re-run keeps), newest first, whatever their
+event (a scheduled night, a `full_tier` or `full: true` dispatch, a push), so
+a missed night does not hide it. `REPORT_MAX_LOOKUPS` (12) counts only runs
+that ran a `full / ` job, so a day of push runs without the full tier does
+not use it up; `REPORT_MAX_API_CALLS` (40) caps the jobs calls of the search.
+When none is found the body says `no green within <N> completed full-tier
+runs`, with `(API call ceiling reached)` when the ceiling ended the search.
+The body names jobs, SHAs, targets and run links only.
+
+When no job failed, the open issue is closed, with a comment, once every job
+named by a marker line is green in this run. **A re-run never closes it:** on
+`GITHUB_RUN_ATTEMPT` 2 or later the script only comments, because a re-run
+that goes green is a flake signal and not evidence of a fix. An API failure
+fails the job, so a reporter that could not report is visible. A run on any
+ref other than `main` is a dry run that prints what it would write.
+`tools/ci/test_nightly_red_report.sh` and `tools/ci/test_failing_targets.sh`
+(in the `Public-tree hygiene gate` job) pin this behaviour.
+
 ## The queued-run sweep
 
 A job whose runner label nothing serves (a retired label, or a fleet class

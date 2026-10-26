@@ -1756,8 +1756,9 @@ jobs:
   # The whole-tree lint: clang-tidy over every translation unit in lint scope
   # and clang-format over the tree, the same steps as the PR tier's `lint`
   # with the scope fixed to the whole tree. It runs for a pull request
-  # labelled ci:full and for a dispatch with full=true, not on a push to main:
-  # the nightly carries the whole-tree lint for main (see pipeline-nightly.yml).
+  # labelled ci:full, for a dispatch with full=true and on the scheduled
+  # nightly (nightly.yml's `full` call, and its full_tier dispatch), not on a
+  # push to main.
   lint-full:
     name: Lint (whole tree)
     if: ${{ github.event_name != 'push' }}
