@@ -155,6 +155,9 @@ inline void CloseServer(intptr_t h) {
 }
 #else
 inline intptr_t AcceptClient(intptr_t server, const std::string& /*path*/) {
+  // Fail fast instead of blocking forever when no client ever connects.
+  struct pollfd pfd = {static_cast<int>(server), POLLIN, 0};
+  if (poll(&pfd, 1, 10000) <= 0) return -1;
   return static_cast<intptr_t>(
       accept(static_cast<int>(server), nullptr, nullptr));
 }
@@ -353,6 +356,18 @@ TEST_F(NotificationSenderTest, SendRefusedSerializationFailsWithoutConnect) {
   EXPECT_EQ(result.connect_errno, 0);
   EXPECT_NE(result.error_message.find("serialized"), std::string::npos)
       << "Error: " << result.error_message;
+}
+
+TEST_F(NotificationSenderTest, SendRefusedOversizedFieldFailsWithoutConnect) {
+  // A URL one byte over kMaxUrlLength is refused by Serialize; no listener
+  // exists, so the refusal must surface before any connection is attempted.
+  CacheNotification notification = MakeNotification();
+  notification.url = std::string(kMaxUrlLength + 1, 'u');
+
+  auto result = SendNotification(socket_path_, notification);
+  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.invalid_argument);
+  EXPECT_EQ(result.connect_errno, 0);
 }
 
 TEST_F(NotificationSenderTest, RetryDoesNotRetryRefusedSerialization) {
@@ -565,8 +580,10 @@ TEST_F(NotificationSenderTest, WriteFailsWhenPeerResets) {
   sigaction(SIGPIPE, &sa, nullptr);
 #endif
 
+  bool accepted = false;
   std::thread acceptor([&]() {
     intptr_t client_fd = AcceptClient(server_fd, socket_path_);
+    accepted = client_fd != -1;
     if (client_fd != -1) {
 #ifndef _WIN32
       // Set SO_LINGER with timeout=0 to force RST on close
@@ -589,6 +606,9 @@ TEST_F(NotificationSenderTest, WriteFailsWhenPeerResets) {
 
   acceptor.join();
   CloseServer(server_fd);
+
+  EXPECT_TRUE(accepted) << "sender never connected";
+  EXPECT_FALSE(result.invalid_argument) << result.error_message;
 
   // The write should eventually fail with EPIPE, ECONNRESET, or similar.
   // On some OSes with large socket buffers, the entire write may succeed
@@ -1059,8 +1079,10 @@ TEST_F(NotificationSenderTest, WriteToShutdownPeerSocket) {
   sigaction(SIGPIPE, &sa, nullptr);
 #endif
 
+  bool accepted = false;
   std::thread acceptor([&]() {
     intptr_t client_fd = AcceptClient(server_fd, socket_path_);
+    accepted = client_fd != -1;
     if (client_fd != -1) {
 #ifndef _WIN32
       // Shut down both directions, then close
@@ -1076,13 +1098,17 @@ TEST_F(NotificationSenderTest, WriteToShutdownPeerSocket) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-  // Use a large payload to exceed kernel buffer
-  CacheNotification notification = MakeNotification(
-      std::string(static_cast<size_t>(64) * 1024, 'w'), "example.com");
+  // Largest URL the wire format accepts: a longer one fails to serialize, so
+  // the sender would never connect and the acceptor above would block.
+  CacheNotification notification =
+      MakeNotification(std::string(kMaxUrlLength, 'w'), "example.com");
   auto result = SendNotification(socket_path_, notification);
 
   acceptor.join();
   CloseServer(server_fd);
+
+  EXPECT_TRUE(accepted) << "sender never connected";
+  EXPECT_FALSE(result.invalid_argument) << result.error_message;
 
   // Either the write completes before shutdown takes effect (success),
   // or we get a write error. Both are acceptable.
