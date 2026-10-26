@@ -2036,9 +2036,15 @@ jobs:
       # nontrivial dependency, and compiles the harness in BOTH modes.
       - name: Build replay + libFuzzer binaries (pinned abseil/RE2)
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); unset keeps the CPU count.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget || exit 1
+          SLOT_ENV=()
+          [ -z "${SLOT_CPUS}" ] || SLOT_ENV=(-e "CI_SLOT_CPUS=${SLOT_CPUS}")
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
+            "${SLOT_ENV[@]}" \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${DOCKER_IMAGE}" \
