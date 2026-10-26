@@ -356,6 +356,15 @@ struct WorkerStats {
   // indistinguishable from outside, which is what let #1374 sit unnoticed.
   std::atomic<uint64_t> image_unconverted_fallthrough{0};
 
+  // Cross-format size gate (#406): a WebP or AVIF that was not smaller than
+  // the original-format image of its slot (refused), and those a smaller
+  // encode at the same quality floor recovered (rescued). refused minus
+  // rescued is what was dropped.
+  std::atomic<uint64_t> image_size_refused_webp{0};
+  std::atomic<uint64_t> image_size_refused_avif{0};
+  std::atomic<uint64_t> image_budget_rescued_webp{0};
+  std::atomic<uint64_t> image_budget_rescued_avif{0};
+
   // Intra-notification content dedup: writes skipped because identical
   // bytes were already written under a different AlternateId.
   std::atomic<uint64_t> dedup_writes_skipped{0};

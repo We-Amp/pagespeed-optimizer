@@ -296,6 +296,10 @@ json BuildStatsJson(ApiContext& ctx) {
   j["image_incomplete_matrices"] = s.image_incomplete_matrices.load();
   j["image_no_savings_skipped"] = s.image_no_savings_skipped.load();
   j["image_unconverted_fallthrough"] = s.image_unconverted_fallthrough.load();
+  j["image_size_refused"] = {{"webp", s.image_size_refused_webp.load()},
+                             {"avif", s.image_size_refused_avif.load()}};
+  j["image_budget_rescued"] = {{"webp", s.image_budget_rescued_webp.load()},
+                               {"avif", s.image_budget_rescued_avif.load()}};
   j["dedup"] = {{"writes_skipped", s.dedup_writes_skipped.load()},
                 {"content_hash_hits", s.content_hash_hits.load()},
                 {"content_hash_stale", s.content_hash_stale.load()}};
@@ -687,6 +691,22 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
           "Converted-format variants refused because the fall-through "
           "produced no conversion.",
           s.image_unconverted_fallthrough.load());
+  counter("pagespeed_image_size_refused_webp_total",
+          "WebP images that were not smaller than the original-format image "
+          "of their slot, including refusals against a stored image.",
+          s.image_size_refused_webp.load());
+  counter("pagespeed_image_size_refused_avif_total",
+          "AVIF images that were not smaller than the original-format image "
+          "of their slot, including refusals against a stored image.",
+          s.image_size_refused_avif.load());
+  counter("pagespeed_image_budget_rescued_webp_total",
+          "Refused WebP images a smaller encode at the same quality floor "
+          "recovered.",
+          s.image_budget_rescued_webp.load());
+  counter("pagespeed_image_budget_rescued_avif_total",
+          "Refused AVIF images a smaller encode at the same quality floor "
+          "recovered.",
+          s.image_budget_rescued_avif.load());
 
   // Content dedup
   counter("pagespeed_dedup_writes_skipped_total",

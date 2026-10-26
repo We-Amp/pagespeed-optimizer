@@ -845,14 +845,27 @@ class VariantSizeGates {
     const bool orig_is_webp =
         multi.optimized_original.success &&
         multi.optimized_original.output_mime_type == "image/webp";
+    // A refusal here (against a stored or this-pass baseline the transcoder
+    // did not see) counts like one the transcoder made (#406).
     if (!orig_is_webp) {
+      const bool had_webp = multi.webp.success;
       RefuseUnlessSmaller(multi.webp, orig,
                           VariantSlotId(Fmt::kWebP, vp, den, sd),
                           "original-format variant");
+      if (had_webp && !multi.webp.success) multi.size_refused_webp = 1;
     }
+    const bool had_avif = multi.avif.success;
     RefuseUnlessSmaller(multi.avif, orig,
                         VariantSlotId(Fmt::kAvif, vp, den, sd),
                         "original-format variant");
+    if (had_avif && !multi.avif.success) multi.size_refused_avif = 1;
+    // A rescue only counts when the variant survives every gate: the
+    // backstop above can still drop an arm the transcoder recovered (the
+    // Save-Data rule, or a smaller stored or non-Save-Data baseline), and
+    // then nothing is stored. Keeps refused minus rescued equal to the
+    // number dropped.
+    if (!multi.webp.success) multi.size_rescued_webp = 0;
+    if (!multi.avif.success) multi.size_rescued_avif = 0;
     for (auto [fmt, tr] : arms) {
       if (tr->success) {
         produced_[VariantSlotId(fmt, vp, den, sd)] = tr->output_data.size();
@@ -893,6 +906,21 @@ class VariantSizeGates {
   std::unordered_map<uint8_t, uint64_t> stored_;
   std::unordered_map<uint8_t, size_t> produced_;
 };
+
+// Adds one multi-transcode's cross-format size gate outcomes to the worker
+// stats (#406). Call after VariantSizeGates::Apply, which folds its own
+// refusals into |multi|.
+void RecordSizeGateStats(WorkerStats& stats,
+                         const MultiTranscodeResult& multi) {
+  stats.image_size_refused_webp.fetch_add(multi.size_refused_webp,
+                                          std::memory_order_relaxed);
+  stats.image_size_refused_avif.fetch_add(multi.size_refused_avif,
+                                          std::memory_order_relaxed);
+  stats.image_budget_rescued_webp.fetch_add(multi.size_rescued_webp,
+                                            std::memory_order_relaxed);
+  stats.image_budget_rescued_avif.fetch_add(multi.size_rescued_avif,
+                                            std::memory_order_relaxed);
+}
 
 // True when the identity slot (0x08: desktop, 1x, Save-Data off, original
 // format) holds the front end's own unoptimized recording rather than a
@@ -3722,6 +3750,7 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
         // Size gates (VariantSizeGates): never store a variant larger than
         // the one its clients are served without it.
         gates.Apply(multi, vp, den, sd);
+        RecordSizeGateStats(stats_, multi);
 
         // A variant is "not proactive" only when it matches
         // the exact requested combination.
@@ -8123,6 +8152,7 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
             };
 
             warmup_gates.Apply(multi, vp, den, sd);
+            RecordSizeGateStats(stats_, multi);
 
             set_warmup_ssim(multi.webp_ssimulacra2_score);
             write_warmup(multi.webp, CapabilityMask::ImageFormat::kWebP, vp,
@@ -8516,7 +8546,14 @@ void Worker::HandleMgmtCommand(uv_stream_t* client,
         ",\"image_no_savings_skipped\":",
         s.image_no_savings_skipped.load(std::memory_order_relaxed),
         ",\"image_unconverted_fallthrough\":",
-        s.image_unconverted_fallthrough.load(std::memory_order_relaxed));
+        s.image_unconverted_fallthrough.load(std::memory_order_relaxed),
+        ",\"image_size_refused\":{\"webp\":",
+        s.image_size_refused_webp.load(std::memory_order_relaxed),
+        ",\"avif\":", s.image_size_refused_avif.load(std::memory_order_relaxed),
+        "},\"image_budget_rescued\":{\"webp\":",
+        s.image_budget_rescued_webp.load(std::memory_order_relaxed),
+        ",\"avif\":",
+        s.image_budget_rescued_avif.load(std::memory_order_relaxed), "}");
     absl::StrAppend(&response, ",\"dedup\":{\"writes_skipped\":",
                     s.dedup_writes_skipped.load(std::memory_order_relaxed),
                     ",\"content_hash_hits\":",

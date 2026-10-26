@@ -1546,12 +1546,36 @@ MultiTranscodeResult ImageTranscoder::TranscodeMulti(
     const size_t baseline = result.optimized_original.output_data.size();
     if (result.optimized_original.output_mime_type != "image/webp" &&
         result.webp.success && result.webp.output_data.size() >= baseline) {
-      result.webp = {
-          false, {}, {}, "WebP output not smaller than the optimized original"};
+      // A static GIF's WebP is the lossless conversion, which never went
+      // through the verify and whose quality setting is only the default:
+      // swapping it for a lossy re-encode would change the image class, so
+      // it is refused without a recovery attempt.
+      result.size_refused_webp = 1;
+      if (decoded != nullptr && !is_gif) {
+        RecoverOversizedConverted(result.webp, /*avif=*/false, *decoded,
+                                  result.optimized_original, local_config,
+                                  local_config.webp_quality, result);
+      }
+      if (result.webp.success && result.webp.output_data.size() >= baseline) {
+        result.webp = {false,
+                       {},
+                       {},
+                       "WebP output not smaller than the optimized original"};
+      }
     }
     if (result.avif.success && result.avif.output_data.size() >= baseline) {
-      result.avif = {
-          false, {}, {}, "AVIF output not smaller than the optimized original"};
+      result.size_refused_avif = 1;
+      if (decoded != nullptr) {
+        RecoverOversizedConverted(result.avif, /*avif=*/true, *decoded,
+                                  result.optimized_original, local_config,
+                                  local_config.avif_quality, result);
+      }
+      if (result.avif.success && result.avif.output_data.size() >= baseline) {
+        result.avif = {false,
+                       {},
+                       {},
+                       "AVIF output not smaller than the optimized original"};
+      }
     }
   }
 
@@ -1560,6 +1584,67 @@ MultiTranscodeResult ImageTranscoder::TranscodeMulti(
   result.final_avif_quality = local_config.avif_quality;
 
   return result;
+}
+
+void ImageTranscoder::RecoverOversizedConverted(
+    TranscodeResult& arm, bool avif, const DecodedImage& reference,
+    const TranscodeResult& baseline, const ImageTranscoderConfig& cfg,
+    int& quality, MultiTranscodeResult& out) {
+  const char* name = avif ? "AVIF" : "WebP";
+  (avif ? out.size_refused_avif : out.size_refused_webp) = 1;
+  if (reference.pixel_buffer.empty() || reference.width < 8 ||
+      reference.height < 8) {
+    return;  // Nothing to measure against.
+  }
+  auto score_fn = [&](const ComparablePixels& c) {
+    return pagespeed::ComputeSSIMULACRA2(
+        reinterpret_cast<const uint8_t*>(reference.pixel_buffer.data()),
+        c.pixels, reference.width, reference.height, reference.bytes_per_pixel,
+        handler_);
+  };
+
+  // What the competing image scores, once per call, for the log: the first
+  // field data on whether it sits below the floor the converted arm must
+  // reach.  No behaviour depends on it.
+  if (out.refused_baseline_ssimulacra2 < 0.0f && cfg.quality_verify) {
+    DecodedImage baseline_pixels = DecodeToPixels(baseline.output_data);
+    ComparablePixels comparable = MakeComparable(reference, baseline_pixels);
+    if (comparable.ok) {
+      std::optional<float> verdict = score_fn(comparable);
+      if (verdict.has_value()) {
+        out.refused_baseline_ssimulacra2 = *verdict;
+        if (handler_ != nullptr) {
+          handler_->Info(
+              "%s not smaller than the optimized original (%zu >= %zu bytes); "
+              "the original-format image scores SSIMULACRA2 %.1f",
+              name, arm.output_data.size(), baseline.output_data.size(),
+              *verdict);
+        }
+      }
+    }
+  }
+
+  const int attempts = avif ? std::min(1, cfg.budget_rescue_attempts)
+                            : cfg.budget_rescue_attempts;
+  if (!cfg.quality_verify || attempts <= 0) return;
+
+  const float floor =
+      BandFloor(cfg.target_ssimulacra2, cfg.ssimulacra2_tolerance);
+  BudgetRescueResult rescue = RescueUnderBudget(
+      reference, arm,
+      [&](const DecodedImage& src) {
+        return avif ? EncodeAvifFromPixels(src, cfg)
+                    : EncodeWebpFromPixels(src, cfg);
+      },
+      [this](std::string_view data) { return DecodeToPixels(data); }, score_fn,
+      quality, baseline.output_data.size(), floor, attempts,
+      cfg.ssimulacra2_quality_step, name, handler_);
+  if (!rescue.rescued) return;
+  (avif ? out.size_rescued_avif : out.size_rescued_webp) = 1;
+  (avif ? out.avif_ssimulacra2_score : out.webp_ssimulacra2_score) =
+      rescue.score;
+  (avif ? out.avif_ssimulacra2_reencoded : out.webp_ssimulacra2_reencoded) =
+      true;
 }
 
 // Adapter: wraps a DecodedImage pixel buffer as a ScanlineReaderInterface
@@ -2128,7 +2213,19 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
                 ? result.optimized_original.output_data.size()
                 : input_data.size();
         if (webp.success && webp.output_data.size() >= webp_baseline) {
-          webp = {false, {}, {}, "WebP output larger than original"};
+          // Only the cross-format gate gets a second try (#406): a WebP
+          // origin's baseline is its own bytes, and a missing optimized
+          // original leaves the upload gate.
+          if (result.optimized_original.success &&
+              !result.optimized_original.output_data.empty() &&
+              result.optimized_original.output_mime_type != "image/webp") {
+            RecoverOversizedConverted(webp, /*avif=*/false, *encode_src,
+                                      result.optimized_original, local_config,
+                                      local_config.webp_quality, result);
+          }
+          if (webp.success && webp.output_data.size() >= webp_baseline) {
+            webp = {false, {}, {}, "WebP output larger than original"};
+          }
         }
         result.webp = std::move(webp);
         break;
@@ -2175,7 +2272,15 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
                 ? result.optimized_original.output_data.size()
                 : input_data.size();
         if (avif.success && avif.output_data.size() >= avif_baseline) {
-          avif = {false, {}, {}, "AVIF output larger than original"};
+          if (result.optimized_original.success &&
+              !result.optimized_original.output_data.empty()) {
+            RecoverOversizedConverted(avif, /*avif=*/true, *encode_src,
+                                      result.optimized_original, local_config,
+                                      local_config.avif_quality, result);
+          }
+          if (avif.success && avif.output_data.size() >= avif_baseline) {
+            avif = {false, {}, {}, "AVIF output larger than original"};
+          }
         }
         result.avif = std::move(avif);
         break;
