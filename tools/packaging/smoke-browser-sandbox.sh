@@ -50,6 +50,9 @@ done
 [[ "$(uname -s)" == "Linux" ]] || { echo "skip: Linux-only smoke" >&2; exit 0; }
 command -v curl >/dev/null 2>&1 || { echo "error: curl is required" >&2; exit 1; }
 
+# A refused flag exits at once; the bound only matters if the daemon starts.
+TIMEOUT=()
+command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout -k 5 30)
 fails=0
 legs_fired=0
 check() { # label expected actual
@@ -57,14 +60,40 @@ check() { # label expected actual
     echo "FAIL: $1 -- expected [$2], got [$3]" >&2; fails=$((fails+1)); fi
 }
 
+# Bounded stop: SIGTERM, up to 10 s for exit, then SIGKILL and up to 5 s more.
+# Never a bare `wait` -- a worker that ignores SIGTERM must not hold the job
+# until its timeout.  Polls `kill -0`; reaps only once the pid is gone.
+stop_pid() { # pid
+  local pid="${1:-}" i
+  [[ -n "$pid" ]] || return 0
+  kill "$pid" 2>/dev/null || true
+  for ((i = 0; i < 100; i++)); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "note: pid $pid ignored SIGTERM for 10 s; sending SIGKILL" >&2
+    kill -9 "$pid" 2>/dev/null || true
+    for ((i = 0; i < 50; i++)); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  kill -0 "$pid" 2>/dev/null || wait "$pid" 2>/dev/null || true
+  return 0
+}
+
 TMP="$(mktemp -d)"
 WORKER_PID=""
 cleanup() {
-  [[ -n "$WORKER_PID" ]] && kill "$WORKER_PID" 2>/dev/null
+  stop_pid "$WORKER_PID"
+  WORKER_PID=""
   rm -rf "$TMP" 2>/dev/null
   return 0
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 CACHE_DIR="$TMP/cache/v2"
 RUN_DIR="$TMP/run"
@@ -73,8 +102,8 @@ mkdir -p "$CACHE_DIR" "$RUN_DIR"
 # ---------------------------------------------------------------------------
 # Leg 1: the flag surface.  `auto` must not exist.
 # ---------------------------------------------------------------------------
-"$BINARY" --cache-dir "$CACHE_DIR" --socket "$RUN_DIR/x.sock" \
-  --browser-sandbox auto >"$TMP/auto.log" 2>&1
+${TIMEOUT[@]+"${TIMEOUT[@]}"} "$BINARY" --cache-dir "$CACHE_DIR" \
+  --socket "$RUN_DIR/x.sock" --browser-sandbox auto >"$TMP/auto.log" 2>&1
 check "--browser-sandbox=auto is refused" "1" "$?"
 check "...and the refusal says there is deliberately no 'auto'" "1" \
   "$(grep -c "no 'auto'" "$TMP/auto.log")"
@@ -98,12 +127,13 @@ start_and_probe() { # logfile [extra args...]
     "$@" >"$log" 2>&1 &
   WORKER_PID=$!
   local i
-  for i in $(seq 1 75); do
+  for i in $(seq 1 600); do
     [[ -S "$sock" ]] && break
     sleep 0.2
   done
-  HEALTH="$(curl -s --unix-socket "$sock" http://localhost/v1/health 2>/dev/null)"
-  STATS="$(curl -s --unix-socket "$sock" http://localhost/v1/stats 2>/dev/null)"
+  [[ -S "$sock" ]] || echo "error: daemon did not start within 120 s ($log)" >&2
+  HEALTH="$(curl -s --max-time 10 --unix-socket "$sock" http://localhost/v1/health 2>/dev/null)"
+  STATS="$(curl -s --max-time 10 --unix-socket "$sock" http://localhost/v1/stats 2>/dev/null)"
   SANDBOX="$(printf '%s' "$HEALTH" \
     | sed -n 's/.*"browser_sandbox":"\([a-z]*\)".*/\1/p')"
   FILTER="$(printf '%s' "$HEALTH" \
@@ -113,8 +143,7 @@ start_and_probe() { # logfile [extra args...]
 }
 
 stop_worker() {
-  [[ -n "$WORKER_PID" ]] && kill "$WORKER_PID" 2>/dev/null
-  [[ -n "$WORKER_PID" ]] && wait "$WORKER_PID" 2>/dev/null
+  stop_pid "$WORKER_PID"
   WORKER_PID=""
   return 0
 }
@@ -184,9 +213,10 @@ API_SOCK="$RUN_DIR/plain.sock"
   --cache-size 16777216 --api-socket "$API_SOCK" \
   >"$TMP/disabled.log" 2>&1 &
 WORKER_PID=$!
-for _ in $(seq 1 75); do [[ -S "$API_SOCK" ]] && break; sleep 0.2; done
+for _ in $(seq 1 600); do [[ -S "$API_SOCK" ]] && break; sleep 0.2; done
+[[ -S "$API_SOCK" ]] || echo "error: daemon did not start within 120 s ($TMP/disabled.log)" >&2
 check "browser analysis off reports disabled" "disabled" \
-  "$(curl -s --unix-socket "$API_SOCK" http://localhost/v1/health \
+  "$(curl -s --max-time 10 --unix-socket "$API_SOCK" http://localhost/v1/health \
       | sed -n 's/.*"browser_sandbox":"\([a-z]*\)".*/\1/p')"
 stop_worker
 

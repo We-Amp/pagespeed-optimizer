@@ -50,6 +50,29 @@ check() { # label expected actual
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
 TMP="$(mktemp -d)"
+# Bounded stop: SIGTERM, up to 10 s for exit, then SIGKILL and up to 5 s more.
+# Never a bare `wait` -- a worker that ignores SIGTERM must not hold the job
+# until its timeout.  Polls `kill -0`; reaps only once the pid is gone.
+stop_pid() { # pid
+  local pid="${1:-}" i
+  [[ -n "$pid" ]] || return 0
+  kill "$pid" 2>/dev/null || true
+  for ((i = 0; i < 100; i++)); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "note: pid $pid ignored SIGTERM for 10 s; sending SIGKILL" >&2
+    kill -9 "$pid" 2>/dev/null || true
+    for ((i = 0; i < 50; i++)); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  kill -0 "$pid" 2>/dev/null || wait "$pid" 2>/dev/null || true
+  return 0
+}
+
 # Every step here must be failure-proof: `set -e` is still in force while the
 # EXIT trap runs, so a single non-zero command inside it aborts the trap AND
 # becomes the script's exit status -- which would report a fully passing run
@@ -59,9 +82,7 @@ cleanup() {
   if [[ -f "$TMP/worker.pid" ]]; then
     pid="$(cat "$TMP/worker.pid" 2>/dev/null || true)"
   fi
-  if [[ -n "$pid" ]]; then
-    kill "$pid" 2>/dev/null || true
-  fi
+  stop_pid "$pid"
   rm -rf "$TMP" || true
 }
 trap cleanup EXIT
@@ -86,11 +107,11 @@ echo $! > "$TMP/worker.pid"
 # the socket simply not there yet. Reproduced 1 run in 12 under load, against
 # a binary whose sources had not changed at all.
 #
-# The budget is 60 s, not 10: on a busy build host the daemon needs well over
+# The budget is 120 s, not 10: on a busy build host the daemon needs well over
 # 10 s to open its cache volume and start listening, and a quiet host still
 # breaks out of the loop in a fraction of a second. If the daemon has already
 # exited there is nothing left to wait for, so stop polling early.
-for _ in $(seq 1 600); do
+for _ in $(seq 1 1200); do
   [[ -S "$RUN_DIR/notify.sock" && -S "$RUN_DIR/notify.sock.health" && \
      -S "$RUN_DIR/notify.sock.mgmt" ]] && break
   kill -0 "$(cat "$TMP/worker.pid")" 2>/dev/null || break
@@ -103,7 +124,7 @@ for sock in notify.sock notify.sock.health notify.sock.mgmt; do
   [[ -S "$RUN_DIR/$sock" ]] || {
     echo "FAIL: daemon did not start ($sock never appeared)" >&2
     if kill -0 "$(cat "$TMP/worker.pid")" 2>/dev/null; then
-      echo "daemon is still running after 60 s" >&2
+      echo "daemon is still running after 120 s" >&2
     else
       status=0
       wait "$(cat "$TMP/worker.pid")" 2>/dev/null || status=$?
@@ -136,8 +157,7 @@ check "no world-writable file under cache dir" "0" \
 check "no world-writable entry under socket dir" "0" \
   "$(find "$RUN_DIR" -perm -o+w | wc -l | tr -d ' ')"
 
-kill "$(cat "$TMP/worker.pid")" 2>/dev/null || true
-wait "$(cat "$TMP/worker.pid")" 2>/dev/null || true
+stop_pid "$(cat "$TMP/worker.pid")"
 rm -f "$TMP/worker.pid"
 
 # --- refusal legs ---------------------------------------------------------
@@ -184,16 +204,15 @@ if [[ "$(id -u)" -eq 0 ]]; then
   "$BINARY" --cache-dir "$BYSTANDER" --socket "$RUN_DIR/b.sock" \
     --cache-size 16777216 --log-level warning >"$TMP/bystander.log" 2>&1 &
   bystander_pid=$!
-  # Same start budget as the happy path: 60 s at 0.1 s polling.
-  for _ in $(seq 1 600); do
+  # Same start budget as the happy path: 120 s at 0.1 s polling.
+  for _ in $(seq 1 1200); do
     [[ -S "$RUN_DIR/b.sock" ]] && break
     kill -0 "$bystander_pid" 2>/dev/null || break
     sleep 0.1
   done
   check "foreign-owned bystander does not refuse" "1" \
     "$([[ -S "$RUN_DIR/b.sock" ]] && echo 1 || echo 0)"
-  kill "$bystander_pid" 2>/dev/null || true
-  wait "$bystander_pid" 2>/dev/null || true
+  stop_pid "$bystander_pid"
 else
   echo "skip: foreign-owned legs need root (to chown the fixtures)"
 fi
