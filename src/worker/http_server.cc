@@ -1144,7 +1144,7 @@ std::optional<HttpResponse> HttpServer::DispatchRequest(
   if (!skip_auth) {
     auto auth_error = CheckAuth(request, ReadOpenApplies(request));
     if (auth_error.has_value()) {
-      return std::move(*auth_error);
+      return auth_error;
     }
   }
 
