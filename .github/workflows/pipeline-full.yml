@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
-# pipeline-full.yml -- the full tier, as a reusable workflow. It runs on a
-# push to main, on a workflow_dispatch with `full: true`, and on a pull
-# request labelled `ci:full` (the caller decides; see docs/ci/pipelines.md).
+# pipeline-full.yml -- the full tier, as a reusable workflow. ci.yml calls
+# it on a push to main, on a workflow_dispatch with `full: true`, and on a
+# pull request labelled `ci:full`; nightly.yml calls it on the scheduled
+# nightly and on a nightly dispatch with `full_tier: true` (the callers
+# decide; see docs/ci/pipelines.md).
 #
 # The tier is self-contained: it vendors and builds for itself instead of
 # waiting for the PR tier, so the two run side by side. The artifacts it
@@ -58,7 +60,7 @@ jobs:
           PR_FORK: ${{ github.event.pull_request.head.repo.fork }}
           PR_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           REPOSITORY: ${{ github.repository }}
-          ALLOWED: "push workflow_dispatch pull_request"
+          ALLOWED: "push workflow_dispatch pull_request schedule"
           ALLOWED_REFS: "refs/heads/main refs/heads/ci-dev refs/pull/*/merge"
         run: |
           set -euo pipefail
@@ -1754,8 +1756,9 @@ jobs:
   # The whole-tree lint: clang-tidy over every translation unit in lint scope
   # and clang-format over the tree, the same steps as the PR tier's `lint`
   # with the scope fixed to the whole tree. It runs for a pull request
-  # labelled ci:full and for a dispatch with full=true, not on a push to main:
-  # the nightly carries the whole-tree lint for main (see pipeline-nightly.yml).
+  # labelled ci:full, for a dispatch with full=true and on the scheduled
+  # nightly (nightly.yml's `full` call, and its full_tier dispatch), not on a
+  # push to main.
   lint-full:
     name: Lint (whole tree)
     if: ${{ github.event_name != 'push' }}
