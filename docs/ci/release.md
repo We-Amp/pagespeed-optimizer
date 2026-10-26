@@ -112,14 +112,33 @@ concluded `success` and these jobs of the latest attempt are all `success`:
 
 - `pr / Linux Build`, `pr / Linux Unit Tests`, `pr / Windows Build`,
   `pr / Windows Unit Tests`, `pr / Lint (clang-tidy + clang-format)`;
-- `full / Linux Build`, `full / Windows Build`, `full / Linux ASan + UBSan`,
-  `full / Linux TSan`, `full / Lint (whole tree)`.
+- every job of the full tier but its bookkeeping jobs (the event guard and the
+  fleet-off notice): `full / Vendor Dependencies`, `full / Linux Build`,
+  `full / Linux ASan + UBSan`, `full / Linux TSan`,
+  `full / Daemon Privilege Rig (debian12)`,
+  `full / Daemon Privilege Rig (ubuntu2404)`,
+  `full / Daemon Privilege Rig (alma9)`, `full / Linux Pkg Smoke`,
+  `full / HTTP Compliance`, `full / Async-CSS Probe`,
+  `full / Container Cache Sharing`, `full / Windows Build`,
+  `full / Windows Pkg Smoke`, `full / Linux arm64 Build`,
+  `full / Linux arm64 Unit Tests`, `full / Linux arm64 Pkg Smoke`,
+  `full / Lint (whole tree)`.
 
+The PR-tier fuzz smokes are not in the list: they skip outside pull requests by
+design. A required job that is `skipped` refuses the release like a red one.
 No other job of that run may be `failure`, `cancelled` or `timed_out`, except
 `full / Daemon Privilege Rig (arm64)`, which is `continue-on-error`. A
-`full=true` dispatch of `CI` on the release commit satisfies this. A push run
-does not: a push to `main` skips `full / Lint (whole tree)` (the whole-tree lint
+`full=true` dispatch of `CI` on the release commit satisfies this. A dispatch
+without `full=true` does not (it has no `full / ` jobs), and neither does a
+push run: a push to `main` skips `full / Lint (whole tree)` (the whole-tree lint
 for `main` runs in the nightly), so a release always needs the dispatch.
+
+With the repository variable `FLEET_ENABLED` set to `false`, the fleet-only
+jobs (the three daemon privilege rig legs, `HTTP Compliance` and
+`Async-CSS Probe`) skip, so the gate refuses every release until the fleet is
+back. That is deliberate: it fails closed. The self-test compares the list with
+`pipeline-full.yml` (`required-list-matches-workflows`), so a full-tier job
+added later without a matching gate entry fails the test.
 
 The gate polls a run that is still in flight (up to 60 minutes), retries
 transient API errors, and refuses after two consecutive checks that find
