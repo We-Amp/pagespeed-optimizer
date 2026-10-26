@@ -81,6 +81,14 @@ own, so a browser holding the cached copy got a full response each time the
 entry was revalidated. Both now carry the same `ETag`, and the browser gets a
 `304 Not Modified`.
 
+Fixed: configuration updates through the API (`PATCH /v1/config`) no longer
+pause the worker while the new settings are saved to disk. On a slow or busy
+disk, health checks and other requests are now answered without waiting for the
+save, and the update still returns only once the change is saved. If saving
+fails, for example because the disk is full, the response now carries a
+warning: the change stays in force until the next restart. Several rapid
+updates are saved together.
+
 Changed: the optimizer worker's log lines and `--version` output, and the nginx
 module's load notice, now name the product mod_pagespeed. The version number and
 build commit are unchanged.

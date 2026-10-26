@@ -23,6 +23,8 @@
 
 namespace pagespeed {
 
+class ConfigPersister;
+
 // Runtime context for operational API handlers.
 // Provides access to worker state without coupling to the Worker class.
 struct ApiContext {
@@ -73,6 +75,12 @@ struct ApiContext {
   // browser_manager above.
   std::function<nlohmann::json(uint64_t since, bool has_since, size_t limit)>
       read_logs = nullptr;
+  // Saves PATCH /v1/config changes on a dedicated thread so the event loop
+  // never waits on the disk; the PATCH is answered once the change is saved.
+  // When null the PATCH saves inline on the calling thread (unit tests that
+  // build an ApiContext by hand).  Same default-initializer rationale as
+  // browser_manager above.  Not owned; must outlive the registered routes.
+  ConfigPersister* config_persister = nullptr;
 };
 
 // Builds the complete /v1/stats JSON document from live worker state.

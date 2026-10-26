@@ -6,6 +6,7 @@
 #include "src/worker/shared_config.h"
 
 #include <atomic>
+#include <cerrno>
 #include <charconv>
 #include <filesystem>
 #include <fstream>
@@ -363,7 +364,12 @@ bool WriteSharedConfigFile(const std::string& path, const SharedConfig& config,
   // workers in group `pagespeed`) r, others nothing.  Was 0644 until the
   // H1-H3 privilege drop; group-read suffices for every legitimate peer, and
   // the mode is kept narrow even though the file carries no secret any more.
-  return AtomicWriteFile(path, content, 0640);
+  const bool ok = AtomicWriteFile(path, content, 0640);
+  const int saved_errno = errno;
+  content.clear();
+  content.shrink_to_fit();
+  errno = saved_errno;
+  return ok;
 }
 
 }  // namespace pagespeed

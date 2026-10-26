@@ -6,6 +6,7 @@
 #include "src/worker/config_file.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <cstddef>
 #include <filesystem>
@@ -652,7 +653,17 @@ bool WriteConfigFile(const std::string& path, const json& j) {
     return false;
   }
   // 0644: world-readable config (not secret, unlike license).
-  return AtomicWriteFile(path, DumpJson(j, 2) + "\n", 0644);
+  // Keep errno intact across the destruction of the serialized text, so the
+  // caller reads the cause of the failure and not a side effect of freeing.
+  bool ok;
+  int saved_errno;
+  {
+    const std::string content = DumpJson(j, 2) + "\n";
+    ok = AtomicWriteFile(path, content, 0644);
+    saved_errno = errno;
+  }
+  errno = saved_errno;
+  return ok;
 }
 
 }  // namespace pagespeed

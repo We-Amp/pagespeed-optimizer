@@ -10,6 +10,8 @@
 
 #include <cerrno>
 #include <chrono>
+#include <condition_variable>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -17,11 +19,11 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
 #ifndef _WIN32
-#include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -30,6 +32,8 @@
 #include "lib/base/message_handler.h"
 #include "nlohmann/json.hpp"
 #include "src/product_version/version.h"
+#include "src/worker/config_file.h"
+#include "src/worker/config_persister.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
 #include "src/worker/worker.h"
@@ -92,6 +96,8 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
             std::chrono::steady_clock::now() - std::chrono::seconds(3600),
     });
 
+    ConfigureContext();
+
     HttpServerConfig server_config;
     server_config.port = 0;
     // An empty token now fails closed; these fixtures
@@ -105,11 +111,17 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
     StartLoopThread();
   }
 
+  // Hook for fixtures that wire extra pieces into ctx_ before the routes are
+  // registered (the base fixture saves PATCHes inline, with no persister).
+  virtual void ConfigureContext() {}
+
   void TearDown() override {
     if (loop_thread_.joinable()) StopLoopThread();
+    if (persister_) persister_->Shutdown();
     server_->Stop();
     uv_run(loop_, UV_RUN_DEFAULT);
     server_.reset();
+    persister_.reset();
     uv_loop_close(loop_);
     delete loop_;
 #ifndef _WIN32
@@ -218,9 +230,70 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
   std::unique_ptr<ApiContext> ctx_;
   std::unique_ptr<NullMessageHandler> handler_;
   std::unique_ptr<HttpServer> server_;
+  std::unique_ptr<ConfigPersister> persister_;
   std::thread loop_thread_;
   uv_async_t stop_async_;
   bool cache_degraded_ = false;
+};
+
+// The API wired the way the worker wires it: PATCH /v1/config saves on the
+// persister thread.  A gate in front of the persister's writes holds a save
+// "in flight" so a test can probe the server meanwhile.
+class ApiHandlersPersisterTest : public ApiHandlersIntegrationTest {
+ protected:
+  void ConfigureContext() override {
+    persister_ = std::make_unique<ConfigPersister>(loop_, nullptr,
+                                                   [this] { OnBeforeWrite(); });
+    ctx_->config_persister = persister_.get();
+  }
+
+  void TearDown() override {
+    ReleaseWrites();  // Never leave the persister thread parked.
+    ApiHandlersIntegrationTest::TearDown();
+  }
+
+  // Called on the persister thread before each save.
+  void OnBeforeWrite() {
+    std::unique_lock<std::mutex> lock(gate_mu_);
+    ++writes_started_;
+    gate_cv_.notify_all();
+    gate_cv_.wait(lock, [this] { return !hold_; });
+  }
+
+  void HoldWrites() {
+    std::lock_guard<std::mutex> lock(gate_mu_);
+    hold_ = true;
+  }
+
+  void ReleaseWrites() {
+    std::lock_guard<std::mutex> lock(gate_mu_);
+    hold_ = false;
+    gate_cv_.notify_all();
+  }
+
+  bool WaitForWritesStarted(int n) {
+    std::unique_lock<std::mutex> lock(gate_mu_);
+    return gate_cv_.wait_for(lock, std::chrono::seconds(5),
+                             [&] { return writes_started_ >= n; });
+  }
+
+  int WritesStarted() {
+    std::lock_guard<std::mutex> lock(gate_mu_);
+    return writes_started_;
+  }
+
+  static std::string PatchRequest(const std::string& body) {
+    return "PATCH /v1/config HTTP/1.1\r\n"
+           "Host: localhost\r\n"
+           "Content-Type: application/json\r\n"
+           "Content-Length: " +
+           std::to_string(body.size()) + "\r\n\r\n" + body;
+  }
+
+  std::mutex gate_mu_;
+  std::condition_variable gate_cv_;
+  bool hold_ = false;
+  int writes_started_ = 0;
 };
 
 TEST_F(ApiHandlersIntegrationTest, HealthEndpoint) {
@@ -895,7 +968,7 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpointServesByEncoding) {
   ss.css_original_bytes = 2000;
   ss.css_optimized_bytes = 1000;
   ss.css_optimized_hits = 2;
-  const size_t css = static_cast<size_t>(ContentType::kCss);
+  const auto css = static_cast<size_t>(ContentType::kCss);
   ss.serve_hits_by_encoding[css][0] = 1;
   ss.serve_bytes_by_encoding[css][0] = 800;
   ss.serve_hits_by_encoding[css][1] = 1;
@@ -1589,8 +1662,8 @@ TEST_F(ApiHandlersIntegrationTest, StatsResponseShapeIsStable) {
   ss.image_optimized_bytes = 100000;
   ss.image_optimized_hits = 2;
   ss.serve_optimized_total = 5;
-  const size_t css = static_cast<size_t>(ContentType::kCss);
-  const size_t image = static_cast<size_t>(ContentType::kImage);
+  const auto css = static_cast<size_t>(ContentType::kCss);
+  const auto image = static_cast<size_t>(ContentType::kImage);
   ss.serve_hits_by_encoding[css][0] = 3;
   ss.serve_bytes_by_encoding[css][0] = 200000;
   ss.serve_hits_by_encoding[image][0] = 2;
@@ -1647,6 +1720,174 @@ TEST_F(ApiHandlersIntegrationTest, StatsResponseShapeIsStable) {
   EXPECT_EQ(golden, body + "\n")
       << "---- actual /v1/stats (uptime substituted) ----\n"
       << body << "\n---- end ----";
+}
+
+// =============================================================================
+// PATCH /v1/config saves off the event loop (persister thread)
+// =============================================================================
+
+// The point of the persister: while a save is stuck on the disk, the event
+// loop keeps answering, and the PATCH itself still returns only once saved.
+TEST_F(ApiHandlersPersisterTest, HealthAnswersWhileConfigPatchPersists) {
+  pagespeed::test::TempDir tmp;
+  const std::string cache_path = tmp.path() + "/cache.vol";
+  MutateConfig([&](WorkerConfig& c) { c.cache_path = cache_path; });
+  HoldWrites();
+
+  std::string patch_resp;
+  std::thread patcher([&] {
+    patch_resp = SendRequest(PatchRequest(R"({"jpeg_quality": 91})"));
+  });
+  const bool in_flight = WaitForWritesStarted(1);
+  if (!in_flight) ReleaseWrites();
+  ASSERT_TRUE(in_flight) << "the save never started";
+
+  // The save is parked; the loop must still serve other requests promptly.
+  auto t0 = std::chrono::steady_clock::now();
+  std::string health =
+      SendRequest("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  auto waited = std::chrono::steady_clock::now() - t0;
+  EXPECT_NE(health.find("200 OK"), std::string::npos) << health;
+  EXPECT_LT(waited, std::chrono::seconds(1));
+
+  // The change is already live in memory while the save is pending ...
+  std::string live =
+      SendRequest("GET /v1/config HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_EQ(ParseJsonBody(live)["jpeg_quality"], 91);
+  // ... but it is not on disk, and the PATCH has not been answered.
+  EXPECT_FALSE(std::filesystem::exists(ConfigFilePath(cache_path)));
+
+  ReleaseWrites();
+  patcher.join();
+  EXPECT_NE(patch_resp.find("200 OK"), std::string::npos) << patch_resp;
+  json j = ParseJsonBody(patch_resp);
+  EXPECT_EQ(j["applied"]["jpeg_quality"], 91);
+  EXPECT_TRUE(j["warnings"].empty()) << patch_resp;
+  EXPECT_TRUE(std::filesystem::exists(ConfigFilePath(cache_path)))
+      << "a 200 means the change is saved";
+}
+
+TEST_F(ApiHandlersPersisterTest, ConfigPatchSavesBothFilesBeforeAnswering) {
+  pagespeed::test::TempDir tmp;
+  const std::string cache_path = tmp.path() + "/cache.vol";
+  MutateConfig([&](WorkerConfig& c) { c.cache_path = cache_path; });
+  std::string resp = SendRequest(
+      PatchRequest(R"({"jpeg_quality": 77, "disable_html": true})"));
+  EXPECT_NE(resp.find("200 OK"), std::string::npos) << resp;
+
+  std::ifstream f(ConfigFilePath(cache_path));
+  ASSERT_TRUE(f.is_open());
+  json saved = json::parse(f);
+  EXPECT_EQ(saved["jpeg_quality"], 77);
+  EXPECT_TRUE(
+      ReadSharedConfigFile(SharedConfigFilePath(cache_path)).disable_html);
+}
+
+TEST_F(ApiHandlersPersisterTest, ConfigPatchWithNothingAppliedDoesNoDiskWork) {
+  pagespeed::test::TempDir tmp;
+  MutateConfig(
+      [&](WorkerConfig& c) { c.cache_path = tmp.path() + "/cache.vol"; });
+  HoldWrites();  // A save would park the request; this must not save.
+  std::string resp = SendRequest(PatchRequest(R"({"num_threads": 16})"));
+  EXPECT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  EXPECT_EQ(WritesStarted(), 0);
+}
+
+// A save that fails (here: the directory does not exist) keeps the 200, since
+// the change is live in memory, and says so in `warnings` with the cause.
+TEST_F(ApiHandlersPersisterTest, ConfigPatchReportsPersistFailure) {
+  pagespeed::test::TempDir tmp;
+  MutateConfig([&](WorkerConfig& c) {
+    c.cache_path = tmp.path() + "/missing/cache.vol";
+  });
+  std::string resp = SendRequest(PatchRequest(R"({"jpeg_quality": 91})"));
+  EXPECT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  json j = ParseJsonBody(resp);
+  EXPECT_EQ(j["applied"]["jpeg_quality"], 91);
+  ASSERT_TRUE(j["warnings"].is_array()) << resp;
+  bool named = false;
+  for (const auto& w : j["warnings"]) {
+    if (w.get<std::string>().find("pagespeed.json") != std::string::npos) {
+      named = true;
+    }
+  }
+  EXPECT_TRUE(named) << resp;
+}
+
+// The same failure on the inline path (no persister) is no longer silent.
+TEST_F(ApiHandlersIntegrationTest, ConfigPatchInlineReportsPersistFailure) {
+  pagespeed::test::TempDir tmp;
+  MutateConfig([&](WorkerConfig& c) {
+    c.cache_path = tmp.path() + "/missing/cache.vol";
+  });
+  std::string body = R"({"jpeg_quality": 91})";
+  std::string request =
+      "PATCH /v1/config HTTP/1.1\r\n"
+      "Host: localhost\r\n"
+      "Content-Type: application/json\r\n"
+      "Content-Length: " +
+      std::to_string(body.size()) + "\r\n\r\n" + body;
+  std::string resp = SendRequest(request);
+  EXPECT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  json j = ParseJsonBody(resp);
+  ASSERT_EQ(j["warnings"].size(), 1u) << resp;
+  EXPECT_NE(j["warnings"][0].get<std::string>().find("pagespeed.json"),
+            std::string::npos);
+}
+
+// Rapid PATCHes made while a save is in flight are saved together: three
+// answers, two writes, and the file ends up with the last value.
+TEST_F(ApiHandlersPersisterTest, ConfigPatchBurstCoalesces) {
+  pagespeed::test::TempDir tmp;
+  const std::string cache_path = tmp.path() + "/cache.vol";
+  MutateConfig([&](WorkerConfig& c) { c.cache_path = cache_path; });
+  HoldWrites();
+
+  // True once the live config reports `quality`, which also means that
+  // PATCH's handler has run to the end (the loop serves one request at a
+  // time), so its save is already queued behind the in-flight one.
+  auto live_quality_is = [this](int quality) {
+    for (int i = 0; i < 1000; ++i) {
+      std::string live =
+          SendRequest("GET /v1/config HTTP/1.1\r\nHost: localhost\r\n\r\n");
+      json j = ParseJsonBody(live);
+      if (j.contains("jpeg_quality") && j["jpeg_quality"] == quality) {
+        return true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    return false;
+  };
+
+  std::string resp1;
+  std::string resp2;
+  std::string resp3;
+  std::thread t1(
+      [&] { resp1 = SendRequest(PatchRequest(R"({"jpeg_quality": 71})")); });
+  const bool in_flight = WaitForWritesStarted(1);
+  if (!in_flight) ReleaseWrites();
+  ASSERT_TRUE(in_flight);
+
+  std::thread t2(
+      [&] { resp2 = SendRequest(PatchRequest(R"({"jpeg_quality": 72})")); });
+  const bool second_applied = live_quality_is(72);
+  std::thread t3(
+      [&] { resp3 = SendRequest(PatchRequest(R"({"jpeg_quality": 73})")); });
+  const bool third_applied = second_applied && live_quality_is(73);
+
+  ReleaseWrites();
+  t1.join();
+  t2.join();
+  t3.join();
+  EXPECT_TRUE(second_applied);
+  EXPECT_TRUE(third_applied);
+  for (const std::string* r : {&resp1, &resp2, &resp3}) {
+    EXPECT_NE(r->find("200 OK"), std::string::npos) << *r;
+  }
+  EXPECT_EQ(WritesStarted(), 2);
+  std::ifstream f(ConfigFilePath(cache_path));
+  ASSERT_TRUE(f.is_open());
+  EXPECT_EQ(json::parse(f)["jpeg_quality"], 73);
 }
 
 }  // namespace

@@ -5,21 +5,28 @@
 
 #include "src/worker/api_handlers.h"
 
+#include <cerrno>
 #include <cstdint>
+#include <exception>
+#include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
+#include "lib/base/message_handler.h"
 #include "lib/classify/url_normalizer.h"
 #include "nlohmann/json.hpp"
 #include "src/product_version/build_commit.h"
 #include "src/product_version/version.h"
 #include "src/worker/config_file.h"
+#include "src/worker/config_persister.h"
 #include "src/worker/json_dump.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
@@ -1236,117 +1243,238 @@ static HttpResponse HandleConfigGet(ApiContext& ctx,
 // PATCH /v1/config
 // ---------------------------------------------------------------------------
 
-static HttpResponse HandleConfigPatch(ApiContext& ctx,
-                                      const HttpRequest& request) {
+// Thread-safe text for an errno value (the cause named in a save warning).
+static std::string ErrnoMessage(int err) {
+  if (err == 0) return "unknown error";
+  return std::error_code(err, std::generic_category()).message();
+}
+
+// Everything a PATCH computes before any disk work.  Built on the event-loop
+// thread; the config it applied is already live in memory.
+struct ConfigPatchState {
+  // Set when the request was rejected outright (bad JSON, wrong type).
+  std::optional<HttpResponse> error;
+  std::shared_ptr<const WorkerConfig> current;
+  std::shared_ptr<const WorkerConfig> updated;
+  json applied;
+  json rejected;
+  json warnings;
+  // Disk work is needed: something was applied and there is a cache path.
+  bool persist = false;
+  // The change touches a field the shared (module-read) file carries.
+  bool shared_dirty = false;
+};
+
+// Writes pagespeed-shared.conf for `updated`.  READ-MODIFY-WRITE: it starts
+// from the file's current contents so fields owned by OTHER writers/startup
+// (web_bot_auth*, rsl_cap*) survive an unrelated runtime PATCH instead of
+// being silently reset to defaults until the next worker restart.  Touches
+// disk, so it runs on the persister thread when there is one.
+// Returns 0 on success, else the errno-style cause, read right at the failing
+// call (before this function's locals are destroyed).
+static int WriteSharedConfigFor(const WorkerConfig& updated) {
+  SharedConfig shared =
+      ReadSharedConfigFile(SharedConfigFilePath(updated.cache_path));
+  // socket_path is non-reloadable so it is not checked for a change, but it
+  // is always written to the file since nginx needs the current value.
+  shared.socket_path = updated.socket_path;
+  shared.disable_html = updated.disable_html;
+  // agent_optimize: the serve-side toggle is the operator flag.
+  // agent_optimize is a startup flag (not PATCH-able), so this carries it
+  // forward unchanged.
+  shared.agent_optimize_entitled = updated.browser_analysis.agent_optimize;
+  // Recompute the /llms.txt serve gate alongside it (previously this writer
+  // dropped it to false).
+  shared.agent_optimize_llms_txt_enabled =
+      shared.agent_optimize_entitled &&
+      updated.browser_analysis.agent_optimize_llms_txt;
+  shared.cache_mode = updated.cache_mode;
+  // Rebuild expanded extensions (non-reloadable, but must be preserved).
+  {
+    std::unordered_set<std::string> exts;
+    for (const auto& ext : updated.strip_query_extensions) {
+      exts.insert(ext);
+    }
+    for (const auto& group : updated.strip_query_groups) {
+      for (const auto& ext : ExpandExtensionGroup(group)) {
+        exts.insert(ext);
+      }
+    }
+    std::string csv;
+    for (const auto& ext : exts) {
+      if (!csv.empty()) csv += ',';
+      csv += ext;
+    }
+    shared.strip_query_extensions = std::move(csv);
+  }
+  {
+    std::string csv;
+    for (const auto& param : updated.strip_query_params) {
+      if (!csv.empty()) csv += ',';
+      csv += param;
+    }
+    shared.strip_query_params = std::move(csv);
+  }
+  if (WriteSharedConfigFile(SharedConfigFilePath(updated.cache_path), shared)) {
+    return 0;
+  }
+  return errno != 0 ? errno : EIO;
+}
+
+// Steps that never touch the disk: parse, validate, apply in memory.
+static ConfigPatchState PrepareConfigPatch(ApiContext& ctx,
+                                           const HttpRequest& request) {
   // Serialise read-copy-update so concurrent PATCH calls never lose
   // updates.  Currently single-threaded (libuv event loop), but the
   // lock makes the invariant explicit for future threading changes.
   static std::mutex mu;
   std::lock_guard<std::mutex> lock(mu);
+
+  ConfigPatchState st;
   if (JsonNestingTooDeep(request.body)) {
-    return HttpResponse::Error(ApiErrorCode::kBadRequest,
-                               "JSON nesting too deep");
+    st.error =
+        HttpResponse::Error(ApiErrorCode::kBadRequest, "JSON nesting too deep");
+    return st;
   }
 
   json body;
   try {
     body = json::parse(request.body);
   } catch (const json::exception&) {
-    return HttpResponse::Error(ApiErrorCode::kBadRequest, "Invalid JSON body");
+    st.error =
+        HttpResponse::Error(ApiErrorCode::kBadRequest, "Invalid JSON body");
+    return st;
   }
 
   if (!body.is_object()) {
-    return HttpResponse::Error(ApiErrorCode::kBadRequest,
-                               "Request body must be a JSON object");
+    st.error = HttpResponse::Error(ApiErrorCode::kBadRequest,
+                                   "Request body must be a JSON object");
+    return st;
   }
 
-  auto current = ctx.get_config();
-  auto updated = std::make_shared<WorkerConfig>(*current);
+  st.current = ctx.get_config();
+  auto updated = std::make_shared<WorkerConfig>(*st.current);
 
   // Apply all hot-reloadable fields via shared validation logic.
   auto cr = ApplyConfigJson(body, updated.get());
-  json applied = std::move(cr.applied);
-  json rejected = std::move(cr.rejected);
-  json warnings = std::move(cr.warnings);
+  st.applied = std::move(cr.applied);
+  st.rejected = std::move(cr.rejected);
+  st.warnings = std::move(cr.warnings);
 
   // Retired licensing keys (license_key, license_renewal_url, the storefront
   // pair) arrive in `rejected` from ApplyConfigJson with a reason naming the
   // 2.1 change; nothing else to do for them here.
 
   // Apply the config if any fields changed.
-  if (!applied.empty()) {
+  if (!st.applied.empty()) {
     ctx.update_config(updated);
   }
 
-  // Persist hot-reloadable config to disk (best-effort, non-fatal on failure).
-  if (!applied.empty() && !updated->cache_path.empty()) {
-    auto persistable = ConfigToJsonPersistable(*updated);
-    WriteConfigFile(ConfigFilePath(updated->cache_path), persistable);
-  }
+  st.persist = !st.applied.empty() && !updated->cache_path.empty();
+  st.shared_dirty = st.persist && (st.applied.contains("disable_html") ||
+                                   st.applied.contains("cache_mode"));
+  st.updated = std::move(updated);
+  return st;
+}
 
-  // Persist shared config when shared fields change.
-  // socket_path is non-reloadable so it is not checked here, but it is
-  // always written to the file since nginx needs the current value.
-  if ((applied.contains("disable_html") || applied.contains("cache_mode")) &&
-      !updated->cache_path.empty()) {
-    // READ-MODIFY-WRITE: start from the file's current contents so fields
-    // owned by OTHER writers/startup — web_bot_auth*, rsl_cap* — survive an
-    // unrelated runtime PATCH instead of being silently reset to defaults
-    // until the next worker restart.
-    SharedConfig shared =
-        ReadSharedConfigFile(SharedConfigFilePath(updated->cache_path));
-    shared.socket_path = updated->socket_path;
-    shared.disable_html = updated->disable_html;
-    // agent_optimize: the serve-side
-    // toggle is the operator flag.  agent_optimize is a startup flag (not
-    // PATCH-able), so this carries it forward unchanged.
-    shared.agent_optimize_entitled = updated->browser_analysis.agent_optimize;
-    // Recompute the /llms.txt serve gate alongside it (previously
-    // this writer dropped it to false).
-    shared.agent_optimize_llms_txt_enabled =
-        shared.agent_optimize_entitled &&
-        updated->browser_analysis.agent_optimize_llms_txt;
-    shared.cache_mode = updated->cache_mode;
-    // Rebuild expanded extensions (non-reloadable, but must be preserved).
-    {
-      std::unordered_set<std::string> exts;
-      for (const auto& ext : updated->strip_query_extensions) {
-        exts.insert(ext);
-      }
-      for (const auto& group : updated->strip_query_groups) {
-        for (const auto& ext : ExpandExtensionGroup(group)) {
-          exts.insert(ext);
-        }
-      }
-      std::string csv;
-      for (const auto& ext : exts) {
-        if (!csv.empty()) csv += ',';
-        csv += ext;
-      }
-      shared.strip_query_extensions = std::move(csv);
-    }
-    {
-      std::string csv;
-      for (const auto& param : updated->strip_query_params) {
-        if (!csv.empty()) csv += ',';
-        csv += param;
-      }
-      shared.strip_query_params = std::move(csv);
-    }
-    if (!WriteSharedConfigFile(SharedConfigFilePath(updated->cache_path),
-                               shared)) {
-      warnings.push_back("failed to write pagespeed-shared.conf");
-    }
-  }
-
+static HttpResponse FinishConfigPatch(ConfigPatchState& st) {
   json result;
-  result["applied"] = applied;
-  result["rejected"] = rejected;
-  result["warnings"] = warnings;
+  result["applied"] = st.applied;
+  result["rejected"] = st.rejected;
+  result["warnings"] = st.warnings;
   // Use the updated config directly to avoid a redundant lock acquisition.
-  result["config"] = ConfigToJson(applied.empty() ? *current : *updated);
-
+  result["config"] =
+      ConfigToJson(st.applied.empty() ? *st.current : *st.updated);
   return HttpResponse().Json(DumpJson(result));
+}
+
+// Disk-failure warnings, in the response's `warnings` array.
+static void AddPersistWarnings(ConfigPatchState& st,
+                               const ConfigPersister::Result& r) {
+  if (!r.json_ok) {
+    st.warnings.push_back("failed to write pagespeed.json: " + r.json_error);
+  }
+  if (r.shared_attempted && !r.shared_ok) {
+    st.warnings.push_back("failed to write pagespeed-shared.conf: " +
+                          r.shared_error);
+  }
+}
+
+// Without a persister (no worker thread to hand the disk work to): save on the
+// calling thread, as before.
+static HttpResponse HandleConfigPatch(ApiContext& ctx,
+                                      const HttpRequest& request) {
+  ConfigPatchState st = PrepareConfigPatch(ctx, request);
+  if (st.error.has_value()) return std::move(*st.error);
+
+  ConfigPersister::Result r;
+  if (st.persist) {
+    const json snapshot = ConfigToJsonPersistable(*st.updated);
+    const std::string json_path = ConfigFilePath(st.updated->cache_path);
+    if (!WriteConfigFile(json_path, snapshot)) {
+      const int err = errno != 0 ? errno : EIO;
+      r.json_ok = false;
+      r.json_error = ErrnoMessage(err);
+    }
+    if (st.shared_dirty) {
+      r.shared_attempted = true;
+      if (const int err = WriteSharedConfigFor(*st.updated); err != 0) {
+        r.shared_ok = false;
+        r.shared_error = ErrnoMessage(err);
+      }
+    }
+  }
+  AddPersistWarnings(st, r);
+  return FinishConfigPatch(st);
+}
+
+// With a persister: the change is live as soon as PrepareConfigPatch returns,
+// the disk work runs on the persister thread, and the response is sent only
+// once the files are saved, so a 200 still means "saved".  The event loop is
+// free in the meantime.
+static void HandleConfigPatchAsync(ApiContext& ctx, const HttpRequest& request,
+                                   Responder respond) {
+  auto st =
+      std::make_shared<ConfigPatchState>(PrepareConfigPatch(ctx, request));
+  if (st->error.has_value()) {
+    respond(std::move(*st->error));
+    return;
+  }
+  if (!st->persist) {
+    respond(FinishConfigPatch(*st));
+    return;
+  }
+
+  ConfigPersister::Job job;
+  const std::string json_path = ConfigFilePath(st->updated->cache_path);
+  job.write_json = [json_path,
+                    snapshot = ConfigToJsonPersistable(*st->updated)] {
+    if (WriteConfigFile(json_path, snapshot)) return 0;
+    return errno != 0 ? errno : EIO;
+  };
+  job.shared_dirty = st->shared_dirty;
+  job.write_shared = [updated = st->updated] {
+    return WriteSharedConfigFor(*updated);
+  };
+  MessageHandler* log = ctx.config_persister->handler();
+  ctx.config_persister->Submit(
+      std::move(job), [st, log, respond = std::move(respond)](
+                          const ConfigPersister::Result& r) {
+        // This runs inside a libuv callback: an exception must not escape.
+        HttpResponse response;
+        try {
+          AddPersistWarnings(*st, r);
+          response = FinishConfigPatch(*st);
+        } catch (const std::exception& e) {
+          if (log != nullptr) {
+            log->Warning("config: building the PATCH response failed: %s",
+                         e.what());
+          }
+          response = HttpResponse::Error(ApiErrorCode::kInternalError,
+                                         "Internal server error");
+        }
+        respond(std::move(response));
+      });
 }
 
 // ---------------------------------------------------------------------------
@@ -1418,9 +1546,16 @@ void RegisterOperationalRoutes(HttpServer& server, ApiContext& ctx) {
       [&ctx](const HttpRequest& req) { return HandleConfigGet(ctx, req); },
       RouteAuth::kReadOpenOk);
 
-  server.AddRoute("PATCH", "/v1/config", [&ctx](const HttpRequest& req) {
-    return HandleConfigPatch(ctx, req);
-  });
+  if (ctx.config_persister != nullptr) {
+    server.AddAsyncRoute("PATCH", "/v1/config",
+                         [&ctx](const HttpRequest& req, Responder respond) {
+                           HandleConfigPatchAsync(ctx, req, std::move(respond));
+                         });
+  } else {
+    server.AddRoute("PATCH", "/v1/config", [&ctx](const HttpRequest& req) {
+      return HandleConfigPatch(ctx, req);
+    });
+  }
 
   // The log ring read.  Registered only when the Worker wired a ring
   // reader.  Log lines carry every host's URLs and error text, so on TCP

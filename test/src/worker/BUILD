@@ -257,6 +257,15 @@ gtest_test(
 )
 
 gtest_test(
+    name = "config_persister_test",
+    deps = [
+        "//lib/base:message_handler",
+        "//src/worker:config_persister",
+        "@libuv",
+    ],
+)
+
+gtest_test(
     name = "http_server_test",
     deps = [
         "//lib/base:message_handler",
@@ -374,6 +383,8 @@ gtest_test(
         "//lib/base:message_handler",
         "//src/product_version:version",
         "//src/worker:api_handlers",
+        "//src/worker:config_file",
+        "//src/worker:config_persister",
         "//src/worker:serve_stats",
         "//src/worker:shared_config",
         "//src/worker:worker_types",

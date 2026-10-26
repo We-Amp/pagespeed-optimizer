@@ -54,7 +54,19 @@ inline int fsync(int fd) {
 // rename() on Windows fails if destination exists; this wrapper uses
 // MoveFileExA(MOVEFILE_REPLACE_EXISTING) to match POSIX semantics.
 inline int ps_rename(const char* src, const char* dst) {
-  return MoveFileExA(src, dst, MOVEFILE_REPLACE_EXISTING) ? 0 : -1;
+  if (MoveFileExA(src, dst, MOVEFILE_REPLACE_EXISTING)) return 0;
+  // Report the real cause through errno, as the POSIX rename() does.
+  const DWORD err = GetLastError();
+  if (err == ERROR_DISK_FULL || err == ERROR_HANDLE_DISK_FULL) {
+    errno = ENOSPC;
+  } else if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) {
+    errno = ENOENT;
+  } else if (err == ERROR_ACCESS_DENIED || err == ERROR_SHARING_VIOLATION) {
+    errno = EACCES;
+  } else {
+    errno = EIO;
+  }
+  return -1;
 }
 
 // Opens a new file for writing, refusing to follow symlinks.
@@ -71,8 +83,13 @@ inline int ps_open_exclusive_nofollow(const char* path, int mode) {
                          nullptr);
   if (h == INVALID_HANDLE_VALUE) {
     DWORD err = GetLastError();
-    errno = (err == ERROR_FILE_EXISTS || err == ERROR_ALREADY_EXISTS) ? EEXIST
-                                                                      : EACCES;
+    if (err == ERROR_FILE_EXISTS || err == ERROR_ALREADY_EXISTS) {
+      errno = EEXIST;
+    } else if (err == ERROR_DISK_FULL || err == ERROR_HANDLE_DISK_FULL) {
+      errno = ENOSPC;
+    } else {
+      errno = EACCES;
+    }
     return -1;
   }
   int fd = _open_osfhandle(reinterpret_cast<intptr_t>(h), O_WRONLY);
