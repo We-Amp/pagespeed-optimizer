@@ -2150,6 +2150,13 @@ of `--cache-size`, between 16 and 256 MB). The RAM cache uses write-around
 semantics: writes go directly to disk, reads populate the RAM cache on miss.
 This prevents cross-process staling between nginx and the worker.
 
+When `--num-threads` is not set, the pool size is the number of CPUs the worker
+may use, between 2 and 128. That is the smallest of the CPUs the process is
+allowed to run on and the CPU limit of its container (for example
+`docker run --cpus=12`), so a container limited to 12 CPUs on a larger host
+starts 12 threads. The worker logs the chosen size and where it came from at
+startup. Setting `--num-threads` explicitly overrides this.
+
 ## Pre-compressed text variants
 
 The worker produces gzip and brotli pre-compressed alternates for all text

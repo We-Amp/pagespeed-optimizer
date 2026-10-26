@@ -22,6 +22,7 @@
 #include "src/product_version/version.h"
 #include "src/worker/cache_dir.h"
 #include "src/worker/config_file.h"
+#include "src/worker/cpu_budget.h"
 #include "src/worker/http_server.h"
 #include "src/worker/shared_config.h"
 #include "src/worker/syscall_selftest.h"
@@ -1283,11 +1284,16 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
   }
 
   // Resolve auto thread count.
+  // Precedence: explicit --num-threads, then CPU affinity, then the container
+  // CPU quota (cgroup v2, then v1), then the hardware thread count.
+  const char* thread_source = "--num-threads";
   if (config.num_threads == 0) {
-    unsigned hw = std::thread::hardware_concurrency();
-    config.num_threads = static_cast<int>(std::clamp(hw, 2u, 128u));
+    pagespeed::CpuBudget budget = pagespeed::AvailableCpus();
+    config.num_threads = pagespeed::DefaultThreadCount(budget);
+    thread_source = budget.source;
   }
-  handler->Info("Thread pool size: %d", config.num_threads);
+  handler->Info("Thread pool size: %d (from %s)", config.num_threads,
+                thread_source);
 
   // Set libuv thread pool size before any uv_queue_work calls.
   // UV_THREADPOOL_SIZE must be set before the first libuv loop starts.

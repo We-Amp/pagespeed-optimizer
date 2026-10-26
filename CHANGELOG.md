@@ -4,6 +4,13 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: the default worker thread count now follows the container's CPU limit.
+Before, a container limited with `docker run --cpus=12` (or a Kubernetes CPU
+limit) on a large host still started a thread pool sized for the whole host.
+The default is now the smallest of the CPUs the worker may run on and the
+container's CPU limit, between 2 and 128; an explicit `--num-threads` still
+wins.
+
 Fixed: the optimizer worker's recovery for a cache volume that failed to open
 deleted the configured cache path, which is not where the volume file lives:
 the real file has the cache format and geometry in its name, so the deletion
