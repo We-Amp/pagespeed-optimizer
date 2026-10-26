@@ -473,6 +473,7 @@ jobs:
           CI_SCOPE: ${{ vars.CI_SCOPE }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
           FORK_OR_BOT: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}
           PR_FULL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:pr-full') }}
         # merge_group and workflow_dispatch always run the full PR tier; the
@@ -503,7 +504,7 @@ jobs:
           js=false
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME}" = "merge_group" ]; then
             changed="${RUNNER_TEMP}/changed-files.txt"
-            git diff --name-only "${BASE}...HEAD" > "${changed}"
+            git diff --no-renames --name-only "${BASE}...HEAD" > "${changed}"
             if grep -qE '^(lib/css/|test/lib/css/|tools/ci/classify-css-fuzz-artifacts\.sh$|tools/ci/shadow-css-oracle\.sh$|tools/sbom/post-findings-issue\.sh$|docker/Dockerfile$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
               css=true
             fi

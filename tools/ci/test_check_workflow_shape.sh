@@ -122,6 +122,8 @@ expect_bad bad-fleet-scope-extra-command 'fleet-scope'
 expect_bad bad-fleet-scope-renamed 'fleet-scope'
 expect_bad bad-fleet-scope-extra-env 'fleet-scope'
 expect_bad bad-fleet-scope-outputs-missing 'fleet-scope'
+# fleet-scope-diff-no-renames: the path-filter diff must pass --no-renames.
+expect_bad bad-fleet-scope-diff-renames 'fleet-scope'
 # fleet-scope-reads-default-branch
 expect_bad bad-fleet-scope-reads-tree 'fleet-scope'
 # fleet-scope-short-circuit-removed
