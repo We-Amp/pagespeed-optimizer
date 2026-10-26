@@ -936,3 +936,265 @@ jobs:
             ${{ env.SMOKE_ROOT }}/health.json
             ${{ env.SMOKE_ROOT }}/pw/playwright-report/
             ${{ env.SMOKE_ROOT }}/pw/test-results/
+
+  # ----------------------------------------------------------------
+  # Sidecar packages: WeAmp.PageSpeed.Sidecar (+ the matched
+  # WeAmp.PageSpeed.Sidecar.NativeAssets.Linux) from nuget.org.
+  # ----------------------------------------------------------------
+  # The consumer path of the sidecar, exactly as the package documentation
+  # describes it: add the package to a minimal ASP.NET Core app, wire
+  # AddPageSpeed / UsePageSpeed, publish with a Linux RID so the bundled
+  # nginx pair is copied into the publish output, run the published app, and
+  # request one HTML page through it. The bytes are verified before publish;
+  # this catches a broken runtimes layout or a bad native pair right after
+  # publish. Linux only (the sidecar package is Linux-only). The version
+  # logic and the indexing wait mirror the AspNetCore legs above.
+  smoke-sidecar-linux-x64:
+    name: smoke / sidecar / ${{ matrix.rid }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - rid: linux-x64
+    env: &sidecar-env
+      SIDECAR_PORT: "5061"
+    steps: &sidecar-steps
+      - name: Determine package version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            V="${{ github.event.release.tag_name }}"
+          else
+            V="${{ inputs.package_version }}"
+          fi
+          # Strip a single leading 'v'.
+          V="${V#v}"
+          if [ -z "$V" ]; then
+            echo "::error::Could not resolve package_version" >&2
+            exit 1
+          fi
+          echo "PACKAGE_VERSION=$V" >> "$GITHUB_ENV"
+          echo "Sidecar smoke target version: $V"
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      # Round-robin poll, bounded at 30 rounds x 30s = 15 min in total,
+      # for the two sidecar ids (lowercase, flatcontainer convention).
+      - name: Wait for nuget.org indexing
+        shell: bash
+        run: |
+          set -euo pipefail
+          V="$PACKAGE_VERSION"
+          pending="weamp.pagespeed.sidecar weamp.pagespeed.sidecar.nativeassets.linux"
+          for i in $(seq 1 30); do
+            still=""
+            for pkg in $pending; do
+              if curl -fsS "https://api.nuget.org/v3-flatcontainer/${pkg}/index.json" \
+                   | jq -e --arg v "$V" '.versions | index($v)' > /dev/null 2>&1; then
+                echo "  found $pkg@$V (round $i)"
+              else
+                still="$still $pkg"
+              fi
+            done
+            pending="$still"
+            if [ -z "$pending" ]; then
+              echo "All sidecar packages indexed at $V"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::Timed out waiting for nuget.org indexing of:$pending ($V, 15 min)" >&2
+              exit 1
+            fi
+            echo "Round $i: still waiting for:$pending"
+            sleep 30
+          done
+
+      - name: Scaffold consumer project
+        shell: bash
+        run: |
+          set -euo pipefail
+          SMOKE_ROOT="$RUNNER_TEMP/sidecar-smoke-$PACKAGE_VERSION"
+          rm -rf "$SMOKE_ROOT"
+          mkdir -p "$SMOKE_ROOT/logs"
+          echo "SMOKE_ROOT=$SMOKE_ROOT" >> "$GITHUB_ENV"
+          cd "$SMOKE_ROOT"
+          # Fresh nuget.org metadata, and no locally cached We-Amp packages,
+          # so the restore installs the PUBLISHED artifacts (same reasons as
+          # the AspNetCore legs above).
+          dotnet nuget locals http-cache -c
+          rm -rf "${HOME}/.nuget/packages/weamp.pagespeed.sidecar" \
+                 "${HOME}/.nuget/packages/weamp.pagespeed.sidecar.nativeassets."* 2>/dev/null || true
+          dotnet new web -n SidecarSmoke -o app --no-https
+          cd app
+          dotnet add package WeAmp.PageSpeed.Sidecar --version "$PACKAGE_VERSION"
+          dotnet add package WeAmp.PageSpeed.Sidecar.NativeAssets.Linux --version "$PACKAGE_VERSION"
+          cat > Program.cs <<'EOF'
+          using WeAmp.PageSpeed.AspNetCore.DependencyInjection;
+
+          var builder = WebApplication.CreateBuilder(args);
+          builder.Services.AddPageSpeed(builder.Configuration);
+
+          var app = builder.Build();
+          app.UsePageSpeed();
+          app.MapHealthChecks("/health");
+
+          // Origin HTML with an external stylesheet that PageSpeed fetches,
+          // minifies and inlines (CoreFilters).
+          app.MapGet("/", () => Results.Content("""
+              <!DOCTYPE html>
+              <html>
+              <head>
+                  <title>sidecar release smoke</title>
+                  <link rel="stylesheet" href="/style.css">
+              </head>
+              <body><h1>sidecar release smoke</h1></body>
+              </html>
+              """, "text/html"));
+
+          app.MapGet("/style.css", (HttpContext ctx) =>
+          {
+              ctx.Response.Headers.CacheControl = "public, max-age=600";
+              return Results.Content(
+                  "body   {   color :   #333 ;   margin :   40px ;   }\n" +
+                  "h1     {   color :   #00aa77 ;   }\n",
+                  "text/css");
+          });
+
+          app.Run();
+          EOF
+
+      # A framework-dependent publish needs a Linux RID, otherwise the
+      # bundled nginx is not copied next to the app.
+      - name: Publish for the runtime identifier
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SMOKE_ROOT/app"
+          dotnet publish -c Release -r "${{ matrix.rid }}" --self-contained false -o "$SMOKE_ROOT/publish" -v minimal
+          # With a RID, the SDK copies the package's native assets to the root
+          # of the publish folder; the runtimes/<rid>/native layout is the
+          # fallback the sidecar also probes. Accept either, root first.
+          PUB="$SMOKE_ROOT/publish"
+          NATIVE=""
+          for d in "$PUB" "$PUB/runtimes/${{ matrix.rid }}/native"; do
+            if [ -f "$d/nginx" ] && [ -f "$d/ngx_pagespeed_module.so" ]; then
+              NATIVE="$d"
+              break
+            fi
+          done
+          if [ -z "$NATIVE" ]; then
+            echo "::error::published output lacks the bundled nginx pair (nginx, ngx_pagespeed_module.so)" >&2
+            find "$PUB" -maxdepth 4 | head -80
+            exit 1
+          fi
+          echo "nginx pair found in $NATIVE"
+          stat -c "%A %s %n" "$NATIVE/nginx" "$NATIVE/ngx_pagespeed_module.so"
+          if [ ! -x "$NATIVE/nginx" ]; then
+            echo "::error::$NATIVE/nginx is not executable" >&2
+            exit 1
+          fi
+
+      - name: Start the app with the bundled nginx
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SMOKE_ROOT/publish"
+          mkdir -p "$SMOKE_ROOT/cache" "$SMOKE_ROOT/nginx-conf" "$SMOKE_ROOT/logs/nginx"
+          ASPNETCORE_URLS="" \
+          PageSpeed__Sidecar__ListenPort="$SIDECAR_PORT" \
+          PageSpeed__Sidecar__ConfigDirectory="$SMOKE_ROOT/nginx-conf" \
+          PageSpeed__Cache__FileCachePath="$SMOKE_ROOT/cache" \
+          PageSpeed__Cache__LogDirectory="$SMOKE_ROOT/logs/nginx" \
+          nohup dotnet SidecarSmoke.dll \
+            > "$SMOKE_ROOT/logs/dotnet.out" 2> "$SMOKE_ROOT/logs/dotnet.err" &
+          echo $! > "$SMOKE_ROOT/dotnet.pid"
+          echo "Started dotnet pid=$(cat "$SMOKE_ROOT/dotnet.pid")"
+          # Bounded wait (60s) for the public port to answer.
+          for i in $(seq 1 60); do
+            if curl -fsS "http://127.0.0.1:${SIDECAR_PORT}/health" -o /dev/null 2>/dev/null; then
+              echo "App ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::App did not answer on port ${SIDECAR_PORT} within 60s" >&2
+          tail -100 "$SMOKE_ROOT/logs/dotnet.out" || true
+          tail -100 "$SMOKE_ROOT/logs/dotnet.err" || true
+          exit 1
+
+      # One HTML page through the sidecar: the response must carry the
+      # X-Page-Speed header (set by the bundled ngx_pagespeed on a processed
+      # response), and the external stylesheet must end up inlined. The first
+      # requests can pass through while the stylesheet is fetched, so the
+      # inlining check polls (bounded, 30 tries).
+      - name: Assert one optimized response
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="http://127.0.0.1:${SIDECAR_PORT}/"
+          HDR="$SMOKE_ROOT/response.headers"
+          BODY="$SMOKE_ROOT/response.html"
+          ok=0
+          for i in $(seq 1 30); do
+            curl -fsS -H 'Accept: text/html' -D "$HDR" -o "$BODY" "$URL" || true
+            if grep -qi '^x-page-speed:' "$HDR" 2>/dev/null \
+                 && grep -q '<style' "$BODY" 2>/dev/null \
+                 && ! grep -q 'href="/style.css"' "$BODY"; then
+              ok=1
+              echo "optimized response on try $i"
+              break
+            fi
+            sleep 2
+          done
+          cat "$HDR" || true
+          cat "$BODY" || true
+          if [ "$ok" -ne 1 ]; then
+            echo "::error::no optimized response (X-Page-Speed header plus inlined stylesheet) within 30 tries" >&2
+            tail -100 "$SMOKE_ROOT/logs/dotnet.err" || true
+            exit 1
+          fi
+          echo "Sidecar optimized response PASSED"
+
+      - name: Stop the app
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -f "${SMOKE_ROOT:-/nonexistent}/dotnet.pid" ]; then
+            PID=$(cat "$SMOKE_ROOT/dotnet.pid")
+            if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+              echo "Stopping dotnet pid=$PID"
+              kill "$PID" 2>/dev/null
+              sleep 3
+              kill -9 "$PID" 2>/dev/null
+            fi
+          fi
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-smoke-sidecar-${{ matrix.rid }}-${{ env.PACKAGE_VERSION }}
+          if-no-files-found: ignore
+          retention-days: 14
+          path: |
+            ${{ env.SMOKE_ROOT }}/logs/
+            ${{ env.SMOKE_ROOT }}/nginx-conf/
+            ${{ env.SMOKE_ROOT }}/response.headers
+            ${{ env.SMOKE_ROOT }}/response.html
+
+  smoke-sidecar-linux-arm64:
+    name: smoke / sidecar / ${{ matrix.rid }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - rid: linux-arm64
+    env: *sidecar-env
+    steps: *sidecar-steps

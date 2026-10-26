@@ -15,7 +15,10 @@ one of two lanes, each a reusable workflow pinned to `main`:
 `pipeline-release-smoke.yml` when a `v*` release is published: it installs
 the packages from nuget.org on linux-x64, linux-arm64, win-x64 and
 osx-arm64 (all hosted) and checks the console, the worker health and the
-console pages with Playwright. Releases of `optimizer-v*` tags do not
+console pages with Playwright. It also restores the two sidecar packages
+on linux-x64 and linux-arm64, publishes a minimal app with the Linux
+runtime identifier, starts the bundled nginx pair and requires one
+optimized HTML response. Releases of `optimizer-v*` tags do not
 trigger it.
 
 ## Runs
