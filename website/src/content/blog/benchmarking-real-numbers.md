@@ -2,7 +2,7 @@
 title: 'Benchmarking ModPageSpeed 2.0: real numbers on real sites'
 description: 'Measured ModPageSpeed 2.0 results on e-commerce, blog, news and portfolio sites: WebP/AVIF savings and LCP, FCP, CLS and Lighthouse gains, 3G to broadband.'
 date: 2026-02-05
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-25
 author: 'Otto van der Schaaf'
 tags: ['performance', 'benchmarks', 'image-optimization', 'core-web-vitals']
 draft: false
@@ -20,6 +20,8 @@ All benchmarks were conducted on standard cloud infrastructure to reflect real-w
 Each test site was loaded 10 times with ModPageSpeed 2.0 enabled and 10 times against the original origin, with the median of each metric reported. The cache was warmed before measurement by making an initial request, then waiting for the worker to process all variants. This reflects steady-state performance -- what real users experience after the first visitor triggers optimization. Cold-start (first-visit) numbers are reported separately where relevant.
 
 Measurements were captured using Lighthouse CI (the same performance category [PageSpeed Insights](/pagespeed-insights/) reports), WebPageTest (filmstrip + waterfall), and Chrome DevTools Protocol (network transfer sizes). Core Web Vitals -- Largest Contentful Paint (LCP), First Contentful Paint (FCP), Cumulative Layout Shift (CLS), and Total Blocking Time (TBT) -- are the primary metrics.
+
+The portfolio section is the exception: it was re-measured on 2026-10-25 for response bytes only, by requesting every image variant through nginx with the worker at its shipped defaults and comparing the response sizes with the originals. That section names its corpus and settings.
 
 ## E-commerce results
 
@@ -79,21 +81,21 @@ Cache hit rates stabilized at 94% within 30 minutes of operation, with the remai
 
 ## Portfolio results
 
-The photography portfolio site is image-dominated: 18 high-resolution photographs (average 1.2 MB each as JPEG), minimal CSS, and almost no JavaScript. Total original page weight: 22 MB.
+The photography portfolio page is image-dominated: 18 photographs, minimal CSS, and almost no JavaScript. The portfolio figures below come from a byte-level re-measurement on 2026-10-25: 18 landscape photographs from the picsum.photos library (Unsplash License) at 2400x1600 pixels, 6.9 MB as JPEG (383 KB per image on average), fetched through nginx with the worker at its shipped defaults and compared variant by variant with the originals.
 
 This is where the capability mask system pays off most. The 32-bit mask encodes image format (bits 0-1), [viewport class](/blog/viewport-aware-image-optimization/) (bits 2-3), pixel density (bit 4), Save-Data preference (bit 5), and transfer encoding (bits 6-7). The worker generates WebP, AVIF, and optimized-original variants proactively from a single decode pass when `proactive_image_variants` is enabled. It is off by default; these benchmarks were run with the flag turned on.
 
-AVIF proved particularly effective for photographic content. With `avif_quality` set to 25 (the default) and `avif_speed` at 6, AVIF output was 72% smaller than the original JPEG on average, with no perceptible quality loss at normal viewing distances. WebP at quality 75 achieved 48% reduction.
+AVIF proved the most effective format for photographic content, with WebP close behind. At the shipped defaults (`avif_speed` 6 and `avif_quality` 60 as the starting point, with the learned quality model and SSIMULACRA2 verification choosing the final quality per image), the AVIF variants were 55% smaller than the original JPEGs by total bytes, 60% on average per image. WebP came out 52% smaller by total (53% per image) and the re-encoded JPEG 36% smaller (42% per image). One AVIF and two WebP variants had not finished encoding inside the five-minute measurement window and are left out of those totals. For comparison, pinning AVIF quality at 25 with the learned model off, as an earlier version of this post did, takes the AVIF total down by 87% at a quality well below the shipped default; that setting is not what ships.
 
-**Results on broadband (median of 10 runs):**
+**Image bytes served (desktop, Save-Data off; the measured ratios applied to the full 6.9 MB):**
 
-| Metric                   | Without | With (AVIF client) | With (WebP client) |
-| ------------------------ | ------- | ------------------ | ------------------ |
-| Total page weight        | 22 MB   | 6.4 MB             | 11.6 MB            |
-| Largest Contentful Paint | 3.8s    | 1.4s               | 2.1s               |
-| Lighthouse Performance   | 35      | 88                 | 74                 |
+| Metric            | Without | With (AVIF client) | With (WebP client) |
+| ----------------- | ------- | ------------------ | ------------------ |
+| Total image bytes | 6.9 MB  | about 3.1 MB       | about 3.3 MB       |
 
-For clients sending the `Save-Data: on` header, the worker can be configured to apply more aggressive compression. The capability mask encodes this preference at bit 5, allowing the cache to serve a more compressed variant without any origin-side changes.
+The portfolio page was re-measured for bytes only, so it carries no Largest Contentful Paint or Lighthouse row. On this corpus AVIF was the smaller format for 10 of the 15 photographs that had both an AVIF and a WebP variant, and WebP for the other 5: at an equal perceptual quality target the two formats are closer than their reputations suggest.
+
+For clients sending the `Save-Data: on` header, the worker can be configured to apply more aggressive compression. The capability mask encodes this preference at bit 5, allowing the cache to serve a more compressed variant without any origin-side changes. On this corpus the Save-Data AVIF variants were a further 45% smaller than the normal AVIF variants, WebP a further 33% and JPEG a further 24%.
 
 ## Comparison with CDN-based solutions
 

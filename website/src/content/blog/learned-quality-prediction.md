@@ -2,7 +2,7 @@
 title: 'Learned image quality: a model predicts encoding parameters'
 description: 'One perception-based quality knob: a trained model predicts JPEG, WebP and AVIF encoding parameters per image in microseconds. No per-codec tuning.'
 date: 2026-06-06
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-25
 author: 'Otto van der Schaaf'
 tags: ['images', 'architecture', 'deep-dive']
 draft: false
@@ -11,7 +11,7 @@ product: '2.0'
 
 ## You shouldn't have to be a codec engineer
 
-Most image pipelines hand you a panel of quality dials. JPEG quality runs 1 to 100. WebP quality also runs 1 to 100, but the same number doesn't mean what it means for JPEG. [AVIF](/blog/avif-vs-webp-2026/) runs 1 to 63 and is inverted, so lower is better. Then there's a second copy of all three for Save-Data visitors. Six numbers across three codecs, each on its own scale.
+Most image pipelines hand you a panel of quality dials. JPEG quality runs 1 to 100. WebP quality also runs 1 to 100, but the same number doesn't mean what it means for JPEG. [AVIF](/blog/avif-vs-webp-2026/) runs 0 to 100 like the others, and its default is 60. Then there's a second copy of all three for Save-Data visitors. Six numbers across three codecs, none of them interchangeable.
 
 Setting them well means knowing how each encoder behaves. Most people don't, so they copy a number off a blog post (usually 82) and apply it everywhere.
 
@@ -21,7 +21,7 @@ The mod_pagespeed optimizer worker removes that panel of dials. There is nothing
 
 ## Out of the box: nothing to configure
 
-Install it and image optimization runs. You don't set a JPEG quality, a WebP quality, or anything on the inverted AVIF scale, and you don't repeat any of it for Save-Data. There are no encoding parameters to get right, because the worker chooses them per image instead of asking you to.
+Install it and image optimization runs. You don't set a JPEG quality, a WebP quality, or anything on the AVIF scale, and you don't repeat any of it for Save-Data. There are no encoding parameters to get right, because the worker chooses them per image instead of asking you to.
 
 The defaults aren't a starting point you're meant to tune away from. For image encoding, no configuration is the configuration.
 
