@@ -81,6 +81,14 @@ cc_library(
     deps = ["//lib/base:string_util"],
 )
 
+# Lowercase key and hash for request headers the module adds - pure C++.
+cc_library(
+    name = "header_key_util",
+    srcs = ["header_key_util.cc"],
+    hdrs = ["header_key_util.h"],
+    visibility = ["//visibility:public"],
+)
+
 # Weak-ETag construction for cache-HIT responses - pure C++, testable
 # without nginx headers.
 cc_library(
@@ -167,6 +175,7 @@ cc_library(
         ":early_hints",
         ":early_hints_util",
         ":etag_util",
+        ":header_key_util",
         ":headers_sidecar_record",
         ":headers_sidecar_replay",
         ":mime_util",

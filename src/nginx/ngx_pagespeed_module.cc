@@ -62,6 +62,7 @@ extern "C" {
 #include "src/nginx/early_hints.h"
 #include "src/nginx/early_hints_util.h"
 #include "src/nginx/etag_util.h"
+#include "src/nginx/header_key_util.h"
 #include "src/nginx/headers_sidecar_record.h"
 #include "src/nginx/headers_sidecar_replay.h"
 #include "src/nginx/mime_util.h"
@@ -3330,6 +3331,31 @@ static void restore_client_conditional_headers(ngx_http_request_t* r,
   r->headers_in.if_modified_since = ctx->saved_client_if_modified_since;
 }
 
+// Push a request header added at runtime, filled in as nginx stores parsed
+// headers: the key, a lowercase copy of it and the hash of that copy.  Both
+// allocations happen before the push, so nothing is pushed on failure.
+// Returns the entry, or nullptr.
+static ngx_table_elt_t* push_request_header(ngx_http_request_t* r,
+                                            const char* name, size_t len,
+                                            const u_char* value,
+                                            size_t value_len) {
+  u_char* lc = static_cast<u_char*>(ngx_pnalloc(r->pool, len));
+  u_char* val = static_cast<u_char*>(ngx_pnalloc(r->pool, value_len));
+  if (!lc || !val) return nullptr;
+  ngx_table_elt_t* h =
+      static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_in.headers));
+  if (!h) return nullptr;
+  ngx_memcpy(val, value, value_len);
+  h->next = nullptr;
+  h->key.data = reinterpret_cast<u_char*>(const_cast<char*>(name));
+  h->key.len = len;
+  h->lowcase_key = lc;
+  h->value.data = val;
+  h->value.len = value_len;
+  h->hash = pagespeed::LowercaseHeaderKey(std::string_view(name, len), lc);
+  return h;
+}
+
 // Inject If-None-Match / If-Modified-Since for conditional revalidation.
 // Saves client's original conditional headers for later restoration.
 static void inject_conditional_headers(ngx_http_request_t* r,
@@ -3343,50 +3369,24 @@ static void inject_conditional_headers(ngx_http_request_t* r,
 
   // Inject If-None-Match with stored origin ETag.
   if (!meta.origin_etag.empty()) {
-    ngx_table_elt_t* h =
-        static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_in.headers));
-    if (h) {
-      h->hash = 0;  // Inactive until fully populated.
-      h->next = nullptr;
-      h->value.data = nullptr;
-      h->value.len = 0;
-      ngx_str_set(&h->key, "If-None-Match");
-      u_char* val =
-          static_cast<u_char*>(ngx_pnalloc(r->pool, meta.origin_etag.size()));
-      if (val) {
-        ngx_memcpy(val, meta.origin_etag.data(), meta.origin_etag.size());
-        h->value.data = val;
-        h->value.len = meta.origin_etag.size();
-        h->hash = 1;  // Now active with valid value.
-        r->headers_in.if_none_match = h;
-      }
-    }
+    ngx_table_elt_t* h = push_request_header(
+        r, "If-None-Match", sizeof("If-None-Match") - 1,
+        reinterpret_cast<const u_char*>(meta.origin_etag.data()),
+        meta.origin_etag.size());
+    if (h) r->headers_in.if_none_match = h;
   }
 
   // Inject If-Modified-Since (sent alongside If-None-Match as a
   // compatibility measure for origins that only implement IMS).
   if (meta.origin_last_modified > 0) {
-    ngx_table_elt_t* h =
-        static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_in.headers));
-    if (h) {
-      h->hash = 0;  // Inactive until fully populated.
-      h->next = nullptr;
-      h->value.data = nullptr;
-      h->value.len = 0;
-      ngx_str_set(&h->key, "If-Modified-Since");
-      // Format as HTTP-date using nginx's time formatting.
-      static constexpr size_t kHttpDateLen =
-          sizeof("Mon, 28 Sep 1970 06:00:00 GMT");
-      u_char* buf = static_cast<u_char*>(ngx_pnalloc(r->pool, kHttpDateLen));
-      if (buf) {
-        u_char* end =
-            ngx_http_time(buf, static_cast<time_t>(meta.origin_last_modified));
-        h->value.data = buf;
-        h->value.len = static_cast<size_t>(end - buf);
-        h->hash = 1;  // Now active with valid value.
-        r->headers_in.if_modified_since = h;
-      }
-    }
+    // Format as HTTP-date using nginx's time formatting.
+    u_char date[sizeof("Mon, 28 Sep 1970 06:00:00 GMT")];
+    u_char* end =
+        ngx_http_time(date, static_cast<time_t>(meta.origin_last_modified));
+    ngx_table_elt_t* h = push_request_header(
+        r, "If-Modified-Since", sizeof("If-Modified-Since") - 1, date,
+        static_cast<size_t>(end - date));
+    if (h) r->headers_in.if_modified_since = h;
   }
 }
 

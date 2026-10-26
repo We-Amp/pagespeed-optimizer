@@ -22,6 +22,10 @@ holds, nothing is deleted: the reason is logged and the worker starts in
 degraded mode. For a held volume, restart the web server so the cache can be
 reset.
 
+Fixed: request headers the nginx module adds for conditional revalidation now
+carry a lowercase key and hash like every other request header, so later
+request processing handles them correctly.
+
 Fixed: with the nginx module and proactive image variants turned on
 (`PAGESPEED_PROACTIVE_IMAGE_VARIANTS=true` in the container, or the worker flag
 `--proactive-image-variants`), browsers could be served the original upload,
