@@ -3,11 +3,11 @@
 
 #include "src/nginx/header_key_util.h"
 
+#include <gtest/gtest.h>
+
 #include <cstdint>
 #include <string>
 #include <string_view>
-
-#include <gtest/gtest.h>
 
 namespace pagespeed {
 namespace {
@@ -26,8 +26,8 @@ TEST(HeaderKeyUtilTest, InjectedHeaderHasLowercaseKeyAndHash) {
       if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
     }
     std::string out(name.size(), '\0');
-    std::uintptr_t hash = LowercaseHeaderKey(
-        name, reinterpret_cast<unsigned char*>(out.data()));
+    std::uintptr_t hash =
+        LowercaseHeaderKey(name, reinterpret_cast<unsigned char*>(out.data()));
     EXPECT_EQ(out, lower);
     EXPECT_EQ(hash, ReferenceHash(lower));
   }
