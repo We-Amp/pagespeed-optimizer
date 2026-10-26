@@ -1417,10 +1417,11 @@ TEST_F(WorkerTest, HtmlNoChangesClearsTentativeCooldown) {
 }
 
 TEST_F(WorkerTest, UnsupportedImageTypeExistingCompressedMarksDedup) {
-  // Simulates a worker restart scenario: compressed variants for an unsupported
-  // image type (ICO) already exist in cache from a previous worker run, but the
-  // in-memory dedup set is empty.  The first notification hits the "compressed
-  // variants already exist" early-return path.  Without MarkVariantProcessed,
+  // Simulates a worker restart scenario: both compressed variants (gzip and
+  // brotli, the default configuration) for an unsupported image type (ICO)
+  // already exist in cache from a previous worker run, but the in-memory dedup
+  // set is empty.  The first notification hits the "compressed variants already
+  // exist" early-return path.  Without MarkVariantProcessed,
   // every subsequent notification would repeat the cache lookup instead of being
   // caught by the fast in-memory dedup.
   WorkerConfig config;
@@ -1440,28 +1441,29 @@ TEST_F(WorkerTest, UnsupportedImageTypeExistingCompressedMarksDedup) {
   meta.origin_content_type = "image/x-icon";
   CacheOriginalWithMeta(worker.cache(), url, ico_data, meta);
 
-  // Pre-write a gzip variant to simulate a previous worker run having already
-  // processed this URL.  This causes the "compressed variants already exist"
-  // early-return path to be taken on the first notification.
-  {
-    CapabilityMask gz_mask;
-    gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
-    AlternateId gz_id =
-        MaskToAlternateId(static_cast<uint8_t>(gz_mask.Encode() & 0xFF));
-    AlternateMetadata gz_meta;
-    gz_meta.content_type = ContentType::kImage;
-    gz_meta.flags = AlternateMetadata::kFlagWorkerProcessed;
-    gz_meta.full_mask = gz_mask.Encode();
-    std::string gz_content = "fake gzip compressed ico data";
+  // Pre-write both coded variants to simulate a previous worker run having
+  // already processed this URL.  This causes the "compressed variants already
+  // exist" early-return path to be taken on the first notification.
+  for (auto encoding : {CapabilityMask::TransferEncoding::kGzip,
+                        CapabilityMask::TransferEncoding::kBrotli}) {
+    CapabilityMask mask;
+    mask.set_transfer_encoding(encoding);
+    AlternateId id =
+        MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+    AlternateMetadata variant_meta;
+    variant_meta.content_type = ContentType::kImage;
+    variant_meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+    variant_meta.full_mask = mask.Encode();
+    std::string content = "fake compressed ico data";
     std::string norm_url = StripSchemeAuthority(url);
-    auto wh = worker.cache()->WriteAlternate(norm_url, "", "https", gz_id,
-                                             gz_content.size(), gz_meta);
-    ASSERT_TRUE(wh.has_value()) << "Failed to write gzip variant";
+    auto wh = worker.cache()->WriteAlternate(norm_url, "", "https", id,
+                                             content.size(), variant_meta);
+    ASSERT_TRUE(wh.has_value()) << "Failed to write compressed variant";
     auto written = wh->write_sync(
-        std::as_bytes(std::span(gz_content.data(), gz_content.size())));
-    ASSERT_TRUE(written.has_value()) << "Failed to write gzip content";
+        std::as_bytes(std::span(content.data(), content.size())));
+    ASSERT_TRUE(written.has_value()) << "Failed to write compressed content";
     auto closed = wh->close_sync();
-    ASSERT_TRUE(closed.has_value()) << "Failed to close gzip write handle";
+    ASSERT_TRUE(closed.has_value()) << "Failed to close compressed handle";
   }
 
   std::thread worker_thread([&worker]() { worker.Run(); });
