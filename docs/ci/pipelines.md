@@ -41,13 +41,49 @@ Rules that follow from the shape:
 | Tier | Workflow | Runs on | Holds |
 |---|---|---|---|
 | PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint (clang-format only on a push to `main`; clang-tidy scoped or skipped by the changed files on a pull request, whole tree on a dispatch), the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, and the path-filtered CSS and JS fuzz smokes. Later changes add the Linux arm64 build and tests |
-| Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests; the whole-tree lint (`lint-full`, for `ci:full` pull requests and dispatches with `full: true` only, not on a push) |
-| Nightly | `pipeline-nightly.yml` | `nightly.yml`: daily at 21:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the whole-tree lint (`lint-full`, the post-merge clang-tidy net for `main`); the nightly image leg of the dependency scan |
+| Full | `pipeline-full.yml`, called by `ci.yml` and `nightly.yml` (job `full` in both) | push to `main` (unless `FULL_TIER_TRIGGER` is `nightly`), `workflow_dispatch` with `full: true`, a pull request labelled `ci:full`, the scheduled nightly, or a nightly `workflow_dispatch` with `full_tier: true` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests; the whole-tree lint (`lint-full`, for `ci:full` pull requests, dispatches with `full: true` and the nightly, not on a push). See "When the full tier runs" |
+| Nightly | `pipeline-nightly.yml`, called by `nightly.yml` (which also calls the full tier as `full`) | `nightly.yml`: daily at 21:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the nightly image leg of the dependency scan |
 | Sweep | `pipeline-sweep.yml` | `sweep-queued.yml`: hourly and on dispatch | cancels runs that wait for a runner nobody serves (see "The queued-run sweep") |
 
 The `ci:full` label is read when a pull request run starts (open, push,
 reopen). After adding the label, push or re-run the workflow to get the
 full tier.
+
+### When the full tier runs
+
+Two callers name it `full`, so its checks read `full / <job name>` in both:
+
+- `ci.yml`: a `workflow_dispatch` with `full: true` (every release
+  candidate), a pull request labelled `ci:full`, and a push to `main`.
+- `nightly.yml`: every scheduled nightly, and a nightly `workflow_dispatch`
+  with `full_tier: true` (boolean, default `false`) on `main`. That dispatch
+  is the make-up path for a missed or late night; a dispatch on any other
+  ref never reaches it. It shares the `nightly` concurrency group, so it never
+  starts while another nightly is pending or running. A release-candidate
+  nightly dispatch leaves `full_tier` off, because the candidate's `CI`
+  dispatch with `full: true` covers the full tier. The call grants
+  `actions: read` and `contents: read`, the same as the push tier's call.
+
+The repository variable `FULL_TIER_TRIGGER` decides the push: unset, or any
+value other than `nightly`, runs the full tier on every push to `main`.
+With `nightly`, a push runs it only when the pushed range changes the full
+tier's own definition: `.github/workflows/pipeline-full.yml`, `nightly.yml`,
+`pipeline-nightly.yml`, `ci.yml` (it holds this trigger, so a change to it
+proves itself at once), anything under `.github/actions/`, every
+`tools/ci/` file `pipeline-full.yml` names (as `tools/ci/<file>` or
+`tools\ci\<file>`), and the `tools/ci/` files those files name in turn
+(one level). The hosted `Full tier scope` job (`full-scope` in `ci.yml`)
+decides it with `tools/ci/full_tier_scope.sh`, read from `main`, never
+from the tree under test, and publishes `full_tier_change`. The range is
+not the last commit: it starts at the head of the last push run of `CI` on
+`main` in which `Full tier scope` succeeded (`tools/ci/push_range_base.sh
+--require-job`, which reads the Actions runs and jobs API with
+`actions: read`), because GitHub replaces pending push runs in a merge burst
+and a full-tier change in a replaced run must still be seen. The full tier
+is skipped on a push only when `full-scope` succeeded and printed `false`;
+a failed or undecided scope job, no usable base or an API failure runs it.
+`CI gate` accepts `full-scope` and `full` as skipped. Neither `Full tier
+scope` nor any `full / ` job is a required check.
 
 ## Runner routing
 
@@ -303,7 +339,7 @@ workflow). Every one of those pipelines therefore opens with a hosted job
 `refs/heads/gh-readonly-queue/` or outside the pipeline's allowed refs; a
 `workflow_dispatch` made by `github-actions[bot]` (a dispatch with a workflow
 token); and a pull request from a fork or from another repository. The allowed
-events and refs are `pipeline-full.yml` (events `push`, `workflow_dispatch`, `pull_request`; refs `refs/heads/main`, `refs/heads/ci-dev`, `refs/pull/*/merge`: the caller runs it for a push to `main`, a dispatch with `full: true` and the `ci:full` label), `pipeline-nightly.yml` (`schedule`, `workflow_dispatch`; `refs/heads/main`), and `pipeline-release-optimizer.yml` and `pipeline-release-nuget.yml` (`push`, `workflow_dispatch`; `refs/tags/*` and `refs/heads/main` for dry runs). Every fleet job reaches `event-guard` through `needs`,
+events and refs are `pipeline-full.yml` (events `push`, `workflow_dispatch`, `pull_request`, `schedule`; refs `refs/heads/main`, `refs/heads/ci-dev`, `refs/pull/*/merge`: `ci.yml` runs it for a push to `main`, a dispatch with `full: true` and the `ci:full` label, and `nightly.yml` for the scheduled nightly and a `full_tier` dispatch), `pipeline-nightly.yml` (`schedule`, `workflow_dispatch`; `refs/heads/main`), and `pipeline-release-optimizer.yml` and `pipeline-release-nuget.yml` (`push`, `workflow_dispatch`; `refs/tags/*` and `refs/heads/main` for dry runs). Every fleet job reaches `event-guard` through `needs`,
 so a refusal skips the whole fleet. The workflow-shape gate (`event-guard`)
 pins the job text, the per-pipeline lists and the edges, scans every workflow file that has a fleet `runs-on` (not a fixed list), and rejects a job between the guard and a fleet job that can still run after the guard failed. Job keys (`if`, `needs`, `runs-on`, `continue-on-error`, `uses`) are matched quoted or with whitespace before the colon. Each job's `if:` is normalised first (folded, literal and plain multi-line forms joined, where a plain value continues on every line indented more than its key and a `#`-led line inside a block scalar is content; lowercased, whitespace collapsed, the space between a function name and its `(` removed). Then, for every job on a `needs` path between `event-guard` and a fleet job (and the fleet jobs themselves, unless the routing-guard rule pins their `if:`), an `if:` that contains `always(`, `failure(`, `cancelled(`, `success(` (unless the whole `if:` is a bare `success()`), `||`, `!` (a negation anywhere, so `!=` and `!= true` too) or `== false` must be exactly `needs.event-guard.result == 'success' && (<inner>)`, optionally inside `${{ }}`, where the parentheses around `<inner>` are one balanced group (parentheses inside string literals do not count) and `<inner>` does not mention `event-guard`; the job must also need `event-guard`, and a block scalar holding the condition must strip its final newline (`|-` or `>-`), since a kept newline is text around `${{ }}`. Otherwise the gate rejects the job by name. Because `!` covers `!=`, an `if:` such as `${{ needs.event-guard.result != 'failure' }}` or `${{ vars.FLEET_ENABLED != 'true' }}` on such a job is rejected as well, although it would be safe; write it as `${{ needs.event-guard.result == 'success' && (vars.FLEET_ENABLED != 'true') }}`. Any other `if:` is accepted as today (GitHub adds `success()` implicitly unless the expression names a status function). The gate also refuses, in every workflow's `jobs:` section, a YAML anchor or alias on a job or on a job-level key other than `steps:` and `env:`, and any `<<:` merge key, because it reads the text and cannot resolve them (anchored step lists and env maps stay allowed).
 
@@ -376,11 +412,12 @@ full tier run as before.
   files on a pull request or in the merge queue, with the dependents of a
   changed header included, and the whole tree on a `workflow_dispatch`) and on a push runs
   clang-format only. The full tier's `lint-full` runs for a `ci:full` pull
-  request and for a dispatch with `full: true`, and is skipped on a push. The
-  whole-tree lint for `main` lives in the nightly, as `nightly / Lint (whole
-  tree)` (`lint-full` in `pipeline-nightly.yml`, a deliberate twin of the full
-  tier's job: changes to one must be mirrored in the other). TSan,
-  ASan, the privilege rigs and the arm64 legs stay on every push.
+  request, for a dispatch with `full: true` and in the nightly, and is
+  skipped on a push. The whole-tree lint for `main` is that job in the
+  scheduled nightly's call of the full tier, `full / Lint (whole tree)`
+  (see "When the full tier runs"); the nightly tier has no twin of it. TSan,
+  ASan, the privilege rigs and the arm64 legs run with the full tier (see
+  "When the full tier runs" for `FULL_TIER_TRIGGER`).
   The hosted checks of the PR tier (Apache
   RAT, license headers and SBOM drift, the blocking and the report-only
   dependency scans and the others) are not fleet legs and still run on every
@@ -473,8 +510,10 @@ job and fails the build when the shape breaks:
   publishes `fleet` and `heavy` from that step, and no other line names the
   script (see "CI_SCOPE: the fleet scope of the PR tier");
 - **(event-guard)** a reusable workflow with a fleet job holds the hosted
-  `event-guard` job in its spec form, and every fleet job reaches it through
-  `needs` (see "Merge-queue runs");
+  `event-guard` job in its spec form, with the per-pipeline `ALLOWED` and
+  `ALLOWED_REFS` lists (for `pipeline-full.yml`: `push workflow_dispatch
+  pull_request schedule`, and no other event), and every fleet job reaches it
+  through `needs` (see "Merge-queue runs");
 - **(yaml-alias)** no YAML anchor, alias or `<<:` merge key on a job or a job-level
   key other than `steps:` and `env:`.
 
