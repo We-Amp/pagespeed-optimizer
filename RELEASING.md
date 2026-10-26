@@ -4,7 +4,11 @@ Releases of the pagespeed-optimizer host packages are cut with the `Release`
 workflow (`release.yml`). The lane builds the optimization daemon and the
 `libpagespeed.so` client library natively on amd64 and arm64, packages them
 as deb and rpm, validates the result fail-closed, and publishes a GitHub
-release. It runs on GitHub-hosted runners only.
+release. The amd64 package and the Windows zip build on the
+project's own runner classes (`fleet-heavy`, `fleet-windows`) when the
+`FLEET_ENABLED` repository variable is `true`, and otherwise on a GitHub-hosted
+twin job with identical steps; arm64 always builds on a GitHub-hosted arm64
+runner, and every job that writes to GitHub runs hosted.
 
 ## Every user-facing change carries its note (enforced)
 
@@ -41,17 +45,16 @@ goes red to say so.
 
 ## Version numbering: VERSION.txt vs the shipped daemon
 
-`VERSION.txt` carries the converged product-line version (2.1.0 at GA) — the
-identity the website, release notes, and the NuGet middleware line share. The
-optimizer's own release lane is versioned independently: tags are
-`optimizer-v<X.Y.Z>` in the 1.16 packaging stream (e.g. `optimizer-v1.16.0`),
-matching the exact-version package pair the module depends on. The shipped
-daemon reports `VERSION.txt` (the product-line version) and the source commit,
-in `--version` and in `/v1/health`. The package version appears only in the
-package metadata and the release tag: the `optimizer-v1.17.0` packages report
-2.2.0. The two numbers move together at a release but are not the same number: bump `VERSION.txt`
-with the product line, cut `optimizer-v*` tags with the package stream. (The
-1.x module line likewise stays on its own `v1.15.x+rN` scheme.)
+`VERSION.txt` carries the product version, and from 2.5.0 the optimizer
+release tag carries the same number: `optimizer-v<X.Y.Z>` must equal
+`VERSION.txt` at the tagged commit (`tools/ci/check_optimizer_tag_version.sh`,
+run by the lane). The shipped daemon reports `VERSION.txt` and the source
+commit in `--version` and in `/v1/health`, so `optimizer-v2.5.2` reports
+2.5.2. The host packages `optimizer-v1.16.0` to `optimizer-v1.19.0` were
+numbered on the module's 1.x line (built from `VERSION.txt` 2.1.0 to 2.4.0);
+those tags still verify, with a notice. The cut order is: bump `VERSION.txt` on
+`main`, tag `optimizer-v<X>` on that commit, record the pin in the module
+repository, then tag `module-v<X>` there; `docs/ci/release.md` has the details.
 
 ## Cutting a release
 
@@ -59,8 +62,8 @@ A release is a tag push. The tag names the version and the lane builds from
 exactly that commit:
 
 ```
-optimizer-v<X.Y.Z>          e.g. optimizer-v1.16.0
-optimizer-v<X.Y.Z>-<pre>    e.g. optimizer-v1.16.0-rc.1 (a prerelease)
+optimizer-v<X.Y.Z>          e.g. optimizer-v2.5.2
+optimizer-v<X.Y.Z>-<pre>    e.g. optimizer-v2.5.3-rc.1 (a prerelease)
 ```
 
 The lane never creates the tag. Pushing `optimizer-v<version>` to the
@@ -80,13 +83,21 @@ Two ways to start a run:
     ref). This is the rehearsal — run it before every real release.
   - `dry_run: false` is a real run and requires the tag on the remote.
 
+Before assembling anything, the lane requires a green `ci.yml` run of the
+release commit (`docs/ci/release.md`, "The CI gate"). A push run of `ci.yml`
+on the release commit does not satisfy it, because a push to `main` skips
+`full / Lint (whole tree)`: dispatch `ci.yml` on `main` with `full=true` while
+the release commit is the head of `main`. The gate accepts only runs on `main`.
+
 Runs are serialized per tag and never cancelled in progress: two real
 releases for the same tag cannot race, and a release build always runs out.
 
-### The six-asset contract
+### The asset contract
 
-A real run publishes a GitHub release with exactly six assets — no more,
-no fewer:
+A real run publishes a GitHub release with exactly seven assets: the six
+below, which the manifest job validates as a set, and `SHA256SUMS.asc`, the
+detached signature over `SHA256SUMS` made with the release signing key by the
+`sign-checksums` job:
 
 | Asset | Contents |
 |---|---|
@@ -96,11 +107,12 @@ no fewer:
 | `pagespeed-optimizer_<version>_arm64.deb` | the same, arm64 |
 | `pagespeed-optimizer-<version>-win-x64.zip` | worker + client library for Windows x64 (`factory_worker.exe`, `pagespeed.dll`, `LICENSE`, `NOTICE`) |
 | `SHA256SUMS` | checksums for the other five assets |
+| `SHA256SUMS.asc` | signature over `SHA256SUMS` (release signing key, `RELEASE-SIGNING-KEY.asc`) |
 
 The serving-module packages download these assets by name and verify them
 against SHA256SUMS, so the set and the names are a contract. Asset names
-carry the upstream SemVer spelling (`1.16.0-rc.1`); the package-internal
-version keeps the dpkg/rpm tilde pre-release form (`1.16.0~rc.1`). Both are
+carry the upstream SemVer spelling (`2.5.3-rc.1`); the package-internal
+version keeps the dpkg/rpm tilde pre-release form (`2.5.3~rc.1`). Both are
 derived from the tag, never hand-typed. A `-<pre>` tag produces a release
 marked as a prerelease.
 
@@ -108,7 +120,8 @@ Validation is fail-closed at two points. The manifest job checks that the
 set is exactly the six assets, all present and non-empty, that
 `sha256sum -c` passes, and that the package-internal versions are the
 derived tilde form. The release job re-verifies SHA256SUMS across the job
-boundary before publishing anything.
+boundary before publishing anything. The release job also refuses to publish
+without a non-empty `SHA256SUMS.asc`.
 
 ### The glibc floor gate
 
@@ -133,9 +146,13 @@ the site's source of truth: a website change is an ordinary pull request here,
 and `website/CLAUDE.md` is the guide to the tree. The `Website` workflow gates
 every push or pull request touching `website/**`: the content guards (no
 version-pinned URLs in non-frozen content; the release manifest does not lag the
-latest stable release tag), `npm ci`, the vitest unit suite, a production build
+latest stable release tag), `npm ci`, `npm run format:check`, the vitest unit suite, a production build
 (with `PRICING_ALLOW_STALE=1` — a hosted build holds no pricing API credentials,
-so it builds on the committed pricing file), and the Playwright browser suite.
+so it builds on the committed pricing file), the build-output vitest suite, the
+built-output content lint (`npm run check:content`: titles, descriptions,
+headings and product naming on every built page), a check that the generated
+reference data matches the pinned module source, the Playwright browser suite,
+and Lighthouse budgets.
 Deploying the site is the operator's step, from this tree; nothing in CI deploys.
 
 ## Publishing the Helm chart

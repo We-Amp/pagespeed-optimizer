@@ -15,7 +15,7 @@ put its own workflow code on a fleet runner: whatever it changes in
 
 | Kind | Triggers | Holds | Example |
 |---|---|---|---|
-| Caller | `pull_request`, `push`, `schedule`, `workflow_dispatch` | triggers, `concurrency`, `permissions`, jobs that only `uses:` a reusable workflow `@main` or `@ci-dev`, and at most an aggregate gate job on a hosted label | `nightly.yml`, `sweep-queued.yml`, `ci-dev.yml`, `ci.caller.yml.example` |
+| Caller | `pull_request`, `push`, `schedule`, `workflow_dispatch` | triggers, `concurrency`, `permissions`, jobs that only `uses:` a reusable workflow `@main` or `@ci-dev`, and at most an aggregate gate job on a hosted label | `ci.yml`, `nightly.yml`, `sweep-queued.yml`, `ci-dev.yml` |
 | Reusable | `workflow_call` only | every job, with its `runs-on` | `pipeline-pr.yml`, `pipeline-full.yml`, `pipeline-nightly.yml`, `pipeline-sweep.yml` |
 
 Rules that follow from the shape:
@@ -389,10 +389,9 @@ full tier run as before.
 
 ## Required checks
 
-Until the caller switch, `ci.yml` keeps its four hosted jobs and their check
-names. After the switch (`ci.caller.yml.example` renamed over `ci.yml`), a
-check from a called workflow is named `<caller job> / <job name>`, so the
-required checks become `pr / Build daemon & unit-test slice (ubuntu)`,
+`ci.yml` is a thin caller, so a check from a called workflow is named
+`<caller job> / <job name>`, and the required checks are
+`pr / Build daemon & unit-test slice (ubuntu)`,
 `pr / License audit (Apache RAT)`, `pr / License Headers + SBOM Drift`,
 `pr / Public-tree hygiene gate`, `pr / Blocking Dep Scan (npm + cargo)`,
 `pr / ABI Compatibility (lib/pagespeed C API)`, `pr / JS/TS Unit Tests`,
@@ -445,12 +444,14 @@ job and fails the build when the shape breaks:
 - **(c)** no local reusable-workflow reference (`uses: ./.github/workflows/...`);
 - **(d)** in a reusable workflow every `runs-on` is a hosted label
   (`ubuntu-latest`, `ubuntu-24.04`, `ubuntu-24.04-arm`, `windows-2022`,
-  `macos-15`, `macos-latest`) or exactly the routing expression with a fleet
-  class, and a job routed by the expression carries the fleet guard verbatim
-  (or narrowed by a `changes` path filter, see above);
-
-  class, and a job routed by the expression carries one of the three fleet
-  guards verbatim;
+  `macos-15`, `macos-latest`), exactly the plain routing expression with a
+  fleet class, or the switch routing expression; a job routed by the plain
+  expression carries one of the three fleet guards verbatim (the general form
+  optionally narrowed by a `changes` path filter, see above), and a job routed
+  by the switch expression carries none;
+- **(e)** `.github/` and `tools/ci/` carry no LAN address literals, no
+  `.home` names, no `:9090`, no `self-hosted` and none of the retired runner
+  label words;
 - **(f)** in a reusable workflow a `write` permission (workflow or job level)
   is allowed only on a job with a hosted `runs-on`;
 - **(queue-guard-reads-default-branch)** in `pipeline-pr.yml`: the `changes`
@@ -471,9 +472,11 @@ job and fails the build when the shape breaks:
   `tools/ci/pr_tier_scope.sh` from `origin/${DEFAULT_BRANCH}`. The job
   publishes `fleet` and `heavy` from that step, and no other line names the
   script (see "CI_SCOPE: the fleet scope of the PR tier");
-- **(e)** `.github/` and `tools/ci/` carry no LAN address literals, no
-  `.home` names, no `:9090`, no `self-hosted` and none of the retired runner
-  label words.
+- **(event-guard)** a reusable workflow with a fleet job holds the hosted
+  `event-guard` job in its spec form, and every fleet job reaches it through
+  `needs` (see "Merge-queue runs");
+- **(yaml-alias)** no YAML anchor, alias or `<<:` merge key on a job or a job-level
+  key other than `steps:` and `env:`.
 
 The gate is line-oriented: `runs-on` and the guard must each fit on one
 line. Fixtures live in `tools/ci/testdata/workflow-shape/`; run
