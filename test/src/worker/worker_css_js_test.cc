@@ -16,10 +16,14 @@
 #include "test/src/worker/worker_test_fixture.h"
 // clang-format on
 
+#include <array>
+#include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
@@ -217,6 +221,218 @@ TEST_F(WorkerTest, JsNotificationMinifiesAndWritesVariant) {
   // Should still contain key identifiers
   EXPECT_NE(variant.find("hello"), std::string::npos);
   EXPECT_NE(variant.find("greeting"), std::string::npos);
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+TEST_F(WorkerTest, RawInputVariantsCarrySourceBinding) {
+  // Issue #434, property half: every variant the worker writes from a RAW
+  // origin input (an entry whose flags lack kFlagWorkerProcessed, i.e. a
+  // front end's own recording) carries the SHA-256 of that input in its
+  // metadata, so the front ends' derived ETag has a tier-1 identity that
+  // changes with the source content instead of only with the optimized
+  // byte length.  Covers the text paths (CSS, JS), the HTML path with
+  // agent_optimize off and on, the raster image path and the native-SVG
+  // branch.  Flattened sheets are excepted by design: their input embeds
+  // other files, so they record no binding (see the CSS caller).
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string css =
+      "body  {  margin:  0;  padding:  0;  }\n"
+      "h1  {  color:  red;  font-size:  24px;  }\n";
+  const std::string js =
+      "// Main application script\n"
+      "function  hello( name )  {\n"
+      "  var  greeting  =  'Hello, '  +  name;\n"
+      "  return  greeting;\n"
+      "}\n";
+  const std::string html =
+      "<html><head><style>body { margin: 0; } "
+      "h1 { color: red; }</style></head>"
+      "<body><h1>Hello World</h1></body></html>";
+  const std::string svg =
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" "
+      "height=\"16\"><rect width=\"16\" height=\"16\" fill=\"red\"/></svg>";
+  const std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty()) << "Test JPEG not found";
+
+  const std::string css_url = "http://example.com/style.css";
+  const std::string js_url = "http://example.com/app.js";
+  const std::string html_url = "http://example.com/page.html";
+  const std::string svg_url = "http://example.com/icon.svg";
+  const std::string img_url = "http://example.com/photo.jpg";
+  CacheOriginal(worker.cache(), css_url, css);
+  CacheOriginal(worker.cache(), js_url, js);
+  CacheOriginal(worker.cache(), html_url, html);
+  CacheOriginal(worker.cache(), svg_url, svg, /*hostname=*/"", /*flags=*/0,
+                /*source_binding=*/nullptr, "image/svg+xml");
+  CacheOriginal(worker.cache(), img_url, jpeg);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  auto notify = [&](const std::string& url, ContentType type, uint32_t mask) {
+    CacheNotification n;
+    n.url = url;
+    n.scheme = "https";
+    n.content_type = type;
+    n.capability_mask = mask;
+    SendNotification(n);
+  };
+  notify(css_url, ContentType::kCss, CapabilityMask().Encode());
+  notify(js_url, ContentType::kJs, CapabilityMask().Encode());
+  notify(html_url, ContentType::kHtml, CapabilityMask().Encode());
+  notify(svg_url, ContentType::kImage, CapabilityMask().Encode());
+  CapabilityMask mobile_webp(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kMobile,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  notify(img_url, ContentType::kImage, mobile_webp.Encode());
+
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 5,
+                                                           kWorkerStallBudget));
+  EXPECT_GE(worker.stats().variants_written.load(std::memory_order_relaxed), 5u)
+      << "notification set retired without the expected variant writes";
+
+  size_t bound = 0;
+  CheckSourceBinding(worker.cache(), css_url, Sha256Of(css), &bound);
+  EXPECT_GE(bound, 2u) << "CSS: expected the minified identity plus a "
+                          "compressed copy";
+  CheckSourceBinding(worker.cache(), js_url, Sha256Of(js), &bound);
+  EXPECT_GE(bound, 2u) << "JS: expected the minified identity plus a "
+                          "compressed copy";
+  CheckSourceBinding(worker.cache(), html_url, Sha256Of(html), &bound);
+  EXPECT_GE(bound, 1u) << "HTML (agent off): no stamped variant";
+  CheckSourceBinding(worker.cache(), svg_url, Sha256Of(svg), &bound);
+  EXPECT_GE(bound, 2u) << "SVG: expected gzip and brotli copies";
+  CheckSourceBinding(worker.cache(), img_url, Sha256Of(jpeg), &bound);
+  EXPECT_GE(bound, 1u) << "image: no stamped variant";
+
+  worker.Shutdown();
+  worker_thread.join();
+
+  // agent_optimize leg: the agent branch derives the binding itself (over
+  // the raw read); the stamped variant must carry the same SHA-256.
+  WorkerConfig agent_config = config;
+  agent_config.socket_path = socket_path_ + "2";
+  agent_config.cache_path = temp_dir_ + "/cache2";
+  agent_config.browser_analysis.agent_optimize = true;
+  Worker agent_worker(agent_config, &handler);
+  ASSERT_TRUE(agent_worker.Initialize());
+  const std::string agent_url = "http://example.com/agent.html";
+  CacheOriginal(agent_worker.cache(), agent_url, html);
+  std::thread agent_thread([&agent_worker]() { agent_worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  // SendNotification targets socket_path_ (the first worker's, now shut
+  // down); the agent worker listens on its own socket, so send directly.
+  {
+    CacheNotification n;
+    n.url = agent_url;
+    n.scheme = "https";
+    n.content_type = ContentType::kHtml;
+    n.capability_mask = CapabilityMask().Encode();
+    std::vector<char> data = n.Serialize();
+    intptr_t client_fd = pagespeed::test::ConnectPipe(agent_config.socket_path);
+    ASSERT_GE(client_fd, static_cast<intptr_t>(0))
+        << "failed to connect to the agent worker's socket";
+    EXPECT_EQ(pagespeed::test::PipeWrite(client_fd, data.data(), data.size()),
+              static_cast<ssize_t>(data.size()));
+    pagespeed::test::ClosePipe(client_fd);
+  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(agent_worker, 1,
+                                                           kWorkerStallBudget));
+  size_t agent_bound = 0;
+  CheckSourceBinding(agent_worker.cache(), agent_url, Sha256Of(html),
+                     &agent_bound);
+  EXPECT_GE(agent_bound, 1u) << "HTML (agent on): no stamped variant";
+
+  agent_worker.Shutdown();
+  agent_thread.join();
+}
+
+TEST_F(WorkerTest, WorkerProcessedInputKeepsInheritedSourceBinding) {
+  // Issue #434, inheritance half of the rule: when the worker's input is
+  // its OWN earlier output (entry flags carry kFlagWorkerProcessed and the
+  // metadata already carries the binding stamped over the raw origin),
+  // every variant written from it keeps the inherited binding.  The worker
+  // never re-hashes its own output into the field: that would re-bind every
+  // re-optimization and poison the agent-markdown equality gate (the
+  // Issue-B trap).
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  // A binding a real SHA-256 of the inputs below can never produce.
+  std::array<std::byte, 32> inherited{};
+  for (size_t i = 0; i < inherited.size(); ++i) {
+    inherited[i] = static_cast<std::byte>(0x40 + i);
+  }
+
+  const std::string css =
+      "body  {  margin:  0;  padding:  0;  }\n"
+      "h1  {  color:  red;  font-size:  24px;  }\n";
+  const std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty()) << "Test JPEG not found";
+
+  const std::string css_url = "http://example.com/derived.css";
+  const std::string img_url = "http://example.com/derived.jpg";
+  CacheOriginal(worker.cache(), css_url, css, /*hostname=*/"",
+                AlternateMetadata::kFlagWorkerProcessed, &inherited);
+  CacheOriginal(worker.cache(), img_url, jpeg, /*hostname=*/"",
+                AlternateMetadata::kFlagWorkerProcessed, &inherited);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  auto notify = [&](const std::string& url, ContentType type, uint32_t mask) {
+    CacheNotification n;
+    n.url = url;
+    n.scheme = "https";
+    n.content_type = type;
+    n.capability_mask = mask;
+    SendNotification(n);
+  };
+  notify(css_url, ContentType::kCss, CapabilityMask().Encode());
+  CapabilityMask mobile_webp(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kMobile,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  notify(img_url, ContentType::kImage, mobile_webp.Encode());
+
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+
+  // The seeded inputs are themselves flagged worker-processed, so the
+  // per-URL counts below would be satisfied by the seeds alone: require that
+  // the worker actually wrote new variants from them.
+  EXPECT_GE(worker.stats().variants_written.load(std::memory_order_relaxed), 2u)
+      << "the worker wrote no variant from the worker-processed inputs";
+
+  // The proof has two legs: every worker-written variant carries exactly
+  // the inherited binding, and the inherited binding is not the SHA-256 of
+  // the input bytes: so the worker provably did not re-hash.
+  size_t bound = 0;
+  CheckSourceBinding(worker.cache(), css_url, inherited, &bound);
+  EXPECT_GE(bound, 1u) << "CSS: no variant written from worker-processed "
+                          "input";
+  EXPECT_NE(inherited, Sha256Of(css));
+  CheckSourceBinding(worker.cache(), img_url, inherited, &bound);
+  EXPECT_GE(bound, 1u) << "image: no variant written from worker-processed "
+                          "input";
+  EXPECT_NE(inherited, Sha256Of(jpeg));
 
   worker.Shutdown();
   worker_thread.join();

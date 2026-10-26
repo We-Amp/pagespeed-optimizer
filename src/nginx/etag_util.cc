@@ -56,7 +56,7 @@ std::optional<uint64_t> ContentIdentity64(const AlternateMetadata& meta) {
     return h;
   }
 
-  // Tier 3: no identity signal — caller emits the legacy tag.
+  // Tier 3: no identity signal: caller emits no ETag.
   return std::nullopt;
 }
 
@@ -66,21 +66,19 @@ size_t FormatHitETag(const AlternateMetadata& meta, size_t body_len, char* buf,
     return 0;
   }
   const std::optional<uint64_t> identity = ContentIdentity64(meta);
-  int n;
-  if (identity.has_value()) {
-    n = snprintf(buf, buf_size, "W/\"ps-%08x%02x-%016llx-%016llx\"",
-                 static_cast<unsigned>(meta.full_mask),
-                 static_cast<unsigned>(meta.flags),
-                 static_cast<unsigned long long>(*identity),
-                 static_cast<unsigned long long>(body_len));
-  } else {
-    // Legacy format — byte-identical to the pre-identity tag so existing
-    // clients of unchanged pre-v7 entries keep getting 304s.
-    n = snprintf(buf, buf_size, "W/\"ps-%08x%02x-%016llx\"",
-                 static_cast<unsigned>(meta.full_mask),
-                 static_cast<unsigned>(meta.flags),
-                 static_cast<unsigned long long>(body_len));
+  if (!identity.has_value()) {
+    // No identity signal: emit no ETag at all.  A mask+flags+length-only
+    // tag would validate any revision of the same optimized length and
+    // answer 304 for changed bytes; an absent validator can never do
+    // that (RFC 9110 Section 8.8: the client simply revalidates with a
+    // full response).
+    return 0;
   }
+  int n = snprintf(buf, buf_size, "W/\"ps-%08x%02x-%016llx-%016llx\"",
+                   static_cast<unsigned>(meta.full_mask),
+                   static_cast<unsigned>(meta.flags),
+                   static_cast<unsigned long long>(*identity),
+                   static_cast<unsigned long long>(body_len));
   if (n <= 0 || static_cast<size_t>(n) >= buf_size) {
     return 0;
   }

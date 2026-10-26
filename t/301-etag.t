@@ -65,7 +65,7 @@ ETag: W/"ps-0000000800-aaaaaaaaaaaaaaaa-000000000000000d"
 [error]
 
 
-=== TEST 4: missing identity (pre-v7 metadata) -> legacy tag shape, no crash
+=== TEST 4: missing identity (pre-v7 metadata) -> no ETag at all
 --- config
 pagespeed on;
 pagespeed_cache_path /tmp/test-ps-301-1.vol;
@@ -74,9 +74,9 @@ location /legacy.css {
 }
 --- request
 GET /legacy.css
---- response_headers_like
+--- response_headers
 X-PageSpeed: HIT
-ETag: W/"ps-0000000800-000000000000000d"
+!ETag
 --- no_error_log
 [error]
 
@@ -149,7 +149,7 @@ h1{color:red}
 [error]
 
 
-=== TEST 9: legacy entry still honors 304 on its legacy tag
+=== TEST 9: legacy entry has no validator -> no 304, full 200
 --- config
 pagespeed on;
 pagespeed_cache_path /tmp/test-ps-301-1.vol;
@@ -160,6 +160,8 @@ location /legacy.css {
 GET /legacy.css
 --- more_headers
 If-None-Match: W/"ps-0000000800-000000000000000d"
---- error_code: 304
+--- error_code: 200
+--- response_body chomp
+h1{color:red}
 --- no_error_log
 [error]

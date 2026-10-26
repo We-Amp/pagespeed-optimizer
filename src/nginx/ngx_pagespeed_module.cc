@@ -6068,9 +6068,13 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
       }
 
       // Generate weak ETag for cache HIT responses (see etag_util.h).
-      // Format: W/"ps-<mask_hex><flags_hex>-<identity_hex>-<length_hex>",
-      // falling back to the legacy W/"ps-<mask_hex><flags_hex>-<length_hex>"
-      // when the metadata carries no content-identity signal.
+      // Format: W/"ps-<mask_hex><flags_hex>-<identity_hex>-<length_hex>".
+      // When the metadata carries no content-identity signal (no stored
+      // content hash, no origin ETag/Last-Modified), FormatHitETag returns
+      // 0 and NO ETag header is emitted: a length-only tag would validate
+      // any revision of the same optimized length, answering 304 for
+      // changed bytes.  With no tag there is no 304, so a stale copy can
+      // never be confirmed.
       // The mask differentiates variants (format, encoding, viewport).
       // The flags byte differentiates revalidation states.
       // The identity differentiates content revisions even when the byte
