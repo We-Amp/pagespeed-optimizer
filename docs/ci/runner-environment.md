@@ -63,7 +63,7 @@ its environment file:
 
 | Variable | Meaning | Used for |
 |---|---|---|
-| `CI_SLOT_CPUS` | positive integer | Bazel `--jobs`, `run-clang-tidy -j`, Windows Bazel `--jobs` |
+| `CI_SLOT_CPUS` | positive integer | Bazel `--jobs`, `run-clang-tidy -j`, Windows Bazel `--jobs`, cmake and make jobs in vendored builds |
 | `CI_SLOT_MEM_GB` | positive integer (GiB) | container `--memory` and `--memory-swap` |
 
 Both are optional. Unset (hosted runners) keeps the previous behaviour: Bazel
@@ -73,6 +73,14 @@ limits `run-clang-tidy` to one process per 2 GiB. A set but invalid value fails 
 job with a clear message. The logic lives in `tools/ci/slot-budget.sh`
 (self-test: `tools/ci/test_slot_budget.sh`). Size the values so that all slots
 of a host at full use fit in the memory available to the runner services.
+
+Anything that chooses a parallelism inside a job container must read the slot
+budget rather than the host CPU count, because `nproc` inside a container still
+reports every CPU of the host. Read `${CI_SLOT_CPUS:-$(nproc)}` and pass it as
+`make -j`, `cmake --build -j`, `--parallel`, `xargs -P` or the tool's own
+worker flag; the `nproc` fallback keeps developer machines unchanged. Bazel
+actions only see the variable through `build --action_env=CI_SLOT_CPUS`, and
+the job's `docker run` must pass `-e CI_SLOT_CPUS` for the script to see it.
 
 ## Windows runner: git and PATH requirements
 
