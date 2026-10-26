@@ -581,9 +581,10 @@ TEST_F(NotificationSenderTest, WriteFailsWhenPeerResets) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-  // Large URL to generate a large payload that won't fit in kernel buffers
-  CacheNotification notification = MakeNotification(
-      std::string(static_cast<size_t>(128) * 1024, 'u'), "example.com");
+  // Largest URL the wire format accepts: a longer one fails to serialize, so
+  // the sender would never connect and the acceptor above would block.
+  CacheNotification notification =
+      MakeNotification(std::string(kMaxUrlLength, 'u'), "example.com");
   auto result = SendNotification(socket_path_, notification);
 
   acceptor.join();
