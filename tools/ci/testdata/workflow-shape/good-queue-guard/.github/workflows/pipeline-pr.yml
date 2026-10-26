@@ -88,6 +88,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo vendor
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute lint scope
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
+            git diff --no-renames --name-status "${BASE}...HEAD" > "${CHANGED}"
+          fi
   other:
     runs-on: ubuntu-latest
     steps:
