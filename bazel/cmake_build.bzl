@@ -62,7 +62,10 @@ def _cmake_build_impl(ctx):
 
     return [DefaultInfo(files = depset([out]))]
 
-_NPROC = "$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+# Capped at 8 to match the resource_set above and the module's foreign_cc cap.
+# A Bazel action cannot see the CI slot budget without putting it into every
+# action's cache key, so the cap is a fixed number.
+_NPROC = "$(n=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4); [ \"$n\" -gt 8 ] && n=8; echo $n)"
 
 _UNIX_SCRIPT = """\
 set -e
