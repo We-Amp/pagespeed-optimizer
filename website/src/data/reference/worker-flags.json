@@ -849,7 +849,7 @@
       "name": "--agent-optimize-llms-txt",
       "arg": null,
       "default": null,
-      "description": "Publish a synthesized /llms.txt site index (implies --agent-optimize)",
+      "description": "Publish a synthesized /llms.txt site index (requires --agent-optimize)",
       "section": "Agent Optimize (EXPERIMENTAL — off by default)",
       "platform": null
     },

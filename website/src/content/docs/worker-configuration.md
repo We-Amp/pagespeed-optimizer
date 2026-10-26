@@ -1482,7 +1482,7 @@ Comma-separated path prefixes to enable
 - **Syntax:** `--agent-optimize-llms-txt`
 - **Default:** —
 
-Publish a synthesized /llms.txt site index (implies --agent-optimize)
+Publish a synthesized /llms.txt site index (requires --agent-optimize)
 
 #### --agent-optimize-sitemap-url {#--agent-optimize-sitemap-url}
 

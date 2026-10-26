@@ -301,9 +301,58 @@ const SCAN_FILES = SCAN_BUCKETS.flatMap((b) => b.files);
 //     repo — NOT a correct arch-split description ("yum is x86_64 only; arm64 via
 //     apt/direct download"), which the token order + the negation exemption clear.
 // ---------------------------------------------------------------------------
+// The slice of product-facts.mjs a rule anchor reads. A test can hand an anchor
+// a MUTATED copy to prove it notices a changed fact.
+type FactsView = Pick<
+  typeof facts,
+  'V1_LINE' | 'V2_LINE' | 'IMAGE_FORMAT_SUPPORT' | 'CAPABILITY_SUPPORT'
+>;
+// The machine-checked fact an exclusivity rule enforces. `describes` says it in
+// words; `holds` reads the capability tables and must return true while the
+// fact is true. When a table changes so that `holds` goes false, the anchor test
+// fails and names the rule: re-verify the rule (and its `why`) before touching
+// the table to make it pass.
+type RuleAnchor = { describes: string; holds: (f: FactsView) => boolean };
+
+function formatEditions(f: FactsView, format: string): string[] {
+  const row = (f.IMAGE_FORMAT_SUPPORT as Array<{ format: string; editions: object }>).find(
+    (r) => r.format === format,
+  );
+  return Object.keys(row?.editions ?? {});
+}
+function capabilityEditionsOf(f: FactsView, capability: string): string[] {
+  const row = (f.CAPABILITY_SUPPORT as Array<{ capability: string; editions: object }>).find(
+    (r) => r.capability === capability,
+  );
+  return Object.keys(row?.editions ?? {});
+}
+// "Not 2.0-only": the capability is carried by the 1.15 line AND by 2.0.
+const onBothLines = (editions: string[], f: FactsView) =>
+  editions.includes(f.V1_LINE) && editions.includes(f.V2_LINE);
+
+const ANCHOR_AVIF: RuleAnchor = {
+  describes: 'AVIF is encoded on the 1.15 line and on 2.0 (IMAGE_FORMAT_SUPPORT)',
+  holds: (f) => onBothLines(formatEditions(f, 'AVIF'), f),
+};
+const ANCHOR_SHARED_CAPABILITIES: RuleAnchor = {
+  describes:
+    'zero-copy serving and variant-aware caching ship on the 1.15 line and on 2.0 (CAPABILITY_SUPPORT)',
+  holds: (f) =>
+    onBothLines(capabilityEditionsOf(f, 'zero-copy-serving'), f) &&
+    onBothLines(capabilityEditionsOf(f, 'variant-aware-caching'), f),
+};
+
 type DenyRule = {
   id: string;
   why: string;
+  // The fact this rule enforces, tied to product-facts.mjs. REQUIRED for the
+  // exclusivity rules (f1-f4, see ANCHORED_RULE_IDS): see the anchor tests.
+  anchor?: RuleAnchor;
+  // Opt OUT of boundWindows(): the rule's claim is a deliberate cross-sentence
+  // adjacency ("X is granted to 2.0. Then 1.15 is described by WebP-only
+  // filters"), so its windows must be allowed to run past a sentence end.
+  // Every such rule says why next to the flag.
+  crossSentence?: boolean;
   re: RegExp;
   bad: string; // sample that MUST be flagged (re matches AND not corrective)
   good: string; // sample that MUST NOT be flagged
@@ -367,15 +416,23 @@ type DenyRule = {
   exemptLines?: Array<{ file: string; line: string; why: string }>;
 };
 
+// A '.' is a sentence or clause boundary only when whitespace or the end of
+// the text follows it. A dot inside a token (1.15.x, 2.x, rc.5, nginx.conf,
+// ASP.NET) never ends anything, and neither does the dot of a common
+// abbreviation (e.g., i.e., vs., cf.), which is followed by a space.
+const DOT_IN_TOKEN = String.raw`\.(?=\S)|(?<=\b(?:e\.g|i\.e|vs|cf))\.`;
+
 // A gap INSIDE a rule regex that stops at a clause boundary instead of running
 // to its character limit. A rule that pairs a subject with an object across a
 // wide [^\n]{0,80} window otherwise matches a subject in sentence one against
 // an object in sentence two — "The optimizer worker runs as its own service.
 // The module is a loadable nginx module." is two true statements, not a claim
-// that the worker is loadable. A '.' flanked by digits is a version separator,
-// not a boundary, so "mod_pagespeed 2.5.0" never splits a clause (the same
-// carve-out isClauseBoundary() makes for the exemption scope below).
-const CLAUSE_GAP = /(?:[^;:—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
+// that the worker is loadable. A '.' followed by non-whitespace is a
+// token dot, not a boundary (see DOT_IN_TOKEN), so "mod_pagespeed 2.5.x" never
+// splits a clause. A '.' after a digit but before a space ends the sentence: "…landed in
+// 2.0.16. The module…" is two sentences, which matters once a wrapped paragraph
+// is scanned as one block.
+const CLAUSE_GAP = new RegExp(`(?:[^;:—!?.\\n]|${DOT_IN_TOKEN})`).source;
 
 // CLAUSE_GAP plus the colon. A colon normally ends a clause, and for most
 // rules it should: what follows an "Install it:" is a new statement. But a
@@ -383,7 +440,7 @@ const CLAUSE_GAP = /(?:[^;:—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
 // Apache, nginx, IIS and Envoy" names its subject once and then enumerates.
 // Used ONLY by rule `j`'s list branches, which additionally require the colon
 // itself to sit between the subject and the list.
-const COLON_LIST_GAP = /(?:[^;—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
+const COLON_LIST_GAP = new RegExp(`(?:[^;—!?.\\n]|${DOT_IN_TOKEN})`).source;
 
 // The part names used as a rule SUBJECT. The prose name, the literal package /
 // binary names, and the bare "the worker" — which is what the copy actually
@@ -395,8 +452,15 @@ const COLON_LIST_GAP = /(?:[^;—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
 // pool, nginx's own `worker_processes`, and "the worker image", which names
 // the container rather than the process running inside it. The browser's web
 // and service workers need no guard: neither reads as "the worker".
+//
+// A filesystem path is not the worker as a subject: `/etc/default/pagespeed-optimizer`
+// names a config file, and the sentence around it is about that file. The
+// (?<!\/) guard keeps a path component out of every rule that uses this subject.
+// This surfaced when block scanning joined a wrapped paragraph that said
+// "from `/etc/default/pagespeed-optimizer` -- the default binary path exists only
+// in the container images", which is true and is not a packaging claim.
 const WORKER_SUBJECT =
-  /(?:optimi[sz]er worker|pagespeed-optimizer|factory_worker|the worker(?!_)(?!\s+(?:thread|threads|pool|pools|image|images)\b))/
+  /(?:(?<!\/)(?:optimi[sz]er worker|pagespeed-optimizer|factory_worker|the worker(?!_)(?!\s+(?:thread|threads|pool|pools|image|images)\b)))/
     .source;
 
 // The current product as a rule SUBJECT: the name alone or "mod_pagespeed 2".
@@ -405,6 +469,20 @@ const WORKER_SUBJECT =
 // 2.3.0" in a release-notes row is a fact about that release), and never a
 // filename ("mod_pagespeed.so").
 const CURRENT_PRODUCT_SUBJECT = /mod_pagespeed(?: 2)?(?![\w.-]|\s+\d)/.source;
+
+// SENTENCE-BOUNDED WINDOWS. Many rule regexes pair a subject with a qualifier
+// across a bounded proximity window written [^\n]{0,N}. On a single physical
+// line the window was cut short by the line break; on a joined block (see BLOCK
+// SCANNING) the line break is gone, so the same window would reach from one
+// sentence into the next and pair "AVIF" in one true sentence with "2.0" in the
+// following one. boundWindows() rewrites every such window to stop at a
+// sentence end instead. The length bound N is untouched, so the window stays
+// bounded; a '.' inside a token (see DOT_IN_TOKEN) is not a sentence end.
+// Applied once to every rule below (after DENYLIST), so no rule can forget it.
+const SENTENCE_GAP = new RegExp(`(?:[^.!?\\n]|${DOT_IN_TOKEN})`).source;
+function boundWindows(re: RegExp): RegExp {
+  return new RegExp(re.source.split('[^\\n]').join(SENTENCE_GAP), re.flags);
+}
 
 function escapeForRegExp(literal: string): string {
   return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -654,6 +732,7 @@ const DENYLIST: DenyRule[] = [
     good: 'The module and the `pagespeed-optimizer` worker install and upgrade as a matching pair from the signed apt/yum repository.',
     variantsBad: [
       'The optimizer worker ships only as a container image.',
+      'The pagespeed-optimizer worker for 2.0.x ships only as a container image.',
       'There is no apt package for the optimizer worker — use Docker.',
       'The optimizer worker is not available from the signed repository.',
       'pagespeed-optimizer does not ship as a deb or rpm package.',
@@ -759,6 +838,7 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'f1-avif-exclusive-to-2.0',
+    anchor: ANCHOR_AVIF,
     why: 'mod_pagespeed 1.15 SHIPS AVIF encoding (Apache, nginx, IIS native). AVIF is NOT exclusive to ModPageSpeed 2.0 — see IMAGE_FORMAT_SUPPORT in src/data/product-facts.mjs. Still 2.0-only: SVG auto-vectorization, Jpegli, ML-predicted quality, variant-aware caching.',
     // No negationExempt: the wrong claim is often itself negation-shaped ("this
     // package does not do AVIF — AVIF is 2.0 only"), so ANY negation tolerance
@@ -812,6 +892,7 @@ const DENYLIST: DenyRule[] = [
     variantsBad: [
       'This package does not do AVIF — AVIF is ModPageSpeed 2.0 only.',
       'AVIF ships only here.',
+      'AVIF (e.g. for product photos) is ModPageSpeed 2.0 only.',
       'AVIF is exclusive to ModPageSpeed 2.0.',
       'AVIF is available only in ModPageSpeed 2.0.',
       'AVIF requires ModPageSpeed 2.0.',
@@ -836,6 +917,7 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'f2-1.15-does-not-ship-avif',
+    anchor: ANCHOR_AVIF,
     why: 'The inverse form: denying that mod_pagespeed 1.15 does AVIF. 1.15 ships AVIF encoding on Apache, nginx (standard and lite) and the native IIS module (opt-in via four filters outside rewrite_images/CoreFilters). The old "ROADMAP lists AVIF as Planned" claim is stale.',
     // No negationExempt: every phrasing of this claim IS a negation, so any
     // negation tolerance would zero the rule. The legitimate "X has no AVIF"
@@ -890,6 +972,8 @@ const DENYLIST: DenyRule[] = [
       '1.15 lacks AVIF support.',
       'AVIF is not supported in 1.15.',
       'For 1.15, AVIF is still planned.',
+      'mod_pagespeed 1.15.x does not ship AVIF.',
+      '1.15.0-rc.5 does not ship AVIF.',
     ],
     variantsGood: [
       // Google's archived open-source build genuinely never had AVIF:
@@ -907,6 +991,7 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'f3-zero-copy-and-variant-cache-are-not-2.0-only',
+    anchor: ANCHOR_SHARED_CAPABILITIES,
     why: "Zero-copy serving and the variant-aware Cyclone cache are NOT 2.0-only. mod_pagespeed 1.15 ships zero-copy serving on nginx, Apache and IIS as of v1.15.0+r19 (opt-in via CycloneZeroCopy / CycloneZeroCopyServe), and 1.15 already varies its cache on client capability -- image format, mobile UA, Save-Data and small-screen. What is genuinely 2.0-only is NARROWER: tablet/desktop viewport classes, pixel density (Sec-CH-DPR), transfer-encoding alternates, and PROACTIVE generation of the full variant matrix. Re-anchor exclusivity onto those, never onto 'variant-aware caching' or 'zero-copy' as whole categories. This class of error already shipped once: AVIF was replaced as the 2.0 differentiator by claims that were themselves false. NOTE: the widened scan surfaced ONE real false positive, a corrective comment in src/data/product-facts.mjs that told future authors 'NOT 2.0-only, never add them to a 2.0-only list: variant-aware caching'. A per-rule comment opt-out was tried and REVERTED — blinding f3 across every comment line in the canonical fact record to spare one line is a terrible trade. The comment was reworded instead ('Ships on BOTH lines, never fence to 2.0: ...'), which states the same facts without the exclusivity shape. Reword; never blind the rule.",
     // No negationExempt: exclusivity claims are negation-shaped ("ship ONLY
     // here", "1.15 does NOT have it"), so negation tolerance would neuter this
@@ -983,6 +1068,13 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'f4-implicit-exclusivity-by-scoping',
+    // The adjacency branch reads "2.0 gets X; 1.15 uses <WebP-only filters>."
+    // up to the end of the text, and a sentence period is part of that tail.
+    crossSentence: true,
+    anchor: {
+      describes: `${ANCHOR_AVIF.describes}; ${ANCHOR_SHARED_CAPABILITIES.describes}`,
+      holds: (f) => ANCHOR_AVIF.holds(f) && ANCHOR_SHARED_CAPABILITIES.holds(f),
+    },
     why:
       "IMPLICIT exclusivity: a capability is fenced to 2.0 without the word 'only' or 'exclusive', so f1/f2/f3 all miss it. This is the shape the two motivating defects actually had. " +
       "(1) PARENTHETICAL FENCE — src/data/psi-mps-mapping.ts:250 and :649 read 'WebP (and AVIF on 2.0)'. The parenthetical scopes AVIF to 2.0 while WebP stays unscoped, so the reader concludes 1.15 has WebP but not AVIF. False: 1.15 ships AVIF too. Note the LINE never names 1.15 — the 1.1 scoping sits on neighbouring lines (availableIn, snippet11) — so a line-based rule must key on the fence itself, not on a 1.15 co-mention. " +
@@ -1138,6 +1230,7 @@ const DENYLIST: DenyRule[] = [
     variantsBad: [
       'mod_pagespeed runs on Apache and nginx, plus an experimental Envoy port.',
       'mod_pagespeed 2 runs on Apache and nginx, plus an experimental Envoy port.',
+      'The module in 2.x also runs inside Envoy.',
       'Envoy filter chain | mod_pagespeed (experimental)',
       'You can load the module into Envoy as an HTTP filter.',
       // Colon-introduced platform lists — the site's own card/front-matter
@@ -1162,6 +1255,11 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'i-retired-product-name-as-current-label',
+    // The "<label> runs as ... . See [pricing]" branch pairs a subject with a
+    // call to action in a LATER sentence by design (up to 300 characters): the
+    // rule's own text says "a line that also tells the reader where to get it".
+    // On a joined block that scope is the paragraph, which is the same idea.
+    crossSentence: true,
     // RULE: the product is mod_pagespeed — one product in two parts, the
     // module and the optimizer worker. "ModPageSpeed 2.0", the bare camel
     // "ModPageSpeed" and "mod_pagespeed 1.15" are names the product no longer
@@ -1425,6 +1523,7 @@ const DENYLIST: DenyRule[] = [
     ],
   },
 ];
+for (const rule of DENYLIST) if (!rule.crossSentence) rule.re = boundWindows(rule.re);
 
 // ---------------------------------------------------------------------------
 // FALSE-POSITIVE CORPUS — real, ACCURATE corrective/contrast phrasings an
@@ -1688,13 +1787,14 @@ function globalReFor(rule: DenyRule): RegExp {
 //    from the yum repository."
 // (`file` is accepted for call-site symmetry with the scanner; no rule
 // currently varies by file type.)
-function isFlaggedByRule(rule: DenyRule, line: string, _file?: string): boolean {
+function flaggedMatches(rule: DenyRule, line: string): RegExpExecArray[] {
   const re = globalReFor(rule);
   re.lastIndex = 0;
+  const out: RegExpExecArray[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(line)) !== null) {
     if (m[0] === '') {
-      re.lastIndex++; // zero-width match — never stall
+      re.lastIndex++; // zero-width match: never stall
       continue;
     }
     const scope =
@@ -1703,9 +1803,12 @@ function isFlaggedByRule(rule: DenyRule, line: string, _file?: string): boolean 
         : clauseScopeOfMatch(line, m.index);
     const exempt =
       (rule.negationExempt?.test(scope) ?? false) || (rule.exemptIf?.test(scope) ?? false);
-    if (!exempt) return true;
+    if (!exempt) out.push(m);
   }
-  return false;
+  return out;
+}
+function isFlaggedByRule(rule: DenyRule, line: string, _file?: string): boolean {
+  return flaggedMatches(rule, line).length > 0;
 }
 function rulesFlagging(line: string): DenyRule[] {
   return DENYLIST.filter((r) => isFlaggedByRule(r, line));
@@ -1713,26 +1816,219 @@ function rulesFlagging(line: string): DenyRule[] {
 
 type Violation = { ruleId: string; file: string; location: string; line: number };
 
+// ---------------------------------------------------------------------------
+// BLOCK SCANNING. Markdown prose is hard-wrapped, so a claim can wrap across a
+// physical line and a line-at-a-time scan never sees it. The scanner therefore
+//   1. classifies every line (frontmatter / fenced code / prose),
+//   2. joins consecutive PROSE lines of a markdown-shaped file into one block
+//      (a single space replaces each line break, so a bounded [^\n]{0,N}
+//      proximity window stays bounded and means the same thing it did on a
+//      single line), and
+//   3. runs the rules on the block, mapping a match back to its physical line
+//      through an offset table so `file:line` reporting still works.
+// Frontmatter and fenced code are classified and NEVER joined: they stay one
+// block per physical line, scanned exactly as before. They are not skipped,
+// because the frontmatter carries titles and descriptions (one rule keys on
+// `title:`) and a fence can carry copy-pasteable claims; what joining must not
+// do is glue a code sample or a YAML key onto the prose around it. Files that
+// are not markdown-shaped (.astro, .ts, .mjs) are one block per line: their
+// line breaks separate code, not words.
+// ---------------------------------------------------------------------------
+type LineKind = 'frontmatter' | 'fence' | 'prose';
+
+function isMarkdownShaped(file?: string): boolean {
+  return !!file && /\.(?:md|mdx|tmpl|txt)$/i.test(file);
+}
+
+function classifyLines(lines: string[], file?: string): LineKind[] {
+  const kinds: LineKind[] = lines.map(() => 'prose');
+  let i = 0;
+  if (file && /\.mdx?$/i.test(file) && lines[0]?.trim() === '---') {
+    kinds[0] = 'frontmatter';
+    for (i = 1; i < lines.length; i++) {
+      kinds[i] = 'frontmatter';
+      if (lines[i].trim() === '---') {
+        i++;
+        break;
+      }
+    }
+  }
+  let fence: string | null = null;
+  for (; i < lines.length; i++) {
+    const f = /^\s*(```+|~~~+)/.exec(lines[i]);
+    if (fence === null) {
+      if (f) {
+        fence = f[1][0];
+        kinds[i] = 'fence';
+      }
+    } else {
+      kinds[i] = 'fence';
+      if (f && f[1][0] === fence) fence = null;
+    }
+  }
+  return kinds;
+}
+
+// A line that ends the block before it and stands alone.
+const STANDALONE_LINE = /^\s{0,3}#{1,6}(?:\s|$)|^\s*\||^\s*(?:-{3,}|\*{3,}|_{3,})\s*$|^\s*<!--/;
+// Lines that end the block before them and open a new one (continuations join).
+const LIST_MARKER = /^\s*(?:[-*+]|\d+[.)])\s/;
+const QUOTE_MARKER = /^\s*>/;
+
+type Block = { text: string; starts: number[]; lines: number[] };
+
+function buildBlocks(text: string, file?: string): Block[] {
+  const lines = text.split('\n');
+  const blocks: Block[] = [];
+  const single = (i: number) => blocks.push({ text: lines[i], starts: [0], lines: [i + 1] });
+  if (!isMarkdownShaped(file)) {
+    for (let i = 0; i < lines.length; i++) single(i);
+    return blocks;
+  }
+  const kinds = classifyLines(lines, file);
+  let cur: Block | null = null;
+  let curQuote = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (kinds[i] !== 'prose' || STANDALONE_LINE.test(line) || line.trim() === '') {
+      cur = null;
+      single(i);
+      continue;
+    }
+    const quote = QUOTE_MARKER.test(line);
+    if (cur === null || LIST_MARKER.test(line) || quote !== curQuote) {
+      cur = { text: line, starts: [0], lines: [i + 1] };
+      curQuote = quote;
+      blocks.push(cur);
+      continue;
+    }
+    const piece = (quote ? line.replace(QUOTE_MARKER, '') : line).trim();
+    cur.starts.push(cur.text.length + 1);
+    cur.lines.push(i + 1);
+    cur.text += ' ' + piece;
+  }
+  return blocks;
+}
+
+function lineOfOffset(block: Block, index: number): number {
+  let k = 0;
+  for (let j = 0; j < block.starts.length; j++) if (block.starts[j] <= index) k = j;
+  return block.lines[k];
+}
+
+// ---------------------------------------------------------------------------
+// SHADOW TEXT. Markup and entities hide a claim from a prose regex:
+//   "AVIF is <strong>ModPageSpeed 2.0</strong> only."  /  "AVIF&nbsp;is 2.0 only"
+// shadowText() strips tags and decodes entities, and returns a map from every
+// character of the shadow back to its index in the source, so a hit found in
+// the shadow still reports the right physical line. Block-level tags (and <br>)
+// become one space so two cells or two items never fuse into one word; inline
+// tags vanish, so "<strong>2.0</strong>-only" stays "2.0-only".
+// ---------------------------------------------------------------------------
+const BLOCK_TAG =
+  /^<\/?(?:p|br|li|ul|ol|dl|dt|dd|div|section|article|header|footer|tr|td|th|table|thead|tbody|h[1-6]|blockquote|pre|hr|details|summary|figure|figcaption)\b/i;
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  mdash: '\u2014',
+  ndash: '\u2013',
+  rsquo: '\u2019',
+  lsquo: '\u2018',
+  rarr: '\u2192',
+  hellip: '\u2026',
+};
+
+function decodeEntity(entity: string): string | null {
+  const body = entity.slice(1, -1);
+  if (/^#\d+$/.test(body)) return String.fromCodePoint(Number(body.slice(1)));
+  if (/^#[xX][0-9a-fA-F]+$/.test(body)) return String.fromCodePoint(parseInt(body.slice(2), 16));
+  return NAMED_ENTITIES[body] ?? null;
+}
+
+function shadowText(src: string): { text: string; map: number[] } {
+  let text = '';
+  const map: number[] = [];
+  const push = (ch: string, at: number) => {
+    text += ch;
+    map.push(at);
+  };
+  for (let i = 0; i < src.length;) {
+    const ch = src[i];
+    if (ch === '<') {
+      const tag = /^<\/?[A-Za-z][^<>]*>/.exec(src.slice(i));
+      if (tag) {
+        if (BLOCK_TAG.test(tag[0])) push(' ', i);
+        i += tag[0].length;
+        continue;
+      }
+    }
+    if (ch === '&') {
+      const ent = /^&(?:#\d+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);/.exec(src.slice(i));
+      const decoded = ent ? decodeEntity(ent[0]) : null;
+      if (ent && decoded !== null) {
+        push(decoded, i);
+        i += ent[0].length;
+        continue;
+      }
+    }
+    push(ch, i);
+    i++;
+  }
+  return { text, map };
+}
+
+// One block's violations: the raw block, plus its shadow when markup or an
+// entity is present. A hit is attributed to a physical line through the offset
+// table, and a line is reported once per rule.
+function scanBlockForRule(rule: DenyRule, block: Block): Array<{ line: number; matched: string }> {
+  const hits: Array<{ line: number; matched: string }> = [];
+  const seen = new Set<number>();
+  const add = (index: number, matched: string) => {
+    const line = lineOfOffset(block, index);
+    if (seen.has(line)) return;
+    seen.add(line);
+    hits.push({ line, matched });
+  };
+  for (const m of flaggedMatches(rule, block.text)) add(m.index, m[0]);
+  if (/[<&]/.test(block.text)) {
+    const shadow = shadowText(block.text);
+    if (shadow.text !== block.text) {
+      for (const m of flaggedMatches(rule, shadow.text)) add(shadow.map[m.index], m[0]);
+    }
+  }
+  return hits;
+}
+
+// The scan of one file's text, shared by the real scanner and the unit tests
+// (so a test of wrapped or marked-up input runs the production path).
+function scanTextForRule(rule: DenyRule, text: string, rel: string, file?: string): Violation[] {
+  const violations: Violation[] = [];
+  const physical = text.split('\n');
+  for (const block of buildBlocks(text, file ?? rel)) {
+    for (const hit of scanBlockForRule(rule, block)) {
+      if (rule.exemptLines?.some((e) => e.file === rel && e.line === physical[hit.line - 1]))
+        continue;
+      violations.push({
+        ruleId: rule.id,
+        file: rel,
+        location: `${rel}:${hit.line}: ${hit.matched}`,
+        line: hit.line,
+      });
+    }
+  }
+  return violations;
+}
+
 function scanFilesForRule(rule: DenyRule, files: string[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
     const rel = path.relative(WEBSITE_ROOT, file).split(path.sep).join('/');
     if (rule.exemptFile?.(rel)) continue;
-    const text = readFileSync(file, 'utf8');
-    const lines = text.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const m = line.match(rule.re);
-      if (rule.exemptLines?.some((e) => e.file === rel && e.line === line)) continue;
-      if (m && isFlaggedByRule(rule, line, file)) {
-        violations.push({
-          ruleId: rule.id,
-          file: rel,
-          location: `${rel}:${i + 1}: ${m[0]}`,
-          line: i + 1,
-        });
-      }
-    }
+    violations.push(...scanTextForRule(rule, readFileSync(file, 'utf8'), rel, file));
   }
   return violations;
 }
@@ -2237,6 +2533,449 @@ describe('content accuracy guard (anti-drift; PR #705 must not regress)', () => 
 const CANARY_DIR = path.join(WEBSITE_ROOT, 'test/fixtures/canary');
 const CANARY_BAD_LINE = 5; // '---', title, '---', blank, then the bad sample
 const CANARY_FILES = walk(CANARY_DIR, ['.md'], /* honorExclusions */ false);
+
+// ---------------------------------------------------------------------------
+// BLOCK SCANNING (issue: a wrapped false claim was invisible to the line scan).
+// ---------------------------------------------------------------------------
+// Wrap `sample` at one word boundary; a null return means the boundary is not a
+// legitimate Markdown wrap point (the next word would open a list item, a
+// heading, a quote or a table row, which ends the paragraph by design).
+function wrapAt(sample: string, wordIndex: number): string | null {
+  const words = sample.split(' ');
+  if (wordIndex <= 0 || wordIndex >= words.length) return null;
+  const next = words[wordIndex];
+  if (/^(?:[-*+>|#]|\d+[.)]|```|~~~|<!--)/.test(next)) return null;
+  return words.slice(0, wordIndex).join(' ') + '\n' + words.slice(wordIndex).join(' ');
+}
+function wrapPoints(sample: string): string[] {
+  const out: string[] = [];
+  for (let i = 1; i < sample.split(' ').length; i++) {
+    const w = wrapAt(sample, i);
+    if (w !== null) out.push(w);
+  }
+  return out;
+}
+const scanMd = (rule: DenyRule, text: string) =>
+  scanTextForRule(rule, text, 'src/content/blog/sample.md', 'src/content/blog/sample.md');
+
+describe('block scanning: classifier, joining and offset map', () => {
+  const md = (text: string) => buildBlocks(text, 'a.md').map((b) => b.text);
+
+  it('classifies frontmatter, fenced code and prose', () => {
+    const lines = ['---', 'title: x', '---', 'prose', '```sh', 'apt install y', '```', 'more'];
+    expect(classifyLines(lines, 'a.md')).toEqual([
+      'frontmatter',
+      'frontmatter',
+      'frontmatter',
+      'prose',
+      'fence',
+      'fence',
+      'fence',
+      'prose',
+    ]);
+    // A '---' that is not on line 1 is a thematic break, not frontmatter.
+    expect(classifyLines(['intro', '---', 'x'], 'a.md')).toEqual(['prose', 'prose', 'prose']);
+  });
+
+  it('joins consecutive prose lines with one space and ends blocks at blank lines', () => {
+    expect(md('AVIF is\n  ModPageSpeed 2.0\nonly.\n\nNext paragraph.')).toEqual([
+      'AVIF is ModPageSpeed 2.0 only.',
+      '',
+      'Next paragraph.',
+    ]);
+  });
+
+  it('ends a block at headings, table rows, list markers and blockquotes', () => {
+    expect(md('one\n## Heading\ntwo\n| a | b |\nthree')).toEqual([
+      'one',
+      '## Heading',
+      'two',
+      '| a | b |',
+      'three',
+    ]);
+    expect(md('- item one\n  wraps here\n- item two\n1. numbered\n2) other')).toEqual([
+      '- item one wraps here',
+      '- item two',
+      '1. numbered',
+      '2) other',
+    ]);
+    expect(md('before\n> quoted line\n> continues\nafter')).toEqual([
+      'before',
+      '> quoted line continues',
+      'after',
+    ]);
+  });
+
+  it('never joins frontmatter or fenced code to the prose around them', () => {
+    expect(md('---\ntitle: A\ndescription: B\n---\ntext\n```\ncode a\ncode b\n```\ntail')).toEqual([
+      '---',
+      'title: A',
+      'description: B',
+      '---',
+      'text',
+      '```',
+      'code a',
+      'code b',
+      '```',
+      'tail',
+    ]);
+  });
+
+  it('keeps one block per line outside markdown-shaped files (code breaks separate code)', () => {
+    expect(buildBlocks('a\nb', 'x.astro').map((b) => b.text)).toEqual(['a', 'b']);
+    expect(buildBlocks('a\nb', 'x.ts').map((b) => b.text)).toEqual(['a', 'b']);
+    expect(buildBlocks('a\nb', 'x.txt').map((b) => b.text)).toEqual(['a b']);
+  });
+
+  it('maps a match offset back to its physical line', () => {
+    const [block] = buildBlocks('alpha beta\ngamma delta\nepsilon', 'a.md');
+    expect(lineOfOffset(block, block.text.indexOf('alpha'))).toBe(1);
+    expect(lineOfOffset(block, block.text.indexOf('gamma'))).toBe(2);
+    expect(lineOfOffset(block, block.text.indexOf('epsilon'))).toBe(3);
+  });
+
+  it('reports a wrapped claim on the line where the match starts', () => {
+    const f1 = DENYLIST.find((r) => r.id.startsWith('f1-'))!;
+    const hits = scanMd(f1, 'intro line\n\nThe encoder AVIF is\nModPageSpeed 2.0 only.\n');
+    expect(hits.map((h) => h.line)).toEqual([3]);
+  });
+});
+
+describe('block scanning: wrapped claims (the gap the line scanner had)', () => {
+  // The motivating miss, verbatim: the old scanner saw "AVIF is" and
+  // "ModPageSpeed 2.0 only." as two harmless lines.
+  it('flags a claim wrapped across the line break that the per-line scan misses', () => {
+    const f1 = DENYLIST.find((r) => r.id.startsWith('f1-'))!;
+    const wrapped = 'The encoder AVIF is\nModPageSpeed 2.0 only.';
+    expect(wrapped.split('\n').some((l) => isFlaggedByRule(f1, l))).toBe(false); // old behaviour
+    expect(scanMd(f1, wrapped).length).toBe(1);
+  });
+
+  for (const rule of DENYLIST) {
+    const bads = [rule.bad, ...(rule.variantsBad ?? [])];
+    it(`[${rule.id}] flags every known-bad sample wrapped at every word boundary`, () => {
+      const missed: string[] = [];
+      for (const bad of bads) {
+        for (const wrapped of wrapPoints(bad)) {
+          if (scanMd(rule, wrapped).length === 0) missed.push(JSON.stringify(wrapped));
+        }
+      }
+      expect(missed, missed.length ? `\nmissed:\n  ${missed.join('\n  ')}\n` : undefined).toEqual(
+        [],
+      );
+    });
+
+    const goods = [rule.good, ...(rule.variantsGood ?? [])];
+    it(`[${rule.id}] does NOT flag any known-good sample wrapped at every word boundary`, () => {
+      const wrong: string[] = [];
+      for (const good of goods) {
+        for (const wrapped of wrapPoints(good)) {
+          for (const r of DENYLIST) {
+            if (scanMd(r, wrapped).length > 0) wrong.push(`[${r.id}] ${JSON.stringify(wrapped)}`);
+          }
+        }
+      }
+      expect(
+        wrong,
+        wrong.length ? `\nwrongly flagged:\n  ${wrong.join('\n  ')}\n` : undefined,
+      ).toEqual([]);
+    });
+  }
+
+  // Joining must not turn two true sentences into one false claim: the
+  // proximity windows stay bounded and clause-scoped on the joined block.
+  it('the FP corpus and every known-good sample, joined into running paragraphs, flag nothing', () => {
+    const goods = [...FP_CORPUS, ...DENYLIST.flatMap((r) => [r.good, ...(r.variantsGood ?? [])])];
+    const wrong: string[] = [];
+    for (let step = 1; step <= 3; step++) {
+      for (let i = 0; i + 1 < goods.length; i += step) {
+        // Two neighbours wrapped into one paragraph, as a writer would hard-wrap it.
+        const paragraph = `${goods[i]}\n${goods[i + 1]}`;
+        for (const r of DENYLIST) {
+          // A crossSentence rule is paragraph-scoped by design (see the flag);
+          // two unrelated samples glued into one paragraph are outside its contract.
+          if (r.crossSentence) continue;
+          const alone = [goods[i], goods[i + 1]].some((g) => isFlaggedByRule(r, g));
+          if (!alone && scanMd(r, paragraph).length > 0) {
+            wrong.push(`[${r.id}] ${JSON.stringify(paragraph)}`);
+          }
+        }
+      }
+    }
+    expect(wrong, wrong.length ? `\n${wrong.join('\n')}\n` : undefined).toEqual([]);
+  });
+
+  // A real false positive the joined scan found in the shipped docs: a wrapped
+  // paragraph whose "pagespeed-optimizer" is a config-file PATH, followed by a
+  // true statement about the container images. Pins the path guard.
+  it('a config path named pagespeed-optimizer is not the worker subject', () => {
+    const b3 = DENYLIST.find((r) => r.id.startsWith('b3-'))!;
+    const text =
+      'then point the optimizer worker at it from `/etc/default/pagespeed-optimizer` -- the default\nbinary path exists only in the container images:';
+    expect(scanMd(b3, text)).toEqual([]);
+    // The worker as a subject is still caught across the same wrap.
+    expect(
+      scanMd(b3, 'The pagespeed-optimizer worker ships\nonly as a container image.').length,
+    ).toBe(1);
+  });
+
+  it('frontmatter and fenced lines are classified, not glued to neighbouring prose', () => {
+    const f1 = DENYLIST.find((r) => r.id.startsWith('f1-'))!;
+    // "AVIF is" at the end of a fence must not join the prose "ModPageSpeed 2.0 only." after it.
+    expect(scanMd(f1, '```\nAVIF is\n```\nModPageSpeed 2.0 only.')).toEqual([]);
+    expect(scanMd(f1, '---\ntitle: AVIF is\n---\nModPageSpeed 2.0 only.')).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MARKUP: shadow text strips tags and decodes entities, position-preserving.
+// ---------------------------------------------------------------------------
+describe('shadow text: markup and entities no longer hide a claim', () => {
+  it('strips inline tags without fusing words, and block tags become one space', () => {
+    expect(shadowText('AVIF is <strong>ModPageSpeed 2.0</strong> only.').text).toBe(
+      'AVIF is ModPageSpeed 2.0 only.',
+    );
+    expect(shadowText('<td>AVIF</td><td>2.0</td>').text).toBe(' AVIF  2.0 ');
+    expect(shadowText('a<br>b').text).toBe('a b');
+    expect(shadowText('<em>2.0</em>-only').text).toBe('2.0-only');
+  });
+
+  it('decodes named and numeric entities and leaves unknown ones alone', () => {
+    expect(shadowText('AVIF&nbsp;is 2.0&#8209;only &mdash; &x;').text).toBe(
+      'AVIF is 2.0\u2011only \u2014 &x;',
+    );
+    expect(shadowText('a &lt;b&gt; &amp; c').text).toBe('a <b> & c');
+    // A bare '<' that opens no tag is text.
+    expect(shadowText('1 < 2 and AVIF').text).toBe('1 < 2 and AVIF');
+  });
+
+  it('keeps a map from every shadow character back to the source index', () => {
+    const src = 'x <b>AVIF</b>&nbsp;y';
+    const { text, map } = shadowText(src);
+    expect(text).toBe('x AVIF y');
+    expect(src[map[text.indexOf('A')]]).toBe('A');
+    expect(map[text.indexOf('y')]).toBe(src.indexOf('y'));
+    expect(src.slice(map[text.indexOf(' y')])).toBe('&nbsp;y');
+    expect(map.length).toBe(text.length);
+  });
+
+  it('flags a claim split by tags or entities, on the right physical line', () => {
+    const f1 = DENYLIST.find((r) => r.id.startsWith('f1-'))!;
+    expect(isFlaggedByRule(f1, 'AVIF is <strong>ModPageSpeed 2.0</strong> only.')).toBe(false); // raw: blind
+    const hits = scanMd(f1, 'intro\n\nAVIF is <strong>ModPageSpeed 2.0</strong>\nonly.');
+    expect(hits.map((h) => h.line)).toEqual([3]);
+    expect(scanMd(f1, 'AVIF&nbsp;is ModPageSpeed 2.0 only.').length).toBe(1);
+    // The same markup around a TRUE sentence stays clear.
+    expect(scanMd(f1, 'AVIF is <strong>available</strong> across 1.15 and 2.0.')).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FACT ANCHORS (exclusivity rules must be tied to product-facts.mjs).
+// ---------------------------------------------------------------------------
+describe('exclusivity rules are anchored to a machine-checked fact', () => {
+  // The rules that assert "X is NOT exclusive to 2.0". Adding a rule of this
+  // shape means adding its id here, which is what forces an anchor.
+  const ANCHORED_RULE_IDS = [
+    'f1-avif-exclusive-to-2.0',
+    'f2-1.15-does-not-ship-avif',
+    'f3-zero-copy-and-variant-cache-are-not-2.0-only',
+    'f4-implicit-exclusivity-by-scoping',
+  ];
+  const anchored = () => ANCHORED_RULE_IDS.map((id) => DENYLIST.find((r) => r.id === id)!);
+
+  it('every exclusivity rule exists and names its anchor', () => {
+    for (const id of ANCHORED_RULE_IDS) {
+      const rule = DENYLIST.find((r) => r.id === id);
+      expect(rule, `rule ${id} is missing`).toBeTruthy();
+      expect(rule!.anchor, `rule ${id} must name an anchor`).toBeTruthy();
+      expect(rule!.anchor!.describes.length).toBeGreaterThan(20);
+    }
+    // And nothing else claims an anchor without being on the list.
+    const stray = DENYLIST.filter((r) => r.anchor && !ANCHORED_RULE_IDS.includes(r.id)).map(
+      (r) => r.id,
+    );
+    expect(stray).toEqual([]);
+  });
+
+  it('every anchor holds against the current product-facts', () => {
+    const broken = anchored()
+      .filter((r) => !r.anchor!.holds(facts))
+      .map((r) => `${r.id}: ${r.anchor!.describes}`);
+    expect(
+      broken,
+      broken.length
+        ? `\nthe fact behind these rules changed; re-verify each rule before editing the table:\n  ${broken.join('\n  ')}\n`
+        : undefined,
+    ).toEqual([]);
+  });
+
+  it('an anchor notices a changed fact (mutation probes)', () => {
+    type Row = { format: string; editions: Record<string, unknown> };
+    const dropEdition = (rows: Row[], key: string, edition: string): Row[] =>
+      rows.map((r) => {
+        if (r.format !== key) return r;
+        const { [edition]: _gone, ...rest } = r.editions;
+        return { ...r, editions: rest };
+      });
+    const base = facts as FactsView;
+    const byId = (id: string) => DENYLIST.find((r) => r.id.startsWith(id))!;
+
+    // AVIF drops off the 1.15 line: f1, f2 and f4 must go red.
+    const noAvif115: FactsView = {
+      ...base,
+      IMAGE_FORMAT_SUPPORT: dropEdition(
+        base.IMAGE_FORMAT_SUPPORT as Row[],
+        'AVIF',
+        base.V1_LINE,
+      ) as FactsView['IMAGE_FORMAT_SUPPORT'],
+    };
+    for (const id of ['f1-', 'f2-', 'f4-']) expect(byId(id).anchor!.holds(noAvif115)).toBe(false);
+    expect(byId('f3-').anchor!.holds(noAvif115)).toBe(true);
+
+    // Zero-copy becomes 2.0-only: f3 and f4 must go red.
+    const zeroCopy2Only: FactsView = {
+      ...base,
+      CAPABILITY_SUPPORT: (
+        base.CAPABILITY_SUPPORT as Array<{ capability: string; editions: object }>
+      ).map((r) =>
+        r.capability === 'zero-copy-serving' ? { ...r, editions: { [base.V2_LINE]: {} } } : r,
+      ) as FactsView['CAPABILITY_SUPPORT'],
+    };
+    for (const id of ['f3-', 'f4-']) expect(byId(id).anchor!.holds(zeroCopy2Only)).toBe(false);
+    expect(byId('f1-').anchor!.holds(zeroCopy2Only)).toBe(true);
+
+    // A capability row that disappears is a changed fact too.
+    const noRows: FactsView = { ...base, CAPABILITY_SUPPORT: [] };
+    expect(byId('f3-').anchor!.holds(noRows)).toBe(false);
+  });
+
+  it('the capability table matches the helper and never claims Envoy', () => {
+    expect(facts.capabilityEditions('zero-copy-serving')).toEqual([facts.V1_LINE, facts.V2_LINE]);
+    expect(facts.capabilityEditions('variant-aware-caching')).toEqual([
+      facts.V1_LINE,
+      facts.V2_LINE,
+    ]);
+    expect(facts.capabilityEditions('no-such-capability')).toEqual([]);
+    expect(JSON.stringify(facts.CAPABILITY_SUPPORT)).not.toMatch(/envoy/i);
+    expect(facts.V2_ONLY_PROPERTIES.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// COMPUTED CLAIMS: the /vs/* pages build cells with editionClause(...) inside
+// template literals, so a source scan sees the expression, not the sentence a
+// reader gets. Evaluate the helper, render the sentence, run the rules on it.
+// ---------------------------------------------------------------------------
+type RenderedClaim = { page: string; line: number; source: string; rendered: string };
+
+// Every template literal in `src` that interpolates editionClause([...]),
+// rendered with the REAL helper. Any other interpolation must be a string
+// export of product-facts.mjs (rendered too) or the render fails loudly, so a
+// new computed expression cannot slip past unevaluated.
+function renderEditionClauseTemplates(src: string, page: string): RenderedClaim[] {
+  const out: RenderedClaim[] = [];
+  const literal = /`((?:[^`\\]|\\.)*)`/g;
+  let m: RegExpExecArray | null;
+  while ((m = literal.exec(src)) !== null) {
+    if (!m[1].includes('${editionClause(')) continue;
+    const rendered = m[1].replace(/\$\{\s*([^}]+?)\s*\}/g, (_all, expr: string) => {
+      const call = /^editionClause\(\s*(\[[^\]]*\])?\s*\)$/.exec(expr);
+      if (call) {
+        const formats = call[1] ? (JSON.parse(call[1].replace(/'/g, '"')) as string[]) : undefined;
+        return facts.editionClause(formats);
+      }
+      const value = (facts as Record<string, unknown>)[expr];
+      if (typeof value === 'string') return value;
+      throw new Error(`${page}: cannot evaluate \${${expr}} in a computed claim`);
+    });
+    out.push({
+      page,
+      line: src.slice(0, m.index).split('\n').length,
+      source: m[1],
+      rendered,
+    });
+  }
+  return out;
+}
+
+describe('computed claims: editionClause() cells on the /vs/* pages', () => {
+  const VS_DIR = path.join(WEBSITE_ROOT, 'src/pages/vs');
+  const vsPages = readdirSync(VS_DIR)
+    .filter((n) => n.endsWith('.astro'))
+    .sort();
+  const claims = vsPages.flatMap((n) =>
+    renderEditionClauseTemplates(readFileSync(path.join(VS_DIR, n), 'utf8'), `src/pages/vs/${n}`),
+  );
+
+  it('finds the computed cells on every vs page that uses the helper', () => {
+    const usingHelper = vsPages.filter((n) =>
+      readFileSync(path.join(VS_DIR, n), 'utf8').includes('editionClause('),
+    );
+    expect(usingHelper.length).toBeGreaterThanOrEqual(8);
+    for (const n of usingHelper) {
+      expect(
+        claims.some((c) => c.page === `src/pages/vs/${n}`),
+        `${n} calls editionClause() but no template literal was evaluated`,
+      ).toBe(true);
+    }
+  });
+
+  it('renders the sentence a reader sees (helper evaluated, entities decoded)', () => {
+    const imgix = claims.find((c) => c.page.endsWith('/imgix.astro'))!;
+    expect(shadowText(imgix.rendered).text).toBe(
+      'WebP and AVIF \u2014 responsive variants at origin',
+    );
+  });
+
+  it('no rule flags any rendered computed cell', () => {
+    const wrong: string[] = [];
+    for (const c of claims) {
+      const text = shadowText(c.rendered).text;
+      for (const r of DENYLIST) {
+        if (isFlaggedByRule(r, c.rendered) || isFlaggedByRule(r, text)) {
+          wrong.push(`[${r.id}] ${c.page}:${c.line}: ${text}`);
+        }
+      }
+    }
+    expect(wrong, wrong.length ? `\n${wrong.join('\n')}\n` : undefined).toEqual([]);
+  });
+
+  it('a helper that rendered a wrong fence WOULD be caught', () => {
+    // Stand-in for a regression in the helper or the call site: the rendered
+    // cell fences AVIF to 2.0. The rules must flag the rendered text.
+    const f1 = DENYLIST.find((r) => r.id.startsWith('f1-'))!;
+    const bad = renderEditionClauseTemplates(
+      "const c = `${editionClause(['AVIF'])} is ModPageSpeed 2.0 only`;",
+      'inline',
+    );
+    expect(bad.map((c) => c.rendered)).toEqual(['AVIF is ModPageSpeed 2.0 only']);
+    expect(isFlaggedByRule(f1, bad[0].rendered)).toBe(true);
+  });
+
+  it('refuses an interpolation it cannot evaluate', () => {
+    expect(() =>
+      renderEditionClauseTemplates('const c = `${editionClause(["AVIF"])} ${mystery}`;', 'inline'),
+    ).toThrow(/cannot evaluate/);
+  });
+});
+
+describe('sentence-bounded windows', () => {
+  it('boundWindows() keeps the length bound and stops at a sentence end, not at a version dot', () => {
+    const re = boundWindows(/\bAVIF\b[^\n]{0,40}?\bonly\b/);
+    expect(re.test('AVIF is shipped in 2.0 only')).toBe(true); // version dots do not end the window
+    expect(re.test('AVIF is great. It is only here')).toBe(false); // a sentence end does
+    expect(re.test('AVIF ' + 'x'.repeat(60) + ' only')).toBe(false); // still bounded
+    expect(re.test('AVIF was in 2.0.\nit is only here')).toBe(false); // "0." before a space ends the sentence
+  });
+
+  it('the rules that opt out are exactly the paragraph-scoped ones', () => {
+    expect(DENYLIST.filter((r) => r.crossSentence).map((r) => r.id.split('-')[0])).toEqual([
+      'f4',
+      'i',
+    ]);
+  });
+});
 
 describe('canary fixtures: the scan path (walker, filter, splitter) still works', () => {
   it('the canary fixtures are NOT part of the real scan surface', () => {
