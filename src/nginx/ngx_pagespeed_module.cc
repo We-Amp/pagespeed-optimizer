@@ -3444,6 +3444,44 @@ static void ngx_http_pagespeed_emit_vary(ngx_http_request_t* r, ContentType ct,
                       vary_val.size());
 }
 
+// Set Content-Encoding from a stored variant's capability mask, so a body
+// served from a pre-compressed variant is labelled with the encoding it is
+// stored in.  Assigning content_encoding also keeps nginx's gzip and brotli
+// filters from compressing the body a second time.  Any Content-Encoding line
+// already in the response (an upstream error page, a 304) is deactivated
+// first.  The agent markdown variant is skipped: its mask (0x7C) is a sentinel
+// marker, not a real transfer-encoding, and would decode to a bogus gzip.
+static void ngx_http_pagespeed_set_variant_content_encoding(
+    ngx_http_request_t* r, uint32_t full_mask) {
+  for (ngx_table_elt_t* old = r->headers_out.content_encoding; old;
+       old = old->next) {
+    old->hash = 0;
+  }
+  r->headers_out.content_encoding = nullptr;
+  if ((full_mask & 0xFF) == static_cast<uint32_t>(SentinelId::kAgentMarkdown)) {
+    return;
+  }
+  auto te = CapabilityMask::Decode(full_mask).transfer_encoding();
+  const char* ce_val = nullptr;
+  if (te == CapabilityMask::TransferEncoding::kGzip) {
+    ce_val = "gzip";
+  } else if (te == CapabilityMask::TransferEncoding::kBrotli) {
+    ce_val = "br";
+  }
+  if (ce_val == nullptr) return;
+  ngx_table_elt_t* ce =
+      static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_out.headers));
+  if (ce) {
+    ce->hash = 1;
+    ce->next = nullptr;
+    ngx_str_set(&ce->key, "Content-Encoding");
+    ce->value.data =
+        const_cast<u_char*>(reinterpret_cast<const u_char*>(ce_val));
+    ce->value.len = strlen(ce_val);
+    r->headers_out.content_encoding = ce;
+  }
+}
+
 // Issue #652 review (RFC 9111 §4.2.4): may the stashed stale entry be
 // served in place of an upstream error?  Requires: the feature enabled,
 // no revalidation-required directive on the entry (must-revalidate /
@@ -3557,29 +3595,7 @@ static ngx_int_t ngx_http_pagespeed_serve_stale_on_error(
   // The stashed entry may be a pre-compressed variant — emit its
   // Content-Encoding so the client can decode it (and clear any encoding
   // the upstream error page carried).
-  r->headers_out.content_encoding = nullptr;
-  {
-    auto te = CapabilityMask::Decode(smeta.full_mask).transfer_encoding();
-    const char* ce_val = nullptr;
-    if (te == CapabilityMask::TransferEncoding::kGzip) {
-      ce_val = "gzip";
-    } else if (te == CapabilityMask::TransferEncoding::kBrotli) {
-      ce_val = "br";
-    }
-    if (ce_val != nullptr) {
-      ngx_table_elt_t* ce =
-          static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_out.headers));
-      if (ce) {
-        ce->hash = 1;
-        ce->next = nullptr;
-        ngx_str_set(&ce->key, "Content-Encoding");
-        ce->value.data =
-            const_cast<u_char*>(reinterpret_cast<const u_char*>(ce_val));
-        ce->value.len = strlen(ce_val);
-        r->headers_out.content_encoding = ce;
-      }
-    }
-  }
+  ngx_http_pagespeed_set_variant_content_encoding(r, smeta.full_mask);
 
   // Response-header sidecar (issue #208): for every classified stash the
   // error page's own lines of the names the stored block carries (CSP, ACAO,
@@ -4040,6 +4056,10 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     // client whose If-None-Match matches the ETag below must get its 304.
     r->disable_not_modified = 0;
     r->headers_out.content_length_n = stale_content_length;
+
+    // The stored body may be a pre-compressed variant; label it the way the
+    // HIT path does, or the client receives encoded bytes as identity.
+    ngx_http_pagespeed_set_variant_content_encoding(r, updated_meta.full_mask);
 
     // Reuse cached content-type from metadata.
     const auto& smeta = stale->metadata;
@@ -5913,28 +5933,7 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
       // filters from double-compressing the already-compressed content.
       // Skipped for the agent markdown variant (its full_mask 0x7C is a sentinel
       // marker, NOT a real transfer-encoding — it would decode to a bogus gzip).
-      if (!ctx->served_agent_markdown) {
-        auto te = CapabilityMask::Decode(meta.full_mask).transfer_encoding();
-        const char* ce_val = nullptr;
-        if (te == CapabilityMask::TransferEncoding::kGzip) {
-          ce_val = "gzip";
-        } else if (te == CapabilityMask::TransferEncoding::kBrotli) {
-          ce_val = "br";
-        }
-        if (ce_val != nullptr) {
-          ngx_table_elt_t* ce = static_cast<ngx_table_elt_t*>(
-              ngx_list_push(&r->headers_out.headers));
-          if (ce) {
-            ce->hash = 1;
-            ce->next = nullptr;
-            ngx_str_set(&ce->key, "Content-Encoding");
-            ce->value.data =
-                const_cast<u_char*>(reinterpret_cast<const u_char*>(ce_val));
-            ce->value.len = strlen(ce_val);
-            r->headers_out.content_encoding = ce;
-          }
-        }
-      }
+      ngx_http_pagespeed_set_variant_content_encoding(r, meta.full_mask);
 
       // SVG security headers: restrict execution context and prevent
       // MIME-type sniffing to mitigate XSS via inline SVG scripts.

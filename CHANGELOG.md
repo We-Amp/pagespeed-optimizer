@@ -4,6 +4,13 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: with the nginx module, a compressed (gzip or Brotli) optimized response
+served right after the origin confirmed it unchanged (a 304 cache revalidation,
+visible as `X-PageSpeed: REVALIDATED`) was sent without its `Content-Encoding`
+header, so browsers and other clients received compressed bytes labelled as
+plain content. The response now carries the same `Content-Encoding` as a normal
+cache hit.
+
 Fixed: the default worker thread count now follows the container's CPU limit.
 Before, a container limited with `docker run --cpus=12` (or a Kubernetes CPU
 limit) on a large host still started a thread pool sized for the whole host.
