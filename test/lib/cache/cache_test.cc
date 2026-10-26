@@ -1296,13 +1296,18 @@ TEST_F(PageSpeedCacheTest, GenerationFileOnReset) {
 
   // New writes should succeed.
   WriteContent("/img/gen-test2.jpg", "example.com", mask, "new-data");
-  auto r = cache_->ReadBestAlternate("/img/gen-test2.jpg", "example.com",
-                                     "https", mask);
-  ASSERT_TRUE(r.has_value());
-  auto content = r->content();
-  std::string_view read_data(reinterpret_cast<const char*>(content.data()),
-                             content.size());
-  EXPECT_EQ(read_data, "new-data");
+  {
+    // The result borrows the volume's memory mapping.  Scope it so the
+    // mapping is released before the second reset: Windows cannot delete a
+    // file that is still mapped, and ResetVolume now reports that.
+    auto r = cache_->ReadBestAlternate("/img/gen-test2.jpg", "example.com",
+                                       "https", mask);
+    ASSERT_TRUE(r.has_value());
+    auto content = r->content();
+    std::string_view read_data(reinterpret_cast<const char*>(content.data()),
+                               content.size());
+    EXPECT_EQ(read_data, "new-data");
+  }
 
   // Second reset should increment to 2.
   auto reset2 = cache_->ResetVolume();
