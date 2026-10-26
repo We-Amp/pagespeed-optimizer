@@ -155,6 +155,9 @@ inline void CloseServer(intptr_t h) {
 }
 #else
 inline intptr_t AcceptClient(intptr_t server, const std::string& /*path*/) {
+  // Fail fast instead of blocking forever when no client ever connects.
+  struct pollfd pfd = {static_cast<int>(server), POLLIN, 0};
+  if (poll(&pfd, 1, 10000) <= 0) return -1;
   return static_cast<intptr_t>(
       accept(static_cast<int>(server), nullptr, nullptr));
 }
@@ -247,6 +250,7 @@ TEST_F(NotificationSenderTest, ResultDefaultValues) {
   EXPECT_TRUE(result.error_message.empty());
   EXPECT_EQ(result.retries_attempted, 0);
   EXPECT_EQ(result.connect_errno, 0);
+  EXPECT_FALSE(result.invalid_argument);
 }
 
 TEST_F(NotificationSenderTest, RetryConfigDefaultValues) {
@@ -338,6 +342,50 @@ TEST_F(NotificationSenderTest, SendWithEmptySocketPath) {
   EXPECT_EQ(result.connect_errno, 0);
 }
 
+TEST_F(NotificationSenderTest, SendRefusedSerializationFailsWithoutConnect) {
+  // Serialize refuses an empty scheme. That refusal must surface as an
+  // invalid-argument failure before any connection is attempted: no listener
+  // exists at this path, so a connect attempt would leave ENOENT or
+  // ECONNREFUSED in connect_errno.
+  CacheNotification notification = MakeNotification();
+  notification.scheme.clear();
+
+  auto result = SendNotification(socket_path_, notification);
+  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.invalid_argument);
+  EXPECT_EQ(result.connect_errno, 0);
+  EXPECT_NE(result.error_message.find("serialized"), std::string::npos)
+      << "Error: " << result.error_message;
+}
+
+TEST_F(NotificationSenderTest, SendRefusedOversizedFieldFailsWithoutConnect) {
+  // A URL one byte over kMaxUrlLength is refused by Serialize; no listener
+  // exists, so the refusal must surface before any connection is attempted.
+  CacheNotification notification = MakeNotification();
+  notification.url = std::string(kMaxUrlLength + 1, 'u');
+
+  auto result = SendNotification(socket_path_, notification);
+  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.invalid_argument);
+  EXPECT_EQ(result.connect_errno, 0);
+}
+
+TEST_F(NotificationSenderTest, RetryDoesNotRetryRefusedSerialization) {
+  // connect_errno is 0 for a serialization refusal, so the retry loop must
+  // break immediately instead of sleeping.
+  CacheNotification notification = MakeNotification();
+  notification.scheme.clear();
+
+  RetryConfig config;
+  config.max_retries = 5;
+  config.initial_delay_ms = 5;
+
+  auto result = SendNotificationWithRetry(socket_path_, notification, config);
+  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.invalid_argument);
+  EXPECT_EQ(result.retries_attempted, 0);
+}
+
 #ifndef _WIN32
 TEST_F(NotificationSenderTest, SendToPathTooLong) {
   // sun_path is 104 bytes on macOS, 108 on Linux. A path >= sizeof(sun_path)
@@ -358,7 +406,7 @@ TEST_F(NotificationSenderTest, SendToPathExactlyAtLimit) {
   sockaddr_un addr;
   std::string max_path(sizeof(addr.sun_path) - 1, 'x');
 
-  auto result = SendNotification(max_path, CacheNotification{});
+  auto result = SendNotification(max_path, MakeNotification());
   EXPECT_FALSE(result.success);
   // Should NOT be "Socket path too long" since it fits in sun_path
   EXPECT_EQ(result.error_message.find("too long"), std::string::npos)
@@ -372,7 +420,7 @@ TEST_F(NotificationSenderTest, SendToPathExactlyAtLimit) {
 
 TEST_F(NotificationSenderTest, SendToNonExistentSocket) {
   auto result =
-      SendNotification("/tmp/nonexistent_socket.sock", CacheNotification{});
+      SendNotification("/tmp/nonexistent_socket.sock", MakeNotification());
   EXPECT_FALSE(result.success);
   EXPECT_FALSE(result.error_message.empty());
   // Should get ENOENT or ECONNREFUSED
@@ -384,7 +432,7 @@ TEST_F(NotificationSenderTest, SendToNonExistentSocket) {
 TEST_F(NotificationSenderTest, SendToNonExistentDirectory) {
   // Connecting to a socket path in a non-existent directory gives ENOENT.
   auto result = SendNotification("/tmp/no_such_dir_12345/notify.sock",
-                                 CacheNotification{});
+                                 MakeNotification());
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.connect_errno, ENOENT);
   EXPECT_NE(result.error_message.find("connect"), std::string::npos)
@@ -402,7 +450,7 @@ TEST_F(NotificationSenderTest, ConnectToRegularFileNotSocket) {
     close(fd);
   }
 
-  auto result = SendNotification(file_path, CacheNotification{});
+  auto result = SendNotification(file_path, MakeNotification());
   EXPECT_FALSE(result.success);
   // Should be a connect error, but NOT ENOENT (the file exists).
   // The errno varies by kernel: ENOTSOCK on some, ECONNREFUSED on others.
@@ -532,8 +580,10 @@ TEST_F(NotificationSenderTest, WriteFailsWhenPeerResets) {
   sigaction(SIGPIPE, &sa, nullptr);
 #endif
 
+  bool accepted = false;
   std::thread acceptor([&]() {
     intptr_t client_fd = AcceptClient(server_fd, socket_path_);
+    accepted = client_fd != -1;
     if (client_fd != -1) {
 #ifndef _WIN32
       // Set SO_LINGER with timeout=0 to force RST on close
@@ -548,13 +598,17 @@ TEST_F(NotificationSenderTest, WriteFailsWhenPeerResets) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-  // Large URL to generate a large payload that won't fit in kernel buffers
-  CacheNotification notification = MakeNotification(
-      std::string(static_cast<size_t>(128) * 1024, 'u'), "example.com");
+  // Largest URL the wire format accepts: a longer one fails to serialize, so
+  // the sender would never connect and the acceptor above would block.
+  CacheNotification notification =
+      MakeNotification(std::string(kMaxUrlLength, 'u'), "example.com");
   auto result = SendNotification(socket_path_, notification);
 
   acceptor.join();
   CloseServer(server_fd);
+
+  EXPECT_TRUE(accepted) << "sender never connected";
+  EXPECT_FALSE(result.invalid_argument) << result.error_message;
 
   // The write should eventually fail with EPIPE, ECONNRESET, or similar.
   // On some OSes with large socket buffers, the entire write may succeed
@@ -669,7 +723,7 @@ TEST_F(NotificationSenderTest, RetryNotNeeded) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-  auto result = SendNotificationWithRetry(socket_path_, CacheNotification{});
+  auto result = SendNotificationWithRetry(socket_path_, MakeNotification());
   EXPECT_TRUE(result.success);
   EXPECT_EQ(result.retries_attempted, 0);
 
@@ -685,7 +739,7 @@ TEST_F(NotificationSenderTest, RetryExhausted) {
 
   auto start = std::chrono::steady_clock::now();
   auto result = SendNotificationWithRetry("/tmp/nonexistent_retry_test.sock",
-                                          CacheNotification{}, config);
+                                          MakeNotification(), config);
   auto elapsed = std::chrono::steady_clock::now() - start;
 
   EXPECT_FALSE(result.success);
@@ -719,7 +773,7 @@ TEST_F(NotificationSenderTest, RetryBreaksOnNonTransientError) {
   config.backoff_multiplier = 2.0;
 
   auto result =
-      SendNotificationWithRetry(file_path, CacheNotification{}, config);
+      SendNotificationWithRetry(file_path, MakeNotification(), config);
 
   EXPECT_FALSE(result.success);
   // On most kernels, connecting to a regular file gives ENOTSOCK (not
@@ -755,7 +809,7 @@ TEST_F(NotificationSenderTest, RetrySucceedsOnSecondAttempt) {
   });
 
   auto result =
-      SendNotificationWithRetry(socket_path_, CacheNotification{}, config);
+      SendNotificationWithRetry(socket_path_, MakeNotification(), config);
 
   delayed_listener.join();
 
@@ -771,7 +825,7 @@ TEST_F(NotificationSenderTest, RetryWithZeroMaxRetries) {
   config.initial_delay_ms = 5;
 
   auto result = SendNotificationWithRetry("/tmp/nonexistent_zero_retry.sock",
-                                          CacheNotification{}, config);
+                                          MakeNotification(), config);
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.retries_attempted, 0);
 }
@@ -801,7 +855,7 @@ TEST_F(NotificationSenderTest, RetryWithPathTooLong) {
   config.initial_delay_ms = 5;
 
   auto result =
-      SendNotificationWithRetry(long_path, CacheNotification{}, config);
+      SendNotificationWithRetry(long_path, MakeNotification(), config);
   EXPECT_FALSE(result.success);
   EXPECT_NE(result.error_message.find("too long"), std::string::npos);
   // connect_errno is 0 (never attempted connect), so retry should break
@@ -818,7 +872,7 @@ TEST_F(NotificationSenderTest, RetryBackoffMultiplier) {
 
   auto start = std::chrono::steady_clock::now();
   auto result = SendNotificationWithRetry("/tmp/nonexistent_backoff.sock",
-                                          CacheNotification{}, config);
+                                          MakeNotification(), config);
   auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::steady_clock::now() - start)
                         .count();
@@ -839,7 +893,7 @@ TEST_F(NotificationSenderTest, RetryPreservesLastErrorMessage) {
   config.initial_delay_ms = 5;
 
   auto result = SendNotificationWithRetry("/tmp/nonexistent_lasterr.sock",
-                                          CacheNotification{}, config);
+                                          MakeNotification(), config);
   EXPECT_FALSE(result.success);
   EXPECT_FALSE(result.error_message.empty());
   EXPECT_EQ(result.retries_attempted, 1);
@@ -1025,8 +1079,10 @@ TEST_F(NotificationSenderTest, WriteToShutdownPeerSocket) {
   sigaction(SIGPIPE, &sa, nullptr);
 #endif
 
+  bool accepted = false;
   std::thread acceptor([&]() {
     intptr_t client_fd = AcceptClient(server_fd, socket_path_);
+    accepted = client_fd != -1;
     if (client_fd != -1) {
 #ifndef _WIN32
       // Shut down both directions, then close
@@ -1042,13 +1098,17 @@ TEST_F(NotificationSenderTest, WriteToShutdownPeerSocket) {
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-  // Use a large payload to exceed kernel buffer
-  CacheNotification notification = MakeNotification(
-      std::string(static_cast<size_t>(64) * 1024, 'w'), "example.com");
+  // Largest URL the wire format accepts: a longer one fails to serialize, so
+  // the sender would never connect and the acceptor above would block.
+  CacheNotification notification =
+      MakeNotification(std::string(kMaxUrlLength, 'w'), "example.com");
   auto result = SendNotification(socket_path_, notification);
 
   acceptor.join();
   CloseServer(server_fd);
+
+  EXPECT_TRUE(accepted) << "sender never connected";
+  EXPECT_FALSE(result.invalid_argument) << result.error_message;
 
   // Either the write completes before shutdown takes effect (success),
   // or we get a write error. Both are acceptable.
@@ -1119,7 +1179,7 @@ TEST_F(NotificationSenderTest, ConnectRefusedSetsErrno) {
   // Don't call listen() - connecting to this socket should fail with
   // ECONNREFUSED.
 
-  auto result = SendNotification(socket_path_, CacheNotification{});
+  auto result = SendNotification(socket_path_, MakeNotification());
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.connect_errno, ECONNREFUSED);
   EXPECT_NE(result.error_message.find("connect"), std::string::npos)
@@ -1144,7 +1204,7 @@ TEST_F(NotificationSenderTest, RetryWithENOENT) {
   config.backoff_multiplier = 1.0;
 
   auto result =
-      SendNotificationWithRetry(missing_path, CacheNotification{}, config);
+      SendNotificationWithRetry(missing_path, MakeNotification(), config);
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.retries_attempted, 2);
   EXPECT_EQ(result.connect_errno, ENOENT);
@@ -1189,7 +1249,7 @@ TEST_F(NotificationSenderTest, RetryWithENOENTThenSuccess) {
   });
 
   auto result =
-      SendNotificationWithRetry(delayed_path, CacheNotification{}, config);
+      SendNotificationWithRetry(delayed_path, MakeNotification(), config);
 
   delayed_listener.join();
 
@@ -1712,7 +1772,7 @@ TEST_F(NotificationSenderTest, RetryConfigCustomValues) {
 
   auto start = std::chrono::steady_clock::now();
   auto result = SendNotificationWithRetry("/tmp/nonexistent_custom.sock",
-                                          CacheNotification{}, config);
+                                          MakeNotification(), config);
   auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::steady_clock::now() - start)
                         .count();
@@ -1801,7 +1861,7 @@ TEST_F(NotificationSenderTest, RetryNegativeMaxRetries) {
   config.initial_delay_ms = 5;
 
   auto result = SendNotificationWithRetry("/tmp/nonexistent_neg_retry.sock",
-                                          CacheNotification{}, config);
+                                          MakeNotification(), config);
   EXPECT_FALSE(result.success);
   EXPECT_EQ(result.retries_attempted, 0);
 }

@@ -6,6 +6,7 @@
 #include "lib/pagespeed/pagespeed.h"
 
 #ifndef _WIN32
+#include <poll.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -2817,6 +2818,84 @@ TEST(PageSpeedCApi, NotifyWorkerBadSocket) {
 
   // After failure, last error message should describe the issue.
   EXPECT_STRNE(ps_last_error_message(), "");
+}
+
+namespace {
+// Bind and listen on a Unix socket at sock_path. Returns the listening fd,
+// or -1 on failure (callers ASSERT on the result).
+int MakeListeningSocket(const std::string& sock_path) {
+  int listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (listen_fd < 0) return -1;
+
+  struct sockaddr_un addr;
+  std::memset(&addr, 0, sizeof(addr));
+  addr.sun_family = AF_UNIX;
+  std::strncpy(addr.sun_path, sock_path.c_str(), sizeof(addr.sun_path) - 1);
+
+  if (bind(listen_fd, reinterpret_cast<struct sockaddr*>(&addr),
+           sizeof(addr)) != 0 ||
+      listen(listen_fd, 1) != 0) {
+    close(listen_fd);
+    return -1;
+  }
+  return listen_fd;
+}
+
+// True when a connection was attempted against listen_fd. A connect to a
+// listening AF_UNIX socket completes while the caller is inside the call, so
+// a listener with nothing pending after the call returned saw no connection
+// attempt. The small poll timeout only absorbs scheduler jitter.
+bool ConnectionAttempted(int listen_fd) {
+  struct pollfd pfd = {listen_fd, POLLIN, 0};
+  return poll(&pfd, 1, 100) > 0;
+}
+}  // namespace
+
+// ================================================================
+// Notify worker: an invalid scheme is refused before any connection
+// ================================================================
+
+TEST(PageSpeedCApi, NotifyWorkerInvalidSchemeDoesNotConnect) {
+  auto temp_dir = pagespeed::test::MakeTempDir();
+  std::string sock_path = temp_dir + "/notify.sock";
+  int listen_fd = MakeListeningSocket(sock_path);
+  ASSERT_GE(listen_fd, 0);
+
+  EXPECT_EQ(ps_notify_worker(sock_path.c_str(), "/test.html", "example.com",
+                             "ftp", PS_CONTENT_HTML, 0x08),
+            PS_ERR_INVALID_ARG);
+
+  // Nothing pending on the listener: no connection was attempted.
+  EXPECT_FALSE(ConnectionAttempted(listen_fd));
+
+  close(listen_fd);
+  unlink(sock_path.c_str());
+  std::filesystem::remove_all(temp_dir);
+}
+
+TEST(PageSpeedCApi, NotifyWorkerExInvalidSchemeDoesNotConnect) {
+  auto temp_dir = pagespeed::test::MakeTempDir();
+  std::string sock_path = temp_dir + "/notify.sock";
+  int listen_fd = MakeListeningSocket(sock_path);
+  ASSERT_GE(listen_fd, 0);
+
+  ps_notify_params_t params;
+  ps_notify_params_init_auto(&params);
+  params.url = "/test.html";
+  params.hostname = "example.com";
+  params.scheme = "ftp";
+  params.content_type = PS_CONTENT_HTML;
+  params.mask = 0x08;
+
+  EXPECT_EQ(ps_notify_worker_ex(sock_path.c_str(), &params),
+            PS_ERR_INVALID_ARG);
+
+  // Nothing pending on the listener: no connection was attempted.
+  EXPECT_FALSE(ConnectionAttempted(listen_fd));
+
+  close(listen_fd);
+  unlink(sock_path.c_str());
+  std::filesystem::remove_all(temp_dir);
 }
 #endif  // !_WIN32
 

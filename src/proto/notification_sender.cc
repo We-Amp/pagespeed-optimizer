@@ -38,13 +38,25 @@ NotificationSendResult SendNotification(std::string_view socket_path,
     return result;
   }
 
+  // Serialize before connecting: an empty serialization means Serialize
+  // refused the notification (bad scheme, oversized fields, half an option
+  // context), and no connection could deliver it. Connecting first would open
+  // a connection only to write nothing and report success.
+  std::vector<char> data = notification.Serialize();
+  if (data.empty()) {
+    result.invalid_argument = true;
+    result.error_message =
+        "Notification could not be serialized (invalid scheme or field "
+        "lengths)";
+    return result;
+  }
+
   int fd = CreateAndConnectSocket(socket_path, result);
   if (fd < 0) {
     return result;
   }
 
-  // Serialize and send (non-blocking with timeout)
-  std::vector<char> data = notification.Serialize();
+  // Send (non-blocking with timeout)
   const char* ptr = data.data();
   size_t remaining = data.size();
 

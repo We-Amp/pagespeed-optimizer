@@ -1753,6 +1753,19 @@ extern "C" ps_error_t ps_notify_worker(const char* socket_path, const char* url,
   err = ValidateContentType(content_type);
   if (err != PS_OK) return err;
 
+  // Scheme is validated here exactly as in ps_notify_worker_ex, so both entry
+  // points agree: a NULL scheme must not reach a std::string constructor, and
+  // an unknown one fails with the caller's error instead of later inside
+  // serialization.
+  if (scheme == nullptr) {
+    SetLastError("scheme is NULL");
+    return PS_ERR_INVALID_ARG;
+  }
+  if (!pagespeed::ValidateScheme(scheme)) {
+    SetLastError("scheme must be \"http\" or \"https\"");
+    return PS_ERR_INVALID_ARG;
+  }
+
   try {
     pagespeed::CacheNotification notif;
     notif.url = url;
@@ -1764,7 +1777,9 @@ extern "C" ps_error_t ps_notify_worker(const char* socket_path, const char* url,
     auto result = pagespeed::SendNotificationWithRetry(socket_path, notif);
     if (!result.success) {
       SetLastError(result.error_message);
-      return PS_ERR_IO;
+      // A notification that refused serialization is a bad argument, not a
+      // delivery failure.
+      return result.invalid_argument ? PS_ERR_INVALID_ARG : PS_ERR_IO;
     }
     return PS_OK;
   } catch (const std::exception& e) {
@@ -1872,10 +1887,9 @@ extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
   err = ValidateContentType(params->content_type);
   if (err != PS_OK) return err;
 
-  // Scheme is validated HERE, unlike in ps_notify_worker, where a NULL scheme
-  // reaches a std::string constructor and an unknown one fails later inside
-  // serialization with no useful message. A new entry point does not inherit
-  // that.
+  // Scheme is validated HERE, and ps_notify_worker validates it the same way,
+  // so both entry points agree instead of one failing later inside
+  // serialization with no useful message.
   if (params->scheme == nullptr) {
     SetLastError("scheme is NULL");
     return PS_ERR_INVALID_ARG;
@@ -1941,7 +1955,7 @@ extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
     auto result = pagespeed::SendNotificationWithRetry(socket_path, notif);
     if (!result.success) {
       SetLastError(result.error_message);
-      return PS_ERR_IO;
+      return result.invalid_argument ? PS_ERR_INVALID_ARG : PS_ERR_IO;
     }
     return PS_OK;
   } catch (const std::exception& e) {
