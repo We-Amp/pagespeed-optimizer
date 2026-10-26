@@ -21,6 +21,7 @@
 #include <thread>
 
 #ifndef _WIN32
+#include <signal.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -44,6 +45,15 @@ using json = nlohmann::json;
 class ApiHandlersIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
+#ifndef _WIN32
+    // A client may close while the server still writes; ignore SIGPIPE as
+    // the daemon does so the write fails with EPIPE instead of killing the
+    // test process.
+    struct sigaction ignore{};
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    sigaction(SIGPIPE, &ignore, &saved_sigpipe_);
+#endif
     loop_ = new uv_loop_t;
     uv_loop_init(loop_);
 
@@ -102,6 +112,9 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
     server_.reset();
     uv_loop_close(loop_);
     delete loop_;
+#ifndef _WIN32
+    sigaction(SIGPIPE, &saved_sigpipe_, nullptr);
+#endif
   }
 
   void StartLoopThread() {
@@ -133,23 +146,35 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
     if (sock < 0) return "";
 
     ssize_t sent = test::SocketWrite(sock, wire.data(), wire.size());
-    if (sent != static_cast<ssize_t>(wire.size())) {
-      std::fprintf(stderr,
-                   "SendRequest: short write: sent=%zd of %zu errno=%d (%s)\n",
-                   sent, wire.size(), errno, std::strerror(errno));
+    int write_err = errno;
+    if (sent < 0) {
+      std::fprintf(stderr, "SendRequest: write failed: errno=%d (%s) of %zu\n",
+                   write_err, std::strerror(write_err), wire.size());
+    } else if (sent != static_cast<ssize_t>(wire.size())) {
+      std::fprintf(stderr, "SendRequest: short write: sent=%zd of %zu\n", sent,
+                   wire.size());
     }
     test::SocketShutdown(sock, SHUT_WR);
     std::string response;
     char buf[4096];
     while (true) {
       ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
-      if (n < 0 && errno == EINTR) continue;
+      int read_err = errno;
+      if (n < 0 && read_err == EINTR) continue;
       if (n <= 0) {
         if (response.empty()) {
-          std::fprintf(stderr,
-                       "SendRequest: empty response: read=%zd errno=%d (%s) "
-                       "request_bytes=%zu sent=%zd\n",
-                       n, errno, std::strerror(errno), wire.size(), sent);
+          if (n < 0) {
+            std::fprintf(stderr,
+                         "SendRequest: empty response: read=%zd errno=%d (%s) "
+                         "request_bytes=%zu sent=%zd\n",
+                         n, read_err, std::strerror(read_err), wire.size(),
+                         sent);
+          } else {
+            std::fprintf(stderr,
+                         "SendRequest: empty response: end of stream, "
+                         "request_bytes=%zu sent=%zd\n",
+                         wire.size(), sent);
+          }
         }
         break;
       }
@@ -187,6 +212,9 @@ class ApiHandlersIntegrationTest : public ::testing::Test {
   pagespeed::test::TempDir tmp_;
   WorkerStats stats_;
   AtomicSharedPtr<WorkerConfig> live_config_;
+#ifndef _WIN32
+  struct sigaction saved_sigpipe_{};
+#endif
   std::unique_ptr<ApiContext> ctx_;
   std::unique_ptr<NullMessageHandler> handler_;
   std::unique_ptr<HttpServer> server_;
@@ -250,7 +278,8 @@ TEST_F(ApiHandlersIntegrationTest, ConfigGetCarriesNoLicensingKeys) {
 TEST_F(ApiHandlersIntegrationTest,
        ConfigPatchRetiredLicensingKeysRejectedNonFatal) {
   pagespeed::test::TempDir tmp;
-  MutateConfig([&](WorkerConfig& c) { c.cache_path = tmp.path() + "/cache.vol"; });
+  MutateConfig(
+      [&](WorkerConfig& c) { c.cache_path = tmp.path() + "/cache.vol"; });
   std::string body =
       R"({"license_key": "abc.def.ghi", "license_renewal_url": "https://r.example", "disable_html": true})";
   std::string request =
@@ -665,7 +694,8 @@ TEST_F(ApiHandlersIntegrationTest, ConfigPatchPreservesWebBotAuthSharedFields) {
   // at worker startup — survive an unrelated runtime PATCH instead of being
   // silently reset (which disabled the feature in nginx until restart).
   pagespeed::test::TempDir tmp;
-  MutateConfig([&](WorkerConfig& c) { c.cache_path = tmp.path() + "/cache.vol"; });
+  MutateConfig(
+      [&](WorkerConfig& c) { c.cache_path = tmp.path() + "/cache.vol"; });
 
   SharedConfig seeded;
   seeded.web_bot_auth = true;
