@@ -49,6 +49,13 @@ The `ci:full` label is read when a pull request run starts (open, push,
 reopen). After adding the label, push or re-run the workflow to get the
 full tier.
 
+The full tier's Linux build, ASan and TSan jobs take their Bazel flags from
+the `ci-build`, `ci-asan` and `ci-tsan` configs in `.bazelrc`. Those configs
+are the one definition CI and the bisect (`tools/ci/bisect-job.sh`) share.
+Only the remote-cache and jobs choice (`BAZEL_CONFIG`),
+`--nocache_test_results` and the target patterns stay on the job's command
+line; docker flags stay in the workflow.
+
 ### When the full tier runs
 
 Two callers name it `full`, so its checks read `full / <job name>` in both:

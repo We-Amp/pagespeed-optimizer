@@ -365,13 +365,13 @@ jobs:
               # out of the build lanes.
               # BAZEL_CONFIG is an intentional flag list -> word-splitting.
               # shellcheck disable=SC2086
-              $BAZEL build --vendor_dir=vendor ${BAZEL_CONFIG} -- //... -//:refresh_all
+              $BAZEL build --config=ci-build ${BAZEL_CONFIG} -- //... -//:refresh_all
               # Build manual targets explicitly (tagged manual, excluded from
               # //...). The async-css probe tools are manual diagnostics
               # nothing runs in CI; building them here keeps them compiling
               # against the extractor API they call.
               # shellcheck disable=SC2086
-              $BAZEL build --vendor_dir=vendor ${BAZEL_CONFIG} \
+              $BAZEL build --config=ci-build ${BAZEL_CONFIG} \
                 //lib/pagespeed:libpagespeed.so //src/worker:factory_worker \
                 //src/nginx:ngx_pagespeed_module.so \
                 //tools/async-css-probe:measure_validation_threshold \
@@ -550,7 +550,7 @@ jobs:
               # BAZEL_CONFIG is an intentional flag list -> word-splitting.
               # shellcheck disable=SC2086
               bazel --output_user_root=/tmp/bazel-out-asan \
-                test --vendor_dir=vendor --config=asan-leaks ${BAZEL_CONFIG} --nocache_test_results \
+                test --config=ci-asan ${BAZEL_CONFIG} --nocache_test_results \
                 -- //... \
                 -//:refresh_all \
                 -//test/src/worker:image_transcoder_test \
@@ -629,7 +629,7 @@ jobs:
             bash -c '
               # shellcheck disable=SC2086
               bazel --output_user_root=/tmp/bazel-out-tsan \
-                test --vendor_dir=vendor --config=tsan-suppressed ${BAZEL_CONFIG} --nocache_test_results \
+                test --config=ci-tsan ${BAZEL_CONFIG} --nocache_test_results \
                 -- //... \
                 -//:refresh_all \
                 -//test/src/worker:image_transcoder_test \
