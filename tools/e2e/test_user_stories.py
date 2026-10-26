@@ -12,12 +12,20 @@ Test ordering matters: cold-miss tests run first (before any URL is
 cached), then optimization tests follow.
 """
 
+import gzip
+import os
 import re
 import time
 
 import pytest
 import requests
-from conftest import WORKER_API_URL, PageSpeedClient, compose_run, docker_exec
+from conftest import (
+    WORKER_API_URL,
+    PageSpeedClient,
+    compose_run,
+    docker_exec,
+    unique_url,
+)
 
 # -- User Story 1: Module loads into nginx --
 
@@ -1066,3 +1074,212 @@ class TestCompressedOriginGuard:
             "Expected Content-Encoding guard warning in nginx error log, "
             f"got: {result.stdout[-500:]}"
         )
+
+
+# -- Origin change converges across br, gzip and identity --
+
+_ENCODINGS = ("br", "gzip", "identity")
+_EXPECTED_CE = {"br": "br", "gzip": "gzip", "identity": ""}
+
+
+def _fetch_raw(nginx_url: str, path: str, encoding: str):
+    """GET path with one Accept-Encoding; return (response, decoded bytes)."""
+    headers = {"Accept-Encoding": encoding}
+    r = requests.get(nginx_url + path, headers=headers, stream=True, timeout=10)
+    raw = r.raw.read(decode_content=False)
+    ce = r.headers.get("Content-Encoding", "").lower()
+    if ce == "gzip":
+        body = gzip.decompress(raw)
+    elif ce == "br":
+        import brotli
+
+        body = brotli.decompress(raw)
+    else:
+        body = raw
+    return r, body
+
+
+def _fetch_all(nginx_url: str, path: str):
+    """Fetch path in every encoding; map encoding to (response, body)."""
+    return {enc: _fetch_raw(nginx_url, path, enc) for enc in _ENCODINGS}
+
+
+def _write_mutable(rel_path: str, content: str):
+    """Write (replace) a file in the mutable origin volume."""
+    assert "'" not in content
+    full = f"/var/www/{rel_path}"
+    result = docker_exec(
+        "mutable-origin",
+        [
+            "sh",
+            "-c",
+            f"mkdir -p \"$(dirname '{full}')\" && "
+            f"printf '%s' '{content}' > '{full}.tmp' && mv '{full}.tmp' '{full}'",
+        ],
+    )
+    assert result.returncode == 0, f"Failed to write {full}: {result.stderr}"
+
+
+def _css(marker: str, rules: int = 60) -> str:
+    # A different rule count gives the rewritten file a different size, so
+    # the origin validators (mtime, size) always differ.
+    # The hex colour has no shorter form, so the minifier keeps it.
+    filler = "".join(
+        f".c{i}{{margin:{i}px 3px;padding:{i + 1}px 5px}}" for i in range(rules)
+    )
+    return f".m{{color:{marker}}}{filler}"
+
+
+def _svg(marker: str, rules: int = 60) -> str:
+    # An element id survives minification.
+    filler = "".join(
+        f'<rect x="{i}" y="{i}" width="3" height="3" fill="#0a1b2c"/>'
+        for i in range(rules)
+    )
+    return (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" '
+        f'viewBox="0 0 100 100"><g id="{marker}">{filler}</g></svg>'
+    )
+
+
+class TestOriginChangeConvergence:
+    """After the origin file changes, br, gzip and identity must converge.
+
+    Files live in the mutable origin (short max-age) and are rewritten
+    mid-test.  Every encoding is decoded and compared byte for byte.
+    """
+
+    MAX_AGE = 3
+
+    def _warm(self, nginx_url, path, marker, timeout=40.0):
+        """Wait until all three encodings are HITs carrying the marker."""
+        deadline = time.time() + timeout
+        last = {}
+        while time.time() < deadline:
+            last = _fetch_all(nginx_url, path)
+            ok = all(
+                r.status_code == 200
+                and r.headers.get("X-PageSpeed") == "HIT"
+                and r.headers.get("Content-Encoding", "").lower() == _EXPECTED_CE[enc]
+                and marker.encode() in body
+                for enc, (r, body) in last.items()
+            )
+            if ok:
+                return last
+            time.sleep(0.5)
+        summary = {
+            enc: (
+                r.status_code,
+                r.headers.get("X-PageSpeed"),
+                r.headers.get("Content-Encoding"),
+                marker.encode() in body,
+            )
+            for enc, (r, body) in last.items()
+        }
+        pytest.fail(f"Not warm after {timeout}s for {path}: {summary}")
+
+    def _assert_converges(
+        self, nginx_url, path, old, new, timeout=30.0
+    ):
+        """Poll until all encodings agree on `new`.
+
+        Once an encoding has served `new`, it must not serve `old` again
+        after the front end's stale-while-revalidate window has passed
+        (the window is min(10 s, max-age)); inside the window a coalesced
+        stale serve is legitimate, so it is not checked.
+        """
+        grace = self.MAX_AGE + 1.0
+        first_new = {}
+        bodies = {}
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            got = _fetch_all(nginx_url, path)
+            now = time.monotonic()
+            bodies = {enc: body for enc, (_, body) in got.items()}
+            for enc, body in bodies.items():
+                if new.encode() in body:
+                    first_new.setdefault(enc, now)
+                elif enc in first_new and now - first_new[enc] > grace:
+                    if old.encode() in body:
+                        pytest.fail(
+                            f"{enc} served the old content again, "
+                            f"{now - first_new[enc]:.1f}s after it served the "
+                            f"new content, for {path}"
+                        )
+            same = len(set(bodies.values())) == 1
+            encodings_ok = all(
+                r.headers.get("Content-Encoding", "").lower() == _EXPECTED_CE[enc]
+                for enc, (r, _) in got.items()
+            )
+            if same and encodings_ok and new.encode() in bodies["identity"]:
+                return
+            time.sleep(0.5)
+        pytest.fail(
+            f"Encodings did not converge on the new content within {timeout}s "
+            f"for {path}: " + ", ".join(
+                f"{enc}: new={new.encode() in body} old={old.encode() in body}"
+                for enc, body in bodies.items()
+            )
+        )
+
+    def test_css_change_converges_across_encodings_after_max_age(self, e2e_services):
+        name = f"conv_css_{int(time.time() * 1000)}.css"
+        path = unique_url(f"/mutable/{name}", "conv_css")
+        _write_mutable(name, _css("#a1b2c4"))
+        self._warm(e2e_services.nginx_url, path, "#a1b2c4")
+        _write_mutable(name, _css("#d4e5f7", rules=61))
+        time.sleep(self.MAX_AGE + 1)
+        self._assert_converges(e2e_services.nginx_url, path, "#a1b2c4", "#d4e5f7")
+
+    def test_svg_change_converges_across_encodings_after_max_age(self, e2e_services):
+        name = f"conv_svg_{int(time.time() * 1000)}.svg"
+        path = unique_url(f"/mutable/{name}", "conv_svg")
+        _write_mutable(name, _svg("mk-old-a1"))
+        self._warm(e2e_services.nginx_url, path, "mk-old-a1")
+        _write_mutable(name, _svg("mk-new-b2", rules=61))
+        time.sleep(self.MAX_AGE + 1)
+        self._assert_converges(e2e_services.nginx_url, path, "mk-old-a1", "mk-new-b2")
+
+    def test_unchanged_rerecord_restamps_without_rebuild(
+        self, e2e_services, worker_api
+    ):
+        """An unchanged file is restamped after expiry, not rebuilt.
+
+        Path proven: the front end's conditional revalidation.  The mutable
+        origin sends `etag on`, so the expired stored copy is revalidated
+        with a conditional request, the origin answers 304 and the front
+        end restamps the copy itself (`X-PageSpeed: REVALIDATED`) without
+        involving the worker.  The worker must therefore not purge, rebuild
+        or write alternates for this file.
+        """
+        name = f"conv_same_{int(time.time() * 1000)}.css"
+        path = unique_url(f"/mutable/{name}", "conv_same")
+        _write_mutable(name, _css("#a1b2c4"))
+        self._warm(e2e_services.nginx_url, path, "#a1b2c4")
+        before = worker_api.get_stats()
+        time.sleep(self.MAX_AGE + 1)
+        revalidated = False
+        deadline = time.monotonic() + 20.0
+        while time.monotonic() < deadline and not revalidated:
+            got = _fetch_all(e2e_services.nginx_url, path)
+            for enc, (r, body) in got.items():
+                assert b"#a1b2c4" in body, f"{enc} lost the content for {path}"
+                if r.headers.get("X-PageSpeed") == "REVALIDATED":
+                    revalidated = True
+            time.sleep(0.5)
+        assert revalidated, (
+            f"No response was restamped by revalidation for {path} after "
+            f"max-age expiry"
+        )
+        # Let any worker-side effect of the refresh land before comparing.
+        time.sleep(2.0)
+        after = worker_api.get_stats()
+        for group, key in (
+            ("origin_refresh", "purges"),
+            ("origin_refresh", "change_rebuilt"),
+            ("alternates", "writes"),
+        ):
+            assert after[group][key] == before[group][key], (
+                f"Unchanged file moved {group}.{key}: "
+                f"{before[group]} -> {after[group]}"
+            )
