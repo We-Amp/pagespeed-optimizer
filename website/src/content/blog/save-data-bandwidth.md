@@ -1,6 +1,6 @@
 ---
 title: 'Save-Data: lighter image variants for bandwidth-aware users'
-description: 'How mod_pagespeed reads the Save-Data request header to serve lighter image variants: a further 24-45% cut on top of format and viewport sizing, measured at the shipped defaults.'
+description: 'How mod_pagespeed reads Save-Data to serve lighter image variants: a further 24-45% cut on top of format and viewport sizing, at the shipped defaults.'
 date: 2026-02-06
 lastUpdated: 2026-10-25
 author: 'Otto van der Schaaf'
