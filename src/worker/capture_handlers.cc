@@ -339,6 +339,8 @@ json BuildWaterfallJson(const std::vector<ResourceEntry>& entries,
 
 // Bring capture_internal names into local scope for use by anonymous namespace.
 using capture_internal::BuildWaterfallJson;
+using capture_internal::CaptureFailureCode;
+using capture_internal::CaptureOutcome;
 using capture_internal::ExtractHostname;
 using capture_internal::IsPrivateHost;
 using capture_internal::IsPrivateIPv4;

@@ -1662,6 +1662,17 @@ TEST_F(CaptureCdpTest, ADetachOfAnotherTargetDoesNotEndTheCapture) {
                                                 {"targetId", "other-target"}});
   peer_.PumpUntil([this] { return done_; }, 20);
   EXPECT_FALSE(done_) << "a foreign detach ended the capture";
+
+  // The capture is still live: its own target crashing ends it as a crash,
+  // which also lets Cleanup() run.
+  peer_.SendEvent(
+      "Target.targetCrashed",
+      {{"targetId", "target-1"}, {"status", "crashed"}, {"errorCode", 11}});
+  peer_.PumpUntil([this] { return done_; }, 60);
+  ASSERT_TRUE(done_) << "the capture did not finish after its own crash";
+  EXPECT_TRUE(outcome_.renderer_crashed);
+  peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                  20);
 }
 
 TEST(CaptureFailureCodeTest, CrashIs502AndEverythingElseIs504) {

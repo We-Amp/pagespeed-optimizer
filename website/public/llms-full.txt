@@ -20895,9 +20895,9 @@ The `png_base64` field contains the screenshot as a base64-encoded PNG image.
 | ------ | ------------------------------------------------------- |
 | 400    | Invalid URL, missing `url` field, viewport out of range |
 | 400    | URL targets private/loopback address (unless allowed)   |
+| 502    | Browser renderer crashed during the capture             |
 | 503    | `--enable-browser-analysis` not set                     |
 | 503    | Chrome not running (crashed or still starting)          |
-| 502    | Browser renderer crashed during the capture             |
 | 504    | Navigation timed out                                    |
 
 ---
