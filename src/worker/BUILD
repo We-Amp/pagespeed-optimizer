@@ -451,6 +451,18 @@ cc_library(
     ],
 )
 
+# Dedicated thread that saves configuration files off the event loop
+cc_library(
+    name = "config_persister",
+    srcs = ["config_persister.cc"],
+    hdrs = ["config_persister.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/base:message_handler",
+        "@libuv",
+    ],
+)
+
 # Config file persistence (hot-reloadable settings JSON)
 cc_library(
     name = "config_file",
@@ -565,6 +577,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":browser_analysis_manager",
+        ":config_persister",
         ":image_transcoder",
         ":serve_stats",
         ":webbotauth_warmer",
@@ -593,10 +606,12 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":config_file",
+        ":config_persister",
         ":http_server",
         ":json_dump",
         ":shared_config",
         ":worker_types",
+        "//lib/base:message_handler",
         "//lib/classify:url_normalizer",
         "//src/product_version:build_commit",
         "//src/product_version:version",
@@ -667,6 +682,7 @@ cc_library(
         ":cache_handlers",
         ":capture_handlers",
         ":cascade_layer_order",
+        ":config_persister",
         ":critical_css_extractor",
         ":font_url_extractor",
         ":host_aliases",

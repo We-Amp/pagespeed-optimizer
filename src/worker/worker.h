@@ -34,6 +34,7 @@
 #include "src/proto/worker_ipc.h"
 #include "src/worker/browser_analysis_manager.h"
 #include "src/worker/cascade_layer_order.h"
+#include "src/worker/config_persister.h"
 #include "src/worker/image_transcoder.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/webbotauth_warmer.h"
@@ -1624,6 +1625,9 @@ class Worker {
   // route handler lambdas capture references to them. url_registry_ must
   // outlive cache_api_ctx_ (which holds a reference to it).
   std::unique_ptr<UrlRegistry> url_registry_;
+  // Saves PATCH /v1/config changes off the event loop.  Declared before
+  // http_server_ so it outlives the routes that hold a pointer to it.
+  std::unique_ptr<ConfigPersister> config_persister_;
   std::unique_ptr<HttpServer> http_server_;
   std::unique_ptr<ApiContext> api_ctx_;
   std::unique_ptr<CacheApiContext> cache_api_ctx_;

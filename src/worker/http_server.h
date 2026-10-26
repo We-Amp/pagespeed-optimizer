@@ -119,6 +119,20 @@ class HttpResponse {
 // Return an HttpResponse for the given request.
 using RouteHandler = std::function<HttpResponse(const HttpRequest&)>;
 
+// Deferred-response callback handed to an async route handler.  Calling it
+// sends the response on the connection the request arrived on.  It must be
+// called on the event-loop thread, at most once, and only while the server is
+// alive.  If the connection has gone away (closed by the peer, timed out, or
+// the server stopped) in the meantime the response is dropped.
+using Responder = std::function<void(HttpResponse)>;
+
+// Async route handler: receives the request and a Responder and may return
+// before the response exists.  The server sends nothing until the Responder
+// is called, and holds back the next pipelined request on the connection in
+// the meantime.  The connection's request timeout still applies and answers
+// 504 (closing the connection) if the Responder is not called in time.
+using AsyncRouteHandler = std::function<void(const HttpRequest&, Responder)>;
+
 // WebSocket upgrade handler callback.
 // Called when the HTTP server detects a valid WebSocket upgrade request.
 // The handler receives the parsed request (moved out of the connection) and a
@@ -157,6 +171,8 @@ struct Route {
   bool is_prefix = false;  // True if path ends with *
   RouteAuth auth = RouteAuth::kToken;
   RouteHandler handler;
+  // Set instead of `handler` for a route registered with AddAsyncRoute.
+  AsyncRouteHandler async_handler;
 };
 
 // The packaged unix-socket path for the management API.
@@ -232,6 +248,13 @@ class HttpServer {
   void AddRoute(std::string method, std::string path, RouteHandler handler,
                 RouteAuth auth = RouteAuth::kToken);
 
+  // Register a route whose response may be produced later.  Authentication,
+  // CSRF and content-type checks run exactly as for AddRoute; see
+  // AsyncRouteHandler for the response contract.
+  void AddAsyncRoute(std::string method, std::string path,
+                     AsyncRouteHandler handler,
+                     RouteAuth auth = RouteAuth::kToken);
+
   // Set a handler for WebSocket upgrade requests.
   // When a request carries "Connection: Upgrade" + "Upgrade: websocket"
   // headers and a valid Sec-WebSocket-Key, the server detaches the TCP
@@ -279,8 +302,15 @@ class HttpServer {
   static int OnBody(llhttp_t* parser, const char* at, size_t length);
   static int OnMessageComplete(llhttp_t* parser);
 
-  // Dispatch a parsed request to the router.
-  HttpResponse DispatchRequest(const HttpRequest& request);
+  // Dispatch a parsed request to the router.  Returns nullopt when the
+  // request matched an async route: the handler now owns the Responder and
+  // the response is sent later through CompleteAsync.
+  std::optional<HttpResponse> DispatchRequest(const HttpRequest& request,
+                                              HttpConnection* conn);
+
+  // Deliver a deferred response.  Looks the connection up by id and drops the
+  // response if it is gone, closing, or no longer waiting for this response.
+  void CompleteAsync(uint64_t conn_id, HttpResponse response);
 
   // Check authentication for a request.  `read_open_applies` is true only
   // when the request targets a route registered with RouteAuth::kReadOpenOk.
@@ -342,6 +372,12 @@ class HttpServer {
   // loop thread (OnConnection, OnClose) and the caller thread (Stop()).
   std::mutex connections_mutex_;
   std::vector<HttpConnection*> connections_;
+
+  // Live connections by id, for deferred responses.  Event-loop thread only.
+  // An id is never reused, so a stale Responder cannot reach a newer
+  // connection that happens to share an address.
+  uint64_t next_conn_id_ = 1;
+  std::unordered_map<uint64_t, HttpConnection*> live_conns_;
 
   // llhttp parser settings (shared across all connections).
   llhttp_settings_t parser_settings_;

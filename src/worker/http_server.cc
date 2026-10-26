@@ -356,8 +356,10 @@ struct HttpConnection {
   HttpServer* server = nullptr;
   llhttp_t parser;
   HttpRequest request;
+  uint64_t id = 0;  // Unique per connection; keys HttpServer::live_conns_.
   bool closing = false;
   bool response_sent = false;  // Guard against double SendResponse.
+  bool async_pending = false;  // An async route owes this request a response.
   uint64_t deadline_ms = 0;    // Absolute uv_now() deadline for the request.
   bool keep_alive = false;     // Keep connection open after response.
   int requests_served = 0;   // Number of requests completed on this connection.
@@ -418,6 +420,12 @@ void HttpServer::AddRoute(std::string method, std::string path,
   route.handler = std::move(handler);
   route.auth = auth;
   routes_.push_back(std::move(route));
+}
+
+void HttpServer::AddAsyncRoute(std::string method, std::string path,
+                               AsyncRouteHandler handler, RouteAuth auth) {
+  AddRoute(std::move(method), std::move(path), RouteHandler{}, auth);
+  routes_.back().async_handler = std::move(handler);
 }
 
 bool HttpServer::Start() {
@@ -647,6 +655,8 @@ void HttpServer::OnConnection(uv_stream_t* server, int status) {
     std::lock_guard<std::mutex> lock(self->connections_mutex_);
     self->connections_.push_back(conn);
   }
+  conn->id = self->next_conn_id_++;
+  self->live_conns_[conn->id] = conn;
 
   // Start request timeout and record the absolute deadline.
   uv_timer_init(self->loop_, &conn->timeout);
@@ -804,6 +814,7 @@ void HttpServer::OnClose(uv_handle_t* handle) {
     SafeClose(&conn->timeout, [](uv_handle_t* h) {
       auto* c = static_cast<HttpConnection*>(h->data);
       auto* srv = c->server;
+      srv->live_conns_.erase(c->id);
       srv->active_connections_.fetch_sub(1, std::memory_order_relaxed);
       {
         std::lock_guard<std::mutex> lock(srv->connections_mutex_);
@@ -815,6 +826,7 @@ void HttpServer::OnClose(uv_handle_t* handle) {
   } else {
     // Timer closed — delete connection.
     auto* srv = conn->server;
+    srv->live_conns_.erase(conn->id);
     srv->active_connections_.fetch_sub(1, std::memory_order_relaxed);
     {
       std::lock_guard<std::mutex> lock(srv->connections_mutex_);
@@ -827,6 +839,9 @@ void HttpServer::OnClose(uv_handle_t* handle) {
 
 void HttpServer::OnTimeout(uv_timer_t* timer) {
   auto* conn = static_cast<HttpConnection*>(timer->data);
+  // A timed-out async request gets its 504 and then the connection closes:
+  // the late Responder must never find the connection reused for a new request.
+  if (conn->async_pending) conn->keep_alive = false;
   conn->server->SendResponse(
       conn,
       HttpResponse::Error(ApiErrorCode::kGatewayTimeout, "Request timeout"));
@@ -1064,7 +1079,26 @@ int HttpServer::OnMessageComplete(llhttp_t* parser) {
       llhttp_should_keep_alive(parser) &&
       conn->requests_served < self->config_.max_requests_per_connection;
 
-  HttpResponse response = self->DispatchRequest(conn->request);
+  std::optional<HttpResponse> dispatched =
+      self->DispatchRequest(conn->request, conn);
+  if (!dispatched.has_value()) {
+    // Async route: the response comes later through CompleteAsync.  Stop
+    // reading (as SendResponse does) and keep the parser paused so a
+    // pipelined request waits for this one; start a fresh full request
+    // timeout for the deferred response, so a handler that never answers is
+    // bounded.  The receive deadline is not reused: it includes idle time on
+    // a keep-alive connection and may be nearly spent already.
+    // (A handler that answered inline has already sent; nothing to arm.)
+    if (conn->async_pending) {
+      uv_read_stop(&conn->handle.stream);
+      conn->deadline_ms =
+          uv_now(self->loop_) + self->config_.request_timeout_ms;
+      uv_timer_start(&conn->timeout, OnTimeout,
+                     self->config_.request_timeout_ms, 0);
+    }
+    return HPE_PAUSED;
+  }
+  HttpResponse response = std::move(*dispatched);
   if (conn->keep_alive) {
     response.SetHeader("Connection", "keep-alive");
   }
@@ -1080,7 +1114,8 @@ int HttpServer::OnMessageComplete(llhttp_t* parser) {
 // Request dispatch and middleware
 // ---------------------------------------------------------------------------
 
-HttpResponse HttpServer::DispatchRequest(const HttpRequest& request) {
+std::optional<HttpResponse> HttpServer::DispatchRequest(
+    const HttpRequest& request, HttpConnection* conn) {
   // Handle CORS preflight.
   if (request.method == "OPTIONS" && !config_.cors_origin.empty()) {
     return HttpResponse()
@@ -1109,7 +1144,7 @@ HttpResponse HttpServer::DispatchRequest(const HttpRequest& request) {
   if (!skip_auth) {
     auto auth_error = CheckAuth(request, ReadOpenApplies(request));
     if (auth_error.has_value()) {
-      return std::move(*auth_error);
+      return auth_error;
     }
   }
 
@@ -1171,8 +1206,19 @@ HttpResponse HttpServer::DispatchRequest(const HttpRequest& request) {
       // into the response or the log, only a fixed, generic message, so a
       // handler bug can't turn into an information leak.
       try {
+        if (route.async_handler) {
+          // Mark the request as awaiting its response BEFORE calling the
+          // handler, so a handler that answers inline still gets through.
+          conn->async_pending = true;
+          uint64_t id = conn->id;
+          route.async_handler(request, [this, id](HttpResponse response) {
+            CompleteAsync(id, std::move(response));
+          });
+          return std::nullopt;
+        }
         return route.handler(request);
       } catch (const std::exception&) {
+        conn->async_pending = false;
         handler_->Warning("HTTP: route handler threw; answering 500");
         return HttpResponse::Error(ApiErrorCode::kInternalError,
                                    "Internal server error");
@@ -1191,6 +1237,19 @@ HttpResponse HttpServer::DispatchRequest(const HttpRequest& request) {
   }
 
   return HttpResponse::Error(ApiErrorCode::kNotFound, "Not found");
+}
+
+void HttpServer::CompleteAsync(uint64_t conn_id, HttpResponse response) {
+  auto it = live_conns_.find(conn_id);
+  if (it == live_conns_.end()) return;
+  HttpConnection* conn = it->second;
+  if (conn->closing || conn->response_sent || !conn->async_pending) return;
+  conn->async_pending = false;
+  if (conn->keep_alive) {
+    response.SetHeader("Connection", "keep-alive");
+  }
+  ApplyCors(conn->request, response);
+  SendResponse(conn, response);
 }
 
 std::optional<HttpResponse> HttpServer::CheckAuth(const HttpRequest& request,

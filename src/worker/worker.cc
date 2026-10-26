@@ -1221,6 +1221,12 @@ int Worker::api_port() const {
 Worker::~Worker() {
   Shutdown();
 
+  // Idempotent: normally already done by BeginGracefulShutdown.  Must happen
+  // before the loop is drained and closed below.
+  if (config_persister_) {
+    config_persister_->Shutdown();
+  }
+
   CloseServeStats(serve_stats_);
   serve_stats_ = nullptr;
 
@@ -2036,6 +2042,8 @@ bool Worker::Initialize() {
     // URL inventory, the config and the stats on every tokenless API.
     http_cfg.read_open = config_.api_read_open;
 
+    config_persister_ =
+        std::make_unique<ConfigPersister>(loop_.get(), handler_);
     http_server_ =
         std::make_unique<HttpServer>(loop_.get(), http_cfg, handler_);
 
@@ -2095,6 +2103,7 @@ bool Worker::Initialize() {
                             size_t limit) -> nlohmann::json {
           return ws_manager_->BuildLogsResponse(since, has_since, limit);
         },
+        .config_persister = config_persister_.get(),
     });
     RegisterOperationalRoutes(*http_server_, *api_ctx_);
 
@@ -2402,6 +2411,12 @@ void Worker::BeginGracefulShutdown() {
   }
   if (http_server_) {
     http_server_->Stop();
+  }
+  // After the server stops: a configuration save already handed to the
+  // persister still lands, then its thread is joined and its handle closed
+  // while the loop can still run the close callback.
+  if (config_persister_) {
+    config_persister_->Shutdown();
   }
 
   LogInfo("Graceful shutdown: %d active connections",

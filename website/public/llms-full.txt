@@ -20405,7 +20405,13 @@ All worker configuration fields are included. See the
 
 Update hot-reloadable configuration fields at runtime. Only fields included in
 the request body are changed. Changes are persisted to disk alongside the cache
-volume.
+volume. The response is sent once the change is saved; if saving fails, the
+change stays in force until the next restart and `warnings` says so.
+
+While the save runs, the worker keeps serving other requests. If the save takes
+longer than the request timeout, the request is answered `504` and the
+connection is closed, but the change is already in force and is written to disk
+when the save finishes; a failed save is reported in the worker log. Read `GET /v1/config` to confirm the current values.
 
 ```bash
 curl -X PATCH http://localhost:9880/v1/config \

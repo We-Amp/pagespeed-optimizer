@@ -114,6 +114,7 @@ jobs:
           //test/src/worker:config_file_test
           //test/src/worker:shared_config_test
           //test/src/worker:cache_dir_test
+          //test/src/worker:config_persister_test
           //test/src/worker:http_server_test
           //test/src/worker:api_handlers_test
           //test/src/worker:worker_api_test

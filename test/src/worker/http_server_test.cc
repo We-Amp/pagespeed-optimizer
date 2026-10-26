@@ -21,10 +21,15 @@
 #endif
 
 #include <atomic>
+#include <chrono>
 #include <cstring>
+#include <functional>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include "absl/strings/str_cat.h"
 #include "gtest/gtest.h"
@@ -3052,6 +3057,273 @@ TEST_F(HttpServerUnixSocketTest, StopRemovesTheSocketFile) {
       << "a stale socket file would make the next start bind-fail";
 }
 #endif  // !_WIN32
+
+// =============================================================================
+// Async routes (AddAsyncRoute): the response is produced later
+// =============================================================================
+
+// Runs `fn` on the event-loop thread (the one thread allowed to call a
+// Responder) by way of a uv_async_t.
+class HttpServerAsyncRouteTest : public HttpServerTest {
+ protected:
+  void SetUp() override {
+    HttpServerTest::SetUp();
+    uv_async_init(loop_, &fire_async_, [](uv_async_t* h) {
+      auto* self = static_cast<HttpServerAsyncRouteTest*>(h->data);
+      std::function<void()> fn;
+      {
+        std::lock_guard<std::mutex> lock(self->fire_mu_);
+        fn = std::move(self->fire_fn_);
+        self->fire_fn_ = nullptr;
+      }
+      if (fn) fn();
+      self->fired_.store(true);
+    });
+    fire_async_.data = this;
+  }
+
+  void TearDown() override {
+    if (loop_thread_.joinable()) StopLoopThread();
+    uv_close(reinterpret_cast<uv_handle_t*>(&fire_async_), nullptr);
+    HttpServerTest::TearDown();
+  }
+
+  // Runs `fn` on the loop thread and waits until it has run.
+  void FireOnLoop(std::function<void()> fn) {
+    fired_.store(false);
+    {
+      std::lock_guard<std::mutex> lock(fire_mu_);
+      fire_fn_ = std::move(fn);
+    }
+    uv_async_send(&fire_async_);
+    ASSERT_TRUE(WaitFor([this] { return fired_.load(); }));
+  }
+
+  static bool WaitFor(const std::function<bool()>& pred,
+                      int timeout_ms = 3000) {
+    auto deadline = std::chrono::steady_clock::now() +
+                    std::chrono::milliseconds(timeout_ms);
+    while (!pred()) {
+      if (std::chrono::steady_clock::now() > deadline) return false;
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    return true;
+  }
+
+  static std::string ReadAll(int sock) {
+    std::string response;
+    char buf[4096];
+    while (true) {
+      ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
+      if (n <= 0) break;
+      response.append(buf, static_cast<size_t>(n));
+    }
+    return response;
+  }
+
+  // Reads until `needle` appears or the socket closes / times out.
+  static std::string ReadUntil(int sock, const std::string& needle) {
+    std::string response;
+    char buf[4096];
+    while (response.find(needle) == std::string::npos) {
+      ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
+      if (n <= 0) break;
+      response.append(buf, static_cast<size_t>(n));
+    }
+    return response;
+  }
+
+  // Registers an async route that parks its Responder in `responder_`.
+  void AddParkedRoute(const std::string& path) {
+    server_->AddAsyncRoute("GET", path,
+                           [this](const HttpRequest&, Responder respond) {
+                             responder_ = std::move(respond);
+                             parked_.store(true);
+                           });
+  }
+
+  uv_async_t fire_async_;
+  std::mutex fire_mu_;
+  std::function<void()> fire_fn_;
+  std::atomic<bool> fired_{false};
+  std::atomic<bool> parked_{false};
+  Responder responder_;  // Touched on the loop thread only.
+};
+
+TEST_F(HttpServerAsyncRouteTest, AsyncRouteRespondsLater) {
+  AddParkedRoute("/v1/slow");
+  server_->AddRoute("GET", "/v1/health", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"status\":\"ok\"}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  int sock = test::ConnectTcp(server_->bound_port(), 2);
+  ASSERT_GE(sock, 0);
+  const std::string req =
+      "GET /v1/slow HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+  test::SocketWrite(sock, req.data(), req.size());
+  ASSERT_TRUE(WaitFor([this] { return parked_.load(); }));
+
+  // The handler has not answered, yet another connection is served.
+  std::string health =
+      SendRequest("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(health.find("\"status\":\"ok\""), std::string::npos) << health;
+
+  FireOnLoop([this] {
+    responder_(HttpResponse().Json("{\"late\":true}"));
+    responder_ = nullptr;
+  });
+  std::string response = ReadAll(sock);
+  test::CloseSocket(sock);
+  EXPECT_NE(response.find("200 OK"), std::string::npos) << response;
+  EXPECT_NE(response.find("{\"late\":true}"), std::string::npos) << response;
+}
+
+TEST_F(HttpServerAsyncRouteTest, AsyncRouteAnsweringInlineStillResponds) {
+  server_->AddAsyncRoute("GET", "/v1/inline",
+                         [](const HttpRequest&, Responder respond) {
+                           respond(HttpResponse().Json("{\"inline\":true}"));
+                         });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+  std::string response =
+      SendRequest("GET /v1/inline HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(response.find("{\"inline\":true}"), std::string::npos) << response;
+}
+
+TEST_F(HttpServerAsyncRouteTest, AsyncRouteResponderAfterClientCloseIsDropped) {
+  AddParkedRoute("/v1/slow");
+  server_->AddRoute("GET", "/v1/health", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"status\":\"ok\"}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  int sock = test::ConnectTcp(server_->bound_port(), 2);
+  ASSERT_GE(sock, 0);
+  const std::string req = "GET /v1/slow HTTP/1.1\r\nHost: localhost\r\n\r\n";
+  test::SocketWrite(sock, req.data(), req.size());
+  ASSERT_TRUE(WaitFor([this] { return parked_.load(); }));
+  test::CloseSocket(sock);
+
+  // The client is gone; answering must neither crash nor disturb the server.
+  FireOnLoop([this] {
+    responder_(HttpResponse().Json("{\"late\":true}"));
+    responder_ = nullptr;
+  });
+  std::string health =
+      SendRequest("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(health.find("\"status\":\"ok\""), std::string::npos) << health;
+}
+
+TEST_F(HttpServerAsyncRouteTest, AsyncRouteKeepsPipelineOrder) {
+  AddParkedRoute("/v1/a");
+  std::atomic<int> b_calls{0};
+  server_->AddRoute("GET", "/v1/b", [&b_calls](const HttpRequest&) {
+    ++b_calls;
+    return HttpResponse().Json("{\"which\":\"b\"}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  int sock = test::ConnectTcp(server_->bound_port(), 2);
+  ASSERT_GE(sock, 0);
+  const std::string pipelined =
+      "GET /v1/a HTTP/1.1\r\nHost: localhost\r\n\r\n"
+      "GET /v1/b HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+  test::SocketWrite(sock, pipelined.data(), pipelined.size());
+  ASSERT_TRUE(WaitFor([this] { return parked_.load(); }));
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  EXPECT_EQ(b_calls.load(), 0) << "the second request must wait for the first";
+
+  FireOnLoop([this] {
+    responder_(HttpResponse().Json("{\"which\":\"a\"}"));
+    responder_ = nullptr;
+  });
+  std::string response = ReadAll(sock);
+  test::CloseSocket(sock);
+  auto a = response.find("{\"which\":\"a\"}");
+  auto b = response.find("{\"which\":\"b\"}");
+  ASSERT_NE(a, std::string::npos) << response;
+  ASSERT_NE(b, std::string::npos) << response;
+  EXPECT_LT(a, b);
+  EXPECT_EQ(b_calls.load(), 1);
+}
+
+TEST_F(HttpServerAsyncRouteTest, AsyncRouteTimeoutClosesAndDropsLateResponse) {
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  config_.request_timeout_ms = 200;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  AddParkedRoute("/v1/slow");
+  server_->AddRoute("GET", "/v1/health", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"status\":\"ok\"}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  int sock = test::ConnectTcp(server_->bound_port(), 2);
+  ASSERT_GE(sock, 0);
+  const std::string req = "GET /v1/slow HTTP/1.1\r\nHost: localhost\r\n\r\n";
+  test::SocketWrite(sock, req.data(), req.size());
+  ASSERT_TRUE(WaitFor([this] { return parked_.load(); }));
+
+  // The handler never answers: the timeout answers 504 and closes.
+  std::string response = ReadAll(sock);
+  test::CloseSocket(sock);
+  EXPECT_NE(response.find("504"), std::string::npos) << response;
+
+  // A response arriving after the close is dropped.
+  FireOnLoop([this] {
+    responder_(HttpResponse().Json("{\"late\":true}"));
+    responder_ = nullptr;
+  });
+  std::string health =
+      SendRequest("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(health.find("\"status\":\"ok\""), std::string::npos) << health;
+}
+
+TEST_F(HttpServerAsyncRouteTest, AsyncRouteGetsFullTimeoutOnIdleKeepAlive) {
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  config_.request_timeout_ms = 3000;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  AddParkedRoute("/v1/slow");
+  server_->AddRoute("GET", "/v1/health", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"status\":\"ok\"}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  int sock = test::ConnectTcp(server_->bound_port(), 10);
+  ASSERT_GE(sock, 0);
+  const std::string health =
+      "GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n";
+  test::SocketWrite(sock, health.data(), health.size());
+  EXPECT_NE(ReadUntil(sock, "\"status\":\"ok\"").find("200"),
+            std::string::npos);
+
+  // Idle for most of the receive budget, then send the async request.
+  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+  const std::string slow = "GET /v1/slow HTTP/1.1\r\nHost: localhost\r\n\r\n";
+  test::SocketWrite(sock, slow.data(), slow.size());
+  ASSERT_TRUE(WaitFor([this] { return parked_.load(); }));
+
+  // Answer 1 s after the original receive deadline has passed (2000 + 2000 > 3000)
+  // but well inside a fresh full timeout: the answer must be delivered.
+  std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+  FireOnLoop([this] {
+    responder_(HttpResponse().Json("{\"late\":true}"));
+    responder_ = nullptr;
+  });
+  std::string response = ReadUntil(sock, "\"late\":true");
+  test::CloseSocket(sock);
+  EXPECT_NE(response.find("200"), std::string::npos) << response;
+  EXPECT_EQ(response.find("504"), std::string::npos) << response;
+}
 
 }  // namespace
 }  // namespace pagespeed
