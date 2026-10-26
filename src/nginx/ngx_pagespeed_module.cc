@@ -4039,9 +4039,11 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
       }
     }
 
-    // Restore client conditional headers BEFORE passing to
-    // ngx_http_next_header_filter to prevent not_modified_filter
-    // from comparing origin ETag against PageSpeed's weak ETag.
+    // Restore the client's conditional headers BEFORE passing to
+    // ngx_http_next_header_filter: the not_modified filter then compares
+    // them against the weak tag set above, which is the same tag a cache
+    // hit of this entry carries, so a client holding the hit copy gets its
+    // 304.
     restore_client_conditional_headers(r, ctx);
 
     // Rewrite response as 200 with cached content.
@@ -4060,6 +4062,44 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     // The stored body may be a pre-compressed variant; label it the way the
     // HIT path does, or the client receives encoded bytes as identity.
     ngx_http_pagespeed_set_variant_content_encoding(r, updated_meta.full_mask);
+
+    // The ETag of this 200 is the one a cache HIT of the same entry carries
+    // (FormatHitETag over the restamped metadata and the served length), not
+    // the origin's validator from the 304: otherwise the same bytes go out
+    // under two tags and a client holding the HIT copy never matches here.
+    // When there is no tag (no content identity), the origin's validator is
+    // dropped and none is sent, as on the HIT path.
+    {
+      u_char* etag_buf = static_cast<u_char*>(
+          ngx_pnalloc(r->pool, pagespeed::kHitETagBufSize));
+      size_t etag_len = 0;
+      if (etag_buf != nullptr) {
+        etag_len = pagespeed::FormatHitETag(
+            updated_meta, static_cast<size_t>(stale_content_length),
+            reinterpret_cast<char*>(etag_buf), pagespeed::kHitETagBufSize);
+      }
+      if (etag_len > 0) {
+        ngx_table_elt_t* etag_h = r->headers_out.etag;
+        if (etag_h == nullptr) {
+          etag_h = static_cast<ngx_table_elt_t*>(
+              ngx_list_push(&r->headers_out.headers));
+          if (etag_h != nullptr) {
+            etag_h->hash = 1;
+            etag_h->next = nullptr;
+            ngx_str_set(&etag_h->key, "ETag");
+          }
+        }
+        if (etag_h != nullptr) {
+          etag_h->hash = 1;
+          etag_h->value.data = etag_buf;
+          etag_h->value.len = etag_len;
+          r->headers_out.etag = etag_h;
+        }
+      } else if (r->headers_out.etag != nullptr) {
+        r->headers_out.etag->hash = 0;
+        r->headers_out.etag = nullptr;
+      }
+    }
 
     // Reuse cached content-type from metadata.
     const auto& smeta = stale->metadata;

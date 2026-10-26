@@ -75,6 +75,12 @@ purged. `/v1/stats`
 smaller than the original-format image (`image_size_refused`) and how many of
 those a smaller encode recovered (`image_budget_rescued`).
 
+Fixed: with the nginx module, a response revalidated with the origin carried
+the origin's `ETag`, while a cache hit for the same bytes carried the module's
+own, so a browser holding the cached copy got a full response each time the
+entry was revalidated. Both now carry the same `ETag`, and the browser gets a
+`304 Not Modified`.
+
 Changed: the optimizer worker's log lines and `--version` output, and the nginx
 module's load notice, now name the product mod_pagespeed. The version number and
 build commit are unchanged.
