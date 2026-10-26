@@ -28,7 +28,7 @@
       "@sveltejs/kit": "2.70.2",
       "vite": "6.4.4",
       "rollup": "4.59.0",
-      "undici": "7.29.1",
+      "undici": "7.30.1",
       "picomatch": "4.0.4",
       "devalue": "5.9.3",
       "postcss": "8.5.25",
