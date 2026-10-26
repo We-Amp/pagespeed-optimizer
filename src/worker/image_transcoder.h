@@ -101,6 +101,15 @@ struct ImageTranscoderConfig {
   // served at all, while an over-quality one only costs bytes.
   int ssimulacra2_quality_step = 5;
 
+  // Extra encodes a WebP or AVIF arm may spend, at the same quality floor,
+  // to come in under the optimized original-format image of its slot before
+  // the size gate drops it (#406). WebP uses up to this many, AVIF at most
+  // one. 0 disables the recovery and restores the plain drop. Independent of
+  // ssimulacra2_max_attempts: it applies after the verify loop has finished,
+  // even when that loop was limited to one encode. Not exposed on the command
+  // line or through PATCH /v1/config.
+  int budget_rescue_attempts = 2;
+
   // Learned quality prediction: use per-format ML models to predict
   // the encoder quality parameter for the target SSIMULACRA2 score.
   // Falls back to base*factor when the model returns an invalid prediction.
@@ -203,6 +212,21 @@ struct MultiTranscodeResult {
   // the exact blind spot that let #1374 sit unnoticed.
   uint32_t unconverted_fallthrough = 0;
 
+  // Cross-format size gate outcomes (#406). A refusal is a WebP or AVIF
+  // that was not smaller than the optimized original-format image of its
+  // slot, counted before any recovery attempt; a rescue is a refusal that a
+  // smaller encode at the same quality floor turned into a variant that
+  // ships. refused minus rescued is what was dropped. Refusals against a
+  // stored image (made by the worker, which gets no recovery attempt) count
+  // as refused too.
+  uint8_t size_refused_webp = 0;
+  uint8_t size_refused_avif = 0;
+  uint8_t size_rescued_webp = 0;
+  uint8_t size_rescued_avif = 0;
+  // SSIMULACRA2 score of the original-format image the converted arm lost
+  // to, measured only when a converted arm is refused (-1 = not measured).
+  float refused_baseline_ssimulacra2 = -1.0f;
+
   // Content analysis result (populated when content_analysis is enabled).
   QualityPreset applied_preset;
 
@@ -294,6 +318,13 @@ struct ComparablePixels {
 // else (1<->4, 4<->3, 3<->1, chroma ghosts) is not comparable.
 ComparablePixels MakeComparable(const DecodedImage& reference,
                                 const DecodedImage& candidate);
+
+// The lower edge of the SSIMULACRA2 acceptance band for |target|: the floor a
+// converted encode must reach.  Shared by the verify loop and the budget
+// recovery so the two cannot drift apart.
+inline float BandFloor(float target, float tolerance) {
+  return target - tolerance * 0.6f;
+}
 
 // Result of SSIMULACRA2 quality verification and optional re-encode loop.
 struct Ssimulacra2VerifyResult {
@@ -390,7 +421,7 @@ Ssimulacra2VerifyResult VerifySsimulacra2Quality(
     MessageHandler* handler) {
   Ssimulacra2VerifyResult verify;
 
-  const float lo = target - tolerance * 0.6f;
+  const float lo = BandFloor(target, tolerance);
   const float hi = target + tolerance * 1.6f;
   verify.band_lo = lo;
 
@@ -604,6 +635,79 @@ Ssimulacra2VerifyResult VerifySsimulacra2Quality(
   return verify;
 }
 
+// Outcome of RescueUnderBudget.
+struct BudgetRescueResult {
+  bool rescued = false;  // |encoded| was replaced by an in-budget encode
+  int encodes = 0;       // extra encodes spent, rescued or not
+  float score = -1.0f;   // score of the accepted encode
+};
+
+// Recovers a converted (WebP/AVIF) arm that the cross-format size gate would
+// drop for not being smaller than the optimized original-format image
+// (#406).  |encoded| passed verification at |quality| but is not under
+// |budget_bytes|.  This probes at most |max_attempts| LOWER qualities,
+// bisecting [quality - 4 * quality_step, quality - 1]: an encode over budget
+// moves the window down, an encode under budget that scores below
+// |floor| moves it up.  The first encode that is strictly under budget AND
+// scores at least |floor| replaces |encoded| and |quality|; otherwise both
+// are left untouched, so the caller drops the arm exactly as it did before.
+// |floor| is the verify band's lower edge, so the quality contract does not
+// change: nothing ships below the score a first-pass encode must reach.
+// The first acceptable encode is kept rather than the smallest, which spends
+// the fewest encodes and keeps the most quality.  The window opens about ten
+// points below the verified quality, so the first probe is a sizeable step.
+//
+// The callables are those VerifySsimulacra2Quality takes: |encode_fn| reads
+// the quality |quality| refers to.
+template <typename EncodeFn, typename DecodeFn, typename ScoreFn>
+BudgetRescueResult RescueUnderBudget(
+    const DecodedImage& reference, TranscodeResult& encoded, EncodeFn encode_fn,
+    DecodeFn decode_fn, ScoreFn score_fn, int& quality, size_t budget_bytes,
+    float floor, int max_attempts, int quality_step, const char* format_name,
+    MessageHandler* handler) {
+  BudgetRescueResult out;
+  const int verified_quality = quality;
+  const int step = std::max(1, quality_step);
+  int lo = std::max(1, verified_quality - 4 * step);
+  int hi = verified_quality - 1;
+  while (out.encodes < max_attempts && lo <= hi) {
+    quality = lo + (hi - lo) / 2;
+    const int probe = quality;
+    ++out.encodes;
+    TranscodeResult candidate = encode_fn(reference);
+    if (!candidate.success) break;
+    DecodedImage decoded_candidate = decode_fn(candidate.output_data);
+    ComparablePixels comparable = MakeComparable(reference, decoded_candidate);
+    if (!comparable.ok) break;
+    std::optional<float> verdict = score_fn(comparable);
+    if (!verdict.has_value()) break;
+    const bool under_budget = candidate.output_data.size() < budget_bytes;
+    if (handler != nullptr) {
+      handler->Info(
+          "Budget recovery for %s: q=%d gives %zu bytes (budget < %zu), "
+          "SSIMULACRA2 %.1f (floor %.1f)",
+          format_name, probe, candidate.output_data.size(), budget_bytes,
+          *verdict, floor);
+    }
+    if (under_budget && *verdict >= floor) {
+      encoded = std::move(candidate);
+      out.rescued = true;
+      out.score = *verdict;
+      return out;
+    }
+    if (*verdict < floor && !under_budget) {
+      break;  // Higher is too big, lower scores lower: nothing can fit.
+    }
+    if (*verdict < floor) {
+      lo = probe + 1;  // Too low: the answer, if any, is above this.
+    } else {
+      hi = probe - 1;  // Good enough but still too big: go lower.
+    }
+  }
+  quality = verified_quality;
+  return out;
+}
+
 // Transcodes images between formats based on client capabilities.
 //
 // Usage:
@@ -780,6 +884,19 @@ class ImageTranscoder {
 
   // Convert GIF (static or animated) to WebP.
   TranscodeResult ConvertGifToWebp(std::string_view input_data);
+
+  // Cross-format size gate recovery (#406).  |arm| (WebP, or AVIF when
+  // |avif|) is about to be refused for not being smaller than |baseline|,
+  // the optimized original-format image of its slot, whose pixels are
+  // |reference|'s counterpart.  Records the refusal and, when it succeeds,
+  // the rescue on |out|, scores |baseline| once per call for the log, and
+  // may replace |arm| with a smaller encode that still meets the quality
+  // floor.  The caller refuses |arm| afterwards if it is still not smaller.
+  void RecoverOversizedConverted(TranscodeResult& arm, bool avif,
+                                 const DecodedImage& reference,
+                                 const TranscodeResult& baseline,
+                                 const ImageTranscoderConfig& cfg, int& quality,
+                                 MultiTranscodeResult& out);
 
   // Encode from decoded pixel buffer using quality settings from |cfg|.
   TranscodeResult EncodeJpegFromPixels(const DecodedImage& decoded,

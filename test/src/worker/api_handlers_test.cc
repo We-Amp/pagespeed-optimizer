@@ -400,6 +400,10 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpoint) {
   stats_.svg_bytes_saved.store(12345);
   stats_.image_no_savings_skipped.store(3);
   stats_.image_unconverted_fallthrough.store(4);
+  stats_.image_size_refused_webp.store(5);
+  stats_.image_size_refused_avif.store(6);
+  stats_.image_budget_rescued_webp.store(2);
+  stats_.image_budget_rescued_avif.store(1);
 
   std::string resp =
       SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
@@ -419,6 +423,10 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpoint) {
   // counter beside it (#1374): an operator must be able to tell the two apart.
   EXPECT_EQ(j["image_no_savings_skipped"], 3);
   EXPECT_EQ(j["image_unconverted_fallthrough"], 4);
+  EXPECT_EQ(j["image_size_refused"]["webp"], 5);
+  EXPECT_EQ(j["image_size_refused"]["avif"], 6);
+  EXPECT_EQ(j["image_budget_rescued"]["webp"], 2);
+  EXPECT_EQ(j["image_budget_rescued"]["avif"], 1);
 
   // SVG auto-vectorization stats
   EXPECT_TRUE(j.contains("svg"));
@@ -562,6 +570,10 @@ TEST_F(ApiHandlersIntegrationTest, MetricsEndpoint) {
   EXPECT_NE(resp.find("pagespeed_image_no_savings_skipped_total"),
             std::string::npos);
   EXPECT_NE(resp.find("pagespeed_image_unconverted_fallthrough_total"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_image_size_refused_webp_total"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_image_budget_rescued_avif_total"),
             std::string::npos);
 
   // SVG metrics present

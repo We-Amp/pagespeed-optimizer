@@ -60,6 +60,19 @@ Fixed: with gzip compression turned off, the optimizer no longer recompresses
 and rewrites the stored copy of an image type it cannot optimize (such as an
 icon) after the optimizer restarts; the same holds with brotli turned off.
 
+Changed: when a WebP or AVIF image comes out larger than the optimized JPEG (or
+other original-format image) of the same size, the optimizer now tries up to
+two smaller encodes for WebP, one for AVIF, at the same visual quality target
+before falling back to the original format. More browsers that accept WebP or
+AVIF get the newer format, and never more bytes than the original-format image
+they would otherwise get. The extra work happens only for those images. The
+recovery applies when an image is optimized afresh, not to an image whose
+original-format copy is already cached, until the cached copy expires or is
+purged. `/v1/stats`
+(and the Prometheus metrics) now report how many WebP and AVIF images were not
+smaller than the original-format image (`image_size_refused`) and how many of
+those a smaller encode recovered (`image_budget_rescued`).
+
 Changed: the optimizer worker's log lines and `--version` output, and the nginx
 module's load notice, now name the product mod_pagespeed. The version number and
 build commit are unchanged.

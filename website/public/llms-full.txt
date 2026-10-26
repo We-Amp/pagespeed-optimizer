@@ -20284,6 +20284,8 @@ Key fields:
 | `errors.origin_misconfiguration` | Origin responses that prevent optimization (e.g., no-store)   |
 | `by_type.*.time_us`              | Cumulative processing time in microseconds                    |
 | `ssimulacra2.avg_score_x100`     | Average visual quality score (7200 = 72.00)                   |
+| `image_size_refused.webp` / `.avif` | WebP or AVIF images that were not smaller than the original-format image of the same size, including refusals against an already stored image, which get no recovery attempt |
+| `image_budget_rescued.webp` / `.avif` | Of those, the ones a smaller encode at the same quality floor recovered; refused minus rescued is what was dropped |
 | `learned_quality.predictions`    | ML model quality predictions made                             |
 | `learned_quality.fallbacks`      | Times ML prediction was overridden by binary search           |
 | `svg.bytes_saved`                | Cumulative bytes saved by SVG vectorization                   |

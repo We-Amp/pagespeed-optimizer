@@ -9953,3 +9953,398 @@ TEST_F(ImageTranscoderTest,
   EXPECT_FALSE(multi.avif.success && multi.avif.output_data.size() >= baseline)
       << "AVIF " << multi.avif.output_data.size() << " >= JPEG " << baseline;
 }
+
+// ===========================================================================
+// RescueUnderBudget (#406): a WebP or AVIF that would be dropped for not
+// being smaller than the optimized original-format image gets at most a few
+// extra encodes at lower qualities, keeping the first that is under budget
+// and still meets the quality floor.  The loop takes injected callables, so
+// the synthetic encoder below makes size and score exact functions of the
+// quality: size = quality * 100 bytes, score = quality + offset.
+// ===========================================================================
+
+namespace {
+
+struct RescueProbe {
+  int encodes = 0;
+  int* quality = nullptr;
+  float offset = 0.0f;
+};
+
+pagespeed::BudgetRescueResult RunRescue(RescueProbe& probe,
+                                        TranscodeResult& encoded, int& quality,
+                                        size_t budget, float floor,
+                                        int attempts) {
+  pagespeed::NullMessageHandler handler;
+  DecodedImage reference = MakeVerifyReference();
+  probe.quality = &quality;
+  return pagespeed::RescueUnderBudget(
+      reference, encoded,
+      [&probe](const DecodedImage&) {
+        ++probe.encodes;
+        return TranscodeResult{
+            true,
+            std::string(static_cast<size_t>(*probe.quality) * 100, 'x'),
+            "image/webp",
+            {}};
+      },
+      [](std::string_view) { return MakeMatchingDecode(); },
+      [&probe](const pagespeed::ComparablePixels&) -> std::optional<float> {
+        return static_cast<float>(*probe.quality) + probe.offset;
+      },
+      quality, budget, floor, attempts, /*quality_step=*/5, "WebP", &handler);
+}
+
+TranscodeResult VerifiedWebp(int quality) {
+  return {true,
+          std::string(static_cast<size_t>(quality) * 100, 'x'),
+          "image/webp",
+          {}};
+}
+
+}  // namespace
+
+// Verified at q=75 (7500 bytes) against a 7000 byte budget: the first probe
+// (q=64, 6400 bytes, score 73) is under budget and above the floor.
+TEST(BudgetRescueTest, RecoversOnTheFirstExtraEncode) {
+  RescueProbe probe;
+  probe.offset = 9.0f;
+  int quality = 75;
+  TranscodeResult encoded = VerifiedWebp(quality);
+  auto r = RunRescue(probe, encoded, quality, 7000, 67.0f, 2);
+  EXPECT_TRUE(r.rescued);
+  EXPECT_EQ(1, r.encodes);
+  EXPECT_EQ(1, probe.encodes);
+  EXPECT_EQ(64, quality);
+  EXPECT_EQ(6400u, encoded.output_data.size());
+  EXPECT_GE(r.score, 67.0f);
+}
+
+// Budget 6000: q=64 is still over, so the second probe (q=59, 5900 bytes,
+// score 68) is the one that recovers.
+TEST(BudgetRescueTest, RecoversOnTheSecondExtraEncode) {
+  RescueProbe probe;
+  probe.offset = 9.0f;
+  int quality = 75;
+  TranscodeResult encoded = VerifiedWebp(quality);
+  auto r = RunRescue(probe, encoded, quality, 6000, 67.0f, 2);
+  EXPECT_TRUE(r.rescued);
+  EXPECT_EQ(2, r.encodes);
+  EXPECT_EQ(59, quality);
+  EXPECT_EQ(5900u, encoded.output_data.size());
+}
+
+// Budget 5000 is out of reach within two encodes: the arm and its quality are
+// left exactly as they were, so the caller drops it as before.
+TEST(BudgetRescueTest, FailsAndLeavesTheArmUntouchedWhenNothingFits) {
+  RescueProbe probe;
+  probe.offset = 9.0f;
+  int quality = 75;
+  TranscodeResult encoded = VerifiedWebp(quality);
+  auto r = RunRescue(probe, encoded, quality, 5000, 67.0f, 2);
+  EXPECT_FALSE(r.rescued);
+  EXPECT_EQ(2, r.encodes);
+  EXPECT_EQ(2, probe.encodes);
+  EXPECT_EQ(75, quality);
+  EXPECT_EQ(7500u, encoded.output_data.size());
+}
+
+// A smaller encode that scores under the floor is never kept: with a huge
+// budget the first probe (score 64) is rejected and the second (q=69,
+// score 69) is the first to meet the floor.
+TEST(BudgetRescueTest, NeverKeepsAnEncodeBelowTheFloor) {
+  RescueProbe probe;
+  probe.offset = 0.0f;
+  int quality = 75;
+  TranscodeResult encoded = VerifiedWebp(quality);
+  auto r = RunRescue(probe, encoded, quality, 100000, 67.0f, 2);
+  EXPECT_TRUE(r.rescued);
+  EXPECT_EQ(2, r.encodes);
+  EXPECT_EQ(69, quality);
+  EXPECT_GE(r.score, 67.0f);
+
+  // And with only one encode allowed the same input recovers nothing.
+  RescueProbe probe1;
+  probe1.offset = 0.0f;
+  quality = 75;
+  encoded = VerifiedWebp(quality);
+  auto r1 = RunRescue(probe1, encoded, quality, 100000, 67.0f, 1);
+  EXPECT_FALSE(r1.rescued);
+  EXPECT_EQ(1, r1.encodes);
+  EXPECT_EQ(75, quality);
+}
+
+// The floor is the caller's: the same encoder that cannot recover at the
+// normal floor (67) recovers at the Save-Data floor (52), because the
+// Save-Data variant is held to the reduced band.
+TEST(BudgetRescueTest, SaveDataFloorAdmitsWhatTheNormalFloorRefuses) {
+  {
+    RescueProbe probe;
+    probe.offset = -10.0f;
+    int quality = 75;
+    TranscodeResult encoded = VerifiedWebp(quality);
+    auto r = RunRescue(probe, encoded, quality, 7000, 67.0f, 2);
+    EXPECT_FALSE(r.rescued);
+    EXPECT_EQ(75, quality);
+  }
+  {
+    RescueProbe probe;
+    probe.offset = -10.0f;
+    int quality = 75;
+    TranscodeResult encoded = VerifiedWebp(quality);
+    auto r = RunRescue(probe, encoded, quality, 7000, 52.0f, 2);
+    EXPECT_TRUE(r.rescued);
+    EXPECT_EQ(1, r.encodes);
+    EXPECT_EQ(64, quality);
+    EXPECT_GE(r.score, 52.0f);
+  }
+}
+
+// AVIF is allowed one extra encode: with a budget the first probe cannot
+// meet, the loop spends exactly one encode and stops.
+TEST(BudgetRescueTest, AttemptBudgetOfOneSpendsOneEncode) {
+  RescueProbe probe;
+  probe.offset = 9.0f;
+  int quality = 75;
+  TranscodeResult encoded = VerifiedWebp(quality);
+  auto r = RunRescue(probe, encoded, quality, 6000, 67.0f, 1);
+  EXPECT_FALSE(r.rescued);
+  EXPECT_EQ(1, r.encodes);
+  EXPECT_EQ(1, probe.encodes);
+  EXPECT_EQ(75, quality);
+}
+
+// Zero attempts disables the recovery without touching anything.
+TEST(BudgetRescueTest, ZeroAttemptsDoesNothing) {
+  RescueProbe probe;
+  int quality = 75;
+  TranscodeResult encoded = VerifiedWebp(quality);
+  auto r = RunRescue(probe, encoded, quality, 7000, 67.0f, 0);
+  EXPECT_FALSE(r.rescued);
+  EXPECT_EQ(0, probe.encodes);
+  EXPECT_EQ(75, quality);
+}
+
+// Through the transcoder, on the noisy photo that makes the cross-format
+// gate fire: whatever the encoder does, a shipped converted arm is smaller
+// than the optimized JPEG, a rescue implies a refusal, and a rescued arm
+// meets the quality floor of its call (67, or 52 with Save-Data).
+TEST_F(ImageTranscoderTest, SizeGateOutcomesAreConsistentWithShippedArms) {
+  std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const int source_q =
+      ImageTranscoder::DetectSourceJpegQuality(jpeg, &handler_);
+  for (auto sd :
+       {CapabilityMask::SaveData::kOff, CapabilityMask::SaveData::kOn}) {
+    const float floor = sd == CapabilityMask::SaveData::kOn ? 52.0f : 67.0f;
+    auto multi = transcoder_.TranscodeMultiResized(
+        jpeg,
+        {CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
+         CapabilityMask::ImageFormat::kOriginal},
+        CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x,
+        sd, {.source_quality = source_q});
+    ASSERT_TRUE(multi.optimized_original.success)
+        << multi.optimized_original.error_message;
+    const size_t baseline = multi.optimized_original.output_data.size();
+    if (multi.size_refused_webp == 0 && multi.size_refused_avif == 0) {
+      GTEST_SKIP() << "no converted arm was refused on this fixture, so the "
+                      "outcome counters have nothing to describe";
+    }
+    EXPECT_LE(multi.size_rescued_webp, multi.size_refused_webp);
+    EXPECT_LE(multi.size_rescued_avif, multi.size_refused_avif);
+    if (multi.webp.success) {
+      EXPECT_LT(multi.webp.output_data.size(), baseline);
+    }
+    if (multi.avif.success) {
+      EXPECT_LT(multi.avif.output_data.size(), baseline);
+    }
+    if (multi.size_rescued_webp > 0) {
+      EXPECT_TRUE(multi.webp.success);
+      EXPECT_GE(multi.webp_ssimulacra2_score, floor);
+    }
+    if (multi.size_rescued_avif > 0) {
+      EXPECT_TRUE(multi.avif.success);
+      EXPECT_GE(multi.avif_ssimulacra2_score, floor);
+    }
+    if (!multi.webp.success && multi.size_refused_webp > 0) {
+      EXPECT_EQ(0, multi.size_rescued_webp);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The gate-site wiring (#406), driven through the real transcoder with
+// settings that force the outcome.  Each test builds its own precondition
+// from verify-off encodes and skips, loudly, if an encoder change removed it.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+ImageTranscoderConfig ForcedGateConfig() {
+  ImageTranscoderConfig cfg;
+  cfg.content_analysis = false;
+  cfg.learned_quality = false;
+  cfg.ssimulacra2_max_attempts = 1;  // Verify the first encode only.
+  return cfg;
+}
+
+size_t WebpSizeAt(const std::string& jpeg, int quality) {
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg = ForcedGateConfig();
+  cfg.quality_verify = false;
+  cfg.webp_quality = quality;
+  ImageTranscoder tc(cfg, &handler);
+  auto m = tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kWebP});
+  return m.webp.success ? m.webp.output_data.size() : 0;
+}
+
+size_t JpegSizeAt(const std::string& jpeg, int quality) {
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg = ForcedGateConfig();
+  cfg.quality_verify = false;
+  cfg.jpeg_quality = quality;
+  ImageTranscoder tc(cfg, &handler);
+  auto m = tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kOriginal});
+  return m.optimized_original.success ? m.optimized_original.output_data.size()
+                                      : 0;
+}
+
+}  // namespace
+
+// A WebP at q=100 against a q=20 JPEG is far over budget and no probe in the
+// recovery window gets near it: the arm is dropped and the refusal counted,
+// with nothing rescued.
+TEST_F(ImageTranscoderTest, ForcedRefusalDropsTheArmAndCountsIt) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const size_t jpeg_size = JpegSizeAt(jpeg, 20);
+  const size_t webp_floor_probe = WebpSizeAt(jpeg, 80);
+  if (jpeg_size == 0 || webp_floor_probe <= jpeg_size) {
+    GTEST_SKIP() << "precondition not met: JPEG " << jpeg_size
+                 << " bytes, WebP at q=80 " << webp_floor_probe << " bytes";
+  }
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg = ForcedGateConfig();
+  cfg.jpeg_quality = 20;
+  cfg.webp_quality = 100;
+  ImageTranscoder tc(cfg, &handler);
+  auto multi =
+      tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kWebP,
+                               CapabilityMask::ImageFormat::kOriginal});
+  ASSERT_TRUE(multi.optimized_original.success);
+  EXPECT_FALSE(multi.webp.success);
+  EXPECT_EQ(1, multi.size_refused_webp);
+  EXPECT_EQ(0, multi.size_rescued_webp);
+  EXPECT_EQ(100, multi.final_webp_quality) << "a failed recovery restores it";
+}
+
+// The same refusal with the quality verify off is counted but never retried.
+TEST_F(ImageTranscoderTest, RefusalWithVerifyOffIsCountedNotRescued) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const size_t jpeg_size = JpegSizeAt(jpeg, 20);
+  const size_t webp_size = WebpSizeAt(jpeg, 100);
+  if (jpeg_size == 0 || webp_size <= jpeg_size) {
+    GTEST_SKIP() << "precondition not met";
+  }
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg = ForcedGateConfig();
+  cfg.quality_verify = false;
+  cfg.jpeg_quality = 20;
+  cfg.webp_quality = 100;
+  ImageTranscoder tc(cfg, &handler);
+  auto multi =
+      tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kWebP,
+                               CapabilityMask::ImageFormat::kOriginal});
+  EXPECT_FALSE(multi.webp.success);
+  EXPECT_EQ(1, multi.size_refused_webp);
+  EXPECT_EQ(0, multi.size_rescued_webp);
+  EXPECT_EQ(100, multi.final_webp_quality);
+}
+
+// The same refusal on the Save-Data resized path (a different gate site).
+TEST_F(ImageTranscoderTest, ForcedRefusalOnTheSaveDataPathCountsIt) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const size_t jpeg_size = JpegSizeAt(jpeg, 20);
+  const size_t webp_floor_probe = WebpSizeAt(jpeg, 80);
+  if (jpeg_size == 0 || webp_floor_probe <= jpeg_size) {
+    GTEST_SKIP() << "precondition not met: JPEG " << jpeg_size
+                 << " bytes, WebP at q=80 " << webp_floor_probe << " bytes";
+  }
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg = ForcedGateConfig();
+  cfg.savedata_jpeg_quality = 20;
+  cfg.savedata_webp_quality = 100;
+  ImageTranscoder tc(cfg, &handler);
+  auto multi = tc.TranscodeMultiResized(
+      jpeg,
+      {CapabilityMask::ImageFormat::kWebP,
+       CapabilityMask::ImageFormat::kOriginal},
+      CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x,
+      CapabilityMask::SaveData::kOn);
+  ASSERT_TRUE(multi.optimized_original.success);
+  EXPECT_EQ(1, multi.size_refused_webp);
+  EXPECT_FALSE(multi.webp.success);
+  EXPECT_EQ(0, multi.size_rescued_webp);
+}
+
+// A JPEG sized between the WebP at the verified quality and the WebP at the
+// first recovery probe: the first encode is refused, the recovery keeps a
+// smaller one that meets the floor, and its quality is recorded.
+TEST_F(ImageTranscoderTest, ForcedRescueKeepsASmallerEncodeAtTheFloor) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const int verified_q = 95;
+  const size_t at_verified = WebpSizeAt(jpeg, verified_q);
+  const size_t at_probe = WebpSizeAt(jpeg, 84);  // First probe of [75, 94].
+  ASSERT_GT(at_verified, 0u);
+  ASSERT_GT(at_probe, 0u);
+  int jpeg_q = -1;
+  for (int q = 100; q >= 1; --q) {
+    const size_t sz = JpegSizeAt(jpeg, q);
+    if (sz > at_probe && sz <= at_verified) {
+      jpeg_q = q;
+      break;
+    }
+  }
+  if (jpeg_q < 0) {
+    GTEST_SKIP() << "no JPEG quality lands between " << at_probe << " and "
+                 << at_verified << " bytes";
+  }
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg = ForcedGateConfig();
+  cfg.jpeg_quality = jpeg_q;
+  cfg.webp_quality = verified_q;
+  ImageTranscoder tc(cfg, &handler);
+  auto multi =
+      tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kWebP,
+                               CapabilityMask::ImageFormat::kOriginal});
+  ASSERT_TRUE(multi.optimized_original.success);
+  EXPECT_EQ(1, multi.size_refused_webp);
+  ASSERT_EQ(1, multi.size_rescued_webp)
+      << "WebP at q=84 should meet the floor: score "
+      << multi.webp_ssimulacra2_score;
+  ASSERT_TRUE(multi.webp.success);
+  EXPECT_LT(multi.webp.output_data.size(),
+            multi.optimized_original.output_data.size());
+  EXPECT_GE(multi.webp_ssimulacra2_score, 67.0f);
+  EXPECT_TRUE(multi.webp_ssimulacra2_reencoded);
+  EXPECT_LT(multi.final_webp_quality, verified_q);
+  EXPECT_GE(multi.final_webp_quality, 75);
+}
+
+// A probe that is both over budget and below the floor ends the loop: higher
+// qualities are larger and lower ones score lower, so a second encode could
+// not succeed.
+TEST(BudgetRescueTest, StopsEarlyWhenAProbeIsOverBudgetAndBelowTheFloor) {
+  RescueProbe probe;
+  probe.offset = -20.0f;
+  int quality = 75;
+  TranscodeResult encoded = VerifiedWebp(quality);
+  auto r = RunRescue(probe, encoded, quality, 5000, 67.0f, 2);
+  EXPECT_FALSE(r.rescued);
+  EXPECT_EQ(1, r.encodes);
+  EXPECT_EQ(1, probe.encodes);
+  EXPECT_EQ(75, quality);
+}
