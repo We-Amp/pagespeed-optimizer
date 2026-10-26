@@ -38,7 +38,8 @@ CXX="${CXX:-clang++-20}"
 # `SANITIZERS=` (explicitly empty) disables sanitizers for local macOS runs;
 # unset gets the default.
 SANITIZERS="${SANITIZERS--fsanitize=address,undefined}"
-JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+# CI_SLOT_CPUS: the runner's per-job CPU budget (tools/ci/slot-budget.sh).
+JOBS="${JOBS:-${CI_SLOT_CPUS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

@@ -5,6 +5,9 @@ common --enable_platform_specific_config
 build --action_env=PATH
 build --action_env=INCLUDE
 build --action_env=LIB
+# CI per-job CPU budget for cmake_build (bazel/cmake_build.bzl); inherited only
+# when set, so developer machines are unchanged.
+build --action_env=CI_SLOT_CPUS
 
 # ---------- Compiler flags (GCC/Clang — Linux and macOS) ----------
 # These are in the top-level 'build' scope because --enable_platform_specific_config

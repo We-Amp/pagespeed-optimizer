@@ -62,7 +62,11 @@ def _cmake_build_impl(ctx):
 
     return [DefaultInfo(files = depset([out]))]
 
-_NPROC = "$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+# CI_SLOT_CPUS is the CI runner's per-job CPU budget (tools/ci/slot-budget.sh),
+# forwarded by `build --action_env=CI_SLOT_CPUS` in .bazelrc. Unset (developer
+# machines) falls back to the host CPU count. The doubled braces survive the
+# str.format() applied to the script below.
+_NPROC = "${{CI_SLOT_CPUS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}}"
 
 _UNIX_SCRIPT = """\
 set -e
