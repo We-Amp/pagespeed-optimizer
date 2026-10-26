@@ -28,8 +28,13 @@ bool ParseInt64(const std::string& text, int64_t* out) {
   try {
     size_t used = 0;
     long long v = std::stoll(text, &used);
+    while (used < text.size() && (text[used] == ' ' || text[used] == '\t' ||
+                                  text[used] == '\r' || text[used] == '\n')) {
+      ++used;
+    }
+    if (used != text.size()) return false;
     *out = v;
-    return used > 0;
+    return true;
   } catch (...) {
     return false;
   }
@@ -38,7 +43,7 @@ bool ParseInt64(const std::string& text, int64_t* out) {
 // ceil(quota / period) CPUs, or kUnlimited when there is no usable quota.
 int64_t CeilCpus(int64_t quota, int64_t period) {
   if (quota <= 0 || period <= 0) return kUnlimited;
-  return (quota + period - 1) / period;
+  return quota / period + (quota % period != 0);
 }
 
 int64_t CgroupV2Cpus(const std::string& path) {

@@ -29,7 +29,7 @@ struct CpuBudgetSources {
 };
 
 struct CpuBudget {
-  int cpus = 1;                // Never below 1.
+  int cpus = 1;                     // Never below 1.
   const char* source = "hardware";  // "affinity", "cgroup v2 quota",
                                     // "cgroup v1 quota" or "hardware".
 };

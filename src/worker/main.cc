@@ -12,7 +12,6 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
-#include <thread>
 
 #include "absl/strings/str_cat.h"
 #include "lib/base/json_message_handler.h"

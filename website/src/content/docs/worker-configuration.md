@@ -516,7 +516,7 @@ back to copying.
 
 Thread pool size for notification processing (default: auto)
 
-`auto` sizes the pool from the available CPU cores. See
+`auto` sizes the pool from the CPUs the worker may use, following the CPU limit of its container or cgroup. See
 [Threading and memory](#threading).
 
 #### --max-connections {#--max-connections}
@@ -2144,7 +2144,7 @@ flag that lies.
 ## Threading and memory {#threading}
 
 [`--num-threads`](#--num-threads) sizes the notification thread pool (the
-default is based on the available CPU cores) and
+default follows the CPU limit of the container or cgroup) and
 [`--ram-cache-size`](#--ram-cache-size) the RAM cache tier (the default is 6%
 of `--cache-size`, between 16 and 256 MB). The RAM cache uses write-around
 semantics: writes go directly to disk, reads populate the RAM cache on miss.

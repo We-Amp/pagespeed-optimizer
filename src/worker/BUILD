@@ -756,8 +756,8 @@ cc_binary(
     visibility = ["//test/src/worker:__pkg__"],
     deps = [
         ":cache_dir",
-        ":cpu_budget",
         ":config_file",
+        ":cpu_budget",
         ":http_server",
         ":shared_config",
         ":syscall_selftest",

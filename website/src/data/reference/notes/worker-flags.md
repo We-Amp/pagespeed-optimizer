@@ -81,7 +81,7 @@ back to copying.
 
 ## --num-threads
 
-`auto` sizes the pool from the available CPU cores. See
+`auto` sizes the pool from the CPUs the worker may use, following the CPU limit of its container or cgroup. See
 [Threading and memory](#threading).
 
 ## --max-connections

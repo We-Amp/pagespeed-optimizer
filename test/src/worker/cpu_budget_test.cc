@@ -15,11 +15,11 @@ namespace {
 class CpuBudgetTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    dir_ = std::filesystem::temp_directory_path() /
-           ("cpu_budget_test_" +
-            std::string(::testing::UnitTest::GetInstance()
-                            ->current_test_info()
-                            ->name()));
+    dir_ =
+        std::filesystem::temp_directory_path() /
+        ("cpu_budget_test_" +
+         std::string(
+             ::testing::UnitTest::GetInstance()->current_test_info()->name()));
     std::filesystem::remove_all(dir_);
     std::filesystem::create_directories(dir_);
     sources_.cgroup_v2_cpu_max = (dir_ / "cpu.max").string();
@@ -86,6 +86,10 @@ TEST_F(CpuBudgetTest, AffinitySmallerThanQuotaWins) {
 }
 
 TEST_F(CpuBudgetTest, MalformedFilesAreUnlimited) {
+  V2("garbage");
+  EXPECT_EQ(AvailableCpus(sources_).cpus, 64);
+  V2("12abc 100000");
+  EXPECT_EQ(AvailableCpus(sources_).cpus, 64);
   V2("garbage");
   V1("abc", "100000");
   EXPECT_EQ(AvailableCpus(sources_).cpus, 64);
