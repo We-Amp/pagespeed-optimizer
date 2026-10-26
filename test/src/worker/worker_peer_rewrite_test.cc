@@ -17,6 +17,7 @@
 // clang-format on
 
 #include <cstdint>
+#include <span>
 #include <string>
 #include <thread>
 
@@ -520,6 +521,92 @@ TEST_F(WorkerPeerRewriteTypesTest, UnchangedBytesRestampWithGzipDisabled) {
       WaitForAtLeast(rig.worker->stats().origin_unchanged_restamped, 1));
   WaitForWorkerIdle(*rig.worker);
   EXPECT_EQ(rig.worker->stats().origin_change_rebuilt.load(), 0u);
+}
+
+// The unsupported-image "already stored" check expects only the coded copies
+// the configuration enables.  Each test starts a fresh worker, so its
+// in-memory dedup set is empty (as after a restart), stores the coded copies
+// beforehand and sends one notification.
+void WriteStoredCodedCopy(Worker& worker, const std::string& url,
+                          CapabilityMask::TransferEncoding encoding) {
+  CapabilityMask mask;
+  mask.set_transfer_encoding(encoding);
+  AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+  AlternateMetadata meta;
+  meta.content_type = ContentType::kImage;
+  meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+  meta.full_mask = mask.Encode();
+  const std::string content = "fake coded ico data";
+  auto wh =
+      worker.cache()->WriteAlternate(WorkerTest::StripSchemeAuthority(url), "",
+                                     "https", id, content.size(), meta);
+  ASSERT_TRUE(wh.has_value()) << "Failed to write the coded copy";
+  auto written =
+      wh->write_sync(std::as_bytes(std::span(content.data(), content.size())));
+  ASSERT_TRUE(written.has_value()) << "Failed to write the coded content";
+  auto closed = wh->close_sync();
+  ASSERT_TRUE(closed.has_value()) << "Failed to close the coded write handle";
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       UnsupportedImageStoredWithGzipDisabledSkips) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig, /*gzip_level=*/0, /*brotli_level=*/6));
+  const std::string url = "http://example.com/nogzip.ico";
+  CacheDurableOriginal(rig.front_end.get(), url,
+                       std::string("icon-") + std::string(300, 'a'),
+                       "image/x-icon", ContentType::kImage, kStamp1, 600);
+  ASSERT_NO_FATAL_FAILURE(WriteStoredCodedCopy(
+      *rig.worker, url, CapabilityMask::TransferEncoding::kBrotli));
+  StartWorker(rig);
+  Notify(*rig.worker, url, ContentType::kImage);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(*rig.worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(rig.worker->stats().alternate_writes.load(), 0u)
+      << "the stored brotli copy must end the work when gzip is disabled";
+  EXPECT_EQ(rig.worker->stats().brotli_variants_written.load(), 0u);
+  EXPECT_EQ(rig.worker->stats().gzip_variants_written.load(), 0u);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       UnsupportedImageStoredWithBrotliDisabledSkips) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig, /*gzip_level=*/6, /*brotli_level=*/0));
+  const std::string url = "http://example.com/nobrotli.ico";
+  CacheDurableOriginal(rig.front_end.get(), url,
+                       std::string("icon-") + std::string(300, 'a'),
+                       "image/x-icon", ContentType::kImage, kStamp1, 600);
+  ASSERT_NO_FATAL_FAILURE(WriteStoredCodedCopy(
+      *rig.worker, url, CapabilityMask::TransferEncoding::kGzip));
+  StartWorker(rig);
+  Notify(*rig.worker, url, ContentType::kImage);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(*rig.worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(rig.worker->stats().alternate_writes.load(), 0u)
+      << "the stored gzip copy must end the work when brotli is disabled";
+  EXPECT_EQ(rig.worker->stats().gzip_variants_written.load(), 0u);
+  EXPECT_EQ(rig.worker->stats().brotli_variants_written.load(), 0u);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       UnsupportedImageWithBothEnabledNeedsBothCopies) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/both.ico";
+  const std::string body = std::string("icon-") + std::string(300, 'a');
+  CacheDurableOriginal(rig.front_end.get(), url, body, "image/x-icon",
+                       ContentType::kImage, kStamp1, 600);
+  // Only the brotli copy is stored: with both enabled the gzip copy is still
+  // missing, so the notification must write it.
+  ASSERT_NO_FATAL_FAILURE(WriteStoredCodedCopy(
+      *rig.worker, url, CapabilityMask::TransferEncoding::kBrotli));
+  StartWorker(rig);
+  Notify(*rig.worker, url, ContentType::kImage);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(*rig.worker, 1,
+                                                           kWorkerStallBudget));
+  ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().gzip_variants_written, 1));
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kGzip), body);
 }
 
 TEST_F(WorkerPeerRewriteTypesTest,

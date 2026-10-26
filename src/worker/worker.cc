@@ -5984,13 +5984,27 @@ void Worker::HandleNotification(const CacheNotification& notification,
           !origin_ct.starts_with("image/png") &&
           !origin_ct.starts_with("image/gif") &&
           !origin_ct.starts_with("image/webp")) {
-        // Check if compressed variants already exist (dedup for
-        // unsupported types like favicon.ico that can't be optimized).
+        // Check if the compressed variants already exist (dedup for
+        // unsupported types like favicon.ico that can't be optimized).  Only
+        // the encodings the configuration enables are expected (a level of 0
+        // disables that encoding, so its copy never exists), the same rule
+        // RecordSourceHash applies.
         CapabilityMask gz_check;
         gz_check.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
-        if (VariantExistsForMask(cache_.get(), notification.url,
-                                 notification.hostname, notification.scheme,
-                                 gz_check)) {
+        CapabilityMask br_check;
+        br_check.set_transfer_encoding(
+            CapabilityMask::TransferEncoding::kBrotli);
+        const bool coded_copies_stored =
+            (cfg->gzip_level > 0 || cfg->brotli_level > 0) &&
+            (cfg->gzip_level <= 0 ||
+             VariantExistsForMask(cache_.get(), notification.url,
+                                  notification.hostname, notification.scheme,
+                                  gz_check)) &&
+            (cfg->brotli_level <= 0 ||
+             VariantExistsForMask(cache_.get(), notification.url,
+                                  notification.hostname, notification.scheme,
+                                  br_check));
+        if (coded_copies_stored) {
           LogInfo(
               "Compressed variants already exist for unsupported "
               "type %.*s, skipping: %s",

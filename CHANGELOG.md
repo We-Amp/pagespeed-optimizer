@@ -56,6 +56,10 @@ download some optimized resources once more, because their validators change;
 resources without any validator are revalidated with a full response until
 the optimizer has processed them again.
 
+Fixed: with gzip compression turned off, the optimizer no longer recompresses
+and rewrites the stored copy of an image type it cannot optimize (such as an
+icon) after the optimizer restarts; the same holds with brotli turned off.
+
 Changed: the optimizer worker's log lines and `--version` output, and the nginx
 module's load notice, now name the product mod_pagespeed. The version number and
 build commit are unchanged.
