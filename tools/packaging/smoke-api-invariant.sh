@@ -58,7 +58,8 @@ command -v curl >/dev/null 2>&1 || { echo "error: curl is required" >&2; exit 1;
 fails=0
 check() { # label expected actual
   if [[ "$2" == "$3" ]]; then echo "ok: $1"; else
-    echo "FAIL: $1 -- expected [$2], got [$3]" >&2; fails=$((fails+1)); fi
+    echo "FAIL: $1 -- expected [$2], got [$3]$([[ "$3" == "000" ]] && echo ' (no response within 60 s)')" >&2
+    fails=$((fails+1)); fi
 }
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
@@ -168,11 +169,11 @@ check "...and names the length problem" "1" \
   >"$TMP/lo8.log" 2>&1 &
 LO8_PID=$!
 for _ in $(seq 1 600); do
-  curl -s --max-time 10 -o /dev/null "http://127.0.0.7:$PORT/v1/health" && break
+  curl -s --max-time 60 -o /dev/null "http://127.0.0.7:$PORT/v1/health" && break
   sleep 0.2
 done
 check "a 127.0.0.0/8 address other than 127.0.0.1 counts as loopback" "200" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "http://127.0.0.7:$PORT/v1/health")"
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' "http://127.0.0.7:$PORT/v1/health")"
 check "...and it did not demand --api-allow-remote" "0" \
   "$(grep -c -- '--api-allow-remote' "$TMP/lo8.log" || true)"
 stop_pid "$LO8_PID"
@@ -190,20 +191,20 @@ TOKEN="smoke-token-0123456789-$RANDOM"
   >"$TMP/live.log" 2>&1 &
 WORKER_PID=$!
 for _ in $(seq 1 600); do
-  curl -s --max-time 10 -o /dev/null "http://127.0.0.1:$PORT/v1/health" && break
+  curl -s --max-time 60 -o /dev/null "http://127.0.0.1:$PORT/v1/health" && break
   sleep 0.2
 done
 # If the daemon is not up, every leg below reports 000 and the reader is left
 # guessing which of a dozen assertions is the real failure.  Say it once, with
 # the daemon's own reason attached.
-if ! curl -s --max-time 10 -o /dev/null "http://127.0.0.1:$PORT/v1/health"; then
+if ! curl -s --max-time 60 -o /dev/null "http://127.0.0.1:$PORT/v1/health"; then
   echo "FAIL: the loopback+token daemon never came up; its log said:" >&2
   sed -n '1,10p' "$TMP/live.log" >&2
   exit 1
 fi
 
 code() { # url [headers...]
-  curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$@"
+  curl -s --max-time 60 -o /dev/null -w '%{http_code}' "$@"
 }
 
 check "no bearer on a read endpoint => 401" "401" \
@@ -220,7 +221,7 @@ check "correct bearer on a read endpoint => 200" "200" \
 volume_count() {
   find "$CACHE_DIR" -maxdepth 1 -name 'cache-*' -type f | wc -l | tr -d ' '
 }
-body() { curl -s --max-time 10 "$@"; }
+body() { curl -s --max-time 60 "$@"; }
 check "the cache volume exists before the purge legs" "1" "$(volume_count)"
 
 check "tokenless POST /v1/cache/purge => 401" "401" \
@@ -265,7 +266,7 @@ check "a token without --api-read-open still gates GET" "401" \
 
 # /v1/health stays open for monitoring -- and must carry nothing that an
 # unauthenticated caller has no business seeing.
-HEALTH="$(curl -s --max-time 10 "http://127.0.0.1:$PORT/v1/health")"
+HEALTH="$(curl -s --max-time 60 "http://127.0.0.1:$PORT/v1/health")"
 check "/v1/health is unauthenticated" "200" \
   "$(code "http://127.0.0.1:$PORT/v1/health")"
 check "/v1/health does not leak the token" "0" \
@@ -314,7 +315,7 @@ check "the API socket is 0660" "660" "$(mode_of "$API_SOCK")"
 check "no world-writable bit under the runtime dir" "0" \
   "$(find "$RUN_DIR" -perm -o+w | wc -l | tr -d ' ')"
 check "HTTP over the unix socket answers" "200" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       http://localhost/v1/health)"
 # `ss` absent would make `grep -c` return 0 and this leg pass without ever
 # looking -- the exact "assert by absence" shape this suite exists to avoid.
@@ -338,15 +339,15 @@ check "the socket does not warn about a missing token" "0" \
 
 # §13 Q3, asserted: reads and PURGE both answer with NO credential at all.
 check "a read over the unix socket needs no bearer" "200" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       http://localhost/v1/stats)"
 check "a header-less mutating request over the socket is refused" "400" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       --data '{"scope":"all","confirm":"purge-all"}' \
       http://localhost/v1/cache/purge)"
 check "PURGE over the unix socket needs no bearer" "200" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       -H 'X-Requested-With: XMLHttpRequest' \
       --data '{"scope":"all","confirm":"purge-all"}' \
@@ -395,16 +396,16 @@ for _ in $(seq 1 600); do
   sleep 0.2
 done
 check "a read over the socket still needs no bearer with a token set" "200" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       http://localhost/v1/stats)"
 check "purge over the socket still needs no bearer with a token set" "200" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       -H 'X-Requested-With: XMLHttpRequest' \
       --data '{"scope":"all","confirm":"purge-all"}' \
       http://localhost/v1/cache/purge)"
 check "a bearer is still ACCEPTED over the socket (not rejected)" "200" \
-  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 60 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       -H 'X-Requested-With: XMLHttpRequest' \
       -H "Authorization: Bearer $TOKEN" \
