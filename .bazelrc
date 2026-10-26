@@ -225,6 +225,15 @@ build:ci --config=remote-cache
 build:ci --jobs=HOST_CPUS*.75
 build:ci --nostamp
 
+# Full-tier Linux job configs (pipeline-full.yml); tools/ci/bisect-job.sh runs
+# the same configs. The remote-cache/jobs choice, --nocache_test_results and
+# the target patterns stay on the command line.
+build:ci-asan --vendor_dir=vendor
+build:ci-asan --config=asan-leaks
+build:ci-tsan --vendor_dir=vendor
+build:ci-tsan --config=tsan-suppressed
+build:ci-build --vendor_dir=vendor
+
 # arm64 Linux CI (native Docker on Mac, no Rosetta)
 build:ci-linux-arm64 --config=docker
 build:ci-linux-arm64 --config=remote-cache
