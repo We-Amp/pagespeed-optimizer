@@ -8,8 +8,16 @@
 # workflow_dispatch, conclusion success, in which every job of the list in
 # REQUIRED below is success and no other job is failure, cancelled or
 # timed_out (the arm64 daemon privilege rig is the one job allowed to be red;
-# it is continue-on-error in ci.yml). A full=true dispatch satisfies this. A
-# push run does not: it skips full / Lint (whole tree), by design.
+# it is continue-on-error in pipeline-full.yml). REQUIRED holds every job of
+# the full tier but its bookkeeping jobs, so a release needs the full tier
+# green. A full=true dispatch satisfies this. A push run does not: it skips
+# full / Lint (whole tree), by design.
+#
+#   * A REQUIRED job that is skipped refuses, like a red one: only success
+#     counts. With the repository variable FLEET_ENABLED set to 'false' the
+#     fleet-only jobs (the daemon privilege rig legs, HTTP Compliance,
+#     Async-CSS Probe) skip, so the gate refuses every release until the
+#     fleet is back (fail closed).
 #
 #   * Every API call is retried on a transient failure (HTTP 5xx, timeouts,
 #     connection errors) with backoff 10/20/40/80 s; a 4xx is not retried.
@@ -29,9 +37,48 @@
 #   POLL_SECONDS                     default 60
 #   RETRY_BASE_SECONDS               default 10 (doubles per try, 5 tries)
 #   GH_TOKEN                         read-only token (set by the workflow)
+#   CI_RELEASE_GATE_PRINT_REQUIRED   "1" prints REQUIRED and exits 0 (tests)
 #
 # Needs gh.
 set -uo pipefail
+
+# Every PR-tier job the release relies on and every job of the full tier
+# (pipeline-full.yml) but its bookkeeping jobs (event guard, fleet-off
+# notice) and the continue-on-error one, under their caller prefixes; a
+# matrix job is one entry per leg. The PR-tier fuzz smokes skip outside pull
+# requests by design and stay out. tools/ci/test_ci_release_gate.sh compares
+# this list with the workflows.
+REQUIRED=(
+  'pr / Linux Build'
+  'pr / Linux Unit Tests'
+  'pr / Windows Build'
+  'pr / Windows Unit Tests'
+  'pr / Lint (clang-tidy + clang-format)'
+  'full / Vendor Dependencies'
+  'full / Linux Build'
+  'full / Linux ASan + UBSan'
+  'full / Linux TSan'
+  'full / Daemon Privilege Rig (debian12)'
+  'full / Daemon Privilege Rig (ubuntu2404)'
+  'full / Daemon Privilege Rig (alma9)'
+  'full / Linux Pkg Smoke'
+  'full / HTTP Compliance'
+  'full / Async-CSS Probe'
+  'full / Container Cache Sharing'
+  'full / Windows Build'
+  'full / Windows Pkg Smoke'
+  'full / Linux arm64 Build'
+  'full / Linux arm64 Unit Tests'
+  'full / Linux arm64 Pkg Smoke'
+  'full / Lint (whole tree)'
+)
+# Job-level continue-on-error in pipeline-full.yml: may be red without refusing.
+COE='full / Daemon Privilege Rig (arm64)'
+
+if [ "${CI_RELEASE_GATE_PRINT_REQUIRED:-}" = 1 ]; then
+  printf '%s\n' "${REQUIRED[@]}"
+  exit 0
+fi
 
 : "${GITHUB_REPOSITORY:?}"
 DRY_RUN="${DRY_RUN:-false}"
@@ -83,21 +130,6 @@ gh_api() {
   done
   rm -f "$errf"; return 2
 }
-
-REQUIRED=(
-  'pr / Linux Build'
-  'pr / Linux Unit Tests'
-  'pr / Windows Build'
-  'pr / Windows Unit Tests'
-  'pr / Lint (clang-tidy + clang-format)'
-  'full / Linux Build'
-  'full / Windows Build'
-  'full / Linux ASan + UBSan'
-  'full / Linux TSan'
-  'full / Lint (whole tree)'
-)
-# Job-level continue-on-error in ci.yml: may be red without refusing.
-COE='full / Daemon Privilege Rig (arm64)'
 
 RUNS_PATH="repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs"
 RUNS_Q="head_sha=${RELEASE_SHA}&per_page=50"
