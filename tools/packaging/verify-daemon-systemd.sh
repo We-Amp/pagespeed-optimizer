@@ -188,6 +188,14 @@ else
   chrome_kills() { echo 0; }
 fi
 
+# Positive-control kills, counted with the same source and record form as
+# chrome_kills (type=1326, code=0x8) but for the control's own process.
+control_kills() {
+  { if dmesg >/dev/null 2>&1; then dmesg 2>/dev/null
+    else journalctl -k --no-pager -o cat 2>/dev/null; fi; } \
+    | grep -E 'type=1326.*(comm="(python|h6)|exe="[^"]*(python|h6))' | grep -cE 'code=0x8' || true
+}
+
 api_get() { # path -> body on stdout ("" when the API is not up)
   curl -s --max-time 5 --unix-socket "$RUN_DIR/api.sock" \
     "http://localhost$1" 2>/dev/null || true
@@ -198,6 +206,24 @@ import json,sys
 try: print(json.load(sys.stdin).get(sys.argv[1], ""))
 except Exception: print("")' "$2" 2>/dev/null || true
 }
+# The capture error text from an error envelope ({"error":{"message":...}}).
+error_message() { # file
+  python3 -c '
+import json,sys
+try:
+    e = json.load(open(sys.argv[1])).get("error", "")
+    print(e.get("message", "") if isinstance(e, dict) else e)
+except Exception:
+    print("")' "$1" 2>/dev/null || true
+}
+# Retry decision for a failed render: ONLY a navigation timeout (a deadline
+# really expired) earns one retry.  Any other failure, including a fast 504
+# from a failed CDP step, is the signal the browser leg exists for and stays
+# a FAIL.  Prints 1 to retry, 0 not to.
+should_retry_render() { # http-code message
+  if [[ "$1" == "504" && "$2" == *"navigation timeout"* ]]; then echo 1; else echo 0; fi
+}
+
 # Turn the API on for the legs that read /v1/health.  Written as its own
 # drop-in so it composes with the H6 ones and is removed with them.
 enable_api_dropin() {
@@ -644,7 +670,10 @@ systemctl stop "$PKG.service" 2>/dev/null || true
 rm -f "$DROPIN_DIR"/*.conf; systemctl daemon-reload
 control_dropin /usr/local/bin/h6-forbidden-syscall
 check "default posture: systemd shows an enforcing allow-list" "1" "$(scf_is_allowlist)"
+CK0="$(control_kills)"
 POS="$(run_control)"
+sleep 1
+CK1="$(control_kills)"
 check "under the shipped default: killed by a signal, not exited" "1" \
   "$([[ "$(echo "$POS" | awk '{print $1}')" != "$CLD_EXITED" ]] && echo 1 || echo 0)"
 check "under the shipped default: SIGSYS (status 31)" "31" \
@@ -667,6 +696,10 @@ KILLED_NAME="$(sigsys_syscall_names)"
 # empty, that is "this detector is unavailable", NOT "nothing was denied".
 # Detectors 1 and 3 are what carry this leg; say which was available.
 DETECTOR2="${KILLED_NAME:-unavailable in this container (no audit, kernel log unreadable)}"
+# The positive control could not see its own kill: the kernel-log detector
+# chrome_kills relies on is blind here (record count did not rise), so the
+# browser legs report kills=unreadable, not a measured zero.
+[[ "${CK1:-0}" -gt "${CK0:-0}" ]] || KILL_DETECTOR=0
 
 # The inverse, through the documented opt-out and nothing else: the shipped
 # 90-syscall-filter-off.conf.example installed where the docs say.
@@ -991,18 +1024,52 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
     # Three renders with a service restart between the second and third:
     # the cycle the measurement behind the drop-in used, and enough for a
     # renderer child (spawned per render) to hit a subtracted syscall.
-    B_RENDER=""
-    local n code
+    B_RENDER=""; B_RETRIED=0; B_ERRS=""
+    # Self-test of the retry decision against canned failures, so the branch
+    # runs on every rig run without a real timeout.
+    check "$1: retry decision: navigation timeout is retried" "1" \
+      "$(should_retry_render 504 'navigation timeout')"
+    check "$1: retry decision: fast CDP failure is not retried" "0" \
+      "$(should_retry_render 504 'createTarget failed')"
+    check "$1: retry decision: non-504 is not retried" "0" \
+      "$(should_retry_render 500 'navigation timeout')"
+    local n code code2 msg msg2 label t_a t_b ms
     for n in 1 2 3; do
-      code="$(curl -s -o "$WORK/h6-shot.json" -w '%{http_code}' --max-time 90 \
-        --unix-socket "$RUN_DIR/api.sock" -H 'Content-Type: application/json' \
-        -H 'X-Requested-With: XMLHttpRequest' -X POST \
-        http://localhost/v1/capture/screenshot \
-        -d "{\"url\":\"http://127.0.0.1:8099/index.html?n=$n\"}" 2>/dev/null || echo 000)"
+      render_once() { # outfile -> prints http code
+        curl -s -o "$1" -w '%{http_code}' --max-time 90 \
+          --unix-socket "$RUN_DIR/api.sock" -H 'Content-Type: application/json' \
+          -H 'X-Requested-With: XMLHttpRequest' -X POST \
+          http://localhost/v1/capture/screenshot \
+          -d "{\"url\":\"http://127.0.0.1:8099/index.html?n=$n\"}" 2>/dev/null || echo 000
+      }
+      rm -f "$WORK/h6-shot-$n.json" "$WORK/h6-shot-$n-retry.json"
+      t_a="$(date +%s%3N)"
+      code="$(render_once "$WORK/h6-shot-$n.json")"
+      t_b="$(date +%s%3N)"; ms=$(( t_b - t_a ))
+      cp "$WORK/h6-shot-$n.json" "$WORK/h6-shot.json" 2>/dev/null || true
+      label="$code"
+      if [[ "$code" != "200" ]]; then
+        msg="$(error_message "$WORK/h6-shot-$n.json")"
+        echo "diag: $1: render $n -> $code after ${ms} ms: ${msg:-<no error message>}"
+        journalctl -u "$PKG.service" --no-pager --since "$t0" -o cat 2>/dev/null \
+          | tail -40 | sed 's/^/diag:   /' || true
+        if [[ "$(should_retry_render "$code" "$msg")" == "1" ]]; then
+          code2="$(render_once "$WORK/h6-shot-$n-retry.json")"
+          cp "$WORK/h6-shot-$n-retry.json" "$WORK/h6-shot.json" 2>/dev/null || true
+          msg2="$(error_message "$WORK/h6-shot-$n-retry.json")"
+          echo "diag: $1: render $n retried once after a navigation timeout -> $code2${msg2:+: $msg2}"
+          label="${code}(navigation timeout)->${code2}"
+          B_RETRIED=1
+          code="$code2"; [[ "$code" != "200" ]] && msg="$msg2"
+        fi
+        if [[ "$code" != "200" ]]; then
+          B_ERRS="${B_ERRS}${B_ERRS:+; }render $n: $code ${msg:-no message}"
+        fi
+      fi
       check "$1: render $n through Chrome (screenshot 200)" "200" "$code"
       check "$1: render $n returns image data" "1" \
         "$(grep -c '"data":"iVBOR' "$WORK/h6-shot.json" 2>/dev/null || true)"
-      B_RENDER="${B_RENDER}${B_RENDER:+,}${code}"
+      B_RENDER="${B_RENDER}${B_RENDER:+,}${label}"
       if [[ "$n" -eq 2 ]]; then
         systemctl reload-or-restart "$PKG.service" 2>/dev/null || true
         restart_and_wait || true
@@ -1043,12 +1110,12 @@ import json,sys; print(str(json.load(sys.stdin).get("browser",{}).get("chrome_ru
   check "shipped default: the vendor browser drop-in is what systemd loaded" "1" \
     "$([[ -n "$(browser_shipped_path)" ]] && echo 1 || echo 0)"
   browser_half "shipped default (enforcing unit + vendor browser profile)"
-  ENFORCE_NOTE="shipped default (enforcing unit + vendor browser profile): renders=${B_RENDER} exited=${B_EXITED} sigsys=${B_SIGSYS} kills=${B_KILLS}"
+  ENFORCE_NOTE="shipped default (enforcing unit + vendor browser profile): renders=${B_RENDER} exited=${B_EXITED} sigsys=${B_SIGSYS} kills=${B_KILLS} retried=${B_RETRIED:-0} errors=${B_ERRS:-none}"
 
   optout_on
   check "documented opt-out: systemd shows no allow-list" "~" "$(scf)"
   browser_half "documented opt-out (log-only)"
-  OPTOUT_NOTE="opt-out (log-only): renders=${B_RENDER} exited=${B_EXITED} kills=${B_KILLS}"
+  OPTOUT_NOTE="opt-out (log-only): renders=${B_RENDER} exited=${B_EXITED} kills=${B_KILLS} retried=${B_RETRIED:-0} errors=${B_ERRS:-none}"
   optout_off
 
   kill "$(cat "$WORK/www.pid" 2>/dev/null)" 2>/dev/null || true
