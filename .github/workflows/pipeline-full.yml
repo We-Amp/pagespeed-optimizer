@@ -351,6 +351,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_CONFIG="${BAZEL_CONFIG}${SLOT_CPUS:+ --jobs=${SLOT_CPUS}}" \
+            -e CI_SLOT_CPUS \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${DOCKER_IMAGE}" \
@@ -539,6 +540,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_CONFIG="${BAZEL_CONFIG}${SLOT_CPUS:+ --jobs=${SLOT_CPUS}}" \
+            -e CI_SLOT_CPUS \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${DOCKER_IMAGE}" \
@@ -618,6 +620,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_CONFIG="${BAZEL_CONFIG}${SLOT_CPUS:+ --jobs=${SLOT_CPUS}}" \
+            -e CI_SLOT_CPUS \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${DOCKER_IMAGE}" \
