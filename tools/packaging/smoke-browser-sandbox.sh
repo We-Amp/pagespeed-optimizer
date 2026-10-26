@@ -52,7 +52,7 @@ command -v curl >/dev/null 2>&1 || { echo "error: curl is required" >&2; exit 1;
 
 # A refused flag exits at once; the bound only matters if the daemon starts.
 TIMEOUT=()
-command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 30)
+command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout -k 5 30)
 fails=0
 legs_fired=0
 check() { # label expected actual
@@ -127,10 +127,11 @@ start_and_probe() { # logfile [extra args...]
     "$@" >"$log" 2>&1 &
   WORKER_PID=$!
   local i
-  for i in $(seq 1 75); do
+  for i in $(seq 1 600); do
     [[ -S "$sock" ]] && break
     sleep 0.2
   done
+  [[ -S "$sock" ]] || echo "error: daemon did not start within 120 s ($log)" >&2
   HEALTH="$(curl -s --max-time 10 --unix-socket "$sock" http://localhost/v1/health 2>/dev/null)"
   STATS="$(curl -s --max-time 10 --unix-socket "$sock" http://localhost/v1/stats 2>/dev/null)"
   SANDBOX="$(printf '%s' "$HEALTH" \
@@ -212,7 +213,8 @@ API_SOCK="$RUN_DIR/plain.sock"
   --cache-size 16777216 --api-socket "$API_SOCK" \
   >"$TMP/disabled.log" 2>&1 &
 WORKER_PID=$!
-for _ in $(seq 1 75); do [[ -S "$API_SOCK" ]] && break; sleep 0.2; done
+for _ in $(seq 1 600); do [[ -S "$API_SOCK" ]] && break; sleep 0.2; done
+[[ -S "$API_SOCK" ]] || echo "error: daemon did not start within 120 s ($TMP/disabled.log)" >&2
 check "browser analysis off reports disabled" "disabled" \
   "$(curl -s --max-time 10 --unix-socket "$API_SOCK" http://localhost/v1/health \
       | sed -n 's/.*"browser_sandbox":"\([a-z]*\)".*/\1/p')"

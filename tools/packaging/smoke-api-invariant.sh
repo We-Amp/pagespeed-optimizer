@@ -167,7 +167,7 @@ check "...and names the length problem" "1" \
   --api-port "$PORT" --api-bind 127.0.0.7 --api-token lo8-token-long-enough \
   >"$TMP/lo8.log" 2>&1 &
 LO8_PID=$!
-for _ in $(seq 1 60); do
+for _ in $(seq 1 600); do
   curl -s --max-time 10 -o /dev/null "http://127.0.0.7:$PORT/v1/health" && break
   sleep 0.2
 done
@@ -189,7 +189,7 @@ TOKEN="smoke-token-0123456789-$RANDOM"
   --api-port "$PORT" --api-bind 127.0.0.1 --api-token "$TOKEN" \
   >"$TMP/live.log" 2>&1 &
 WORKER_PID=$!
-for _ in $(seq 1 60); do
+for _ in $(seq 1 600); do
   curl -s --max-time 10 -o /dev/null "http://127.0.0.1:$PORT/v1/health" && break
   sleep 0.2
 done
@@ -299,7 +299,7 @@ PAGESPEED_PURGE_TOKEN="$PURGE_TOKEN" \
   --api-socket "$API_SOCK" \
   >"$TMP/uds.log" 2>&1 &
 WORKER_PID=$!
-for _ in $(seq 1 60); do
+for _ in $(seq 1 600); do
   [[ -S "$API_SOCK" ]] && break
   sleep 0.2
 done
@@ -390,7 +390,7 @@ stop_pid "$WORKER_PID"; WORKER_PID=""
   --api-socket "$API_SOCK" --api-token "$TOKEN" \
   >"$TMP/uds2.log" 2>&1 &
 WORKER_PID=$!
-for _ in $(seq 1 60); do
+for _ in $(seq 1 600); do
   [[ -S "$API_SOCK" ]] && break
   sleep 0.2
 done

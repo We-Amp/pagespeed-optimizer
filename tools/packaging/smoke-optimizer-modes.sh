@@ -107,11 +107,11 @@ echo $! > "$TMP/worker.pid"
 # the socket simply not there yet. Reproduced 1 run in 12 under load, against
 # a binary whose sources had not changed at all.
 #
-# The budget is 60 s, not 10: on a busy build host the daemon needs well over
+# The budget is 120 s, not 10: on a busy build host the daemon needs well over
 # 10 s to open its cache volume and start listening, and a quiet host still
 # breaks out of the loop in a fraction of a second. If the daemon has already
 # exited there is nothing left to wait for, so stop polling early.
-for _ in $(seq 1 600); do
+for _ in $(seq 1 1200); do
   [[ -S "$RUN_DIR/notify.sock" && -S "$RUN_DIR/notify.sock.health" && \
      -S "$RUN_DIR/notify.sock.mgmt" ]] && break
   kill -0 "$(cat "$TMP/worker.pid")" 2>/dev/null || break
@@ -124,7 +124,7 @@ for sock in notify.sock notify.sock.health notify.sock.mgmt; do
   [[ -S "$RUN_DIR/$sock" ]] || {
     echo "FAIL: daemon did not start ($sock never appeared)" >&2
     if kill -0 "$(cat "$TMP/worker.pid")" 2>/dev/null; then
-      echo "daemon is still running after 60 s" >&2
+      echo "daemon is still running after 120 s" >&2
     else
       status=0
       wait "$(cat "$TMP/worker.pid")" 2>/dev/null || status=$?
@@ -204,8 +204,8 @@ if [[ "$(id -u)" -eq 0 ]]; then
   "$BINARY" --cache-dir "$BYSTANDER" --socket "$RUN_DIR/b.sock" \
     --cache-size 16777216 --log-level warning >"$TMP/bystander.log" 2>&1 &
   bystander_pid=$!
-  # Same start budget as the happy path: 60 s at 0.1 s polling.
-  for _ in $(seq 1 600); do
+  # Same start budget as the happy path: 120 s at 0.1 s polling.
+  for _ in $(seq 1 1200); do
     [[ -S "$RUN_DIR/b.sock" ]] && break
     kill -0 "$bystander_pid" 2>/dev/null || break
     sleep 0.1
