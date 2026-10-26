@@ -50,6 +50,29 @@ check() { # label expected actual
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
 TMP="$(mktemp -d)"
+# Bounded stop: SIGTERM, up to 10 s for exit, then SIGKILL and up to 5 s more.
+# Never a bare `wait` -- a worker that ignores SIGTERM must not hold the job
+# until its timeout.  Polls `kill -0`; reaps only once the pid is gone.
+stop_pid() { # pid
+  local pid="${1:-}" i
+  [[ -n "$pid" ]] || return 0
+  kill "$pid" 2>/dev/null || true
+  for ((i = 0; i < 100; i++)); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "note: pid $pid ignored SIGTERM for 10 s; sending SIGKILL" >&2
+    kill -9 "$pid" 2>/dev/null || true
+    for ((i = 0; i < 50; i++)); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  kill -0 "$pid" 2>/dev/null || wait "$pid" 2>/dev/null || true
+  return 0
+}
+
 # Every step here must be failure-proof: `set -e` is still in force while the
 # EXIT trap runs, so a single non-zero command inside it aborts the trap AND
 # becomes the script's exit status -- which would report a fully passing run
@@ -59,9 +82,7 @@ cleanup() {
   if [[ -f "$TMP/worker.pid" ]]; then
     pid="$(cat "$TMP/worker.pid" 2>/dev/null || true)"
   fi
-  if [[ -n "$pid" ]]; then
-    kill "$pid" 2>/dev/null || true
-  fi
+  stop_pid "$pid"
   rm -rf "$TMP" || true
 }
 trap cleanup EXIT
@@ -136,8 +157,7 @@ check "no world-writable file under cache dir" "0" \
 check "no world-writable entry under socket dir" "0" \
   "$(find "$RUN_DIR" -perm -o+w | wc -l | tr -d ' ')"
 
-kill "$(cat "$TMP/worker.pid")" 2>/dev/null || true
-wait "$(cat "$TMP/worker.pid")" 2>/dev/null || true
+stop_pid "$(cat "$TMP/worker.pid")"
 rm -f "$TMP/worker.pid"
 
 # --- refusal legs ---------------------------------------------------------
@@ -192,8 +212,7 @@ if [[ "$(id -u)" -eq 0 ]]; then
   done
   check "foreign-owned bystander does not refuse" "1" \
     "$([[ -S "$RUN_DIR/b.sock" ]] && echo 1 || echo 0)"
-  kill "$bystander_pid" 2>/dev/null || true
-  wait "$bystander_pid" 2>/dev/null || true
+  stop_pid "$bystander_pid"
 else
   echo "skip: foreign-owned legs need root (to chown the fixtures)"
 fi

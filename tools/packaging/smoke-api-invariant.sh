@@ -62,14 +62,40 @@ check() { # label expected actual
 }
 mode_of() { stat -c '%a' "$1" 2>/dev/null || stat -f '%Lp' "$1"; }
 
+# Bounded stop: SIGTERM, up to 10 s for exit, then SIGKILL and up to 5 s more.
+# Never a bare `wait` -- a worker that ignores SIGTERM must not hold the job
+# until its timeout.  Polls `kill -0`; reaps only once the pid is gone.
+stop_pid() { # pid
+  local pid="${1:-}" i
+  [[ -n "$pid" ]] || return 0
+  kill "$pid" 2>/dev/null || true
+  for ((i = 0; i < 100; i++)); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    echo "note: pid $pid ignored SIGTERM for 10 s; sending SIGKILL" >&2
+    kill -9 "$pid" 2>/dev/null || true
+    for ((i = 0; i < 50; i++)); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  kill -0 "$pid" 2>/dev/null || wait "$pid" 2>/dev/null || true
+  return 0
+}
+
 TMP="$(mktemp -d)"
 WORKER_PID=""
 cleanup() {
-  [[ -n "$WORKER_PID" ]] && kill "$WORKER_PID" 2>/dev/null
+  stop_pid "$WORKER_PID"
+  WORKER_PID=""
   rm -rf "$TMP" 2>/dev/null
   return 0
 }
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 CACHE_DIR="$TMP/cache/v2"
 RUN_DIR="$TMP/run"
@@ -142,14 +168,14 @@ check "...and names the length problem" "1" \
   >"$TMP/lo8.log" 2>&1 &
 LO8_PID=$!
 for _ in $(seq 1 60); do
-  curl -s -o /dev/null "http://127.0.0.7:$PORT/v1/health" && break
+  curl -s --max-time 10 -o /dev/null "http://127.0.0.7:$PORT/v1/health" && break
   sleep 0.2
 done
 check "a 127.0.0.0/8 address other than 127.0.0.1 counts as loopback" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.7:$PORT/v1/health")"
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "http://127.0.0.7:$PORT/v1/health")"
 check "...and it did not demand --api-allow-remote" "0" \
   "$(grep -c -- '--api-allow-remote' "$TMP/lo8.log" || true)"
-kill "$LO8_PID" 2>/dev/null; wait "$LO8_PID" 2>/dev/null
+stop_pid "$LO8_PID"
 
 # ---------------------------------------------------------------------------
 # Live daemon: loopback + token.
@@ -164,20 +190,20 @@ TOKEN="smoke-token-0123456789-$RANDOM"
   >"$TMP/live.log" 2>&1 &
 WORKER_PID=$!
 for _ in $(seq 1 60); do
-  curl -s -o /dev/null "http://127.0.0.1:$PORT/v1/health" && break
+  curl -s --max-time 10 -o /dev/null "http://127.0.0.1:$PORT/v1/health" && break
   sleep 0.2
 done
 # If the daemon is not up, every leg below reports 000 and the reader is left
 # guessing which of a dozen assertions is the real failure.  Say it once, with
 # the daemon's own reason attached.
-if ! curl -s -o /dev/null "http://127.0.0.1:$PORT/v1/health"; then
+if ! curl -s --max-time 10 -o /dev/null "http://127.0.0.1:$PORT/v1/health"; then
   echo "FAIL: the loopback+token daemon never came up; its log said:" >&2
   sed -n '1,10p' "$TMP/live.log" >&2
   exit 1
 fi
 
 code() { # url [headers...]
-  curl -s -o /dev/null -w '%{http_code}' "$@"
+  curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$@"
 }
 
 check "no bearer on a read endpoint => 401" "401" \
@@ -194,7 +220,7 @@ check "correct bearer on a read endpoint => 200" "200" \
 volume_count() {
   find "$CACHE_DIR" -maxdepth 1 -name 'cache-*' -type f | wc -l | tr -d ' '
 }
-body() { curl -s "$@"; }
+body() { curl -s --max-time 10 "$@"; }
 check "the cache volume exists before the purge legs" "1" "$(volume_count)"
 
 check "tokenless POST /v1/cache/purge => 401" "401" \
@@ -239,7 +265,7 @@ check "a token without --api-read-open still gates GET" "401" \
 
 # /v1/health stays open for monitoring -- and must carry nothing that an
 # unauthenticated caller has no business seeing.
-HEALTH="$(curl -s "http://127.0.0.1:$PORT/v1/health")"
+HEALTH="$(curl -s --max-time 10 "http://127.0.0.1:$PORT/v1/health")"
 check "/v1/health is unauthenticated" "200" \
   "$(code "http://127.0.0.1:$PORT/v1/health")"
 check "/v1/health does not leak the token" "0" \
@@ -259,7 +285,7 @@ if [[ -r "/proc/$WORKER_PID/cmdline" ]]; then
     "$(tr '\0' '\n' < "/proc/$WORKER_PID/cmdline" | grep -c -- '--api-token')"
 fi
 
-kill "$WORKER_PID" 2>/dev/null; wait "$WORKER_PID" 2>/dev/null; WORKER_PID=""
+stop_pid "$WORKER_PID"; WORKER_PID=""
 
 # ---------------------------------------------------------------------------
 # The unix-socket transport: the default local path.
@@ -288,7 +314,7 @@ check "the API socket is 0660" "660" "$(mode_of "$API_SOCK")"
 check "no world-writable bit under the runtime dir" "0" \
   "$(find "$RUN_DIR" -perm -o+w | wc -l | tr -d ' ')"
 check "HTTP over the unix socket answers" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       http://localhost/v1/health)"
 # `ss` absent would make `grep -c` return 0 and this leg pass without ever
 # looking -- the exact "assert by absence" shape this suite exists to avoid.
@@ -312,15 +338,15 @@ check "the socket does not warn about a missing token" "0" \
 
 # §13 Q3, asserted: reads and PURGE both answer with NO credential at all.
 check "a read over the unix socket needs no bearer" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       http://localhost/v1/stats)"
 check "a header-less mutating request over the socket is refused" "400" \
-  "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       --data '{"scope":"all","confirm":"purge-all"}' \
       http://localhost/v1/cache/purge)"
 check "PURGE over the unix socket needs no bearer" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       -H 'X-Requested-With: XMLHttpRequest' \
       --data '{"scope":"all","confirm":"purge-all"}' \
@@ -354,7 +380,7 @@ PYWS
 check "the WebSocket stream upgrades and frames over the unix socket" "ok" \
   "$(ws_check)"
 
-kill "$WORKER_PID" 2>/dev/null; wait "$WORKER_PID" 2>/dev/null; WORKER_PID=""
+stop_pid "$WORKER_PID"; WORKER_PID=""
 
 # A token configured ALONGSIDE the socket must not resurrect the bearer
 # requirement.  Every packaged install has one in daemon.env for the TCP case,
@@ -369,23 +395,23 @@ for _ in $(seq 1 60); do
   sleep 0.2
 done
 check "a read over the socket still needs no bearer with a token set" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       http://localhost/v1/stats)"
 check "purge over the socket still needs no bearer with a token set" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       -H 'X-Requested-With: XMLHttpRequest' \
       --data '{"scope":"all","confirm":"purge-all"}' \
       http://localhost/v1/cache/purge)"
 check "a bearer is still ACCEPTED over the socket (not rejected)" "200" \
-  "$(curl -s -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
+  "$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' --unix-socket "$API_SOCK" \
       -X POST -H 'Content-Type: application/json' \
       -H 'X-Requested-With: XMLHttpRequest' \
       -H "Authorization: Bearer $TOKEN" \
       --data '{"scope":"all","confirm":"purge-all"}' \
       http://localhost/v1/cache/purge)"
 
-kill "$WORKER_PID" 2>/dev/null; wait "$WORKER_PID" 2>/dev/null; WORKER_PID=""
+stop_pid "$WORKER_PID"; WORKER_PID=""
 
 if [[ "$fails" -gt 0 ]]; then
   echo "smoke: $fails FAILURE(S)" >&2; exit 1
