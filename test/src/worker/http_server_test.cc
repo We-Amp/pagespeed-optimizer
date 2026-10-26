@@ -211,6 +211,8 @@ TEST(ErrorResponseTest, AllErrorCodes) {
   EXPECT_EQ(ApiErrorCodeStatus(ApiErrorCode::kInternalError), 500);
   EXPECT_EQ(ApiErrorCodeStatus(ApiErrorCode::kServiceUnavailable), 503);
   EXPECT_EQ(ApiErrorCodeStatus(ApiErrorCode::kGatewayTimeout), 504);
+  EXPECT_EQ(ApiErrorCodeStatus(ApiErrorCode::kBadGateway), 502);
+  EXPECT_STREQ(ApiErrorCodeString(ApiErrorCode::kBadGateway), "BAD_GATEWAY");
 
   EXPECT_STREQ(ApiErrorCodeString(ApiErrorCode::kBadRequest), "BAD_REQUEST");
   EXPECT_STREQ(ApiErrorCodeString(ApiErrorCode::kNotFound), "NOT_FOUND");
@@ -1181,6 +1183,7 @@ TEST(ErrorResponseFormatTest, AllCodesProduceValidJson) {
       ApiErrorCode::kInternalError,
       ApiErrorCode::kServiceUnavailable,
       ApiErrorCode::kGatewayTimeout,
+      ApiErrorCode::kBadGateway,
   };
 
   for (auto code : codes) {

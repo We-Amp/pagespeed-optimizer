@@ -45,6 +45,7 @@ enum class ApiErrorCode : std::uint8_t {
   kInternalError,
   kServiceUnavailable,
   kGatewayTimeout,
+  kBadGateway,
 };
 
 // Returns the string name for an error code (e.g., "BAD_REQUEST").

@@ -339,6 +339,8 @@ json BuildWaterfallJson(const std::vector<ResourceEntry>& entries,
 
 // Bring capture_internal names into local scope for use by anonymous namespace.
 using capture_internal::BuildWaterfallJson;
+using capture_internal::CaptureFailureCode;
+using capture_internal::CaptureOutcome;
 using capture_internal::ExtractHostname;
 using capture_internal::IsPrivateHost;
 using capture_internal::IsPrivateIPv4;
@@ -400,6 +402,10 @@ struct CaptureState : public std::enable_shared_from_this<CaptureState> {
   json result_json;
   std::string error_message;
   bool success = false;
+  // Why a failed capture failed. A crashed renderer is a bad gateway (502);
+  // everything else, including the navigation timeout, stays a gateway
+  // timeout (504).
+  bool renderer_crashed = false;
   // Called once, after Finish/FinishError's cleanup (StartCaptureForTest).
   std::function<void()> on_complete;
 
@@ -432,7 +438,7 @@ struct CaptureState : public std::enable_shared_from_this<CaptureState> {
             if (s->is_waterfall && s->got_load_event) {
               s->FinishWaterfall();
             } else {
-              s->FinishError("navigation timeout");
+              s->FinishError("navigation timeout");  // 504
             }
           }
           uv_close(reinterpret_cast<uv_handle_t*>(t),
@@ -470,10 +476,12 @@ struct CaptureState : public std::enable_shared_from_this<CaptureState> {
     if (on_complete) on_complete();
   }
 
-  void FinishError(std::string_view msg) {
+  // `crashed` marks a renderer crash (502); every other failure is a 504.
+  void FinishError(std::string_view msg, bool crashed = false) {
     if (completed) return;
     completed = true;
     success = false;
+    renderer_crashed = crashed;
     error_message = std::string(msg);
     Cleanup();
     if (on_complete) on_complete();
@@ -531,6 +539,25 @@ struct CaptureState : public std::enable_shared_from_this<CaptureState> {
 
     // Release the event callback.
     client->SetEventCallback(nullptr);
+  }
+
+  // True for a CDP event saying this capture's target died or was torn down
+  // under it.
+  bool IsRendererCrashEvent(const CdpEvent& event) const {
+    if (event.method == "Inspector.targetCrashed") {
+      return !session_id.empty() && event.session_id == session_id;
+    }
+    if (event.method == "Target.targetCrashed") {
+      return !target_id.empty() &&
+             event.params.value("targetId", "") == target_id;
+    }
+    if (event.method == "Target.detachedFromTarget") {
+      const std::string sid = event.params.value("sessionId", "");
+      const std::string tid = event.params.value("targetId", "");
+      return (!session_id.empty() && sid == session_id) ||
+             (!target_id.empty() && tid == target_id);
+    }
+    return false;
   }
 
   // Handle a Network event for waterfall collection.
@@ -752,6 +779,21 @@ void StartCdpSession(std::shared_ptr<CaptureState> state) {
   // Set event callback for page lifecycle + network events.
   state->client->SetEventCallback([self](const CdpEvent& event) {
     if (self->completed) return;
+
+    // A crashed or detached renderer is not a timeout: Chrome reports the
+    // target's death with Inspector.targetCrashed (on the target's session),
+    // Target.targetCrashed (browser session, carries targetId) or
+    // Target.detachedFromTarget (carries sessionId and targetId). Fail the
+    // capture at once and name the target.
+    if (self->IsRendererCrashEvent(event)) {
+      self->FinishError(
+          absl::StrCat("browser renderer crashed (target ",
+                       self->target_id.empty() ? "unknown" : self->target_id,
+                       ", event ", event.method, ")"),
+          /*crashed=*/true);
+      return;
+    }
+
     if (event.session_id != self->session_id) return;
 
     // SSRF defense (network layer): the literal-URL IsPrivateHost() pre-check
@@ -875,6 +917,7 @@ void StartCaptureForTest(CdpClient* client, std::string url,
     if (!s || !done) return;
     CaptureOutcome outcome;
     outcome.success = s->success;
+    outcome.renderer_crashed = s->renderer_crashed;
     outcome.error_message = s->error_message;
     outcome.result_json = s->result_json;
     done(outcome);
@@ -970,7 +1013,9 @@ static HttpResponse HandleWaterfall(CaptureContext& ctx,
   RunCapture(state);
 
   if (!state->success) {
-    return HttpResponse::Error(ApiErrorCode::kGatewayTimeout,
+    CaptureOutcome outcome;
+    outcome.renderer_crashed = state->renderer_crashed;
+    return HttpResponse::Error(CaptureFailureCode(outcome),
                                state->error_message);
   }
 
@@ -1073,7 +1118,9 @@ static HttpResponse HandleScreenshot(CaptureContext& ctx,
   RunCapture(state);
 
   if (!state->success) {
-    return HttpResponse::Error(ApiErrorCode::kGatewayTimeout,
+    CaptureOutcome outcome;
+    outcome.renderer_crashed = state->renderer_crashed;
+    return HttpResponse::Error(CaptureFailureCode(outcome),
                                state->error_message);
   }
 

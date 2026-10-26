@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "nlohmann/json.hpp"
+#include "src/worker/http_server.h"
 
 namespace pagespeed {
 
@@ -82,9 +83,17 @@ bool IsPrivateRemoteIp(std::string_view remote_ip);
 // The outcome of one capture, as the route handlers read it off their state.
 struct CaptureOutcome {
   bool success = false;
+  bool renderer_crashed = false;  // 502 rather than 504
   std::string error_message;
   json result_json;
 };
+
+// The error code a failed capture answers with: 502 when the renderer
+// crashed, 504 for every other failure (the navigation timeout included).
+inline ApiErrorCode CaptureFailureCode(const CaptureOutcome& outcome) {
+  return outcome.renderer_crashed ? ApiErrorCode::kBadGateway
+                                  : ApiErrorCode::kGatewayTimeout;
+}
 
 // Test seam: starts the CDP pipeline the route handlers run (createTarget,
 // attachToTarget, the device emulation of src/browser/device_emulation.h,

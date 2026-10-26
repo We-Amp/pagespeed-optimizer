@@ -6,6 +6,12 @@ All notable changes to mod_pagespeed are documented in this file.
 
 Fixed: the optimizer worker's `--help` text said `--agent-optimize-llms-txt` implies `--agent-optimize`. It does not: `/llms.txt` is published only when both flags are set, so the help now says the flag requires `--agent-optimize`.
 
+Fixed: when the browser's renderer crashed during a screenshot or waterfall
+capture, the capture endpoints answered 504 Gateway Timeout straight away, as if
+the page had timed out. A crashed renderer is now reported as 502 Bad Gateway
+(`BAD_GATEWAY`) with a message naming the crashed target; 504 is kept for
+captures that really time out.
+
 Fixed: with the nginx module, a compressed (gzip or Brotli) optimized response
 served right after the origin confirmed it unchanged (a 304 cache revalidation,
 visible as `X-PageSpeed: REVALIDATED`) was sent without its `Content-Encoding`

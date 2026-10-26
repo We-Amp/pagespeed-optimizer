@@ -20895,6 +20895,7 @@ The `png_base64` field contains the screenshot as a base64-encoded PNG image.
 | ------ | ------------------------------------------------------- |
 | 400    | Invalid URL, missing `url` field, viewport out of range |
 | 400    | URL targets private/loopback address (unless allowed)   |
+| 502    | Browser renderer crashed during the capture             |
 | 503    | `--enable-browser-analysis` not set                     |
 | 503    | Chrome not running (crashed or still starting)          |
 | 504    | Navigation timed out                                    |
@@ -21199,6 +21200,7 @@ Some errors include a `details` field with additional context:
 | 413         | `PAYLOAD_TOO_LARGE`   | Request body exceeds 64 KB                           |
 | 429         | `TOO_MANY_REQUESTS`   | Connection limit reached                             |
 | 500         | `INTERNAL_ERROR`      | Server-side failure                                  |
+| 502         | `BAD_GATEWAY`         | Upstream (browser) failed while handling the request |
 | 503         | `SERVICE_UNAVAILABLE` | Feature not enabled or dependency unavailable        |
 | 504         | `GATEWAY_TIMEOUT`     | Request timed out                                    |
 

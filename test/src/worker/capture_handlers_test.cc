@@ -1616,5 +1616,92 @@ TEST_F(CaptureCdpTest, AFailedTouchEmulationEndsTheCapture) {
       << "Cleanup() did not run";
 }
 
+// Chrome reporting the capture's target dead is a crashed renderer, not a
+// timeout: the capture ends at once (not after the navigation timeout), the
+// outcome is flagged so the handler answers 502, and the message names the
+// target.
+TEST_F(CaptureCdpTest, ATargetCrashedEventEndsTheCaptureAsACrash) {
+  StartScreenshot(1280, 800);
+  peer_.SendEvent(
+      "Target.targetCrashed",
+      {{"targetId", "target-1"}, {"status", "crashed"}, {"errorCode", 11}});
+  peer_.PumpUntil([this] { return done_; }, 60);
+  ASSERT_TRUE(done_) << "the crash did not end the capture";
+  EXPECT_FALSE(outcome_.success);
+  EXPECT_TRUE(outcome_.renderer_crashed);
+  EXPECT_NE(outcome_.error_message.find("renderer crashed"), std::string::npos)
+      << outcome_.error_message;
+  EXPECT_NE(outcome_.error_message.find("target-1"), std::string::npos)
+      << outcome_.error_message;
+  EXPECT_EQ(outcome_.error_message.find("timeout"), std::string::npos);
+  peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                  20);
+  EXPECT_TRUE(peer_.SawCommand("Target.closeTarget"))
+      << "Cleanup() did not run";
+}
+
+// Chrome detaching the capture's session is the same failure.
+TEST_F(CaptureCdpTest, ADetachedSessionEndsTheCaptureAsACrash) {
+  StartScreenshot(1280, 800);
+  peer_.SendEvent(
+      "Target.detachedFromTarget",
+      {{"sessionId", peer_.session_id(1)}, {"targetId", "target-1"}});
+  peer_.PumpUntil([this] { return done_; }, 60);
+  ASSERT_TRUE(done_);
+  EXPECT_FALSE(outcome_.success);
+  EXPECT_TRUE(outcome_.renderer_crashed);
+  peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                  20);
+}
+
+// A detach of some other session or target (a previous render's late
+// teardown) must not end this capture.
+TEST_F(CaptureCdpTest, ADetachOfAnotherTargetDoesNotEndTheCapture) {
+  StartScreenshot(1280, 800);
+  peer_.SendEvent("Target.detachedFromTarget", {{"sessionId", "other-session"},
+                                                {"targetId", "other-target"}});
+  peer_.PumpUntil([this] { return done_; }, 20);
+  EXPECT_FALSE(done_) << "a foreign detach ended the capture";
+
+  // The capture is still live: its own target crashing ends it as a crash,
+  // which also lets Cleanup() run.
+  peer_.SendEvent(
+      "Target.targetCrashed",
+      {{"targetId", "target-1"}, {"status", "crashed"}, {"errorCode", 11}});
+  peer_.PumpUntil([this] { return done_; }, 60);
+  ASSERT_TRUE(done_) << "the capture did not finish after its own crash";
+  EXPECT_TRUE(outcome_.renderer_crashed);
+  peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                  20);
+}
+
+TEST(CaptureFailureCodeTest, CrashIs502AndEverythingElseIs504) {
+  capture_internal::CaptureOutcome outcome;
+  EXPECT_EQ(capture_internal::CaptureFailureCode(outcome),
+            ApiErrorCode::kGatewayTimeout);
+  outcome.renderer_crashed = true;
+  EXPECT_EQ(capture_internal::CaptureFailureCode(outcome),
+            ApiErrorCode::kBadGateway);
+}
+
+// A navigation that never finishes is a timeout, not a crash: the outcome is
+// not flagged, so the handler keeps answering 504.
+TEST_F(CaptureCdpTest, ANavigationTimeoutIsNotACrash) {
+  capture_internal::StartCaptureForTest(
+      peer_.client(), "https://example.com/", 1280, 800,
+      /*is_waterfall=*/false, /*timeout_ms=*/20,
+      [this](const capture_internal::CaptureOutcome& outcome) {
+        outcome_ = outcome;
+        done_ = true;
+      });
+  peer_.PumpUntil([this] { return done_; }, 2000);
+  ASSERT_TRUE(done_) << "the capture did not time out";
+  EXPECT_FALSE(outcome_.success);
+  EXPECT_FALSE(outcome_.renderer_crashed);
+  EXPECT_EQ(outcome_.error_message, "navigation timeout");
+  peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                  20);
+}
+
 }  // namespace
 }  // namespace pagespeed
