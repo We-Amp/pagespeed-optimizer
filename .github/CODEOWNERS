@@ -1,0 +1,7 @@
+# Review ownership for the release and supply-chain surface.
+# Changes to these paths need an owner review before they merge.
+/sbom/ @oschaaf
+/tools/sbom/grype-db-pin.json @oschaaf
+/.github/workflows/release.yml @oschaaf
+/.github/workflows/pipeline-release-optimizer.yml @oschaaf
+/.github/workflows/pipeline-release-nuget.yml @oschaaf
