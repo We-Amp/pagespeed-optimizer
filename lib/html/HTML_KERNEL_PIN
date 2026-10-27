@@ -17,5 +17,5 @@
 # the floor at the last MERGED pin — the unmerged SHA is orphaned by the
 # 1.15 squash-merge and must never become the floor; move the floor at
 # reconciliation. See lib/html/CLAUDE.md.
-e9d4b77d8df0b586b20e5eb3d73364b1c0bd3619  mod_pagespeed master: HTML element escaping hardening (public repository)
-floor e9d4b77d8df0b586b20e5eb3d73364b1c0bd3619
+26779056353a26de5541bd1fb3d5482a32665ab5  mod_pagespeed master: HTML element escaping hardening (public repository)
+floor 26779056353a26de5541bd1fb3d5482a32665ab5

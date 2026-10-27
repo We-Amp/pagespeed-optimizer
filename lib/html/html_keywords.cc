@@ -30,7 +30,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
-#include <cstring>  // For memset/memcpy used by sparsehash
+#include <cstring>  // For strlen.
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <utility>
@@ -216,14 +217,9 @@ HtmlKeywords::HtmlKeywords() {
 }
 
 void HtmlKeywords::InitEscapeSequences() {
-  unescape_insensitive_map_.set_deleted_key("");
-  unescape_sensitive_map_.set_deleted_key("");
-  escape_map_.set_deleted_key("");
-
   StringSetInsensitive case_sensitive_symbols;
-  for (size_t i = 0; i < arraysize(kHtmlKeywordsSequences); ++i) {
+  for (const auto& seq : kHtmlKeywordsSequences) {
     // Put all symbols in the case-sensitive map
-    const HtmlKeywordsSequence& seq = kHtmlKeywordsSequences[i];
     unescape_sensitive_map_[seq.sequence] =
         reinterpret_cast<const char*>(seq.value);
 
@@ -233,7 +229,7 @@ void HtmlKeywords::InitEscapeSequences() {
         case_sensitive_symbols.end()) {
       // If this symbol is already present in the insensitive map, then it
       // must be case-sensitive.  E.g. &AElig; and &aelig; are distinct.
-      StringStringSparseHashMapInsensitive::iterator p =
+      StringStringHashMapInsensitive::iterator p =
           unescape_insensitive_map_.find(seq.sequence);
       if (p != unescape_insensitive_map_.end()) {
         // As this symbol is case-sensitive, we must remove it from the
@@ -265,7 +261,7 @@ void HtmlKeywords::InitEscapeSequences() {
 
   // Make sure the multi-byte sequences are in order (case-insensitive).  Ties
   // are OK to account for case differences.
-  for (size_t i = 1; i < arraysize(kHtmlKeywordsSequencesMultiByte); ++i) {
+  for (size_t i = 1; i < std::size(kHtmlKeywordsSequencesMultiByte); ++i) {
     DCHECK(StringCaseCompare(kHtmlKeywordsSequencesMultiByte[i - 1].sequence,
                              kHtmlKeywordsSequencesMultiByte[i].sequence) <= 0);
   }
@@ -420,7 +416,7 @@ bool HtmlKeywords::TryUnescape(bool accumulate_numeric_code,
     // code-points) whereas some are case-insensitive (&quot; and
     // &QUOT; both work.  So do the case-sensitive lookup first, and
     // if that fails, do an insensitive lookup.
-    StringStringSparseHashMapSensitive::const_iterator p =
+    StringStringHashMapSensitive::const_iterator p =
         unescape_sensitive_map_.find(escape);
     if (p != unescape_sensitive_map_.end()) {
       *buf += p->second;
@@ -432,7 +428,7 @@ bool HtmlKeywords::TryUnescape(bool accumulate_numeric_code,
       // single-byte encodings list.
       if (std::binary_search(kHtmlKeywordsSequencesMultiByte,
                              (kHtmlKeywordsSequencesMultiByte +
-                              arraysize(kHtmlKeywordsSequencesMultiByte)),
+                              std::size(kHtmlKeywordsSequencesMultiByte)),
                              escape.c_str(), HtmlMultiByteSequenceCompare())) {
         // Reject known multi-byte
         // sequences e.g. (&hellip;), as we would wind up adding an extra &amp;
@@ -443,7 +439,7 @@ bool HtmlKeywords::TryUnescape(bool accumulate_numeric_code,
         // valid escape sequence, e.g. QUOT;, but there is no
         // multi-byte match (e.g. Yuml;).  We can allow sloppy
         // interpretation with a case insensitive lookup here.
-        StringStringSparseHashMapInsensitive::const_iterator q =
+        StringStringHashMapInsensitive::const_iterator q =
             unescape_insensitive_map_.find(escape);
         if (q != unescape_insensitive_map_.end()) {
           *buf += q->second;
@@ -485,8 +481,8 @@ StringPiece HtmlKeywords::EscapeHelper(const StringPiece& unescaped,
   buf->clear();
 
   GoogleString char_to_escape;
-  for (size_t i = 0; i < unescaped.size(); ++i) {
-    int ch = static_cast<unsigned char>(unescaped[i]);
+  for (char i : unescaped) {
+    int ch = static_cast<unsigned char>(i);
     // According to http://www.htmlescape.net/htmlescape_tool.html,
     // single-quote does not need to be escaped.  However, input HTML
     // might have used single-quote to quote attribute values, in
@@ -500,7 +496,7 @@ StringPiece HtmlKeywords::EscapeHelper(const StringPiece& unescaped,
          (ch == '&') || (ch == '<') || (ch == '>'))) {
       char_to_escape.clear();
       char_to_escape += static_cast<char>(ch);
-      StringStringSparseHashMapSensitive::const_iterator p =
+      StringStringHashMapSensitive::const_iterator p =
           escape_map_.find(char_to_escape);
       if (p == escape_map_.end()) {
         absl::StrAppendFormat(buf, "&#%02d;", static_cast<int>(ch));
@@ -510,7 +506,7 @@ StringPiece HtmlKeywords::EscapeHelper(const StringPiece& unescaped,
         *buf += ';';
       }
     } else {
-      *buf += unescaped[i];
+      *buf += i;
     }
   }
   return StringPiece(*buf);
@@ -522,12 +518,12 @@ void HtmlKeywords::AddCrossProduct(const StringPiece& k1_list,
   StringPieceVector v1, v2;
   SplitStringPieceToVector(k1_list, " ", &v1, true);
   SplitStringPieceToVector(k2_list, " ", &v2, true);
-  for (int i = 0, n1 = v1.size(); i < n1; ++i) {
-    HtmlName::Keyword k1 = HtmlName::Lookup(v1[i]);
-    DCHECK_NE(HtmlName::kNotAKeyword, k1) << v1[i];
-    for (int j = 0, n2 = v2.size(); j < n2; ++j) {
-      HtmlName::Keyword k2 = HtmlName::Lookup(v2[j]);
-      DCHECK_NE(HtmlName::kNotAKeyword, k2) << v2[j];
+  for (auto i : v1) {
+    HtmlName::Keyword k1 = HtmlName::Lookup(i);
+    DCHECK_NE(HtmlName::kNotAKeyword, k1) << i;
+    for (auto j : v2) {
+      HtmlName::Keyword k2 = HtmlName::Lookup(j);
+      DCHECK_NE(HtmlName::kNotAKeyword, k2) << j;
       KeywordPair k1_k2 = MakeKeywordPair(k1, k2);
       kmap->push_back(k1_k2);
     }
@@ -537,9 +533,9 @@ void HtmlKeywords::AddCrossProduct(const StringPiece& k1_list,
 void HtmlKeywords::AddToSet(const StringPiece& klist, KeywordVec* kset) {
   StringPieceVector v;
   SplitStringPieceToVector(klist, " ", &v, true);
-  for (int i = 0, n = v.size(); i < n; ++i) {
-    HtmlName::Keyword k = HtmlName::Lookup(v[i]);
-    DCHECK_NE(HtmlName::kNotAKeyword, k) << v[i];
+  for (auto i : v) {
+    HtmlName::Keyword k = HtmlName::Lookup(i);
+    DCHECK_NE(HtmlName::kNotAKeyword, k) << i;
     kset->push_back(k);
   }
 }
