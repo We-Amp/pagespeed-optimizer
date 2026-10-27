@@ -25,8 +25,9 @@
 #   * push of a tag matching optimizer-v*          -> REAL run
 #   * workflow_dispatch { tag, dry_run: true  }    -> build + validate only
 #   * workflow_dispatch { tag, dry_run: false }    -> REAL run
-# A dry run builds all five packages, validates the asset set and
-# SHA256SUMS fail-closed, and uploads them as a workflow artifact; it
+# A dry run builds the four packages and the win-x64 zip, validates the
+# six-asset set (those five files and SHA256SUMS) and the sums fail-closed,
+# and uploads them as a workflow artifact; it
 # creates NO release and NO tag and never enters the `release` environment.
 # A real run REQUIRES the tag to already exist on the remote (it never
 # creates the tag itself; cutting the GA tag is the owner's act), passes the
