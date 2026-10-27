@@ -8817,17 +8817,21 @@ std::string Worker::ResetCache() {
     origin_recheck_last_.clear();
   }
   std::expected<void, cyclone::CacheError> result;
+  std::string reset_detail;
   {
     std::lock_guard<std::mutex> lock(purge_gen_mutex_);
     ++purge_all_generation_;
     purge_generation_.clear();
     purge_generation_previous_.clear();
     origin_refresh_last_purge_.clear();
-    result = cache_->ResetVolume();
+    result = cache_->ResetVolume(&reset_detail);
   }
   if (!result) {
     // The generation bump above stays in effect; in-flight writes are
     // still (conservatively) fenced.  That is the safe direction.
+    if (!reset_detail.empty()) {
+      return reset_detail;
+    }
     return make_error_code(result.error()).message();
   }
 

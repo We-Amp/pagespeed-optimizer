@@ -879,7 +879,13 @@ static std::shared_ptr<PageSpeedCache> GetCache(std::string_view cache_path,
                   "pagespeed: cache open failed for %*s, attempting "
                   "recovery (delete and recreate)",
                   cache_path.size(), cache_path.data());
-    PageSpeedCache::RemoveVolumeFiles(std::string(cache_path));
+    std::string stuck_path;
+    if (!PageSpeedCache::RemoveVolumeFiles(std::string(cache_path),
+                                           &stuck_path)) {
+      ngx_log_error(NGX_LOG_WARN, log, 0,
+                    "pagespeed: cache recovery could not remove %s",
+                    stuck_path.c_str());
+    }
     result = PageSpeedCache::Create(config);
   }
   if (result.has_value()) {

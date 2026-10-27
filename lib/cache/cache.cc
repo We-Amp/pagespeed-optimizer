@@ -243,6 +243,9 @@ PageSpeedCache::ReadBestAlternateByKey(const cyclone::CacheKey& key,
                                        const CapabilityMask& mask,
                                        bool agent_request_entitled) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
 
   // Serialize the client mask (first 4 bytes LE) + the agent_optimize
   // entitled-request flag (byte[4]) into the selection context. The selector
@@ -326,6 +329,9 @@ std::expected<ReadResult, cyclone::CacheError>
 PageSpeedCache::ReadAlternateByKey(const cyclone::CacheKey& key,
                                    AlternateId id) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   ExactIdSelector selector(static_cast<cyclone::AlternateId>(id));
   cyclone::AlternateSelectionContext ctx;
 
@@ -359,6 +365,9 @@ PageSpeedCache::WriteAlternateByKey(const cyclone::CacheKey& key,
                                     const AlternateMetadata& metadata,
                                     std::string_view url_for_logs) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   // Reject sentinel IDs — use WriteSentinel() instead.
   if (IsSentinel(id)) {
     return std::unexpected(cyclone::CacheError::InvalidArgument);
@@ -424,6 +433,9 @@ std::expected<WriteResult, cyclone::CacheError> PageSpeedCache::WriteSentinel(
     std::string_view url, std::string_view hostname, std::string_view scheme,
     SentinelId sentinel, uint64_t content_length) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   auto key = ComposeKey(url, hostname, scheme);
   auto id = static_cast<cyclone::AlternateId>(sentinel);
 
@@ -491,6 +503,9 @@ PageSpeedCache::WriteAgentAlternate(std::string_view url,
                                     uint64_t content_length,
                                     const AlternateMetadata& metadata) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   // The agent_optimize markdown variant is the ONE sentinel
   // written WITH a metadata prefix: it is read back via the strict
   // ReadBestAlternate path, which rejects a missing prefix as NotFound.
@@ -586,6 +601,9 @@ PageSpeedCache::WriteOriginalAlternate(std::string_view url,
                                        uint64_t content_length,
                                        const AlternateMetadata& metadata) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   const auto id =
       static_cast<cyclone::AlternateId>(SentinelId::kOriginalContent);
 
@@ -809,6 +827,9 @@ PageSpeedCache::WriteHeadersSidecar(std::string_view url,
                                     std::string_view scheme,
                                     std::span<const HeaderField> headers) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   const auto id =
       static_cast<cyclone::AlternateId>(SentinelId::kHeadersSidecar);
 
@@ -990,6 +1011,9 @@ std::string_view PageSpeedCache::HeadersSidecarPayload(
 std::expected<void, cyclone::CacheError> PageSpeedCache::Remove(
     std::string_view url, std::string_view hostname, std::string_view scheme) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   auto key = ComposeKey(url, hostname, scheme);
   if (handler_ != nullptr) {
     handler_->Info("Remove %.*s", static_cast<int>(url.size()), url.data());
@@ -1001,6 +1025,9 @@ std::expected<void, cyclone::CacheError> PageSpeedCache::RemoveAlternate(
     std::string_view url, std::string_view hostname, std::string_view scheme,
     AlternateId id) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   auto key = ComposeKey(url, hostname, scheme);
   if (handler_ != nullptr) {
     handler_->Info("RemoveAlternate %.*s id=0x%02x",
@@ -1021,6 +1048,9 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
                                        std::string_view scheme,
                                        std::span<const AlternateId> preserve) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   constexpr auto kOriginal =
       static_cast<AlternateId>(SentinelId::kOriginalContent);
   for (AlternateId keep : preserve) {
@@ -1070,6 +1100,9 @@ PageSpeedCache::RemoveDerivedAlternates(std::string_view url,
   }
 
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   return RemoveAlternatesWhereLocked(
       url, hostname, scheme,
       [&](AlternateId id) {
@@ -1248,6 +1281,9 @@ void PageSpeedCache::EvictAlternateFromRamCache(std::string_view url,
                                                 std::string_view scheme,
                                                 AlternateId id) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return;
+  }
   auto key = ComposeKey(url, hostname, scheme);
   cache_->evict_from_ram_cache(key, static_cast<cyclone::AlternateId>(id));
 }
@@ -1256,6 +1292,9 @@ bool PageSpeedCache::AlternateExists(std::string_view url,
                                      std::string_view hostname,
                                      std::string_view scheme, AlternateId id) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return false;
+  }
   auto key = ComposeKey(url, hostname, scheme);
   auto alts = cache_->list_alternates_sync(key);
   if (!alts) {
@@ -1274,25 +1313,38 @@ std::expected<std::vector<cyclone::AlternateInfo>, cyclone::CacheError>
 PageSpeedCache::ListAlternates(std::string_view url, std::string_view hostname,
                                std::string_view scheme) {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
   auto key = ComposeKey(url, hostname, scheme);
   return cache_->list_alternates_sync(key);
 }
 
 cyclone::CacheStats PageSpeedCache::Stats() const {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return cyclone::CacheStats{};
+  }
   return cache_->stats();
 }
 
 uint64_t PageSpeedCache::VolumeCapacityBytes() const {
   std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return 0;
+  }
   return cache_->total_capacity();
 }
 
-std::expected<void, cyclone::CacheError> PageSpeedCache::ResetVolume() {
+std::expected<void, cyclone::CacheError> PageSpeedCache::ResetVolume(
+    std::string* detail) {
   // Exclusive lock: blocks until all in-flight operations complete.
   std::unique_lock lock(reset_mutex_);
 
-  // 1. Stop the old Cyclone cache (closes volumes, unmaps files).
+  // 1. Stop the old Cyclone cache (closes volumes, unmaps files).  The paths
+  // of the files it had open are remembered: whether those are gone decides
+  // below if the purge worked.
+  const std::vector<std::string> live_paths = volume_file_paths_;
   if (cache_) {
     cache_->stop();
     cache_.reset();
@@ -1305,29 +1357,84 @@ std::expected<void, cyclone::CacheError> PageSpeedCache::ResetVolume() {
   // boundary: a volume written in another format is not this build's data and
   // survives the reset (see IsFingerprintSibling), so a purge no longer costs
   // an operator the rollback they were keeping.
-  RemoveVolumeFiles(config_.volume_path);
-
-  // 3. Create a fresh Cyclone cache with the same config.
-  auto cache_result = cyclone::Cache::create(cyclone_config_);
-  if (!cache_result) {
-    return std::unexpected(cache_result.error());
+  //
+  // The result is checked.  A file this cache had open that could not be
+  // removed (on Windows, one another process still has open) would be
+  // reopened below with every entry intact, so reporting the reset as done
+  // would be wrong.  A leftover that this cache never opened (a stale or
+  // legacy file) does not change what it serves, so it is only logged.
+  std::string failed_path;
+  const bool all_removed = RemoveVolumeFiles(config_.volume_path, &failed_path);
+  if (!all_removed && handler_ != nullptr) {
+    handler_->Warning("Cache volume reset: could not remove %s",
+                      failed_path.c_str());
+  }
+  bool removed = true;
+  for (const std::string& path : live_paths) {
+    std::error_code exists_ec;
+    if (std::filesystem::exists(path, exists_ec) || exists_ec) {
+      removed = false;
+      break;
+    }
   }
 
-  auto& cache = *cache_result;
-  auto vol_result = cache->add_volume(config_.volume_path, config_.volume_size);
-  if (!vol_result) {
-    return std::unexpected(vol_result.error());
+  // 3. Create a cache with the same config.  If the volume files are gone it
+  // is a fresh one; if removal failed it reattaches the volume that is still
+  // there, so this process keeps serving.  One further attempt is made if the
+  // first fails, so that a transient failure does not leave this object
+  // without a cache.
+  auto open_cache = [&]()
+      -> std::expected<std::unique_ptr<cyclone::Cache>, cyclone::CacheError> {
+    auto cache_result = cyclone::Cache::create(cyclone_config_);
+    if (!cache_result) {
+      return std::unexpected(cache_result.error());
+    }
+    auto& cache = *cache_result;
+    auto vol_result =
+        cache->add_volume(config_.volume_path, config_.volume_size);
+    if (!vol_result) {
+      return std::unexpected(vol_result.error());
+    }
+    auto start_result = cache->start();
+    if (!start_result) {
+      return std::unexpected(start_result.error());
+    }
+    return std::move(cache);
+  };
+
+  auto opened = open_cache();
+  if (!opened) {
+    const cyclone::CacheError first_error = opened.error();
+    opened = open_cache();
+    if (!opened) {
+      // cache_ stays null; every public method answers NotInitialized (or a
+      // miss) until a later reset succeeds.
+      return std::unexpected(first_error);
+    }
   }
 
-  auto start_result = cache->start();
-  if (!start_result) {
-    return std::unexpected(start_result.error());
-  }
-
-  cache_ = std::move(cache);
+  cache_ = std::move(*opened);
   if (!CaptureVolumePathsAndChmod()) {
     // Fatal, never a warning: see CaptureVolumePathsAndChmod's contract.
     return std::unexpected(cyclone::CacheError::IoError);
+  }
+
+  if (!removed) {
+    // The old volume is back in service with its entries and the generation
+    // is unchanged, so peers do not reopen anything.
+    if (detail != nullptr) {
+#ifdef _WIN32
+      *detail =
+          "the cache volume could not be removed because another process "
+          "still has it open (for example the IIS module or an ASP.NET Core "
+          "application); recycle that application, then purge again";
+#else
+      *detail =
+          "the cache volume could not be removed; check the permissions of "
+          "the cache directory, then purge again";
+#endif
+    }
+    return std::unexpected(cyclone::CacheError::Busy);
   }
 
   // Bump generation so other processes detect the reset.
@@ -1562,12 +1669,26 @@ bool PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError error) {
   }
 }
 
-void PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path) {
+bool PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path,
+                                       std::string* failed_path) {
   namespace fs = std::filesystem;
   std::error_code ec;
+  bool all_removed = true;
+  // A file that is already gone is the goal, not a failure; any other error
+  // (on Windows, a sharing violation) means the file is still there.
+  auto remove_one = [&](const fs::path& target) {
+    std::error_code remove_ec;
+    fs::remove(target, remove_ec);
+    if (remove_ec && remove_ec != std::errc::no_such_file_or_directory) {
+      if (all_removed && failed_path != nullptr) {
+        *failed_path = target.string();
+      }
+      all_removed = false;
+    }
+  };
   // The raw legacy path and its small-tier sibling.
-  fs::remove(volume_path, ec);
-  fs::remove(volume_path + ".small", ec);
+  remove_one(volume_path);
+  remove_one(volume_path + ".small");
   // Fingerprint-shaped siblings of THIS format, both shapes:
   // "<stem>-<major>-<hex><ext>" for the main volume,
   // "<basename>-<major>-<hex>.small" for the small-tier sibling (Cyclone
@@ -1591,8 +1712,9 @@ void PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path) {
     }
   }
   for (const auto& stale : to_remove) {
-    fs::remove(stale, ec);
+    remove_one(stale);
   }
+  return all_removed;
 }
 
 uint64_t PageSpeedCache::ReadGenerationFile(const std::string& path) {

@@ -1296,13 +1296,18 @@ TEST_F(PageSpeedCacheTest, GenerationFileOnReset) {
 
   // New writes should succeed.
   WriteContent("/img/gen-test2.jpg", "example.com", mask, "new-data");
-  auto r = cache_->ReadBestAlternate("/img/gen-test2.jpg", "example.com",
-                                     "https", mask);
-  ASSERT_TRUE(r.has_value());
-  auto content = r->content();
-  std::string_view read_data(reinterpret_cast<const char*>(content.data()),
-                             content.size());
-  EXPECT_EQ(read_data, "new-data");
+  {
+    // The result borrows the volume's memory mapping.  Scope it so the
+    // mapping is released before the second reset: Windows cannot delete a
+    // file that is still mapped, and ResetVolume now reports that.
+    auto r = cache_->ReadBestAlternate("/img/gen-test2.jpg", "example.com",
+                                       "https", mask);
+    ASSERT_TRUE(r.has_value());
+    auto content = r->content();
+    std::string_view read_data(reinterpret_cast<const char*>(content.data()),
+                               content.size());
+    EXPECT_EQ(read_data, "new-data");
+  }
 
   // Second reset should increment to 2.
   auto reset2 = cache_->ResetVolume();
@@ -1550,6 +1555,36 @@ TEST_F(PageSpeedCacheTest, ReadBestAlternateReturnsNotFoundOnMiss) {
 }
 
 // --- ResetVolume ---
+
+TEST_F(PageSpeedCacheTest, ResetVolumeSucceedsWhenOnlyAStaleFileRemains) {
+  // A leftover that this cache never opened (here a non-empty directory at the
+  // raw small-tier path, which no volume uses) cannot be removed, but the
+  // volume the cache serves from is gone.  The purge worked: the generation
+  // moves so peers reopen, and the cache is empty.
+  CreateCache();
+  CapabilityMask mask;
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+  WriteContent("/img/gone.jpg", "example.com", mask, "gone-data");
+
+  const std::string blocker = cache_path_ + ".small";
+  std::filesystem::create_directories(blocker);
+  {
+    std::ofstream child(blocker + "/child");
+    child << "x";
+  }
+  const std::string gen_path = cache_path_ + ".gen";
+  const uint64_t gen_before = PageSpeedCache::ReadGenerationFile(gen_path);
+
+  std::string detail;
+  auto result = cache_->ResetVolume(&detail);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_TRUE(detail.empty());
+  EXPECT_EQ(PageSpeedCache::ReadGenerationFile(gen_path), gen_before + 1);
+  EXPECT_FALSE(
+      cache_->AlternateExists("/img/gone.jpg", "example.com", "https", id));
+  EXPECT_TRUE(std::filesystem::exists(blocker + "/child"));
+}
 
 TEST_F(PageSpeedCacheTest, ResetVolumeRecreatesCleanCache) {
   // After ResetVolume, all previously written data should be gone, and new
@@ -2399,6 +2434,50 @@ TEST_F(PageSpeedCacheTest, WriteAlternateMetadataWriteFailure) {
 }
 
 #ifndef _WIN32
+// A live volume file that cannot be removed (on Windows, one another process
+// has open) must make the purge fail, not report success over the old
+// entries.  A read-only directory reproduces it: the unlink fails, while the
+// reopen still attaches the same file.
+TEST_F(PageSpeedCacheTest, ResetVolumeReportsFailureWhenFilesCannotBeRemoved) {
+  if (::geteuid() == 0) {
+    GTEST_SKIP() << "Skipped: root bypasses directory permissions";
+  }
+  CreateCache();
+  CapabilityMask mask;
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+  WriteContent("/img/held.jpg", "example.com", mask, "held-data");
+
+  const std::string gen_path = cache_path_ + ".gen";
+  const uint64_t gen_before = PageSpeedCache::ReadGenerationFile(gen_path);
+
+  ASSERT_EQ(::chmod(temp_dir_.c_str(), 0555), 0);
+  std::string detail;
+  auto result = cache_->ResetVolume(&detail);
+  ASSERT_EQ(::chmod(temp_dir_.c_str(), 0755), 0);
+
+  ASSERT_FALSE(result.has_value()) << "the purge reported success although the "
+                                      "volume file could not be removed";
+  EXPECT_EQ(result.error(), cyclone::CacheError::Busy);
+  EXPECT_FALSE(detail.empty()) << "the failure must carry a clear message";
+  EXPECT_EQ(PageSpeedCache::ReadGenerationFile(gen_path), gen_before)
+      << "the generation must not move when the volume was not replaced";
+
+  // The cache is still usable: the old entry is served and new writes work.
+  EXPECT_TRUE(
+      cache_->AlternateExists("/img/held.jpg", "example.com", "https", id));
+  WriteContent("/img/after.jpg", "example.com", mask, "after-data");
+  EXPECT_TRUE(
+      cache_->AlternateExists("/img/after.jpg", "example.com", "https", id));
+
+  // Once the obstacle is gone the same call replaces the volume.
+  auto retry = cache_->ResetVolume(&detail);
+  ASSERT_TRUE(retry.has_value());
+  EXPECT_EQ(PageSpeedCache::ReadGenerationFile(gen_path), gen_before + 1);
+  EXPECT_FALSE(
+      cache_->AlternateExists("/img/held.jpg", "example.com", "https", id));
+}
+
 // Unix file permission test — not applicable on Windows.
 TEST_F(PageSpeedCacheTest, ResetVolumeRecreateFailure) {
   // After creating a cache, make the volume path's parent directory
@@ -2429,6 +2508,31 @@ TEST_F(PageSpeedCacheTest, ResetVolumeRecreateFailure) {
   EXPECT_FALSE(result.has_value())
       << "ResetVolume should fail when directory is read-only and volume "
          "must be recreated";
+
+  // The failed reset leaves no cache behind.  Every entry point must answer
+  // with an error or a miss instead of dereferencing it.
+  CapabilityMask other_mask;
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(other_mask.Encode() & 0xFF));
+  EXPECT_EQ(cache_->Stats().disk_cache_hits, 0u);
+  EXPECT_EQ(cache_->VolumeCapacityBytes(), 0u);
+  EXPECT_FALSE(cache_->AlternateExists("/img/reset-fail.jpg", "example.com",
+                                       "https", id));
+  auto read = cache_->ReadBestAlternate("/img/reset-fail.jpg", "example.com",
+                                        "https", other_mask);
+  ASSERT_FALSE(read.has_value());
+  EXPECT_EQ(read.error(), cyclone::CacheError::NotInitialized);
+  AlternateMetadata meta;
+  meta.full_mask = other_mask.Encode();
+  auto write = cache_->WriteAlternate("/img/reset-fail.jpg", "example.com",
+                                      "https", id, 4, meta);
+  ASSERT_FALSE(write.has_value());
+  EXPECT_EQ(write.error(), cyclone::CacheError::NotInitialized);
+
+  // With the directory writable again a later reset brings the cache back.
+  auto recovered = cache_->ResetVolume();
+  ASSERT_TRUE(recovered.has_value());
+  WriteContent("/img/reset-ok.jpg", "example.com", other_mask, "ok");
 }
 #endif  // !_WIN32
 
