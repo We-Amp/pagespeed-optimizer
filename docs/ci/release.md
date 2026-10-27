@@ -8,7 +8,7 @@ one of two lanes, each a reusable workflow pinned to `main`:
 
 | Tag | Lane | Publishes |
 |---|---|---|
-| `optimizer-v<version>` | `pipeline-release-optimizer.yml` | a GitHub release with the host packages: deb and rpm for amd64 and arm64, a Windows x64 zip, `SHA256SUMS` and `SHA256SUMS.asc` |
+| `optimizer-v<version>` | `pipeline-release-optimizer.yml` | a GitHub release with the host packages (deb and rpm for amd64 and arm64, a Windows x64 zip), the SBOM and VEX file, `SHA256SUMS`, `SHA256SUMS.asc` and `SHA256SUMS.sigstore.json`: ten assets, with build provenance and SBOM attestations |
 | `v<version>` | `pipeline-release-nuget.yml` | seven NuGet packages on nuget.org (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore, WeAmp.PageSpeed.NativeAssets.Linux / .Windows / .macOS, and the sidecar packages WeAmp.PageSpeed.Sidecar / WeAmp.PageSpeed.Sidecar.NativeAssets.Linux) and a draft GitHub release with the packages, SBOM, VEX, `SHA256SUMS` and `SHA256SUMS.asc` |
 
 `optimizer-v*` never matches `v*`. `release-smoke.yml` runs
@@ -34,8 +34,9 @@ workflow artifacts. It creates no release and no tag, pushes nothing to
 nuget.org, sends no notification and never enters the `release`
 environment, so it needs no approval.
 
-- Optimizer lane: the four packages, the win-x64 zip and `SHA256SUMS`, validated fail-closed
-  (artifact `optimizer-release-dist`). The tag may not exist yet; the lane
+- Optimizer lane: the five packages, the SBOM, the VEX file and `SHA256SUMS`
+  (eight files), validated fail-closed after the security gates have run
+  (artifact `optimizer-release-dist`). Nothing is signed or attested. The tag may not exist yet; the lane
   then builds the dispatched ref. The ref guard reports its verdict and
   does not stop a dry run.
 - NuGet lane: every build and test and the seven `.nupkg` files (artifact
@@ -163,7 +164,7 @@ that run in it:
 
 | Lane | Job | Why |
 |---|---|---|
-| optimizer | `sign-checksums` | signs `SHA256SUMS` with the release signing key (`RELEASE_GPG_*`) |
+| optimizer | `sign-checksums` | signs `SHA256SUMS` with the release signing key (`RELEASE_GPG_*`), then signs it keyless with cosign and records the attestations (`id-token: write`, `attestations: write`) |
 | optimizer | `release` | creates the GitHub release |
 | NuGet | `sign-windows` | Authenticode signing with the six `AZURE_*` secrets |
 | NuGet | `package` | draft GitHub release, the two notifications (`CORP_DISPATCH_TOKEN`) |
@@ -242,6 +243,68 @@ gpg --import RELEASE-SIGNING-KEY.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
+
+### Sigstore and attestations (optimizer lane)
+
+Next to the release-key signature, the optimizer lane signs and attests
+without a long-lived key. `sign-checksums` (real runs only, after the
+keyrings are removed) uses the GitHub OIDC token of the run:
+
+- `actions/attest-build-provenance` records a build provenance attestation
+  for each of the five packages, the SBOM and the VEX file;
+- `actions/attest-sbom` binds the SBOM to each of the five packages;
+- `cosign sign-blob` signs `SHA256SUMS` into one bundle,
+  `SHA256SUMS.sigstore.json`, which is uploaded as a release asset. One
+  bundle covers every file `SHA256SUMS` lists, as the `.asc` does; the
+  per-file signatures are the attestations, which `gh attestation download`
+  retrieves.
+
+The signing identity is the lane's workflow on `main`
+(`pipeline-release-optimizer.yml@refs/heads/main`, called by `release.yml`),
+not a person or a key. The job verifies the bundle and one attestation with
+the identity below before anything is published. The caller (`release.yml`)
+grants `id-token: write` and `attestations: write` to the `optimizer` job
+for this. A dry run signs and attests nothing, so unreleased binaries never
+reach the public transparency log.
+
+An attestation proves that a run of this workflow produced these digests. It
+does not prove an isolated build: the amd64 package and the Windows zip build
+on the project's own runners, so the attestations make no claim about the build hosts.
+
+To verify a download with Sigstore (needs `cosign` and the GitHub CLI):
+
+```bash
+cosign verify-blob SHA256SUMS --bundle SHA256SUMS.sigstore.json \
+  --certificate-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-github-workflow-ref refs/tags/optimizer-v<version>
+sha256sum --check --ignore-missing SHA256SUMS
+gh attestation verify <package file> --repo We-Amp/pagespeed-optimizer \
+  --cert-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \
+  --source-ref refs/tags/optimizer-v<version>
+gh attestation verify <package file> --repo We-Amp/pagespeed-optimizer \
+  --cert-identity 'https://github.com/We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main' \
+  --source-ref refs/tags/optimizer-v<version> \
+  --predicate-type https://spdx.dev/Document/v2.3
+```
+
+Both checks pin the exact signer (this workflow on `main`) and the release
+tag as the source ref. The tag form is always right: the `release`
+environment admits tag refs only, and the ref guard requires a dispatched tag
+to equal the input. `--repo` alone would accept any workflow in the
+repository, the NuGet lane included. The bundle needs cosign v2.4 or newer.
+
+### SBOM, VEX and the grype gate (optimizer lane)
+
+The `security-gates` job runs on every run, dry runs included, before the
+manifest. It generates the SBOM (`tools/generate-sbom.py --name
+pagespeed-optimizer-<version> --version <version>`, SPDX 2.3, from the
+sources of the tag), validates `sbom/*.vex.json` (`tools/ci/validate-vex.py`,
+including the `Expires` ratchet) and stamps the release copy, then runs grype
+on the shipped SBOM with the shipped VEX applied, failing on medium and
+above. The grype database is the pinned one (`tools/sbom/grype-db-pin.json`,
+auto-update off, age enforced), so a release does not break on an advisory
+published after the pin. Bump the pin like any dependency.
 
 Repository variables read by the NuGet lane (a repository variable that
 is unset skips its dispatch step with a notice; a variable that is set while
@@ -405,5 +468,6 @@ runners. Jobs pass files only as workflow artifacts:
 | `nupkg-<sha>` | `package` | `publish-nuget` |
 | `release-sums-<sha>` | `package` (real run) | `sign-checksums`, `attach-signature` |
 | `release-signature-<sha>` | `sign-checksums` | `attach-signature` |
+| `release-sbom-vex` | optimizer `security-gates` | optimizer `manifest` |
 | `optimizer-*`, `optimizer-release-dist` | optimizer builds, `manifest` | `manifest`, `sign-checksums`, `release` |
-| `optimizer-release-signature` | `sign-checksums` | `release` |
+| `optimizer-release-signature` (`SHA256SUMS.asc`, `SHA256SUMS.sigstore.json`) | `sign-checksums` | `release` |
