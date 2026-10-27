@@ -1447,9 +1447,9 @@ jobs:
   # guard: these run for every full-tier event. A cold hosted build has no
   # warm cache, so the build and test jobs (and the nightly arm64 build)
   # share one Bazel disk cache entry in actions/cache per ISO week, restored
-  # by prefix: the first job of the week that misses it saves it. A key per
-  # run would add a GB-sized entry each run and push the repository past its
-  # cache quota.
+  # by prefix: the first job of the week that misses it saves it, capped at
+  # 1G. A key per run would add a GB-sized entry each run and push the
+  # repository past its cache quota.
   # ---------------------------------------------------------------------
   linux-arm64-build:
     name: Linux arm64 Build
@@ -1471,6 +1471,7 @@ jobs:
         run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the Bazel disk cache
+        id: disk-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/optimizer-bazel-disk-arm64
@@ -1518,6 +1519,13 @@ jobs:
               cp "$FW" "$OUT/factory_worker"
             '
 
+      # Bazel never collects this cache (its container exits right after the
+      # last command), so cap it before actions/cache saves a new entry. The
+      # prune never fails the job.
+      - name: Cap the Bazel disk cache
+        if: steps.disk-cache.outputs.cache-hit != 'true'
+        run: bash tools/ci/prune-bazel-disk-cache.sh "${HOME}/.cache/optimizer-bazel-disk-arm64" 7d 1G || true
+
       - name: Finalize the build bundle
         run: |
           STAGING="${GITHUB_WORKSPACE}/.ci-artifacts"
@@ -1559,6 +1567,7 @@ jobs:
         run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
 
       - name: Restore the Bazel disk cache
+        id: disk-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/optimizer-bazel-disk-arm64
@@ -1592,6 +1601,13 @@ jobs:
                 //test/... //lib/pagespeed:pagespeed_test \
                 //lib/image/vtracer_ffi:vtracer_ffi_test
             '
+
+      # Bazel never collects this cache (its container exits right after the
+      # last command), so cap it before actions/cache saves a new entry. The
+      # prune never fails the job.
+      - name: Cap the Bazel disk cache
+        if: steps.disk-cache.outputs.cache-hit != 'true'
+        run: bash tools/ci/prune-bazel-disk-cache.sh "${HOME}/.cache/optimizer-bazel-disk-arm64" 7d 1G || true
 
   linux-arm64-pkg-smoke:
     name: Linux arm64 Pkg Smoke
