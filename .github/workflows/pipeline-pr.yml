@@ -527,7 +527,7 @@ jobs:
             # The paths the ETag subset of the production-readiness rig guards:
             # the validator and header code on the nginx side, the daemon's
             # response path, and the rig itself.
-            if grep -qE '^(src/nginx/etag_util\.|src/nginx/ngx_pagespeed_module\.cc$|src/nginx/header_key_util\.|src/worker/worker\.cc$|src/worker/api_handlers\.|src/worker/http_server\.|tools/production-tests/)' "${changed}"; then
+            if grep -qE '^(src/nginx/etag_util\.|src/nginx/ngx_pagespeed_module\.cc$|src/nginx/header_key_util\.|src/worker/worker\.cc$|src/worker/api_handlers\.|src/worker/http_server\.|src/worker/worker\.h$|src/nginx/headers_sidecar_replay\.h$|src/nginx/revalidation_storability\.h$|lib/cache/headers_sidecar\.|lib/classify/alternate_metadata\.|tools/e2e/Dockerfile\.prebuilt$|tools/common/|tools/production-tests/)' "${changed}"; then
               etag=true
             fi
           elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
@@ -1341,8 +1341,11 @@ jobs:
           . tools/ci/runner-ports.sh
           for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
-      - name: Docker preflight
-        run: tools/ci/docker-preflight.sh
+      # One compose project per run and attempt: the default project name is
+      # the directory name, shared by every runner slot on a host, so two runs
+      # would share image tags, container names and the volume.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=prodtest-etag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1362,6 +1365,7 @@ jobs:
         run: |
           docker compose -f tools/production-tests/docker-compose.yml \
             -f tools/production-tests/docker-compose.prebuilt.yml up -d --no-build
+          ok=0
           for i in $(seq 1 60); do
             if docker compose -f tools/production-tests/docker-compose.yml \
               -f tools/production-tests/docker-compose.prebuilt.yml ps --format json | python3 -c "
@@ -1372,10 +1376,12 @@ jobs:
           sys.exit(0 if (all_healthy and running) else 1)
           " 2>/dev/null; then
                 echo "All services healthy after ${i}s"
+                ok=1
                 break
             fi
             sleep 2
           done
+          [ "${ok}" = 1 ] || { echo "::error::production stack not healthy after 120s"; exit 1; }
 
       - name: Run the ETag subset (conditional and range requests)
         run: |
@@ -1390,6 +1396,7 @@ jobs:
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
             -e "PRODTEST_NGINX_PORT=${PRODTEST_NGINX_PORT:-8200}" \
             -e "PRODTEST_ORIGIN_PORT=${PRODTEST_ORIGIN_PORT:-8201}" \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -v "$PWD":/repo -w /repo/tools/production-tests \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
@@ -1409,7 +1416,7 @@ jobs:
         run: |
           docker compose -f tools/production-tests/docker-compose.yml \
             -f tools/production-tests/docker-compose.prebuilt.yml \
-            down --remove-orphans -v 2>/dev/null || true
+            down --remove-orphans -v --rmi local 2>/dev/null || true
 
   lint:
     name: Lint (clang-tidy + clang-format)
