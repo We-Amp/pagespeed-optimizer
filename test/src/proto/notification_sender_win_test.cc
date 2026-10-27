@@ -6,9 +6,12 @@
 #include <gtest/gtest.h>
 
 #ifdef _WIN32
+// clang-format off
+// windows.h must come first: sddl.h declares its helpers only once
+// _WIN32_WINNT is set (clang-format would otherwise sort windows.h last).
 #include <windows.h>
-
-#include <sddl.h>  // after windows.h: its declarations need _WIN32_WINNT set
+#include <sddl.h>
+// clang-format on
 
 #include <cstdio>
 #include <string>
