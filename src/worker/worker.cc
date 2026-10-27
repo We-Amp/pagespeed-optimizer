@@ -600,22 +600,41 @@ bool WriteVariant(PageSpeedCache* cache, std::string_view url,
 // entry, in the slot it was read from, with identical bytes, unchanged flags
 // and the stamp.  Same rule as every other stamp: only a raw read (flags
 // lack kFlagWorkerProcessed) is hashed, and an entry that already carries
-// the right stamp is left alone.  Returns false only when a write failed.
-bool StampRawEntry(PageSpeedCache* cache, std::string_view url,
-                   std::string_view hostname, std::string_view scheme,
-                   const AlternateMetadata& read_meta, std::string_view bytes,
-                   const std::array<std::byte, 32>& hash,
-                   const PurgeCheck& purge_check, Worker* purge_undo_worker) {
+// the right stamp is left alone.  A read from a sentinel id (the durable
+// original) cannot be rewritten through the alternate path: skipped, not
+// a failure.
+enum class StampResult { kSkipped, kWritten, kFailed };
+
+StampResult StampRawEntry(PageSpeedCache* cache, std::string_view url,
+                          std::string_view hostname, std::string_view scheme,
+                          const AlternateMetadata& read_meta,
+                          std::string_view bytes,
+                          const std::array<std::byte, 32>& hash,
+                          const PurgeCheck& purge_check,
+                          Worker* purge_undo_worker) {
   if ((read_meta.flags & AlternateMetadata::kFlagWorkerProcessed) != 0) {
-    return true;
+    return StampResult::kSkipped;
   }
-  if (read_meta.origin_html_hash == hash) return true;
+  const CapabilityMask read_mask = CapabilityMask::Decode(read_meta.full_mask);
+  if (IsSentinel(MaskToId(read_mask))) return StampResult::kSkipped;
+  if (read_meta.origin_html_hash == hash) return StampResult::kSkipped;
   AlternateMetadata raw_meta = read_meta;
   StampSourceBinding(&raw_meta, hash);
-  return WriteVariant(cache, url, hostname, scheme,
-                      CapabilityMask::Decode(read_meta.full_mask),
+  return WriteVariant(cache, url, hostname, scheme, read_mask,
                       std::span<const char>(bytes.data(), bytes.size()),
-                      raw_meta, purge_check, purge_undo_worker);
+                      raw_meta, purge_check, purge_undo_worker)
+             ? StampResult::kWritten
+             : StampResult::kFailed;
+}
+
+// Count only real writes and real failures: a skip is neither.
+void CountStamp(WorkerStats& stats, StampResult r) {
+  if (r == StampResult::kWritten) {
+    stats.alternate_writes.fetch_add(1, std::memory_order_relaxed);
+  } else if (r == StampResult::kFailed) {
+    stats.alternate_writes.fetch_add(1, std::memory_order_relaxed);
+    stats.alternate_write_failures.fetch_add(1, std::memory_order_relaxed);
+  }
 }
 
 // Check if a variant exists for a mask.
@@ -4055,9 +4074,15 @@ void Worker::WriteTextVariant(
     // The identity entry stays the front end's own bytes; give it the same
     // source binding as the compressed copies (issue #507).
     if (source_genuine) {
-      (void)StampRawEntry(cache_.get(), notification.url, notification.hostname,
-                          notification.scheme, read_result.metadata,
-                          owned_input, source_hash, purge_check, this);
+      const StampResult stamped =
+          StampRawEntry(cache_.get(), notification.url, notification.hostname,
+                        notification.scheme, read_result.metadata, owned_input,
+                        source_hash, purge_check, this);
+      CountStamp(stats_, stamped);
+      if (stamped == StampResult::kFailed) {
+        LogWarning("Failed to stamp unchanged %s for %s", type_name,
+                   notification.url.c_str());
+      }
     }
     MarkVariantProcessed(notification.url, notification.hostname,
                          notification.scheme, MaskToId(mask), purge_gen);
@@ -5080,16 +5105,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // hashed, and a stamp that is already correct is not rewritten.
       auto stamp_unchanged_html = [&]() {
         if (worker_processed_identity) return;
-        stats_.alternate_writes.fetch_add(1, std::memory_order_relaxed);
-        if (!StampRawEntry(
-                cache_.get(), notification.url, notification.hostname,
-                notification.scheme, html_read_result->metadata, html_content,
-                cyclone::crypto::SHA256::hash(std::span<const std::byte>(
-                    reinterpret_cast<const std::byte*>(html_content.data()),
-                    html_content.size())),
-                purge_check, this)) {
-          stats_.alternate_write_failures.fetch_add(1,
-                                                    std::memory_order_relaxed);
+        const StampResult stamped = StampRawEntry(
+            cache_.get(), notification.url, notification.hostname,
+            notification.scheme, html_read_result->metadata, html_content,
+            cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(html_content.data()),
+                html_content.size())),
+            purge_check, this);
+        CountStamp(stats_, stamped);
+        if (stamped == StampResult::kFailed) {
           LogWarning("Failed to stamp unchanged HTML for %s",
                      notification.url.c_str());
         }
@@ -6027,6 +6051,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         const std::string svg_data(
             reinterpret_cast<const char*>(svg_span.data()), svg_span.size());
         AlternateMetadata svg_origin_meta = img_read_result->metadata;
+        const AlternateMetadata svg_read_meta = svg_origin_meta;
         // Only a front end's own recording may seed the change oracle.
         const bool svg_source_genuine =
             (svg_origin_meta.flags & AlternateMetadata::kFlagWorkerProcessed) ==
@@ -6056,6 +6081,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
                 : std::array<std::byte, 32>{};
         if (svg_source_genuine) {
           StampSourceBinding(&svg_origin_meta, svg_hash);
+        }
+        // The identity entry (the front end's own bytes) gets the same
+        // binding, so a request without compression is validated too.
+        if (svg_source_genuine) {
+          CountStamp(stats_,
+                     StampRawEntry(cache_.get(), notification.url,
+                                   notification.hostname, notification.scheme,
+                                   svg_read_meta, svg_data, svg_hash,
+                                   purge_check, this));
         }
         svg_origin_meta.content_type = ContentType::kImage;
         svg_origin_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
@@ -6125,6 +6159,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         const std::string data(reinterpret_cast<const char*>(span.data()),
                                span.size());
         AlternateMetadata meta = img_read_result->metadata;
+        const AlternateMetadata read_meta = meta;
         const bool source_genuine =
             (meta.flags & AlternateMetadata::kFlagWorkerProcessed) == 0;
         // Verify the copy is untorn before releasing (issue #934);
@@ -6151,6 +6186,13 @@ void Worker::HandleNotification(const CacheNotification& notification,
                 : std::array<std::byte, 32>{};
         if (source_genuine) {
           StampSourceBinding(&meta, passthrough_hash);
+        }
+        if (source_genuine) {
+          CountStamp(stats_,
+                     StampRawEntry(cache_.get(), notification.url,
+                                   notification.hostname, notification.scheme,
+                                   read_meta, data, passthrough_hash,
+                                   purge_check, this));
         }
         meta.content_type = ContentType::kImage;
         meta.flags = AlternateMetadata::kFlagWorkerProcessed |
