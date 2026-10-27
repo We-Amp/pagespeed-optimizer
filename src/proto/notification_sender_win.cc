@@ -19,6 +19,10 @@
 
 namespace pagespeed {
 
+static_assert(kNotificationPipeDesiredAccess ==
+                  (FILE_READ_DATA | FILE_WRITE_DATA | SYNCHRONIZE),
+              "read, write and synchronize only");
+
 // Maximum time (ms) to wait for the named pipe to become available
 // (WaitNamedPipe). This bounds the worst-case stall of the calling thread.
 // 500ms is generous enough to avoid spurious failures on loaded systems
@@ -80,10 +84,13 @@ static HANDLE ConnectPipe(const std::string& pipe_name,
   // as its clients.
   HANDLE h =
       CreateFileA(pipe_name.c_str(),
-                  GENERIC_READ | GENERIC_WRITE,  // libuv pipes are duplex
-                  0,                             // no sharing
-                  nullptr,                       // default security
-                  OPEN_EXISTING,                 // must already exist
+                  // libuv pipes are duplex. Not GENERIC_WRITE: it includes
+                  // FILE_APPEND_DATA, which on a named pipe is
+                  // FILE_CREATE_PIPE_INSTANCE, withheld by the worker's DACL.
+                  kNotificationPipeDesiredAccess,
+                  0,              // no sharing
+                  nullptr,        // default security
+                  OPEN_EXISTING,  // must already exist
                   SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
                   nullptr);  // no template
 
