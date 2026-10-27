@@ -603,7 +603,7 @@ bool WriteVariant(PageSpeedCache* cache, std::string_view url,
 // the right stamp is left alone.  A read from a sentinel id (the durable
 // original) cannot be rewritten through the alternate path: skipped, not
 // a failure.
-enum class StampResult { kSkipped, kWritten, kFailed };
+enum class StampResult : std::uint8_t { kSkipped, kWritten, kFailed };
 
 StampResult StampRawEntry(PageSpeedCache* cache, std::string_view url,
                           std::string_view hostname, std::string_view scheme,
