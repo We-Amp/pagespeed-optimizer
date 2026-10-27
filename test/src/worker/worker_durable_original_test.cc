@@ -198,6 +198,41 @@ TEST_F(WorkerTest, HtmlNotificationOptimizesFromADurableOriginalAlone) {
   EXPECT_NE(variant.find("Hello World"), std::string::npos);
 }
 
+// An unchanged page read from the durable original cannot be rewritten
+// through the alternate path (its id is a sentinel): the worker skips the
+// source stamp quietly, with no write attempt and no failure counted.
+TEST_F(WorkerTest, UnchangedHtmlFromADurableOriginalIsNotRestamped) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string cache_url = "/original-plain.html";
+  CacheDurableOriginal(worker.cache(), cache_url,
+                       "<html><head></head><body><p>Plain</p></body></html>",
+                       "text/html", ContentType::kHtml);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = "http://example.com/original-plain.html";
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = 0;
+  SendNotification(notification);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  EXPECT_EQ(worker.stats().alternate_writes.load(), 0u);
+  EXPECT_EQ(worker.stats().alternate_write_failures.load(), 0u);
+}
+
 // The image branch, via the SVG passthrough — it exercises the same source
 // read without standing up a raster transcode, and its "did the source read
 // succeed" signal (compressed variants exist) is unambiguous.

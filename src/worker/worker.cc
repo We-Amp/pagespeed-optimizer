@@ -594,6 +594,49 @@ bool WriteVariant(PageSpeedCache* cache, std::string_view url,
   return true;
 }
 
+// Issue #507: when the worker leaves an input unchanged it writes no variant,
+// so the raw entry the front end serves would stay without a source binding
+// and an origin that sends no validators would get no ETag.  Rewrite that
+// entry, in the slot it was read from, with identical bytes, unchanged flags
+// and the stamp.  Same rule as every other stamp: only a raw read (flags
+// lack kFlagWorkerProcessed) is hashed, and an entry that already carries
+// the right stamp is left alone.  A read from a sentinel id (the durable
+// original) cannot be rewritten through the alternate path: skipped, not
+// a failure.
+enum class StampResult : std::uint8_t { kSkipped, kWritten, kFailed };
+
+StampResult StampRawEntry(PageSpeedCache* cache, std::string_view url,
+                          std::string_view hostname, std::string_view scheme,
+                          const AlternateMetadata& read_meta,
+                          std::string_view bytes,
+                          const std::array<std::byte, 32>& hash,
+                          const PurgeCheck& purge_check,
+                          Worker* purge_undo_worker) {
+  if ((read_meta.flags & AlternateMetadata::kFlagWorkerProcessed) != 0) {
+    return StampResult::kSkipped;
+  }
+  const CapabilityMask read_mask = CapabilityMask::Decode(read_meta.full_mask);
+  if (IsSentinel(MaskToId(read_mask))) return StampResult::kSkipped;
+  if (read_meta.origin_html_hash == hash) return StampResult::kSkipped;
+  AlternateMetadata raw_meta = read_meta;
+  StampSourceBinding(&raw_meta, hash);
+  return WriteVariant(cache, url, hostname, scheme, read_mask,
+                      std::span<const char>(bytes.data(), bytes.size()),
+                      raw_meta, purge_check, purge_undo_worker)
+             ? StampResult::kWritten
+             : StampResult::kFailed;
+}
+
+// Count only real writes and real failures: a skip is neither.
+void CountStamp(WorkerStats& stats, StampResult r) {
+  if (r == StampResult::kWritten) {
+    stats.alternate_writes.fetch_add(1, std::memory_order_relaxed);
+  } else if (r == StampResult::kFailed) {
+    stats.alternate_writes.fetch_add(1, std::memory_order_relaxed);
+    stats.alternate_write_failures.fetch_add(1, std::memory_order_relaxed);
+  }
+}
+
 // Check if a variant exists for a mask.
 bool VariantExistsForMask(PageSpeedCache* cache, std::string_view url,
                           std::string_view hostname, std::string_view scheme,
@@ -4028,6 +4071,19 @@ void Worker::WriteTextVariant(
       return;
     }
     read_result.handle = cyclone::ReadHandle{};
+    // The identity entry stays the front end's own bytes; give it the same
+    // source binding as the compressed copies (issue #507).
+    if (source_genuine) {
+      const StampResult stamped =
+          StampRawEntry(cache_.get(), notification.url, notification.hostname,
+                        notification.scheme, read_result.metadata, owned_input,
+                        source_hash, purge_check, this);
+      CountStamp(stats_, stamped);
+      if (stamped == StampResult::kFailed) {
+        LogWarning("Failed to stamp unchanged %s for %s", type_name,
+                   notification.url.c_str());
+      }
+    }
     MarkVariantProcessed(notification.url, notification.hostname,
                          notification.scheme, MaskToId(mask), purge_gen);
     WriteCompressedVariants(cache_.get(), notification.url,
@@ -5041,6 +5097,28 @@ void Worker::HandleNotification(const CacheNotification& notification,
           (html_read_result->metadata.flags &
            AlternateMetadata::kFlagWorkerProcessed) != 0;
 
+      // Issue #507: a page the transform leaves unchanged writes no variant,
+      // so the raw entry the front end serves would stay without a source
+      // binding and a validator-less origin would get no ETag.  Rewrite that
+      // entry with identical bytes and the stamp, under the same rule as the
+      // variant stamps: only a raw read (not the worker's own output) is
+      // hashed, and a stamp that is already correct is not rewritten.
+      auto stamp_unchanged_html = [&]() {
+        if (worker_processed_identity) return;
+        const StampResult stamped = StampRawEntry(
+            cache_.get(), notification.url, notification.hostname,
+            notification.scheme, html_read_result->metadata, html_content,
+            cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                reinterpret_cast<const std::byte*>(html_content.data()),
+                html_content.size())),
+            purge_check, this);
+        CountStamp(stats_, stamped);
+        if (stamped == StampResult::kFailed) {
+          LogWarning("Failed to stamp unchanged HTML for %s",
+                     notification.url.c_str());
+        }
+      };
+
       std::optional<std::array<std::byte, 32>> agent_origin_html_hash;
       if (cfg->browser_analysis.agent_optimize) {
         // Issue B: the read slot (0x08) FLIPS between the raw origin body
@@ -5701,6 +5779,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         stats_.html_assembly_skipped.fetch_add(1, std::memory_order_relaxed);
         LogInfo("No HTML transformations applicable for %s",
                 notification.url.c_str());
+        stamp_unchanged_html();
         clear_tentative_cooldown();
         return;
       }
@@ -5771,6 +5850,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         stats_.html_assembly_skipped.fetch_add(1, std::memory_order_relaxed);
         LogInfo("HTML transform produced no changes for %s",
                 notification.url.c_str());
+        stamp_unchanged_html();
         clear_tentative_cooldown();
         return;
       }
@@ -5971,6 +6051,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         const std::string svg_data(
             reinterpret_cast<const char*>(svg_span.data()), svg_span.size());
         AlternateMetadata svg_origin_meta = img_read_result->metadata;
+        const AlternateMetadata svg_read_meta = svg_origin_meta;
         // Only a front end's own recording may seed the change oracle.
         const bool svg_source_genuine =
             (svg_origin_meta.flags & AlternateMetadata::kFlagWorkerProcessed) ==
@@ -6000,6 +6081,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
                 : std::array<std::byte, 32>{};
         if (svg_source_genuine) {
           StampSourceBinding(&svg_origin_meta, svg_hash);
+        }
+        // The identity entry (the front end's own bytes) gets the same
+        // binding, so a request without compression is validated too.
+        if (svg_source_genuine) {
+          CountStamp(stats_,
+                     StampRawEntry(cache_.get(), notification.url,
+                                   notification.hostname, notification.scheme,
+                                   svg_read_meta, svg_data, svg_hash,
+                                   purge_check, this));
         }
         svg_origin_meta.content_type = ContentType::kImage;
         svg_origin_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
@@ -6069,6 +6159,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         const std::string data(reinterpret_cast<const char*>(span.data()),
                                span.size());
         AlternateMetadata meta = img_read_result->metadata;
+        const AlternateMetadata read_meta = meta;
         const bool source_genuine =
             (meta.flags & AlternateMetadata::kFlagWorkerProcessed) == 0;
         // Verify the copy is untorn before releasing (issue #934);
@@ -6095,6 +6186,13 @@ void Worker::HandleNotification(const CacheNotification& notification,
                 : std::array<std::byte, 32>{};
         if (source_genuine) {
           StampSourceBinding(&meta, passthrough_hash);
+        }
+        if (source_genuine) {
+          CountStamp(stats_,
+                     StampRawEntry(cache_.get(), notification.url,
+                                   notification.hostname, notification.scheme,
+                                   read_meta, data, passthrough_hash,
+                                   purge_check, this));
         }
         meta.content_type = ContentType::kImage;
         meta.flags = AlternateMetadata::kFlagWorkerProcessed |

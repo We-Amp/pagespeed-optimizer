@@ -358,6 +358,150 @@ TEST_F(WorkerTest, RawInputVariantsCarrySourceBinding) {
   agent_thread.join();
 }
 
+TEST_F(WorkerTest, UnchangedInputGetsSourceBindingOnTheServedEntry) {
+  // Issue #507: an HTML page the transform leaves unchanged, or a stylesheet
+  // that is already minimal, gets no identity variant, so the entry the
+  // front end serves must itself carry the SHA-256 of the raw origin bytes,
+  // otherwise a validator-less origin gets no ETag.  The bytes and the "not
+  // worker output" flag state stay as the front end wrote them; a
+  // worker-processed input keeps its inherited stamp and is not rewritten;
+  // a second notification does not rewrite an entry that is already stamped.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string html = "<html><body><p>Hello</p></body></html>";
+  const std::string raw_url = "http://example.com/plain.html";
+  // A page that runs the transform pass and nets no change (the
+  // "produced no changes" return), as opposed to the plain page above that
+  // may stop earlier.
+  const std::string nochange_html =
+      "<html><head></head><body><p>Plain text only</p></body></html>";
+  const std::string nochange_url = "http://example.com/no-net-change.html";
+  const std::string css = ".a{color:red}";
+  const std::string css_url = "http://example.com/minimal.css";
+  const std::string derived_url = "http://example.com/derived-plain.html";
+  std::array<std::byte, 32> inherited{};
+  for (size_t i = 0; i < inherited.size(); ++i) {
+    inherited[i] = static_cast<std::byte>(0x40 + i);
+  }
+  CacheOriginal(worker.cache(), raw_url, html);
+  CacheOriginal(worker.cache(), css_url, css);
+  CacheOriginal(worker.cache(), nochange_url, nochange_html);
+  CacheOriginal(worker.cache(), derived_url, html, /*hostname=*/"",
+                AlternateMetadata::kFlagWorkerProcessed, &inherited);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  auto notify_all = [&](const std::vector<std::string>& urls) {
+    for (const std::string& url : urls) {
+      CacheNotification n;
+      n.url = url;
+      n.scheme = "https";
+      n.content_type = url == css_url ? ContentType::kCss : ContentType::kHtml;
+      n.capability_mask = CapabilityMask().Encode();
+      SendNotification(n);
+    }
+  };
+  notify_all({raw_url, derived_url, css_url, nochange_url});
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 4,
+                                                           kWorkerStallBudget));
+  // Stamped: the plain page, the already-minimal sheet (plus its compressed
+  // copies) and the no-net-change page; the exact count is not pinned.
+  const uint64_t writes_after_first =
+      worker.stats().alternate_writes.load(std::memory_order_relaxed);
+  EXPECT_GE(writes_after_first, 3u);
+  EXPECT_GE(worker.stats().policy_computed.load(std::memory_order_relaxed), 1u)
+      << "no page reached the transform pass";
+  EXPECT_EQ(worker.stats().alternate_write_failures.load(), 0u);
+  notify_all({raw_url, derived_url, css_url, nochange_url});
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 8,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().alternate_writes.load(std::memory_order_relaxed),
+            writes_after_first)
+      << "an already-stamped or worker-processed entry was rewritten";
+
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  auto raw = worker.cache()->ReadAlternate(StripSchemeAuthority(raw_url), "",
+                                           "https", id);
+  ASSERT_TRUE(raw.has_value());
+  EXPECT_EQ(raw->metadata.origin_html_hash, Sha256Of(html));
+  EXPECT_EQ(raw->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0);
+  auto raw_body = raw->content();
+  EXPECT_EQ(std::string(reinterpret_cast<const char*>(raw_body.data()),
+                        raw_body.size()),
+            html);
+
+  auto nc = worker.cache()->ReadAlternate(StripSchemeAuthority(nochange_url),
+                                          "", "https", id);
+  ASSERT_TRUE(nc.has_value());
+  EXPECT_EQ(nc->metadata.origin_html_hash, Sha256Of(nochange_html));
+
+  auto css_raw = worker.cache()->ReadAlternate(StripSchemeAuthority(css_url),
+                                               "", "https", id);
+  ASSERT_TRUE(css_raw.has_value());
+  EXPECT_EQ(css_raw->metadata.origin_html_hash, Sha256Of(css));
+  EXPECT_EQ(css_raw->metadata.flags & AlternateMetadata::kFlagWorkerProcessed,
+            0);
+
+  auto derived = worker.cache()->ReadAlternate(
+      StripSchemeAuthority(derived_url), "", "https", id);
+  ASSERT_TRUE(derived.has_value());
+  EXPECT_EQ(derived->metadata.origin_html_hash, inherited);
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+TEST_F(WorkerTest, NativeSvgIdentityEntryGetsSourceBinding) {
+  // Issue #507: the native-SVG passthrough stamps the compressed copies;
+  // the identity entry a request without compression is served must carry
+  // the same binding.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string svg =
+      "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" "
+      "height=\"16\"><rect width=\"16\" height=\"16\"/></svg>";
+  const std::string url = "http://example.com/plain.svg";
+  CacheOriginal(worker.cache(), url, svg, /*hostname=*/"", /*flags=*/0,
+                /*source_binding=*/nullptr, "image/svg+xml");
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kImage;
+  n.capability_mask = CapabilityMask().Encode();
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  auto raw =
+      worker.cache()->ReadAlternate(StripSchemeAuthority(url), "", "https", id);
+  ASSERT_TRUE(raw.has_value());
+  EXPECT_EQ(raw->metadata.origin_html_hash, Sha256Of(svg));
+  EXPECT_EQ(raw->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0);
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
 TEST_F(WorkerTest, WorkerProcessedInputKeepsInheritedSourceBinding) {
   // Issue #434, inheritance half of the rule: when the worker's input is
   // its OWN earlier output (entry flags carry kFlagWorkerProcessed and the
