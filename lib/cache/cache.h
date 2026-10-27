@@ -1097,10 +1097,12 @@ class PageSpeedCache {
   //
   // Returns false when a file that exists could not be removed (on Windows,
   // typically because another process has it open); the first such path is
-  // stored in `failed_path` when given.  A file that is already absent counts
+  // stored in `failed_path` when given, and the operating system's reason in
+  // `failure_message`.  A file that is already absent counts
   // as removed.  The remaining files are still attempted.
   static bool RemoveVolumeFiles(const std::string& volume_path,
-                                std::string* failed_path = nullptr);
+                                std::string* failed_path = nullptr,
+                                std::string* failure_message = nullptr);
 
   // Classify a Create() failure: true iff the on-disk volume itself is
   // damaged, so a delete-and-recreate retry (RemoveVolumeFiles + Create)

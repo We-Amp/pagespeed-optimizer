@@ -10,6 +10,14 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#else
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #endif
 
 #include <array>
@@ -2432,6 +2440,170 @@ TEST_F(PageSpeedCacheTest, WriteAlternateMetadataWriteFailure) {
   // is returned for sentinel rejection or oversized metadata).
   EXPECT_NE(wh.error(), cyclone::CacheError::InvalidArgument);
 }
+
+// A purge replaces the volume although another handle on it exists, as a web
+// server module in another process has.  The worker side (this instance)
+// starts empty; the peer keeps reading the file it has until it reopens, and
+// a peer that reopens after the purge starts empty too.  Before the Windows
+// move-aside, the old file survived the purge on Windows and the entry stayed.
+TEST_F(PageSpeedCacheTest, ResetVolumeWithLivePeerStartsEmpty) {
+  CreateCache();
+  PageSpeedCacheConfig peer_config;
+  peer_config.volume_path = cache_path_;
+  peer_config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  peer_config.enable_checksum = true;
+  auto peer = PageSpeedCache::Create(peer_config);
+  ASSERT_TRUE(peer.has_value()) << "Failed to create the peer";
+
+  CapabilityMask mask;
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+  WriteContent("/img/x.jpg", "example.com", mask, "x-data");
+  ASSERT_TRUE(
+      cache_->AlternateExists("/img/x.jpg", "example.com", "https", id));
+
+  const std::string gen_path = cache_path_ + ".gen";
+  const uint64_t gen_before = PageSpeedCache::ReadGenerationFile(gen_path);
+
+  std::string detail;
+  auto result = cache_->ResetVolume(&detail);
+  ASSERT_TRUE(result.has_value()) << detail;
+  EXPECT_EQ(PageSpeedCache::ReadGenerationFile(gen_path), gen_before + 1);
+  EXPECT_FALSE(
+      cache_->AlternateExists("/img/x.jpg", "example.com", "https", id));
+
+  // The peer still has the file it opened, with the entry in it.
+  EXPECT_TRUE(
+      (*peer)->AlternateExists("/img/x.jpg", "example.com", "https", id));
+
+  // A peer that reopens after the purge starts empty.
+  peer->reset();
+  auto reopened = PageSpeedCache::Create(peer_config);
+  ASSERT_TRUE(reopened.has_value());
+  EXPECT_FALSE(
+      (*reopened)->AlternateExists("/img/x.jpg", "example.com", "https", id));
+}
+
+#ifdef _WIN32
+// A process that has the volume file open without allowing delete or rename
+// (an older web server module or ASP.NET Core package) makes the purge fail
+// with a message; the worker keeps serving the old volume and the generation
+// does not move.
+TEST_F(PageSpeedCacheTest, ResetVolumeReportsHeldVolumeAndKeepsServing) {
+  CreateCache();
+  CapabilityMask mask;
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+  WriteContent("/img/x.jpg", "example.com", mask, "x-data");
+
+  const std::string gen_path = cache_path_ + ".gen";
+  const uint64_t gen_before = PageSpeedCache::ReadGenerationFile(gen_path);
+
+  // Hold the volume file the way an older build does: read and write sharing
+  // only, no FILE_SHARE_DELETE.
+  const std::string held_path = cache_->VolumeFilePath();
+  HANDLE held = ::CreateFileA(held_path.c_str(), GENERIC_READ,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  ASSERT_NE(held, INVALID_HANDLE_VALUE) << "GetLastError " << ::GetLastError();
+
+  std::string detail;
+  auto result = cache_->ResetVolume(&detail);
+  ::CloseHandle(held);
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error(), cyclone::CacheError::Busy);
+  EXPECT_NE(detail.find("older"), std::string::npos) << detail;
+  EXPECT_NE(detail.find("another process still has it open"), std::string::npos)
+      << detail;
+  // The message names the file and carries the operating system's reason.
+  EXPECT_NE(detail.find(cache_->VolumeFilePath()), std::string::npos) << detail;
+  EXPECT_NE(detail.find("cannot move it aside: "), std::string::npos) << detail;
+  EXPECT_EQ(PageSpeedCache::ReadGenerationFile(gen_path), gen_before);
+  (void)cache_->Stats();
+  EXPECT_TRUE(
+      cache_->AlternateExists("/img/x.jpg", "example.com", "https", id));
+}
+
+// One of two live volume files is held without delete sharing: the other is
+// moved aside and replaced, so the purge reports the held one but the
+// generation still advances and peers reopen the replaced file.
+TEST_F(PageSpeedCacheTest, ResetVolumePartialMoveStillAdvancesGeneration) {
+  CreateCache();
+  // The cache has one volume file; stage a second live file the way a
+  // small-tier volume would be: present, known to the cache, and held.
+  const std::string second = cache_path_ + ".small";
+  {
+    std::ofstream f(second, std::ios::binary);
+    f << "second volume";
+  }
+  PageSpeedCacheTestPeer::AddLivePath(*cache_, second);
+
+  const std::string gen_path = cache_path_ + ".gen";
+  const uint64_t gen_before = PageSpeedCache::ReadGenerationFile(gen_path);
+
+  HANDLE held = ::CreateFileA(second.c_str(), GENERIC_READ,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                              OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  ASSERT_NE(held, INVALID_HANDLE_VALUE) << "GetLastError " << ::GetLastError();
+
+  std::string detail;
+  auto result = cache_->ResetVolume(&detail);
+  ::CloseHandle(held);
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error(), cyclone::CacheError::Busy);
+  EXPECT_NE(detail.find(".small"), std::string::npos) << detail;
+  EXPECT_EQ(PageSpeedCache::ReadGenerationFile(gen_path), gen_before + 1);
+  // The worker serves from a usable cache.
+  (void)cache_->Stats();
+}
+
+// A file where the tombstone directory belongs: nothing is deleted in place,
+// the purge reports the cause, and the old volume keeps serving.
+TEST_F(PageSpeedCacheTest, ResetVolumeKeepsServingWhenTombstoneDirIsUnusable) {
+  CreateCache();
+  CapabilityMask mask;
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+  WriteContent("/img/x.jpg", "example.com", mask, "x-data");
+  const std::filesystem::path blocker =
+      std::filesystem::path(temp_dir_) / ".pagespeed-purged";
+  {
+    std::ofstream f(blocker, std::ios::binary);
+    f << "not a directory";
+  }
+  const std::string gen_path = cache_path_ + ".gen";
+  const uint64_t gen_before = PageSpeedCache::ReadGenerationFile(gen_path);
+
+  std::string detail;
+  auto result = cache_->ResetVolume(&detail);
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error(), cyclone::CacheError::Busy);
+  EXPECT_NE(detail.find(".pagespeed-purged"), std::string::npos) << detail;
+  EXPECT_EQ(PageSpeedCache::ReadGenerationFile(gen_path), gen_before);
+  EXPECT_TRUE(std::filesystem::exists(cache_->VolumeFilePath()));
+  EXPECT_TRUE(
+      cache_->AlternateExists("/img/x.jpg", "example.com", "https", id));
+}
+
+// What a purge could not delete is removed the next time a cache is created.
+TEST_F(PageSpeedCacheTest, TombstonesAreSweptAtCreate) {
+  const std::filesystem::path tomb_dir =
+      std::filesystem::path(temp_dir_) / ".pagespeed-purged";
+  std::filesystem::create_directories(tomb_dir);
+  const std::filesystem::path planted = tomb_dir / "cache.vol.1.0";
+  {
+    std::ofstream f(planted, std::ios::binary);
+    f << "old volume";
+  }
+  ASSERT_TRUE(std::filesystem::exists(planted));
+
+  CreateCache();
+  EXPECT_FALSE(std::filesystem::exists(planted));
+}
+#endif  // _WIN32
 
 #ifndef _WIN32
 // A live volume file that cannot be removed (on Windows, one another process

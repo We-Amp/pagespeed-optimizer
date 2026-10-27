@@ -32,6 +32,12 @@ class PageSpeedCacheTestPeer {
   static cyclone::Cache& Cyclone(PageSpeedCache& cache) {
     return cache.RawCycloneCacheForTesting();
   }
+
+  // Makes the cache treat `path` as a live volume file (a purge then tries to
+  // replace it), to stage a purge over more than one file.
+  static void AddLivePath(PageSpeedCache& cache, const std::string& path) {
+    cache.volume_file_paths_.push_back(path);
+  }
 };
 
 }  // namespace pagespeed

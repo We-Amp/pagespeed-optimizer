@@ -557,12 +557,32 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 #    glob, src/core/crc32c.cpp was already listed, and src/core/thread_util.hpp
 #    is gone. No new defines, copts or link flags are needed.
 #
+# Bumped to cyclone b081e22 (2 commits past 22f6553). Licence unchanged
+# (Apache-2.0, LICENSE untouched). No on-disk format change (format v9, same
+# fingerprinted volume filename): no cache reset on upgrade or rollback, and
+# kCacheDirGeneration stays 3. What matters:
+#
+# 1. WINDOWS: A VOLUME CAN BE REMOVED OR RENAMED WHILE OPEN. Every handle a
+#    volume keeps on its file (the mapped file and the volume descriptor) now
+#    allows delete sharing. Before, another process could neither delete nor
+#    rename a volume that a web server module or an ASP.NET Core application
+#    had open, so a full purge on Windows reattached the old volume with all
+#    its entries. PageSpeedCache::RemoveVolumeFiles relies on this: on Windows
+#    it moves a held volume file aside into a tombstone directory and removes
+#    it there. POSIX behaviour is unchanged. A process still running the
+#    previous pin keeps its old share mode, so a purge reports an error until
+#    that process is updated or recycled.
+#
+# 2. The other commit only follows the v9 directory entry layout in a fuzz
+#    harness. No new source files, link flags or defines, so
+#    //third_party:cyclone.BUILD is unchanged.
+#
 # mod_pagespeed 1.1 vendors its own copy of Cyclone and must move to the
 # same commit in lockstep wherever it shares a cache with this build.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",
-    commit = "22f65531115913ab7ce836639823df6c07281219",
+    commit = "b081e22a4b8e5accf541e856ae908424901a2df1",
     remote = "https://github.com/We-Amp/cyclone-cache.git",
 )
 

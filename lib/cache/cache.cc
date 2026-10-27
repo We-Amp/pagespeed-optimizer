@@ -17,7 +17,9 @@
 inline int chmod(const char*, int) { return 0; }
 #endif
 
+#include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cinttypes>
 #include <cstdint>
 #include <cstdio>
@@ -89,6 +91,31 @@ size_t ParseMetadataPrefix(std::span<const std::byte> content,
   return consumed;
 }
 
+#ifdef _WIN32
+// Directory, beside the volume files, that a purge moves a held volume file
+// into before removing it (see RemoveVolumeFiles).  A subdirectory, not a
+// sibling name: a sibling could be taken for a second volume by a lister.
+constexpr const char* kPurgedTombstoneDir = ".pagespeed-purged";
+
+// Removes what an earlier purge left in the tombstone directory beside
+// `dir`.  A file a peer still has open stays (it goes away when the peer
+// lets go), so errors are ignored.
+void SweepPurgedTombstones(const std::filesystem::path& dir) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path tomb = dir / kPurgedTombstoneDir;
+  // A link or junction with this name is not ours to walk.
+  if (!fs::is_directory(fs::symlink_status(tomb, ec))) {
+    return;
+  }
+  for (fs::directory_iterator it(tomb, ec), end; !ec && it != end;
+       it.increment(ec)) {
+    std::error_code remove_ec;
+    fs::remove(it->path(), remove_ec);
+  }
+}
+#endif
+
 }  // namespace
 
 bool UnlinkLeftEntryLinked(cyclone::CacheError error) {
@@ -159,6 +186,16 @@ PageSpeedCache::Create(const PageSpeedCacheConfig& config) {
 
   // Read existing generation counter (0 if file missing — first startup).
   ps_cache->generation_ = ReadGenerationFile(config.volume_path + ".gen");
+
+#ifdef _WIN32
+  // Remove what an earlier purge could not delete because a peer had it open.
+  {
+    const std::filesystem::path volume(config.volume_path);
+    SweepPurgedTombstones(volume.has_parent_path()
+                              ? volume.parent_path()
+                              : std::filesystem::path("."));
+  }
+#endif
 
   return ps_cache;
 }
@@ -1364,19 +1401,56 @@ std::expected<void, cyclone::CacheError> PageSpeedCache::ResetVolume(
   // would be wrong.  A leftover that this cache never opened (a stale or
   // legacy file) does not change what it serves, so it is only logged.
   std::string failed_path;
-  const bool all_removed = RemoveVolumeFiles(config_.volume_path, &failed_path);
+  std::string failure_message;
+  const bool all_removed =
+      RemoveVolumeFiles(config_.volume_path, &failed_path, &failure_message);
   if (!all_removed && handler_ != nullptr) {
-    handler_->Warning("Cache volume reset: could not remove %s",
-                      failed_path.c_str());
+    handler_->Warning("Cache volume reset: could not remove %s (%s)",
+                      failed_path.c_str(), failure_message.c_str());
   }
+#ifdef _WIN32
+  {
+    const std::filesystem::path volume(config_.volume_path);
+    SweepPurgedTombstones(volume.has_parent_path()
+                              ? volume.parent_path()
+                              : std::filesystem::path("."));
+  }
+#endif
   bool removed = true;
+  // Whether at least one file the cache had open is gone: the name now holds
+  // (or will hold) a new file, so peers must be told even when another file
+  // could not be replaced.
+  bool any_replaced = false;
+  std::string first_present;
   for (const std::string& path : live_paths) {
     std::error_code exists_ec;
     if (std::filesystem::exists(path, exists_ec) || exists_ec) {
       removed = false;
-      break;
+      if (first_present.empty()) first_present = path;
+    } else {
+      any_replaced = true;
     }
   }
+
+  // Advance the generation and write it, so other processes detect the reset.
+  auto publish_generation = [&]() {
+    ++generation_;
+    bool gen_written = WriteGenerationFile();
+#ifdef _WIN32
+    // A peer reading the generation file at this moment blocks the replace;
+    // the block is brief, so try again a few times.
+    for (int attempt = 1; !gen_written && attempt < 5; ++attempt) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+      gen_written = WriteGenerationFile();
+    }
+#endif
+    if (!gen_written && (handler_ != nullptr)) {
+      handler_->Warning(
+          "Cache reset succeeded but generation file write failed; "
+          "other processes may not detect the reset (generation %" PRIu64 ")",
+          generation_);
+    }
+  };
 
   // 3. Create a cache with the same config.  If the volume files are gone it
   // is a fresh one; if removal failed it reattaches the volume that is still
@@ -1420,14 +1494,27 @@ std::expected<void, cyclone::CacheError> PageSpeedCache::ResetVolume(
   }
 
   if (!removed) {
-    // The old volume is back in service with its entries and the generation
-    // is unchanged, so peers do not reopen anything.
+    // The old volume is back in service with its entries.  If another file
+    // was replaced meanwhile, the generation still advances: a peer then
+    // reopens what each name holds now instead of keeping a file that was
+    // moved away.
+    if (any_replaced) {
+      publish_generation();
+    }
     if (detail != nullptr) {
 #ifdef _WIN32
+      const std::string& where =
+          failed_path.empty() ? first_present : failed_path;
       *detail =
-          "the cache volume could not be removed because another process "
-          "still has it open (for example the IIS module or an ASP.NET Core "
-          "application); recycle that application, then purge again";
+          "the cache volume could not be removed (" + where +
+          (failure_message.empty() ? std::string() : ": " + failure_message) +
+          "); if another process still has it open without allowing it "
+          "to be replaced (for example an older web server module or "
+          "ASP.NET Core package), update or recycle that application; "
+          "then purge again";
+      if (any_replaced) {
+        *detail += " (part of the cache was replaced and peers will reopen it)";
+      }
 #else
       *detail =
           "the cache volume could not be removed; check the permissions of "
@@ -1437,14 +1524,7 @@ std::expected<void, cyclone::CacheError> PageSpeedCache::ResetVolume(
     return std::unexpected(cyclone::CacheError::Busy);
   }
 
-  // Bump generation so other processes detect the reset.
-  ++generation_;
-  if (!WriteGenerationFile() && (handler_ != nullptr)) {
-    handler_->Warning(
-        "Cache reset succeeded but generation file write failed; "
-        "other processes may not detect the reset (generation %" PRIu64 ")",
-        generation_);
-  }
+  publish_generation();
 
   if (handler_ != nullptr) {
     handler_->Info("Cache volume reset: %s (generation %" PRIu64 ")",
@@ -1670,7 +1750,8 @@ bool PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError error) {
 }
 
 bool PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path,
-                                       std::string* failed_path) {
+                                       std::string* failed_path,
+                                       std::string* failure_message) {
   namespace fs = std::filesystem;
   std::error_code ec;
   bool all_removed = true;
@@ -1678,10 +1759,72 @@ bool PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path,
   // (on Windows, a sharing violation) means the file is still there.
   auto remove_one = [&](const fs::path& target) {
     std::error_code remove_ec;
+#ifdef _WIN32
+    // A volume file other processes have mapped cannot be relied on to
+    // disappear when it is deleted: depending on the Windows version and the
+    // file system the name can stay reserved until the last handle closes,
+    // and a new volume could not be created under it.  So a regular file is
+    // first moved into the tombstone directory, which frees the name at once
+    // on every version, and only then removed.  If the move fails, a process
+    // that does not allow it still has the file open: that is the failure the
+    // caller reports.  The tombstone removal can fail while a peer holds the
+    // file; the file is swept later.
+    std::error_code type_ec;
+    std::string move_cause;
+    if (fs::is_regular_file(target, type_ec)) {
+      static std::atomic<uint64_t> counter{0};
+      const fs::path parent =
+          target.has_parent_path() ? target.parent_path() : fs::path(".");
+      const fs::path tomb_dir = parent / kPurgedTombstoneDir;
+      std::error_code mkdir_ec;
+      fs::create_directories(tomb_dir, mkdir_ec);
+      std::error_code dir_ec;
+      const bool have_tomb_dir =
+          !mkdir_ec && fs::is_directory(fs::symlink_status(tomb_dir, dir_ec));
+      if (have_tomb_dir) {
+        // Process id and a counter keep two purges, in this process or in
+        // two, from choosing one name.
+        const fs::path tomb =
+            tomb_dir /
+            (target.filename().string() + "." +
+             std::to_string(::GetCurrentProcessId()) + "." +
+             std::to_string(counter.fetch_add(1)) + "." +
+             std::to_string(
+                 std::chrono::steady_clock::now().time_since_epoch().count()));
+        fs::rename(target, tomb, remove_ec);
+        if (remove_ec) move_cause = "cannot move it aside";
+        if (!remove_ec) {
+          std::error_code tomb_ec;
+          fs::remove(tomb, tomb_ec);
+        }
+      } else {
+        // No usable tombstone directory (it could not be created, or the
+        // name is taken by something that is not a directory).  The file
+        // is left alone: a delete in place could succeed as delete-pending
+        // on a Windows release without POSIX delete, keep the name reserved
+        // while a peer has the file mapped, and leave this process with no
+        // cache.  Failing here keeps the old volume serving.
+        remove_ec = mkdir_ec ? mkdir_ec
+                             : std::make_error_code(std::errc::not_a_directory);
+        move_cause = "cannot use " + tomb_dir.string() + " to move it aside";
+      }
+    } else {
+      fs::remove(target, remove_ec);
+    }
+#else
     fs::remove(target, remove_ec);
+#endif
     if (remove_ec && remove_ec != std::errc::no_such_file_or_directory) {
       if (all_removed && failed_path != nullptr) {
         *failed_path = target.string();
+        if (failure_message != nullptr) {
+          *failure_message = remove_ec.message();
+#ifdef _WIN32
+          if (!move_cause.empty()) {
+            *failure_message = move_cause + ": " + *failure_message;
+          }
+#endif
+        }
       }
       all_removed = false;
     }

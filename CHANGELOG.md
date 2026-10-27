@@ -7,13 +7,17 @@ All notable changes to mod_pagespeed are documented in this file.
 Fixed: pages from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left the page, stylesheet or script unchanged, so clients could not revalidate them and always downloaded the full page. These resources carry an `ETag` again and answer a matching `If-None-Match` with `304 Not Modified`.
 
 Fixed: the optimizer worker's `--help` text said `--agent-optimize-llms-txt` implies `--agent-optimize`. It does not: `/llms.txt` is published only when both flags are set, so the help now says the flag requires `--agent-optimize`.
+
 Fixed: on Windows, a full cache purge (`POST /v1/cache/purge` with
 `"scope": "all"`) could report success without removing anything while IIS or
-an ASP.NET Core application had the cache open. A purge now fails with a message
-saying so when the cache volume cannot be removed, instead of reporting success;
-the cache keeps serving and its generation is not advanced. Recycle the
-application that holds the cache, then purge again. A failed full purge
-also no longer risks stopping the optimizer.
+an ASP.NET Core application had the cache open. A full purge now replaces the
+volume, as it does on Linux, by moving the held file aside, so the empty cache
+is in place at once and the web server picks it up within about a second. If an
+older web server module or ASP.NET Core package still holds the volume without
+allowing the move, the purge reports that instead of reporting success; the
+cache keeps serving and its generation is not advanced. Update or recycle that
+application, then purge again. A failed full purge also no longer risks
+stopping the optimizer.
 
 Fixed: when the browser's renderer crashed during a screenshot or waterfall
 capture, the capture endpoints answered 504 Gateway Timeout straight away, as if
