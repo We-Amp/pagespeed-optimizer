@@ -6,8 +6,9 @@
 #include <gtest/gtest.h>
 
 #ifdef _WIN32
-#include <sddl.h>
 #include <windows.h>
+
+#include <sddl.h>  // after windows.h: its declarations need _WIN32_WINNT set
 
 #include <cstdio>
 #include <string>
