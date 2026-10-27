@@ -428,6 +428,7 @@ jobs:
       heavy: ${{ steps.scope.outputs.heavy }}
       css: ${{ steps.diff.outputs.css }}
       js: ${{ steps.diff.outputs.js }}
+      etag: ${{ steps.diff.outputs.etag }}
     steps:
       # fetch-depth: 0 so the diff can reach the pull request's base commit.
       - name: Unlock a previous run's vendored toolchain files
@@ -513,6 +514,7 @@ jobs:
         run: |
           css=false
           js=false
+          etag=false
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME}" = "merge_group" ]; then
             changed="${RUNNER_TEMP}/changed-files.txt"
             git diff --no-renames --name-only "${BASE}...HEAD" > "${changed}"
@@ -522,10 +524,23 @@ jobs:
             if grep -qE '^(lib/js/|test/lib/js/|tools/ci/build-js-fuzz-direct\.sh$|MODULE\.bazel$|docker/Dockerfile$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
               js=true
             fi
+            # The paths the ETag subset of the production-readiness rig guards:
+            # the validator and header code on the nginx side, the daemon's
+            # response path, and the rig itself.
+            if grep -qE '^(src/nginx/etag_util\.|src/nginx/ngx_pagespeed_module\.cc$|src/nginx/header_key_util\.|src/worker/worker\.cc$|src/worker/api_handlers\.|src/worker/http_server\.|src/worker/worker\.h$|src/nginx/headers_sidecar_replay\.h$|src/nginx/revalidation_storability\.h$|lib/cache/headers_sidecar\.|lib/classify/alternate_metadata\.|tools/e2e/Dockerfile\.prebuilt$|tools/common/|tools/production-tests/)' "${changed}"; then
+              etag=true
+            fi
+          elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            # A dispatch runs the whole PR tier, so the ETag subset runs too
+            # (the CSS and JS smokes stay pull request only).
+            etag=true
           fi
-          echo "css=${css}" >> "$GITHUB_OUTPUT"
-          echo "js=${js}" >> "$GITHUB_OUTPUT"
-          echo "path filters: css=${css} js=${js}"
+          {
+            echo "css=${css}"
+            echo "js=${js}"
+            echo "etag=${etag}"
+          } >> "$GITHUB_OUTPUT"
+          echo "path filters: css=${css} js=${js} etag=${etag}"
 
   # Ground-truth scan of the committed npm and cargo lockfiles. tools/sbom/
   # dep-scan.sh runs in --fail-on medium mode over ONLY those surfaces, which
@@ -1097,10 +1112,14 @@ jobs:
               SO=$(find "$ROOT" -path "*/bin/lib/pagespeed/libpagespeed.so" -type f | head -1)
               FW=$(find "$ROOT" -path "*/bin/src/worker/factory_worker" -not -path "*.runfiles*" -type f | head -1)
               NGX=$(find "$ROOT" -path "*/bin/src/nginx/ngx_pagespeed_module.so" -type f | head -1)
+              STC=$(find "$ROOT" -path "*/bin/tools/seed_test_cache" -not -path "*.runfiles*" -type f | head -1)
               OUT=/workspace/.ci-artifacts
               cp "$SO" "$OUT/libpagespeed.so"
               cp "$FW" "$OUT/factory_worker"
               cp "$NGX" "$OUT/ngx_pagespeed_module.so"
+              # Already built by //... above; the prebuilt test image carries
+              # it (tools/ci/stage-artifacts.sh requires it).
+              cp "$STC" "$OUT/seed_test_cache"
               # Record the nginx version this module was built against (the
               # build image sources nginx into /nginx-src) so
               # Dockerfile.prebuilt can pin its runtime nginx + brotli to
@@ -1291,6 +1310,113 @@ jobs:
                 //test/... //lib/pagespeed:pagespeed_test \
                 //lib/image/vtracer_ffi:vtracer_ffi_test
             '
+
+  # The ETag subset of the production-readiness rig (tools/production-tests),
+  # on the paths that decide validators and ranges: the nginx header and ETag
+  # helpers, the module, the daemon's response path and the rig itself. It
+  # reuses the Linux Build bundle (the same prebuilt images the nightly rig
+  # stages) and runs two test files, not the whole rig. Skipped, not failed,
+  # when none of those paths changed (the `etag` output of `changes`, true on
+  # a pull request or a merge group that touches them and on a dispatch), and
+  # skipped on a push to main, where the diff is not computed. The full rig
+  # stays in the nightly.
+  production-readiness-etag:
+    name: Production readiness (ETag subset)
+    needs: [changes, linux-build]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    if: ${{ needs.changes.outputs.etag == 'true' }}
+    timeout-minutes: 30
+    steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
+
+      # One compose project per run and attempt: the default project name is
+      # the directory name, shared by every runner slot on a host, so two runs
+      # would share image tags, container names and the volume.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=prodtest-etag-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
+      - name: Download the build bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-artifacts-linux-x64
+          path: ${{ runner.temp }}/bundle/.ci-artifacts
+
+      - name: Stage CI artifacts
+        run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
+
+      - name: Build Docker images (prebuilt)
+        run: |
+          docker compose -f tools/production-tests/docker-compose.yml \
+            -f tools/production-tests/docker-compose.prebuilt.yml build
+
+      - name: Start production stack
+        run: |
+          docker compose -f tools/production-tests/docker-compose.yml \
+            -f tools/production-tests/docker-compose.prebuilt.yml up -d --no-build
+          ok=0
+          for i in $(seq 1 60); do
+            if docker compose -f tools/production-tests/docker-compose.yml \
+              -f tools/production-tests/docker-compose.prebuilt.yml ps --format json | python3 -c "
+          import sys, json
+          services = [json.loads(line) for line in sys.stdin if line.strip()]
+          all_healthy = all(s.get('Health','') == 'healthy' for s in services if s.get('Health'))
+          running = all(s.get('State','') == 'running' for s in services)
+          sys.exit(0 if (all_healthy and running) else 1)
+          " 2>/dev/null; then
+                echo "All services healthy after ${i}s"
+                ok=1
+                break
+            fi
+            sleep 2
+          done
+          [ "${ok}" = 1 ] || { echo "::error::production stack not healthy after 120s"; exit 1; }
+
+      - name: Run the ETag subset (conditional and range requests)
+        run: |
+          # Stage a Linux CLI + compose plugin where the DAEMON can bind-mount them
+          # (copies host binaries on Linux, downloads static builds on macOS; see the script).
+          eval "$(tools/ci/stage-docker-cli.sh)"
+          DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo 0)"
+          case "$DOCKER_GID" in ''|*[!0-9]*) DOCKER_GID=0 ;; esac
+          docker run --rm --network=host \
+            --user "$(id -u):$(id -g)" --group-add "$DOCKER_GID" --group-add 0 \
+            -e HOME=/tmp \
+            -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
+            -e "PRODTEST_NGINX_PORT=${PRODTEST_NGINX_PORT:-8200}" \
+            -e "PRODTEST_ORIGIN_PORT=${PRODTEST_ORIGIN_PORT:-8201}" \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
+            -v "$PWD":/repo -w /repo/tools/production-tests \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$DOCKER_BIN":/usr/bin/docker:ro \
+            -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
+            python:3.12-slim \
+            bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest==9.1.1 requests==2.34.2 && pytest tests/test_conditional_requests.py tests/test_range_requests.py -v --tb=short -p no:cacheprovider"
+
+      - name: Container logs on failure
+        if: failure()
+        run: |
+          docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+          # The nginx error log is written to a file inside the container, not to stderr.
+          docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml exec -T nginx sh -c 'tail -n 200 /var/log/nginx/error.log' || true
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker compose -f tools/production-tests/docker-compose.yml \
+            -f tools/production-tests/docker-compose.prebuilt.yml \
+            down --remove-orphans -v --rmi local 2>/dev/null || true
 
   lint:
     name: Lint (clang-tidy + clang-format)
