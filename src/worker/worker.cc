@@ -594,6 +594,30 @@ bool WriteVariant(PageSpeedCache* cache, std::string_view url,
   return true;
 }
 
+// Issue #507: when the worker leaves an input unchanged it writes no variant,
+// so the raw entry the front end serves would stay without a source binding
+// and an origin that sends no validators would get no ETag.  Rewrite that
+// entry, in the slot it was read from, with identical bytes, unchanged flags
+// and the stamp.  Same rule as every other stamp: only a raw read (flags
+// lack kFlagWorkerProcessed) is hashed, and an entry that already carries
+// the right stamp is left alone.  Returns false only when a write failed.
+bool StampRawEntry(PageSpeedCache* cache, std::string_view url,
+                   std::string_view hostname, std::string_view scheme,
+                   const AlternateMetadata& read_meta, std::string_view bytes,
+                   const std::array<std::byte, 32>& hash,
+                   const PurgeCheck& purge_check, Worker* purge_undo_worker) {
+  if ((read_meta.flags & AlternateMetadata::kFlagWorkerProcessed) != 0) {
+    return true;
+  }
+  if (read_meta.origin_html_hash == hash) return true;
+  AlternateMetadata raw_meta = read_meta;
+  StampSourceBinding(&raw_meta, hash);
+  return WriteVariant(cache, url, hostname, scheme,
+                      CapabilityMask::Decode(read_meta.full_mask),
+                      std::span<const char>(bytes.data(), bytes.size()),
+                      raw_meta, purge_check, purge_undo_worker);
+}
+
 // Check if a variant exists for a mask.
 bool VariantExistsForMask(PageSpeedCache* cache, std::string_view url,
                           std::string_view hostname, std::string_view scheme,
@@ -4028,6 +4052,13 @@ void Worker::WriteTextVariant(
       return;
     }
     read_result.handle = cyclone::ReadHandle{};
+    // The identity entry stays the front end's own bytes; give it the same
+    // source binding as the compressed copies (issue #507).
+    if (source_genuine) {
+      (void)StampRawEntry(cache_.get(), notification.url, notification.hostname,
+                          notification.scheme, read_result.metadata,
+                          owned_input, source_hash, purge_check, this);
+    }
     MarkVariantProcessed(notification.url, notification.hostname,
                          notification.scheme, MaskToId(mask), purge_gen);
     WriteCompressedVariants(cache_.get(), notification.url,
@@ -5041,6 +5072,29 @@ void Worker::HandleNotification(const CacheNotification& notification,
           (html_read_result->metadata.flags &
            AlternateMetadata::kFlagWorkerProcessed) != 0;
 
+      // Issue #507: a page the transform leaves unchanged writes no variant,
+      // so the raw entry the front end serves would stay without a source
+      // binding and a validator-less origin would get no ETag.  Rewrite that
+      // entry with identical bytes and the stamp, under the same rule as the
+      // variant stamps: only a raw read (not the worker's own output) is
+      // hashed, and a stamp that is already correct is not rewritten.
+      auto stamp_unchanged_html = [&]() {
+        if (worker_processed_identity) return;
+        stats_.alternate_writes.fetch_add(1, std::memory_order_relaxed);
+        if (!StampRawEntry(
+                cache_.get(), notification.url, notification.hostname,
+                notification.scheme, html_read_result->metadata, html_content,
+                cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+                    reinterpret_cast<const std::byte*>(html_content.data()),
+                    html_content.size())),
+                purge_check, this)) {
+          stats_.alternate_write_failures.fetch_add(1,
+                                                    std::memory_order_relaxed);
+          LogWarning("Failed to stamp unchanged HTML for %s",
+                     notification.url.c_str());
+        }
+      };
+
       std::optional<std::array<std::byte, 32>> agent_origin_html_hash;
       if (cfg->browser_analysis.agent_optimize) {
         // Issue B: the read slot (0x08) FLIPS between the raw origin body
@@ -5701,6 +5755,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         stats_.html_assembly_skipped.fetch_add(1, std::memory_order_relaxed);
         LogInfo("No HTML transformations applicable for %s",
                 notification.url.c_str());
+        stamp_unchanged_html();
         clear_tentative_cooldown();
         return;
       }
@@ -5771,6 +5826,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         stats_.html_assembly_skipped.fetch_add(1, std::memory_order_relaxed);
         LogInfo("HTML transform produced no changes for %s",
                 notification.url.c_str());
+        stamp_unchanged_html();
         clear_tentative_cooldown();
         return;
       }
