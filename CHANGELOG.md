@@ -11,14 +11,13 @@ Fixed: the optimizer worker's `--help` text said `--agent-optimize-llms-txt` imp
 Fixed: on Windows, a full cache purge (`POST /v1/cache/purge` with
 `"scope": "all"`) could report success without removing anything while IIS or
 an ASP.NET Core application had the cache open. A full purge now replaces the
-volume by moving the held file aside, as it does on Linux, so the empty cache is
-in place at once and the web server picks it up within about a second. On
-Windows releases before 10 version 1709 and Windows Server 2019, or when an
-older web server module or sidecar still holds the volume without allowing the
-move, the purge reports that instead of reporting success; the cache keeps
-serving and its generation is not advanced. Update or recycle that application,
-then purge again. A failed full purge also no longer risks stopping the
-optimizer.
+volume, as it does on Linux, by moving the held file aside, so the empty cache
+is in place at once and the web server picks it up within about a second. If an
+older web server module or ASP.NET Core package still holds the volume without
+allowing the move, the purge reports that instead of reporting success; the
+cache keeps serving and its generation is not advanced. Update or recycle that
+application, then purge again. A failed full purge also no longer risks
+stopping the optimizer.
 
 Fixed: when the browser's renderer crashed during a screenshot or waterfall
 capture, the capture endpoints answered 504 Gateway Timeout straight away, as if
