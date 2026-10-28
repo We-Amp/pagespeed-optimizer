@@ -15,8 +15,8 @@
     "record this pin on main, then tag v<version>.",
     "A PLACEHOLDER tag makes the lane refuse loudly."
   ],
-  "tag": "module-v2.5.2",
-  "sha256sums_sha256": "456351760aeaac6aef780cd3b7167586bdf23a079bd48f05e41efc8b44eaf239",
-  "sidecar_pair_sha256": "3b56239c5bb51f09a67560c01db8b0de0afcade7ed615d9fdf2f9d02342b5725",
+  "tag": "module-v2.6.0",
+  "sha256sums_sha256": "e83a1c254986a2168b1fb17e91b2e6bab159b6faa48c27cd6a73dc1e133c8373",
+  "sidecar_pair_sha256": "e5b0f020a3a5152e63c0d8a272756efc84d799ff053a223090be7284940c3771",
   "release_key_fingerprint": "411DEFDB571351D2B25AEFCC9C02B5BDCCE75313"
 }
