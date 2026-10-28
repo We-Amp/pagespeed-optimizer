@@ -2,7 +2,7 @@
 
 All notable changes to mod_pagespeed are documented in this file.
 
-## Unreleased
+## 2.6.0 - 2026-10-28
 
 Fixed: pages from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left the page, stylesheet or script unchanged, so clients could not revalidate them and always downloaded the full page. These resources carry an `ETag` again and answer a matching `If-None-Match` with `304 Not Modified`.
 
@@ -133,6 +133,9 @@ front exactly like `ps_notify_worker_ex` always did; previously such a call
 opened a connection, sent nothing, and returned success. Embedders of the
 public C API are affected; the nginx module does not use this entry point and
 is not affected.
+
+Changed: the Helm chart 0.3.12 is published with this release; its default
+image version is 2.6.0.
 
 ## 2.5.2 - 2026-10-21
 
