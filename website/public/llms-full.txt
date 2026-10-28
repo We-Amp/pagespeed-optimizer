@@ -146,6 +146,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Release notes: 2.3](https://modpagespeed.com/docs/release-notes-2-3/): mod_pagespeed 2.3.0 release notes: the module and the optimizer worker as one release (packages 1.18.0), with rule packs and security fixes.
 - [Release notes: 2.5](https://modpagespeed.com/docs/release-notes-2-5/): mod_pagespeed 2.5 release notes: 2.5.2, a security update for the bundled nginx and libpng, and 2.5.0, with one version number from then on.
 - [Release notes: 2.2](https://modpagespeed.com/docs/release-notes-2-2/): mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.
+- [Release notes: 2.6](https://modpagespeed.com/docs/release-notes-2-6/): mod_pagespeed 2.6.0 release notes: security fixes for the nginx and Apache modules, and an optimizer service that can start after the web server.
 - [Release notes: 2.1](https://modpagespeed.com/docs/release-notes-2-1/): mod_pagespeed 2.1.0 release notes: the first release of the module and the optimizer worker as one product (packages 1.16.0), with hardened defaults.
 - [Release notes: the 2.0 optimizer worker](https://modpagespeed.com/docs/release-notes-2-0/): Release notes for the 2.0 optimizer worker line, 2.0.0-beta.1 to 2.0.42: each out-of-process optimizer release before the lines converged in 2.1.0.
 - [Release notes: the 1.15 module](https://modpagespeed.com/docs/release-notes-1-15/): Release notes for the 1.15 module line, 1.15.0 to 1.15.0+r22: each Apache, nginx and IIS package revision before the lines converged in 2.1.0.
@@ -278,11 +279,11 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Distribution
 
-- Signed apt and yum repository at https://packages.modpagespeed.com/ (GPG key https://packages.modpagespeed.com/pubkey.gpg; one-time setup `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`): `mod-pagespeed` (the Apache module), `nginx-module-pagespeed` (the nginx module, prebuilt and pinned to each distribution's stock nginx: Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64; AlmaLinux 9 via yum against stock nginx 1.20.1) and `pagespeed-optimizer` (the optimizer worker). Current release: mod_pagespeed 2.5.2 (2026-10-22). See [the apt/yum repository](https://modpagespeed.com/download/apt-yum/) and [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/).
-- Container images on GHCR: `ghcr.io/we-amp/pagespeed-nginx:2.5.2` (nginx with the module) and `ghcr.io/we-amp/pagespeed-worker:2.5.2` (the optimizer worker), on ubuntu:24.04. See [Install with Docker](https://modpagespeed.com/docs/installation-docker/).
-- Helm chart `pagespeed` from the repository `https://modpagespeed.com/charts` (`helm repo add weamp https://modpagespeed.com/charts`; index at https://modpagespeed.com/charts/index.yaml; application version 2.5.2; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
-- IIS: the signed Windows installer, 2.5.2, on the module's GitHub release: https://github.com/We-Amp/mod_pagespeed/releases/download/module-v2.5.2/pagespeed-iis-2.5.2-win-x64.msi (Windows Server 2016 or later; IIS 10; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
-- NuGet `WeAmp.PageSpeed.AspNetCore` 2.5.2, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
+- Signed apt and yum repository at https://packages.modpagespeed.com/ (GPG key https://packages.modpagespeed.com/pubkey.gpg; one-time setup `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`): `mod-pagespeed` (the Apache module), `nginx-module-pagespeed` (the nginx module, prebuilt and pinned to each distribution's stock nginx: Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64; AlmaLinux 9 via yum against stock nginx 1.20.1) and `pagespeed-optimizer` (the optimizer worker). Current release: mod_pagespeed 2.6.0 (2026-10-28). See [the apt/yum repository](https://modpagespeed.com/download/apt-yum/) and [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/).
+- Container images on GHCR: `ghcr.io/we-amp/pagespeed-nginx:2.6.0` (nginx with the module) and `ghcr.io/we-amp/pagespeed-worker:2.6.0` (the optimizer worker), on ubuntu:24.04. See [Install with Docker](https://modpagespeed.com/docs/installation-docker/).
+- Helm chart `pagespeed` from the repository `https://modpagespeed.com/charts` (`helm repo add weamp https://modpagespeed.com/charts`; index at https://modpagespeed.com/charts/index.yaml; application version 2.6.0; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
+- IIS: the signed Windows installer, 2.6.0, on the module's GitHub release: https://github.com/We-Amp/mod_pagespeed/releases/download/module-v2.6.0/pagespeed-iis-2.6.0-win-x64.msi (Windows Server 2016 or later; IIS 10; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
+- NuGet `WeAmp.PageSpeed.AspNetCore` 2.6.0, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
 - NuGet `WeAmp.PageSpeed.Sidecar` with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`, 1.17.0, the module as an ASP.NET Core sidecar (linux-x64, linux-arm64; bundles nginx 1.30.4): `dotnet add package WeAmp.PageSpeed.Sidecar`.
 - Worker packages (deb, rpm and Windows zip, with a checksum list) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](https://modpagespeed.com/download/).
 
@@ -1171,7 +1172,7 @@ services:
 
   # Factory Worker — optimizes cached content
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.5.2
+    image: ghcr.io/we-amp/pagespeed-worker:2.6.0
     pid: 'service:pidns'
     environment:
       # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
@@ -1187,7 +1188,7 @@ services:
 
   # Nginx with PageSpeed module
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.5.2
+    image: ghcr.io/we-amp/pagespeed-nginx:2.6.0
     pid: 'service:pidns'
     ports:
       - '8080:8080'
@@ -1667,7 +1668,7 @@ helm install pagespeed weamp/pagespeed -f my-values.yaml
 | Value                     | Default                           | Description                     |
 | ------------------------- | --------------------------------- | ------------------------------- |
 | `worker.image.repository` | `ghcr.io/we-amp/pagespeed-worker` | Worker container image          |
-| `image.tag`               | `2.5.2` (unset in the chart: tracks its `appVersion`) | One tag for both images; `worker.image.tag` and `nginx.image.tag` are rejected |
+| `image.tag`               | `2.6.0` (unset in the chart: tracks its `appVersion`) | One tag for both images; `worker.image.tag` and `nginx.image.tag` are rejected |
 | `worker.cacheSize`        | `1073741824` (1 GB)               | Cyclone cache size in bytes     |
 | `worker.extraArgs`        | `[]`                              | Additional CLI flags for worker |
 
@@ -1784,7 +1785,7 @@ Or update just the image tag. The chart takes one `image.tag` for both images
 and `nginx.image.tag` keys are rejected:
 
 ```bash
-helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.5.2
+helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.6.0
 ```
 
 The emptyDir cache is lost on pod restart. After an upgrade, the cache rebuilds
@@ -3014,7 +3015,7 @@ Upgrade mod_pagespeed per shape: apt or dnf, Docker tag, Helm, the Windows insta
 
 Canonical URL: https://modpagespeed.com/docs/upgrade/
 
-The current release is v2.5.2. Upgrading is a
+The current release is v2.6.0. Upgrading is a
 package, image or chart update on whichever shape you run, with one rule across
 all of them: the module and the optimizer worker move together, and the
 optimizer starts first. Read the current release's notes before you start; the
@@ -3084,7 +3085,7 @@ same tag. Set it in `deploy/.env` and recreate the stack:
 
 ```bash
 # deploy/.env
-PAGESPEED_VERSION=2.5.2
+PAGESPEED_VERSION=2.6.0
 
 docker compose -f deploy/docker-compose.yml pull
 docker compose -f deploy/docker-compose.yml up -d
@@ -3110,7 +3111,7 @@ Or move only the image tag. The chart takes one `image.tag` for both images
 and an nginx on different builds break the async-CSS loader:
 
 ```bash
-helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.5.2
+helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.6.0
 ```
 
 The `emptyDir` cache is lost on pod restart and rebuilds as requests arrive.
@@ -4130,9 +4131,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.5.2`](https://github.com/We-Amp/mod_pagespeed/tree/v2.5.2): 323 directives.
+Generated from the mod_pagespeed source at tag [`v2.6.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.6.0): 325 directives.
 
-Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (4) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (31) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (43) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (9) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (10) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (46) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (2) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (11) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (28).
+Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (5) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (30) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (43) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (9) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (9) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (46) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (3) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (6) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (35).
 
 ### Enabling and filter selection
 
@@ -4419,7 +4420,7 @@ Specifies the resource types that can be inlined into HTML even if they do not b
 - **Default:** `on`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Set to false to disallow mod_pagespeed from editing HTML Cache-Control headers. This is not safe in general and can cause the incorrect versions of HTML to be served to users.
+Set to false to disallow mod_pagespeed from editing HTML Cache-Control headers. This is not safe in general and can cause the incorrect versions of HTML to be served to users. Rewritten HTML names the request headers its image URLs depend on (Accept, Save-Data, User-Agent) in Vary even when this is off, so a shared cache that honours Vary keeps the variants apart; caches that ignore Vary need their own cache key or a bypass for HTML.
 
 Controls whether the module sets caching headers on HTML responses. Do not
 disable it unless you fully understand the interaction with downstream caches:
@@ -4915,7 +4916,7 @@ Declares an extra element attribute that holds a URL, with the resource category
 
 ### Optimizer worker
 
-[`DaemonApiSocketPath`](https://modpagespeed.com/docs/configuration/#daemonapisocketpath), [`DaemonServeStoredEncodings`](https://modpagespeed.com/docs/configuration/#daemonservestoredencodings), [`DaemonSocketPath`](https://modpagespeed.com/docs/configuration/#daemonsocketpath), [`DaemonVolumePath`](https://modpagespeed.com/docs/configuration/#daemonvolumepath)
+[`DaemonApiSocketPath`](https://modpagespeed.com/docs/configuration/#daemonapisocketpath), [`DaemonServeHonorRequestFreshness`](https://modpagespeed.com/docs/configuration/#daemonservehonorrequestfreshness), [`DaemonServeStoredEncodings`](https://modpagespeed.com/docs/configuration/#daemonservestoredencodings), [`DaemonSocketPath`](https://modpagespeed.com/docs/configuration/#daemonsocketpath), [`DaemonVolumePath`](https://modpagespeed.com/docs/configuration/#daemonvolumepath)
 
 #### DaemonApiSocketPath
 
@@ -4926,6 +4927,14 @@ Declares an extra element attribute that holds a URL, with the resource category
 Path of the optimizer worker's management API unix socket, backing the /v1/daemon/\* admin endpoints. Empty disables them. This is a different socket from DaemonSocketPath (the notification socket).
 
 On nginx: Set the unix socket path of the optimizer worker's management API, backing the /v1/daemon/\* admin endpoints. Empty disables them.
+
+#### DaemonServeHonorRequestFreshness
+
+- **Syntax:** `ModPagespeedDaemonServeHonorRequestFreshness on|off` (Apache) · `pagespeed DaemonServeHonorRequestFreshness on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Let a client's reload headers (Cache-Control: no-cache or max-age=0, or Pragma: no-cache without a Cache-Control) bypass the optimizer worker's cached copy of a resource, so the origin's own bytes are sent. Default off: a reload is served from the cache.
 
 #### DaemonServeStoredEncodings
 
@@ -5189,7 +5198,7 @@ Verified-bot registry: comma-separated keyid=name pairs.
 
 ### Statistics, console and logging
 
-[`AdminDomains`](https://modpagespeed.com/docs/configuration/#admindomains), [`AdminPath`](https://modpagespeed.com/docs/configuration/#adminpath), [`ConsoleDomains`](https://modpagespeed.com/docs/configuration/#consoledomains), [`ConsolePath`](https://modpagespeed.com/docs/configuration/#consolepath), [`GlobalAdminDomains`](https://modpagespeed.com/docs/configuration/#globaladmindomains), [`GlobalAdminPath`](https://modpagespeed.com/docs/configuration/#globaladminpath), [`GlobalStatisticsDomains`](https://modpagespeed.com/docs/configuration/#globalstatisticsdomains), [`GlobalStatisticsPath`](https://modpagespeed.com/docs/configuration/#globalstatisticspath), [`InstallCrashHandler`](https://modpagespeed.com/docs/configuration/#installcrashhandler), [`ListOutstandingUrlsOnError`](https://modpagespeed.com/docs/configuration/#listoutstandingurlsonerror), [`LogBackgroundRewrite`](https://modpagespeed.com/docs/configuration/#logbackgroundrewrite), [`LogDir`](https://modpagespeed.com/docs/configuration/#logdir), [`LogMobilizationSamples`](https://modpagespeed.com/docs/configuration/#logmobilizationsamples), [`LogRewriteTiming`](https://modpagespeed.com/docs/configuration/#logrewritetiming), [`LogUrlIndices`](https://modpagespeed.com/docs/configuration/#logurlindices), [`MaxRewriteInfoLogSize`](https://modpagespeed.com/docs/configuration/#maxrewriteinfologsize), [`MessageBufferSize`](https://modpagespeed.com/docs/configuration/#messagebuffersize), [`MessagesDomains`](https://modpagespeed.com/docs/configuration/#messagesdomains), [`MessagesPath`](https://modpagespeed.com/docs/configuration/#messagespath), [`ReportUnloadTime`](https://modpagespeed.com/docs/configuration/#reportunloadtime), [`SlowFileLatencyUs`](https://modpagespeed.com/docs/configuration/#slowfilelatencyus), [`Statistics`](https://modpagespeed.com/docs/configuration/#statistics), [`StatisticsDomains`](https://modpagespeed.com/docs/configuration/#statisticsdomains), [`StatisticsLogging`](https://modpagespeed.com/docs/configuration/#statisticslogging), [`StatisticsLoggingChartsCSS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](https://modpagespeed.com/docs/configuration/#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](https://modpagespeed.com/docs/configuration/#statisticsloggingmaxfilesizekb), [`StatisticsPath`](https://modpagespeed.com/docs/configuration/#statisticspath), [`StrictAdminAccess`](https://modpagespeed.com/docs/configuration/#strictadminaccess), [`UsePerVHostStatistics`](https://modpagespeed.com/docs/configuration/#usepervhoststatistics)
+[`AdminDomains`](https://modpagespeed.com/docs/configuration/#admindomains), [`AdminPath`](https://modpagespeed.com/docs/configuration/#adminpath), [`ConsoleDomains`](https://modpagespeed.com/docs/configuration/#consoledomains), [`ConsolePath`](https://modpagespeed.com/docs/configuration/#consolepath), [`GlobalAdminDomains`](https://modpagespeed.com/docs/configuration/#globaladmindomains), [`GlobalAdminPath`](https://modpagespeed.com/docs/configuration/#globaladminpath), [`GlobalStatisticsDomains`](https://modpagespeed.com/docs/configuration/#globalstatisticsdomains), [`GlobalStatisticsPath`](https://modpagespeed.com/docs/configuration/#globalstatisticspath), [`InstallCrashHandler`](https://modpagespeed.com/docs/configuration/#installcrashhandler), [`ListOutstandingUrlsOnError`](https://modpagespeed.com/docs/configuration/#listoutstandingurlsonerror), [`LogBackgroundRewrite`](https://modpagespeed.com/docs/configuration/#logbackgroundrewrite), [`LogDir`](https://modpagespeed.com/docs/configuration/#logdir), [`LogRewriteTiming`](https://modpagespeed.com/docs/configuration/#logrewritetiming), [`LogUrlIndices`](https://modpagespeed.com/docs/configuration/#logurlindices), [`MaxRewriteInfoLogSize`](https://modpagespeed.com/docs/configuration/#maxrewriteinfologsize), [`MessageBufferSize`](https://modpagespeed.com/docs/configuration/#messagebuffersize), [`MessagesDomains`](https://modpagespeed.com/docs/configuration/#messagesdomains), [`MessagesPath`](https://modpagespeed.com/docs/configuration/#messagespath), [`ReportUnloadTime`](https://modpagespeed.com/docs/configuration/#reportunloadtime), [`SlowFileLatencyUs`](https://modpagespeed.com/docs/configuration/#slowfilelatencyus), [`Statistics`](https://modpagespeed.com/docs/configuration/#statistics), [`StatisticsDomains`](https://modpagespeed.com/docs/configuration/#statisticsdomains), [`StatisticsLogging`](https://modpagespeed.com/docs/configuration/#statisticslogging), [`StatisticsLoggingChartsCSS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](https://modpagespeed.com/docs/configuration/#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](https://modpagespeed.com/docs/configuration/#statisticsloggingmaxfilesizekb), [`StatisticsPath`](https://modpagespeed.com/docs/configuration/#statisticspath), [`StrictAdminAccess`](https://modpagespeed.com/docs/configuration/#strictadminaccess), [`UsePerVHostStatistics`](https://modpagespeed.com/docs/configuration/#usepervhoststatistics)
 
 #### AdminDomains
 
@@ -5293,14 +5302,6 @@ _The module source carries no help text for this option._
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 Directory to store logs in.
-
-#### LogMobilizationSamples
-
-- **Syntax:** `ModPagespeedLogMobilizationSamples on|off` (Apache) · `pagespeed LogMobilizationSamples on|off;` (nginx)
-- **Default:** `off`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Verbose debugging of all sample data generated by mobilization_label_filter.
 
 #### LogRewriteTiming
 
@@ -5880,7 +5881,7 @@ Stops the prioritize_critical_css filter from invoking its JavaScript that appli
 
 ### JavaScript
 
-[`AvoidRenamingIntrospectiveJavascript`](https://modpagespeed.com/docs/configuration/#avoidrenamingintrospectivejavascript), [`ClearInheritedScripts`](https://modpagespeed.com/docs/configuration/#clearinheritedscripts), [`EnableDeferJsExperimental`](https://modpagespeed.com/docs/configuration/#enabledeferjsexperimental), [`EnablePrioritizingScripts`](https://modpagespeed.com/docs/configuration/#enableprioritizingscripts), [`JsInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#jsinlinemaxbytes), [`JsOutlineMinBytes`](https://modpagespeed.com/docs/configuration/#jsoutlineminbytes), [`Library`](https://modpagespeed.com/docs/configuration/#library), [`MaxCombinedJsBytes`](https://modpagespeed.com/docs/configuration/#maxcombinedjsbytes), [`ProcessScriptVariables`](https://modpagespeed.com/docs/configuration/#processscriptvariables), [`UseAnalyticsJs`](https://modpagespeed.com/docs/configuration/#useanalyticsjs)
+[`AvoidRenamingIntrospectiveJavascript`](https://modpagespeed.com/docs/configuration/#avoidrenamingintrospectivejavascript), [`ClearInheritedScripts`](https://modpagespeed.com/docs/configuration/#clearinheritedscripts), [`EnableDeferJsExperimental`](https://modpagespeed.com/docs/configuration/#enabledeferjsexperimental), [`EnablePrioritizingScripts`](https://modpagespeed.com/docs/configuration/#enableprioritizingscripts), [`JsInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#jsinlinemaxbytes), [`JsOutlineMinBytes`](https://modpagespeed.com/docs/configuration/#jsoutlineminbytes), [`Library`](https://modpagespeed.com/docs/configuration/#library), [`MaxCombinedJsBytes`](https://modpagespeed.com/docs/configuration/#maxcombinedjsbytes), [`ProcessScriptVariables`](https://modpagespeed.com/docs/configuration/#processscriptvariables)
 
 #### AvoidRenamingIntrospectiveJavascript
 
@@ -5956,14 +5957,6 @@ Maximum size allowed for the combined JavaScript resource.
 - **Platform:** nginx only
 
 Evaluate nginx script variables ($var) in pagespeed directive arguments at request time: off, on (the LoadFromFile\*, EnableFilters, DisableFilters, DownstreamCache\* and ShardDomain directives) or all (every query- and directory-scoped option too). Settable once, at the top level.
-
-#### UseAnalyticsJs
-
-- **Syntax:** `ModPagespeedUseAnalyticsJs on|off` (Apache) · `pagespeed UseAnalyticsJs on|off;` (nginx)
-- **Default:** `on`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
-
-Log to analytics.js instead of ga.js with insert_ga.
 
 ### Caching
 
@@ -6606,7 +6599,7 @@ Retain HTML comments matching wildcard, even with remove_comments enabled
 
 ### Threads and limits
 
-[`NumExpensiveRewriteThreads`](https://modpagespeed.com/docs/configuration/#numexpensiverewritethreads), [`NumRewriteThreads`](https://modpagespeed.com/docs/configuration/#numrewritethreads)
+[`NumExpensiveRewriteThreads`](https://modpagespeed.com/docs/configuration/#numexpensiverewritethreads), [`NumRewriteThreads`](https://modpagespeed.com/docs/configuration/#numrewritethreads), [`PublicAdminAccess`](https://modpagespeed.com/docs/configuration/#publicadminaccess)
 
 #### NumExpensiveRewriteThreads
 
@@ -6630,33 +6623,17 @@ Global: set it once per server, not per virtual host or location. How `auto`
 resolves per server, and when to override it, is in
 [Optimization threads](https://modpagespeed.com/docs/configuration/#optimization-threads).
 
+#### PublicAdminAccess
+
+- **Syntax:** `ModPagespeedPublicAdminAccess on|off` (Apache) · `pagespeed PublicAdminAccess on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config · nginx: http
+
+OPT-IN, default off. Declares that the admin pages are reachable from the network on purpose. When on, the loopback warning for admin handlers is replaced by one informational line, and the console shows an informational finding instead of the exposure warning. Access control is unchanged.
+
 ### Experiments and analytics
 
-[`AnalyticsID`](https://modpagespeed.com/docs/configuration/#analyticsid), [`ContentExperimentID`](https://modpagespeed.com/docs/configuration/#contentexperimentid), [`ContentExperimentVariantID`](https://modpagespeed.com/docs/configuration/#contentexperimentvariantid), [`EnrollExperiment`](https://modpagespeed.com/docs/configuration/#enrollexperiment), [`ExperimentCookieDurationMs`](https://modpagespeed.com/docs/configuration/#experimentcookiedurationms), [`ExperimentSlot`](https://modpagespeed.com/docs/configuration/#experimentslot), [`ExperimentSpec`](https://modpagespeed.com/docs/configuration/#experimentspec), [`ExperimentVariable`](https://modpagespeed.com/docs/configuration/#experimentvariable), [`IncreaseSpeedTracking`](https://modpagespeed.com/docs/configuration/#increasespeedtracking), [`Noop`](https://modpagespeed.com/docs/configuration/#noop), [`RunExperiment`](https://modpagespeed.com/docs/configuration/#runexperiment)
-
-#### AnalyticsID
-
-- **Syntax:** `ModPagespeedAnalyticsID value` (Apache) · `pagespeed AnalyticsID value;` (nginx)
-- **Default:** `(empty)`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Google Analytics ID to use on site.
-
-#### ContentExperimentID
-
-- **Syntax:** `ModPagespeedContentExperimentID value` (Apache) · `pagespeed ContentExperimentID value;` (nginx)
-- **Default:** `(empty)`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Which Google Analytics content experiment to log to.
-
-#### ContentExperimentVariantID
-
-- **Syntax:** `ModPagespeedContentExperimentVariantID value` (Apache) · `pagespeed ContentExperimentVariantID value;` (nginx)
-- **Default:** `(empty)`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Which Google Analytics content experiment variant to log to.
+[`EnrollExperiment`](https://modpagespeed.com/docs/configuration/#enrollexperiment), [`ExperimentCookieDurationMs`](https://modpagespeed.com/docs/configuration/#experimentcookiedurationms), [`ExperimentSlot`](https://modpagespeed.com/docs/configuration/#experimentslot), [`ExperimentSpec`](https://modpagespeed.com/docs/configuration/#experimentspec), [`Noop`](https://modpagespeed.com/docs/configuration/#noop), [`RunExperiment`](https://modpagespeed.com/docs/configuration/#runexperiment)
 
 #### EnrollExperiment
 
@@ -6690,23 +6667,7 @@ _The module source carries no help text for this option._
 - **Default:** —
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Configuration for one side of an experiment in the form: 'id= ;enabled= ;disabled= ;ga= ;percent= ...'
-
-#### ExperimentVariable
-
-- **Syntax:** `ModPagespeedExperimentVariable slot` (Apache) · `pagespeed ExperimentVariable slot;` (nginx)
-- **Default:** —
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Specify the custom variable slot with which to run experiments.Defaults to 1.
-
-#### IncreaseSpeedTracking
-
-- **Syntax:** `ModPagespeedIncreaseSpeedTracking on|off` (Apache) · `pagespeed IncreaseSpeedTracking on|off;` (nginx)
-- **Default:** `on`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Increase the percentage of sites that have Google Analytics page speed tracking
+Configuration for one side of an experiment in the form: 'id= ;enabled= ;disabled= ;ga= ;percent= ...' The 'ga=' component is accepted for compatibility and ignored.
 
 #### Noop
 
@@ -6726,7 +6687,7 @@ Run an experiment to test the effectiveness of rewriters.
 
 ### Deprecated and ignored
 
-[`AllowVaryOn`](https://modpagespeed.com/docs/configuration/#allowvaryon), [`CollectRefererStatistics`](https://modpagespeed.com/docs/configuration/#collectrefererstatistics), [`DisableForBots`](https://modpagespeed.com/docs/configuration/#disableforbots), [`DistributedRewriteKey`](https://modpagespeed.com/docs/configuration/#distributedrewritekey), [`DistributedRewriteServers`](https://modpagespeed.com/docs/configuration/#distributedrewriteservers), [`DistributedRewriteTimeoutMs`](https://modpagespeed.com/docs/configuration/#distributedrewritetimeoutms), [`DistributeFetches`](https://modpagespeed.com/docs/configuration/#distributefetches), [`ExperimentalCentralControllerPort`](https://modpagespeed.com/docs/configuration/#experimentalcentralcontrollerport), [`ExperimentalPopularityContestMaxInFlight`](https://modpagespeed.com/docs/configuration/#experimentalpopularitycontestmaxinflight), [`ExperimentalPopularityContestMaxQueueSize`](https://modpagespeed.com/docs/configuration/#experimentalpopularitycontestmaxqueuesize), [`FetchFromModSpdy`](https://modpagespeed.com/docs/configuration/#fetchfrommodspdy), [`FileCacheCleanIntervalMs`](https://modpagespeed.com/docs/configuration/#filecachecleanintervalms), [`FileCacheInodeLimit`](https://modpagespeed.com/docs/configuration/#filecacheinodelimit), [`GeneratedFilePrefix`](https://modpagespeed.com/docs/configuration/#generatedfileprefix), [`HashRefererStatistics`](https://modpagespeed.com/docs/configuration/#hashrefererstatistics), [`If`](https://modpagespeed.com/docs/configuration/#if), [`ImageWebpRecompressionQuality`](https://modpagespeed.com/docs/configuration/#imagewebprecompressionquality), [`ImageWebpRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#imagewebprecompressionqualityforsmallscreens), [`ImgInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#imginlinemaxbytes), [`ImgMaxRewritesAtOnce`](https://modpagespeed.com/docs/configuration/#imgmaxrewritesatonce), [`InheritVHostConfig`](https://modpagespeed.com/docs/configuration/#inheritvhostconfig), [`MaxPrefetchJsElements`](https://modpagespeed.com/docs/configuration/#maxprefetchjselements), [`NumShards`](https://modpagespeed.com/docs/configuration/#numshards), [`PrivateNotVaryForIE`](https://modpagespeed.com/docs/configuration/#privatenotvaryforie), [`RefererStatisticsOutputLevel`](https://modpagespeed.com/docs/configuration/#refererstatisticsoutputlevel), [`StatisticsLoggingFile`](https://modpagespeed.com/docs/configuration/#statisticsloggingfile), [`UrlPrefix`](https://modpagespeed.com/docs/configuration/#urlprefix), [`UseExperimentalJsMinifier`](https://modpagespeed.com/docs/configuration/#useexperimentaljsminifier)
+[`AllowVaryOn`](https://modpagespeed.com/docs/configuration/#allowvaryon), [`AnalyticsID`](https://modpagespeed.com/docs/configuration/#analyticsid), [`CollectRefererStatistics`](https://modpagespeed.com/docs/configuration/#collectrefererstatistics), [`ContentExperimentID`](https://modpagespeed.com/docs/configuration/#contentexperimentid), [`ContentExperimentVariantID`](https://modpagespeed.com/docs/configuration/#contentexperimentvariantid), [`DisableForBots`](https://modpagespeed.com/docs/configuration/#disableforbots), [`DistributedRewriteKey`](https://modpagespeed.com/docs/configuration/#distributedrewritekey), [`DistributedRewriteServers`](https://modpagespeed.com/docs/configuration/#distributedrewriteservers), [`DistributedRewriteTimeoutMs`](https://modpagespeed.com/docs/configuration/#distributedrewritetimeoutms), [`DistributeFetches`](https://modpagespeed.com/docs/configuration/#distributefetches), [`ExperimentalCentralControllerPort`](https://modpagespeed.com/docs/configuration/#experimentalcentralcontrollerport), [`ExperimentalPopularityContestMaxInFlight`](https://modpagespeed.com/docs/configuration/#experimentalpopularitycontestmaxinflight), [`ExperimentalPopularityContestMaxQueueSize`](https://modpagespeed.com/docs/configuration/#experimentalpopularitycontestmaxqueuesize), [`ExperimentVariable`](https://modpagespeed.com/docs/configuration/#experimentvariable), [`FetchFromModSpdy`](https://modpagespeed.com/docs/configuration/#fetchfrommodspdy), [`FileCacheCleanIntervalMs`](https://modpagespeed.com/docs/configuration/#filecachecleanintervalms), [`FileCacheInodeLimit`](https://modpagespeed.com/docs/configuration/#filecacheinodelimit), [`GeneratedFilePrefix`](https://modpagespeed.com/docs/configuration/#generatedfileprefix), [`HashRefererStatistics`](https://modpagespeed.com/docs/configuration/#hashrefererstatistics), [`If`](https://modpagespeed.com/docs/configuration/#if), [`ImageWebpRecompressionQuality`](https://modpagespeed.com/docs/configuration/#imagewebprecompressionquality), [`ImageWebpRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#imagewebprecompressionqualityforsmallscreens), [`ImgInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#imginlinemaxbytes), [`ImgMaxRewritesAtOnce`](https://modpagespeed.com/docs/configuration/#imgmaxrewritesatonce), [`IncreaseSpeedTracking`](https://modpagespeed.com/docs/configuration/#increasespeedtracking), [`InheritVHostConfig`](https://modpagespeed.com/docs/configuration/#inheritvhostconfig), [`LogMobilizationSamples`](https://modpagespeed.com/docs/configuration/#logmobilizationsamples), [`MaxPrefetchJsElements`](https://modpagespeed.com/docs/configuration/#maxprefetchjselements), [`NumShards`](https://modpagespeed.com/docs/configuration/#numshards), [`PrivateNotVaryForIE`](https://modpagespeed.com/docs/configuration/#privatenotvaryforie), [`RefererStatisticsOutputLevel`](https://modpagespeed.com/docs/configuration/#refererstatisticsoutputlevel), [`StatisticsLoggingFile`](https://modpagespeed.com/docs/configuration/#statisticsloggingfile), [`UrlPrefix`](https://modpagespeed.com/docs/configuration/#urlprefix), [`UseAnalyticsJs`](https://modpagespeed.com/docs/configuration/#useanalyticsjs), [`UseExperimentalJsMinifier`](https://modpagespeed.com/docs/configuration/#useexperimentaljsminifier)
 
 #### AllowVaryOn
 
@@ -6736,6 +6697,14 @@ Run an experiment to test the effectiveness of rewriters.
 
 Deprecated and ignored: it no longer affects in-place optimization. With the optimizer worker attached, in-place images are served in the format the request's Accept header selects, with Vary: Accept.
 
+#### AnalyticsID
+
+- **Syntax:** `ModPagespeedAnalyticsID value` (Apache) · `pagespeed AnalyticsID value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
+
 #### CollectRefererStatistics
 
 - **Syntax:** `ModPagespeedCollectRefererStatistics value` (Apache)
@@ -6744,6 +6713,22 @@ Deprecated and ignored: it no longer affects in-place optimization. With the opt
 - **Platform:** Apache only
 
 Removed option; the name is still accepted and ignored.
+
+#### ContentExperimentID
+
+- **Syntax:** `ModPagespeedContentExperimentID value` (Apache) · `pagespeed ContentExperimentID value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
+
+#### ContentExperimentVariantID
+
+- **Syntax:** `ModPagespeedContentExperimentVariantID value` (Apache) · `pagespeed ContentExperimentVariantID value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
 
 #### DisableForBots
 
@@ -6809,6 +6794,14 @@ Deprecated and ignored: the experimental gRPC central controller was removed
 - **Context:** Apache: server config · nginx: http
 
 Deprecated and ignored: the experimental gRPC central controller was removed
+
+#### ExperimentVariable
+
+- **Syntax:** `ModPagespeedExperimentVariable slot` (Apache) · `pagespeed ExperimentVariable slot;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
 
 #### FetchFromModSpdy
 
@@ -6896,6 +6889,14 @@ Former name of ImageInlineMaxBytes; accepted and mapped to it.
 
 Former name of ImageMaxRewritesAtOnce; accepted and mapped to it.
 
+#### IncreaseSpeedTracking
+
+- **Syntax:** `ModPagespeedIncreaseSpeedTracking on|off` (Apache) · `pagespeed IncreaseSpeedTracking on|off;` (nginx)
+- **Default:** `on`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
+
 #### InheritVHostConfig
 
 - **Syntax:** `ModPagespeedInheritVHostConfig value` (Apache)
@@ -6904,6 +6905,14 @@ Former name of ImageMaxRewritesAtOnce; accepted and mapped to it.
 - **Platform:** Apache only
 
 Removed option; the name is still accepted and ignored.
+
+#### LogMobilizationSamples
+
+- **Syntax:** `ModPagespeedLogMobilizationSamples on|off` (Apache) · `pagespeed LogMobilizationSamples on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the mobilize filter).
 
 #### MaxPrefetchJsElements
 
@@ -6956,6 +6965,14 @@ Removed option; the name is still accepted and ignored.
 - **Platform:** Apache only
 
 Removed option; the name is still accepted and ignored.
+
+#### UseAnalyticsJs
+
+- **Syntax:** `ModPagespeedUseAnalyticsJs on|off` (Apache) · `pagespeed UseAnalyticsJs on|off;` (nginx)
+- **Default:** `on`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
+
+Deprecated and ignored (configured the insert_ga filter).
 
 #### UseExperimentalJsMinifier
 
@@ -15181,7 +15198,7 @@ Edit `deploy/.env`:
 ```bash
 # Image version tag (the worker and nginx images publish version tags only;
 # there is no latest tag for them)
-PAGESPEED_VERSION=2.5.2
+PAGESPEED_VERSION=2.6.0
 
 # Your origin server, as nginx inside its container reaches it:
 # host.docker.internal is the Docker host, or use a hostname or IP
@@ -15213,7 +15230,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.5.2}
+    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.6.0}
     pid: 'service:pidns'
     depends_on:
       pidns:
@@ -15238,7 +15255,7 @@ services:
         max-file: '3'
 
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.5.2}
+    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.6.0}
     pid: 'service:pidns'
     ports:
       - '${NGINX_PORT:-80}:80'
@@ -15292,7 +15309,7 @@ pulls, so retag them to those names, set `PAGESPEED_VERSION` to the same
 version in `deploy/.env`, and start the stack as above:
 
 ```bash
-V=2.5.2
+V=2.6.0
 docker/build-release.sh "$V"
 docker tag "modpagespeed/worker:$V" "ghcr.io/we-amp/pagespeed-worker:$V"
 docker tag "modpagespeed/nginx:$V" "ghcr.io/we-amp/pagespeed-nginx:$V"
@@ -15392,7 +15409,7 @@ spec:
     fsGroup: 918 # the volume arrives group-owned by group pagespeed
   containers:
     - name: worker
-      image: ghcr.io/we-amp/pagespeed-worker:2.5.2
+      image: ghcr.io/we-amp/pagespeed-worker:2.6.0
       env:
         # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
         - name: ACCEPT_EULA
@@ -15412,7 +15429,7 @@ spec:
         timeoutSeconds: 5
 
     - name: nginx
-      image: ghcr.io/we-amp/pagespeed-nginx:2.5.2
+      image: ghcr.io/we-amp/pagespeed-nginx:2.6.0
       env:
         # Your origin; the image renders its nginx config from these two
         - name: BACKEND_HOST
@@ -15800,7 +15817,7 @@ This page is for teams shipping the mod_pagespeed ASP.NET Core middleware
 are still evaluating the middleware locally, start with
 [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/) instead.
 
-The current NuGet release is v2.5.2. The middleware runs
+The current NuGet release is v2.6.0. The middleware runs
 in-process in your request pipeline and, by default, launches the `factory_worker`
 binary from the same package as a child process to do the expensive work — image
 transcoding and critical-CSS extraction — out of process. If you need an in-process
@@ -15891,7 +15908,7 @@ After deploy, confirm the middleware is active:
 
 ```bash
 curl -I https://<your-domain>/
-# X-PageSpeed: WeAmp.PageSpeed/2.5.2
+# X-PageSpeed: WeAmp.PageSpeed/2.6.0
 
 curl -s https://<your-domain>/healthz
 # Healthy
@@ -18508,7 +18525,7 @@ alike). Changing them requires a worker restart.
 ```yaml
 services:
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.5.2
+    image: ghcr.io/we-amp/pagespeed-worker:2.6.0
     environment:
       - PAGESPEED_WEB_BOT_AUTH=true
       # Comma-separated HTTPS JWKS key-directory URLs (no spaces).
@@ -18729,7 +18746,7 @@ releases after 2.0.35.
 ```yaml
 services:
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.5.2
+    image: ghcr.io/we-amp/pagespeed-worker:2.6.0
     environment:
       - PAGESPEED_RSL_CAP_ENFORCEMENT=true
       # Comma-separated HTTPS JWKS key-directory URLs for the token issuers (no spaces).
@@ -21250,22 +21267,23 @@ mod_pagespeed release notes: the current release, the notes of every line, every
 
 Canonical URL: https://modpagespeed.com/docs/release-notes/
 
-mod_pagespeed is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together, and since 2.5.0 one version number covers both: the native packages, the container images, the NuGet packages and the Helm chart's application version of the current release all carry 2.5.2. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](https://modpagespeed.com/docs/release-notes/#security-updates) we have published and [what has changed since the last upstream release](https://modpagespeed.com/docs/release-notes/#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
+mod_pagespeed is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together, and since 2.5.0 one version number covers both: the native packages, the container images, the NuGet packages and the Helm chart's application version of the current release all carry 2.6.0. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](https://modpagespeed.com/docs/release-notes/#security-updates) we have published and [what has changed since the last upstream release](https://modpagespeed.com/docs/release-notes/#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
 
 ## The current release
 
-**mod_pagespeed 2.5.2** (2026-10-22, module + optimizer worker)
+**mod_pagespeed 2.6.0** (2026-10-28, module + optimizer worker)
 
-**mod_pagespeed 2.5.2 is a security update for the module and the optimizer worker, released together and installed as a matching pair.** The packages in the signed apt and yum repositories, the container images, the NuGet packages and the application version of the Helm chart (chart 0.3.11) all carry the version 2.5.2; there is no module release 2.5.1. The nginx we bundle is updated to 1.30.6, which fixes two memory-safety issues in nginx (CVE-2026-15176, CVE-2026-93479), and `pagespeed-optimizer` 2.5.2 updates its bundled libpng to 1.6.58, which fixes memory-safety issues in PNG decoding. Behind a shared cache or CDN, images chosen by the optimizer worker now carry the full `Vary` list. Purge the cache once after upgrading: read "Before you upgrade".
+**mod_pagespeed 2.6.0 is a security update for the module and the optimizer worker, released together and installed as a matching pair.** The packages in the signed apt and yum repositories, the container images, the NuGet packages (the ASP.NET Core sidecar packages among them) and the application version of the Helm chart (chart 0.3.12) all carry the version 2.6.0. It fixes two security issues in the nginx module and two in the Apache module. The module now picks up an optimizer service that starts after the web server without a restart, rewritten HTML names in `Vary` the request headers its markup depends on, and `pagespeed` settings in an nginx `location` now apply inside its nested locations and `if` blocks. Read "Action required when upgrading" before you upgrade.
 **Update recommended.**
 
-[Read the full 2.5.2 release notes](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-2): the security fixes, the image fixes in the optimizer worker, what to do before you upgrade and the fixes on each server.
+[Read the full 2.6.0 release notes](https://modpagespeed.com/docs/release-notes-2-6/#v2-6-0): the security fixes, what changed, what to do before you upgrade and the fixes on each server.
 
 ## Release notes by line
 
 Each line has its own page with the full entry for every release, collapsed and newest first.
 
-- [mod_pagespeed 2.5](https://modpagespeed.com/docs/release-notes-2-5/): 2.5.2, 2026-10-22, and 2.5.0, 2026-10-19. The current release: the module and the optimizer worker together, security updates, and one version number from 2.5.0 on.
+- [mod_pagespeed 2.6](https://modpagespeed.com/docs/release-notes-2-6/): 2.6.0, 2026-10-28. The current release: the module and the optimizer worker together, with security fixes in the nginx and Apache modules.
+- [mod_pagespeed 2.5](https://modpagespeed.com/docs/release-notes-2-5/): 2.5.2, 2026-10-22, and 2.5.0, 2026-10-19. The module and the optimizer worker together, security updates, and one version number from 2.5.0 on.
 - [mod_pagespeed 2.4](https://modpagespeed.com/docs/release-notes-2-4/) — 2.4.0, 2026-10-14 (packages 1.19.0). The module and the optimizer worker together, with several rule packs per server.
 - [mod_pagespeed 2.3](https://modpagespeed.com/docs/release-notes-2-3/) — 2.3.0, 2026-10-12 (packages 1.18.0). The module and the optimizer worker together, with rule packs.
 - [mod_pagespeed 2.2](https://modpagespeed.com/docs/release-notes-2-2/) — 2.2.0, 2026-10-06 (packages 1.17.0). The module and the optimizer worker together.
@@ -21280,6 +21298,7 @@ Which version each artifact of a release carries: the apt and yum packages, the 
 
 | Release | Date | apt/yum packages (module + optimizer worker) | Container images | Helm chart (app version) | NuGet WeAmp.PageSpeed.AspNetCore | IIS installer |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2.6.0 | 2026-10-28 | 2.6.0 | 2.6.0 | 0.3.12 (2.6.0) | 2.6.0 | pagespeed-iis-2.6.0-win-x64.msi |
 | 2.5.2 | 2026-10-22 | 2.5.2 | 2.5.2 | 0.3.11 (2.5.2) | 2.5.2 | pagespeed-iis-2.5.2-win-x64.msi |
 | 2.5.0 | 2026-10-19 | 2.5.0 | 2.5.0 | 0.3.9 (2.5.0) | 2.5.0 | pagespeed-iis-2.5.0-win-x64.msi |
 | 2.4.0 | 2026-10-14 | 1.19.0 | 2.4.0 | 0.3.8 (2.4.0) | 2.4.0 | not on a public release |
@@ -21295,7 +21314,9 @@ Every release, grouped into four periods and newest first inside each. Each line
 
 ### One product since 2.1.0 (September to October 2026)
 
-mod_pagespeed 2.1.0, 2.2.0, 2.3.0, 2.4.0, 2.5.0 and 2.5.2 are the module and the optimizer worker released together; there is no module release 2.5.1. The [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists the version each artifact carries. See [the current release](https://modpagespeed.com/docs/release-notes/#current-release) above and the [2.5](https://modpagespeed.com/docs/release-notes-2-5/), [2.4](https://modpagespeed.com/docs/release-notes-2-4/), [2.3](https://modpagespeed.com/docs/release-notes-2-3/), [2.2](https://modpagespeed.com/docs/release-notes-2-2/) and [2.1](https://modpagespeed.com/docs/release-notes-2-1/) pages for the full entries.
+mod_pagespeed 2.1.0, 2.2.0, 2.3.0, 2.4.0, 2.5.0, 2.5.2 and 2.6.0 are the module and the optimizer worker released together; there is no module release 2.5.1. The [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists the version each artifact carries. See [the current release](https://modpagespeed.com/docs/release-notes/#current-release) above and the [2.6](https://modpagespeed.com/docs/release-notes-2-6/), [2.5](https://modpagespeed.com/docs/release-notes-2-5/), [2.4](https://modpagespeed.com/docs/release-notes-2-4/), [2.3](https://modpagespeed.com/docs/release-notes-2-3/), [2.2](https://modpagespeed.com/docs/release-notes-2-2/) and [2.1](https://modpagespeed.com/docs/release-notes-2-1/) pages for the full entries.
+
+**[2.6.0](https://modpagespeed.com/docs/release-notes-2-6/#v2-6-0)** (2026-10-28, module + optimizer worker) — Security update for the module and the optimizer worker, released together: two fixes in the nginx module and two in the Apache module, and an optimizer service that starts after the web server is picked up without a restart. Update recommended.
 
 **[2.5.2](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-2)** (2026-10-22, module + optimizer worker) — Security update for the module and the optimizer worker, released together: the bundled nginx and libpng are updated, and images chosen by the optimizer worker carry the full Vary list. Update recommended.
 
@@ -21428,87 +21449,91 @@ the release entry says so.
 
 | # | Advisory | Impact | Affected | Fixed in | Update |
 | --- | --- | --- | --- | --- | --- |
-| 1 | CVE-2026-15176, CVE-2026-93479 | dependency update, bundled nginx (1.30.6) | the container images up to and including 2.5.0 (bundled nginx before 1.30.6); the per-distribution `nginx-module-pagespeed` packages use the distribution's own nginx | [mod_pagespeed 2.5.2](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-2) | Recommended |
-| 2 | CVE-2026-33636, CVE-2026-33416, CVE-2026-34757 | dependency update, bundled libpng (1.6.58) | the optimizer worker (`pagespeed-optimizer`) up to and including 2.5.1 | [mod_pagespeed 2.5.2](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-2) | Recommended |
-| 3 | none | denial of service and memory exposure, image optimization | the module in releases up to and including 1.19.0 with image optimization enabled, and the optimizer worker up to and including 2.4.0 for crafted images | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 4 | none | resource exhaustion, crafted scripts, stylesheets and fetched resources | the module in releases up to and including 1.19.0, and the optimizer worker up to and including 2.4.0 for JavaScript parsing | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 5 | none | memory safety under concurrent load, cache refresh, fetcher and cache shutdown | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 6 | none | out-of-bounds reads, crafted cache contents | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 7 | none | integrity, disk cache contents and damaged cache files | the module in releases up to and including 1.19.0, the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*` packages up to and including 2.4.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 8 | none | truncated responses cached as complete, nginx module | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 9 | none | cache lifetime longer than the origin allowed, including private responses | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 10 | none | signed resource URLs constructible from the server log | the module in releases up to and including 1.19.0 with URL signing enabled | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 11 | none | weak secrets, measurement proxy password and beacon nonces | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 12 | none | memory corruption, image spriting | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 13 | none | denial of service, statistics admin page | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 14 | none | crashes and truncated responses, IIS module and Windows shared memory | the IIS module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 15 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows, on the product version (2.5.x) | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 16 | — | missing security headers — cached responses, nginx module | the nginx module in the container images and Helm chart, in releases up to and including 2.3.0 | [mod_pagespeed 2.4.0](https://modpagespeed.com/docs/release-notes-2-4/#v2-4-0) | Recommended; cached responses regain the headers as they expire, or purge the cache after upgrading to restore them at once |
-| 17 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
-| 18 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended |
-| 19 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; the next sidecar package (2.5.x) carries a current nginx | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
-| 20 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 21 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 22 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 23 | — | access-restriction bypass — nginx admin, statistics, console and message pages | the nginx module, all releases up to and including 1.16.0, where access to these pages is restricted in the nginx configuration | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; then replace the access rules for these pages with the updated example in every `server` block |
-| 24 | — | information disclosure — per-host admin console | module 1.16.0 with the optimizer worker in use | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 25 | — | cache integrity — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 26 | — | information disclosure — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; flush the PageSpeed cache once after updating |
-| 27 | — | request forgery — admin console | all releases up to and including 1.16.0, where the admin console is reachable beyond loopback | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; scripted purges and some monitoring probes need a change |
-| 28 | — | denial of service — optimizer management API | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, with the management API enabled | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 29 | — | information disclosure — optimizer management API with `--api-read-open` | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, started with `--api-read-open` | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; read-only clients that relied on it beyond the documented read endpoints need the API token |
-| 30 | — | local privilege escalation — Windows | `WeAmp.PageSpeed.AspNetCore` and `WeAmp.PageSpeed.NativeAssets.Windows` 2.0.0 through 2.1.0, and the Windows optimizer worker built from them | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 31 | CVE-2026-19931, CVE-2026-18924, CVE-2026-82209, CVE-2026-80229, CVE-2026-80230, CVE-2026-80231, CVE-2026-80255, CVE-2026-82208, CVE-2026-13608 | dependency update — bundled HTTPS fetch library (curl 8.22.0) | module releases 1.1.0-beta.2 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 32 | CVE-2026-32327, CVE-2026-34191, CVE-2025-49506, CVE-2026-34501, CVE-2026-34502 | dependency update — bundled apr-util | apr-util 1.6.3 and earlier in the bundle; the affected components are not built into or called by any mod_pagespeed release | [module 1.16.0](https://modpagespeed.com/docs/release-notes-2-1/#v1-16-0) | Recommended (no earlier release believed exposed) |
-| 33 | GHSA-29g2-3rmr-qm68 | dependency update — web console | ASP.NET Core packages before 2.0.42; container and Helm deployments before 2.2.0 | [optimizer worker 2.0.42](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-42) · [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 34 | — | denial of service — image decoding | optimizer worker before 2.1.0 | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended |
-| 35 | — | hardening — privilege separation for the optimizer worker | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
-| 36 | — | hardening — management API authentication | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
-| 37 | — | hardening — browser-analysis sandbox | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
-| 38 | — | hardening — system-call allow-list enforcement | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
-| 39 | — | hardening — container and Helm defaults | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
-| 40 | — | dependency update — base image | worker and nginx images before 2.0.41 | [optimizer worker 2.0.41](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-41) | Recommended |
-| 41 | — | cache disclosure — authenticated responses | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-40) | Recommended |
-| 42 | — | cache disclosure — responses the origin later marks non-shareable | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-40) | Recommended |
-| 43 | CVE-2026-42533 | memory safety — bundled nginx | the sidecar package, the container images and the worker and nginx images, before module 1.15.0+r20 / worker 2.0.39 (bundled nginx before 1.30.4) | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) · [optimizer worker 2.0.39](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-39) | Recommended |
-| 44 | — | cross-site scripting — CSS inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 45 | — | cross-site scripting — local-storage cache inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 46 | — | cross-site scripting — inline-image deduplication | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 47 | — | cross-site scripting — inline image preview | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 48 | — | denial of service — image resolution limit | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 49 | — | denial of service — image spriting | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 50 | — | denial of service — JavaScript minifier | all 1.15 releases up to and including r19 | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 51 | — | denial of service — HTML parser | all 1.15 releases up to and including r19 | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 52 | — | content integrity — CSS dependency parsing | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 53 | — | content integrity — HTML character references | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 54 | — | thread safety — HTML parsing (startup race) | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 55 | CVE-2026-50812, CVE-2026-50813 | memory safety — bundled SQLite | worker and nginx images before 2.0.39 | [optimizer worker 2.0.39](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-39) | Recommended |
-| 56 | — | denial of service — image dimension reading | optimizer worker before 2.0.39 | [optimizer worker 2.0.39](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-39) | Recommended |
-| 57 | — | dependency update — runtime images | 2.0.x container images before 2.0.37 | [optimizer worker 2.0.37](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-37) | Recommended |
-| 58 | — | hardening — admin console | — | [optimizer worker 2.0.37](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-37) | Recommended |
-| 59 | — | dependency update — bundled HTTPS fetch library | all releases up to and including 1.15.0+r17 | [module 1.15.0+r18](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
-| 60 | — | hardening — input validation and output escaping | all releases up to and including 1.15.0+r17; the underlying gaps date back to 1.14.36.1 and earlier | [module 1.15.0+r18](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
-| 61 | CVE-2026-42055, CVE-2026-48142 | dependency update — bundled nginx | the ASP.NET Core sidecar, all 1.15 releases up to and including r16 (bundled nginx before 1.30.3) | [module 1.15.0+r17](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
-| 62 | — | memory safety — nginx request handling | all releases up to and including 1.15.0+r16; a defect inherited from the open-source line | [module 1.15.0+r17](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
-| 63 | — | dependency update — runtime image | 2.0.x container images before 2.0.33 | [optimizer worker 2.0.33](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-33) | Recommended |
-| 64 | — | hardening — bundled third-party code (defense in depth) | — | [module 1.15.0+r16](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r16) | Recommended |
-| 65 | — | dependency update — bundled image codecs | optimizer worker before 2.0.32 | [optimizer worker 2.0.32](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-32) | Recommended |
-| 66 | — | hardening — binary hardening of the shipped native library | — | [optimizer worker 2.0.32](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-32) | Recommended |
-| 67 | — | hardening — binary hardening and reduced attack surface | — | [module 1.15.0+r15](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r15) | Recommended |
-| 68 | — | hardening — parser bounds and IIS sub-resource TLS | all releases up to and including 1.15.0+r10 | [module 1.15.0+r11–r14](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended; particularly for IIS deployments |
-| 69 | — | dependency update — admin console | all 1.15 releases up to and including r10 | [module 1.15.0+r11–r14](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended |
-| 70 | — | content integrity — agent-optimized markdown output | optimizer worker before 2.0.30 | [optimizer worker 2.0.30](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-30) | Recommended |
-| 71 | — | dependency update — container images | 2.0.x container images before 2.0.22 | [optimizer worker 2.0.22](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-22) | Recommended |
-| 72 | — | memory safety — IIS module unload | IIS deployments, all releases up to and including 1.15.0+r8 | [module 1.15.0+r9](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r9) | Recommended for IIS deployments |
-| 73 | — | availability — prebuilt nginx module | prebuilt Ubuntu nginx module packages, 1.15.0+r3–r6 | [module 1.15.0+r7–r8](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r7-r8) | Recommended |
-| 74 | — | denial of service — nginx request handling | all 1.1.0 releases up to and including r21; a defect inherited from the open-source line | [module 1.1.0+r22](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
-| 75 | — | hardening — admin-surface access control and sidecar defaults | — | [module 1.1.0+r22](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
-| 76 | — | dependency update — admin console (13 published advisories) | all 1.1.0 releases up to and including r17 | [module 1.1.0+r18–r21](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0-r18-r21) | Recommended |
-| 77 | CVE-2023-4863 | memory safety — bundled libwebp | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 78 | — | memory safety — image processing | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 79 | — | denial of service — untrusted input handling | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 80 | — | dependency update — bundled image codecs and HTTPS fetch library | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 81 | — | hardening — admin surface | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 1 | none | denial of service, admin endpoints, nginx module | the nginx module in releases from 1.15.0 up to and including 2.5.2 | [mod_pagespeed 2.6.0](https://modpagespeed.com/docs/release-notes-2-6/#v2-6-0) | Recommended |
+| 2 | none | request handling, nginx module | the nginx module in releases from 1.5.27 up to and including 2.5.2 | [mod_pagespeed 2.6.0](https://modpagespeed.com/docs/release-notes-2-6/#v2-6-0) | Recommended |
+| 3 | none | exposure of origin data to browsers in some proxy configurations, Apache module | the Apache module in releases from 1.4.26 up to and including 2.5.2 | [mod_pagespeed 2.6.0](https://modpagespeed.com/docs/release-notes-2-6/#v2-6-0) | Recommended |
+| 4 | none | memory safety in some configurations, Apache module | the Apache module in releases from 1.3.25 up to and including 2.5.2 | [mod_pagespeed 2.6.0](https://modpagespeed.com/docs/release-notes-2-6/#v2-6-0) | Recommended |
+| 5 | CVE-2026-15176, CVE-2026-93479 | dependency update, bundled nginx (1.30.6) | the container images up to and including 2.5.0 (bundled nginx before 1.30.6); the per-distribution `nginx-module-pagespeed` packages use the distribution's own nginx | [mod_pagespeed 2.5.2](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-2) | Recommended |
+| 6 | CVE-2026-33636, CVE-2026-33416, CVE-2026-34757 | dependency update, bundled libpng (1.6.58) | the optimizer worker (`pagespeed-optimizer`) up to and including 2.5.1 | [mod_pagespeed 2.5.2](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-2) | Recommended |
+| 7 | none | denial of service and memory exposure, image optimization | the module in releases up to and including 1.19.0 with image optimization enabled, and the optimizer worker up to and including 2.4.0 for crafted images | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 8 | none | resource exhaustion, crafted scripts, stylesheets and fetched resources | the module in releases up to and including 1.19.0, and the optimizer worker up to and including 2.4.0 for JavaScript parsing | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 9 | none | memory safety under concurrent load, cache refresh, fetcher and cache shutdown | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 10 | none | out-of-bounds reads, crafted cache contents | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 11 | none | integrity, disk cache contents and damaged cache files | the module in releases up to and including 1.19.0, the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*` packages up to and including 2.4.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 12 | none | truncated responses cached as complete, nginx module | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 13 | none | cache lifetime longer than the origin allowed, including private responses | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 14 | none | signed resource URLs constructible from the server log | the module in releases up to and including 1.19.0 with URL signing enabled | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 15 | none | weak secrets, measurement proxy password and beacon nonces | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 16 | none | memory corruption, image spriting | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 17 | none | denial of service, statistics admin page | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 18 | none | crashes and truncated responses, IIS module and Windows shared memory | the IIS module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 19 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows, on the product version (2.5.x) | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 20 | — | missing security headers — cached responses, nginx module | the nginx module in the container images and Helm chart, in releases up to and including 2.3.0 | [mod_pagespeed 2.4.0](https://modpagespeed.com/docs/release-notes-2-4/#v2-4-0) | Recommended; cached responses regain the headers as they expire, or purge the cache after upgrading to restore them at once |
+| 21 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
+| 22 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended |
+| 23 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; the next sidecar package (2.5.x) carries a current nginx | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
+| 24 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 25 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 26 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 27 | — | access-restriction bypass — nginx admin, statistics, console and message pages | the nginx module, all releases up to and including 1.16.0, where access to these pages is restricted in the nginx configuration | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; then replace the access rules for these pages with the updated example in every `server` block |
+| 28 | — | information disclosure — per-host admin console | module 1.16.0 with the optimizer worker in use | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 29 | — | cache integrity — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 30 | — | information disclosure — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; flush the PageSpeed cache once after updating |
+| 31 | — | request forgery — admin console | all releases up to and including 1.16.0, where the admin console is reachable beyond loopback | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; scripted purges and some monitoring probes need a change |
+| 32 | — | denial of service — optimizer management API | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, with the management API enabled | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 33 | — | information disclosure — optimizer management API with `--api-read-open` | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, started with `--api-read-open` | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended; read-only clients that relied on it beyond the documented read endpoints need the API token |
+| 34 | — | local privilege escalation — Windows | `WeAmp.PageSpeed.AspNetCore` and `WeAmp.PageSpeed.NativeAssets.Windows` 2.0.0 through 2.1.0, and the Windows optimizer worker built from them | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 35 | CVE-2026-19931, CVE-2026-18924, CVE-2026-82209, CVE-2026-80229, CVE-2026-80230, CVE-2026-80231, CVE-2026-80255, CVE-2026-82208, CVE-2026-13608 | dependency update — bundled HTTPS fetch library (curl 8.22.0) | module releases 1.1.0-beta.2 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 36 | CVE-2026-32327, CVE-2026-34191, CVE-2025-49506, CVE-2026-34501, CVE-2026-34502 | dependency update — bundled apr-util | apr-util 1.6.3 and earlier in the bundle; the affected components are not built into or called by any mod_pagespeed release | [module 1.16.0](https://modpagespeed.com/docs/release-notes-2-1/#v1-16-0) | Recommended (no earlier release believed exposed) |
+| 37 | GHSA-29g2-3rmr-qm68 | dependency update — web console | ASP.NET Core packages before 2.0.42; container and Helm deployments before 2.2.0 | [optimizer worker 2.0.42](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-42) · [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 38 | — | denial of service — image decoding | optimizer worker before 2.1.0 | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended |
+| 39 | — | hardening — privilege separation for the optimizer worker | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
+| 40 | — | hardening — management API authentication | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
+| 41 | — | hardening — browser-analysis sandbox | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
+| 42 | — | hardening — system-call allow-list enforcement | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
+| 43 | — | hardening — container and Helm defaults | — | [mod_pagespeed 2.1.0](https://modpagespeed.com/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1.0) |
+| 44 | — | dependency update — base image | worker and nginx images before 2.0.41 | [optimizer worker 2.0.41](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-41) | Recommended |
+| 45 | — | cache disclosure — authenticated responses | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-40) | Recommended |
+| 46 | — | cache disclosure — responses the origin later marks non-shareable | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-40) | Recommended |
+| 47 | CVE-2026-42533 | memory safety — bundled nginx | the sidecar package, the container images and the worker and nginx images, before module 1.15.0+r20 / worker 2.0.39 (bundled nginx before 1.30.4) | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) · [optimizer worker 2.0.39](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-39) | Recommended |
+| 48 | — | cross-site scripting — CSS inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 49 | — | cross-site scripting — local-storage cache inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 50 | — | cross-site scripting — inline-image deduplication | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 51 | — | cross-site scripting — inline image preview | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 52 | — | denial of service — image resolution limit | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 53 | — | denial of service — image spriting | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 54 | — | denial of service — JavaScript minifier | all 1.15 releases up to and including r19 | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 55 | — | denial of service — HTML parser | all 1.15 releases up to and including r19 | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 56 | — | content integrity — CSS dependency parsing | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 57 | — | content integrity — HTML character references | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 58 | — | thread safety — HTML parsing (startup race) | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 59 | CVE-2026-50812, CVE-2026-50813 | memory safety — bundled SQLite | worker and nginx images before 2.0.39 | [optimizer worker 2.0.39](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-39) | Recommended |
+| 60 | — | denial of service — image dimension reading | optimizer worker before 2.0.39 | [optimizer worker 2.0.39](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-39) | Recommended |
+| 61 | — | dependency update — runtime images | 2.0.x container images before 2.0.37 | [optimizer worker 2.0.37](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-37) | Recommended |
+| 62 | — | hardening — admin console | — | [optimizer worker 2.0.37](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-37) | Recommended |
+| 63 | — | dependency update — bundled HTTPS fetch library | all releases up to and including 1.15.0+r17 | [module 1.15.0+r18](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
+| 64 | — | hardening — input validation and output escaping | all releases up to and including 1.15.0+r17; the underlying gaps date back to 1.14.36.1 and earlier | [module 1.15.0+r18](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
+| 65 | CVE-2026-42055, CVE-2026-48142 | dependency update — bundled nginx | the ASP.NET Core sidecar, all 1.15 releases up to and including r16 (bundled nginx before 1.30.3) | [module 1.15.0+r17](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
+| 66 | — | memory safety — nginx request handling | all releases up to and including 1.15.0+r16; a defect inherited from the open-source line | [module 1.15.0+r17](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
+| 67 | — | dependency update — runtime image | 2.0.x container images before 2.0.33 | [optimizer worker 2.0.33](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-33) | Recommended |
+| 68 | — | hardening — bundled third-party code (defense in depth) | — | [module 1.15.0+r16](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r16) | Recommended |
+| 69 | — | dependency update — bundled image codecs | optimizer worker before 2.0.32 | [optimizer worker 2.0.32](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-32) | Recommended |
+| 70 | — | hardening — binary hardening of the shipped native library | — | [optimizer worker 2.0.32](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-32) | Recommended |
+| 71 | — | hardening — binary hardening and reduced attack surface | — | [module 1.15.0+r15](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r15) | Recommended |
+| 72 | — | hardening — parser bounds and IIS sub-resource TLS | all releases up to and including 1.15.0+r10 | [module 1.15.0+r11–r14](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended; particularly for IIS deployments |
+| 73 | — | dependency update — admin console | all 1.15 releases up to and including r10 | [module 1.15.0+r11–r14](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended |
+| 74 | — | content integrity — agent-optimized markdown output | optimizer worker before 2.0.30 | [optimizer worker 2.0.30](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-30) | Recommended |
+| 75 | — | dependency update — container images | 2.0.x container images before 2.0.22 | [optimizer worker 2.0.22](https://modpagespeed.com/docs/release-notes-2-0/#v2-0-22) | Recommended |
+| 76 | — | memory safety — IIS module unload | IIS deployments, all releases up to and including 1.15.0+r8 | [module 1.15.0+r9](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r9) | Recommended for IIS deployments |
+| 77 | — | availability — prebuilt nginx module | prebuilt Ubuntu nginx module packages, 1.15.0+r3–r6 | [module 1.15.0+r7–r8](https://modpagespeed.com/docs/release-notes-1-15/#v1-15-0-r7-r8) | Recommended |
+| 78 | — | denial of service — nginx request handling | all 1.1.0 releases up to and including r21; a defect inherited from the open-source line | [module 1.1.0+r22](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
+| 79 | — | hardening — admin-surface access control and sidecar defaults | — | [module 1.1.0+r22](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
+| 80 | — | dependency update — admin console (13 published advisories) | all 1.1.0 releases up to and including r17 | [module 1.1.0+r18–r21](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0-r18-r21) | Recommended |
+| 81 | CVE-2023-4863 | memory safety — bundled libwebp | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 82 | — | memory safety — image processing | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 83 | — | denial of service — untrusted input handling | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 84 | — | dependency update — bundled image codecs and HTTPS fetch library | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 85 | — | hardening — admin surface | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](https://modpagespeed.com/docs/release-notes-1-1/#v1-1-0) | Recommended |
 
 Known issue without a fix release: ASP.NET Core console exposure; see the
 [2.4 release notes](https://modpagespeed.com/docs/release-notes-2-4/#v2-4-0) and
@@ -21691,7 +21716,7 @@ mod_pagespeed 2.4.0 release notes: the module and the optimizer worker as one re
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-4/
 
-mod_pagespeed 2.4.0 was released on 2026-10-14 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). The current release is 2.5.2. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
+mod_pagespeed 2.4.0 was released on 2026-10-14 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). The current release is 2.6.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
 ## Releases
 
@@ -21790,7 +21815,7 @@ mod_pagespeed 2.3.0 release notes: the module and the optimizer worker as one re
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-3/
 
-mod_pagespeed 2.3.0 was released on 2026-10-12 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.18.0; 2.3.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.7). The current release is 2.5.2. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
+mod_pagespeed 2.3.0 was released on 2026-10-12 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.18.0; 2.3.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.7). The current release is 2.6.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
 ## Releases
 
@@ -21884,9 +21909,11 @@ mod_pagespeed 2.5 release notes: 2.5.2, a security update for the bundled nginx 
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-5/
 
-mod_pagespeed 2.5.2 is the current release: the module and the optimizer worker, released together on 2026-10-22 and installed as a matching pair. From 2.5.0 on, the packages in the signed apt and yum repositories, the container images, the NuGet packages and the Helm chart's application version all carry the product version. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The 2.5.0 entry is collapsed; open it to read it in place.
+mod_pagespeed 2.5 was released as 2.5.0 on 2026-10-19 and 2.5.2 on 2026-10-22: the module and the optimizer worker together, installed as a matching pair. From 2.5.0 on, the packages in the signed apt and yum repositories, the container images, the NuGet packages and the Helm chart's application version all carry the product version. The newest release is [2.6.0](https://modpagespeed.com/docs/release-notes-2-6/). The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. Both entries are collapsed; open one to read it in place.
 
-**mod_pagespeed 2.5.2** (2026-10-22, module + optimizer worker)
+## Releases
+
+### **2.5.2** (2026-10-22, module + optimizer worker) — Security update for the module and the optimizer worker, released together: the bundled nginx and libpng are updated, and images chosen by the optimizer worker carry the full Vary list. Update recommended.
 
 **mod_pagespeed 2.5.2 is a security update for the module and the optimizer worker, released together and installed as a matching pair. Update recommended.** The packages `mod-pagespeed` (Apache), `nginx-module-pagespeed`, the IIS installer and the cPanel package are all 2.5.2, with `pagespeed-optimizer` 2.5.2; the container images, the NuGet packages and the Helm chart's application version (chart 0.3.11) are 2.5.2 as well. No ASP.NET Core sidecar package (`WeAmp.PageSpeed.Sidecar`, `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`) is published with this release; 1.17.0 remains the latest. There is no module release 2.5.1; the module moves from 2.5.0 to 2.5.2 to pair with pagespeed-optimizer 2.5.2. The optimizer worker 2.5.1 was superseded the same day by 2.5.2, which carries all of its changes; they are listed below.
 
@@ -21922,8 +21949,6 @@ Changed (nginx admin pages): the new snippet is not included anywhere on its own
 
 Purge the cache once after upgrading the module and `pagespeed-optimizer` together: in the console use purge everything, or send `POST /v1/cache/purge` with `{"scope": "all"}` to the management API. Image variants stored by 2.5.0 are otherwise served until they are refreshed, and the optimizer rebuilds them as images are requested again. The cache format is the one 2.5.0 introduced, so nothing else is cleared and no other configuration changes. Behind a shared cache or CDN, also purge the images it holds once, since copies cached before the upgrade still carry `Vary: Accept` alone.
 
-## Earlier releases
-
 ### **2.5.0** (2026-10-19, module + optimizer worker) — Security update for the module and the optimizer worker, released together, and one version number from this release on. Update recommended.
 
 **mod_pagespeed 2.5.0 is a security update for the module and the optimizer worker, released together and installed as a matching pair. Update recommended.** It fixes several classes of security defects: crafted images, scripts, stylesheets or cache contents could make a worker process exit, consume unbounded memory or read memory out of bounds; certain GIF images could expose process memory in optimized output; damaged or stale disk-cache contents could be served; the nginx module could cache a truncated origin response as complete; some origin responses could be cached longer than the origin allowed, including private ones; a server log could contain information that lets someone with log access construct valid signed resource URLs; and the IIS module could abort or crash on certain requests, configuration values or large responses. Memory-safety defects under concurrent load, in Windows shared memory and in the ASP.NET Core sidecar are fixed as well. Affected: the module in releases up to and including 1.19.0 (product 2.4.0); the crafted-image and JavaScript-parsing items also affect the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*` packages up to and including 2.4.0, and each changelog entry says which products it covers.
@@ -21958,7 +21983,7 @@ mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one re
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-2/
 
-mod_pagespeed 2.2.0 was released on 2026-10-06 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). The current release is 2.5.2. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
+mod_pagespeed 2.2.0 was released on 2026-10-06 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). The current release is 2.6.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
 ## Releases
 
@@ -22201,6 +22226,666 @@ Note for embedders: building from the source tarball of a final release works ag
 **Thanks**
 
 Thanks to [@trcyberoptic](https://github.com/trcyberoptic), who contributed the HTTPS fetch, shared-memory and source-build fixes in this release.
+
+---
+
+# Release notes: 2.6
+
+mod_pagespeed 2.6.0 release notes: security fixes for the nginx and Apache modules, and an optimizer service that can start after the web server.
+
+Canonical URL: https://modpagespeed.com/docs/release-notes-2-6/
+
+mod_pagespeed 2.6.0 is the current release: the module and the optimizer worker, released together on 2026-10-28 and installed as a matching pair. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+
+**mod_pagespeed 2.6.0** (2026-10-28, module + optimizer worker)
+
+**Release date:** 2026-10-28
+
+**Status:** Stable
+
+**Packages:** `mod-pagespeed` (Apache), `nginx-module-pagespeed`, the IIS
+installer and the cPanel package, with the matching `pagespeed-optimizer`;
+the container images, the NuGet packages including the ASP.NET Core sidecar
+packages (`WeAmp.PageSpeed.Sidecar`,
+`WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`) and the Helm chart's
+application version carry the same version.
+
+**Highlights**
+
+- **Security: two fixes for the nginx module and two for the Apache module.
+  Update recommended.** See Security below.
+
+- **The module picks up an optimizer service that starts after the web
+  server, without a restart.** IIS and Apache check again every 30 seconds
+  and turn in-place optimization back on once the optimizer answers. nginx
+  checks again at most once every 30 seconds, and only while requests
+  arrive. On IIS, an optimizer service the module cannot use is now
+  reported in the Windows event log, and a worker process crash that could
+  occur while rewriting HTML under load is fixed.
+
+- **More accurate caching headers.** Rewritten HTML names in `Vary` the
+  request headers its markup depends on, an optimized response whose
+  content identity is unknown no longer carries an `ETag` that could confirm
+  a stale copy, and conditional requests to the optimizer cache follow HTTP
+  more closely. Sites that let a CDN or shared cache store rewritten HTML
+  should read Upgrade notes.
+
+- **nginx: `pagespeed` settings in a `location` now apply inside its nested
+  locations and `if` blocks.** If you relied on a nested block escaping the
+  enclosing location's settings, see Upgrade notes.
+
+- **Statistics and ETags no longer make an optimizer outage look healthy.**
+  Responses answered with the stored original are counted in a new
+  `ipro_daemon_served_original` statistic and carry the origin's own ETag;
+  `ipro_daemon_served` counts optimized responses only. If you monitor
+  `ipro_daemon_served`, see Upgrade notes.
+
+- **The `mobilize` and `insert_ga` filters are now no-ops that log a
+  warning.** Existing configurations keep loading. See Deprecations.
+
+- **Building from source: Bazel 8 with bzlmod, and no Java.** The build uses
+  Bazel 8.8.1 with every dependency declared in `MODULE.bazel`; the Closure
+  Compiler is gone, so Java is no longer needed. The experimental Envoy
+  filter builds again, against Envoy 1.40.1. Packages and images need no
+  action.
+
+Affected ranges use package version numbers. Module and optimizer host
+packages 1.16.0 to 1.19.0 shipped with product versions 2.1.0 to 2.4.0;
+2.0.x versions were NuGet-only releases.
+
+**Security**
+
+- nginx: fixed a denial-of-service issue in the admin endpoints. Affected:
+  1.15.0 to 2.5.2. Update recommended.
+- nginx: fixed a request-handling security issue. Affected: 1.5.27 to
+  2.5.2. Update recommended.
+- Apache: fixed an issue that could expose origin data to browsers in some
+  proxy configurations (security fix). Affected: 1.4.26 to 2.5.2. Update
+  recommended.
+- Apache: fixed a memory-safety issue that could be triggered in some
+  configurations (security fix). Affected: 1.3.25 to 2.5.2. Update
+  recommended.
+
+**Changed behaviour**
+
+- **IIS reports an optimizer service it cannot use in the Windows event
+  log.** When a worker process starts with a configured optimizer service it
+  cannot use (the service stopped, `DaemonSocketPath` or `DaemonVolumePath`
+  missing, a missing or outdated client library, a package fault), it serves
+  normally with in-place optimization off and now writes one event-log
+  warning per configuration, whatever `UseEventLog` says. For a stopped
+  service the entry says the module checks again every 30 seconds (an
+  informational entry follows when the service is reattached); for the other
+  causes it names both configured paths and says to correct the cause and
+  recycle the application pool. Each entry names its own cause, and an unset
+  path is shown as `(not set)`. Local requests also carry
+  `X-Pagespeed-Init-Status: daemon-unavailable`, and responses carrying it
+  are never cached. Apache and nginx already logged this in their error log.
+
+- **nginx: `pagespeed` settings in a `location` block now also apply inside
+  its nested locations and its `if` and `limit_except` blocks.** Before, such
+  a nested block ran with the server-level settings only, so pages excluded
+  with `pagespeed off` on the location, or narrowed with `pagespeed Allow`,
+  `pagespeed Disallow`, filter or caching settings, could still be optimized.
+  A nested block that sets no `pagespeed` directives of its own now inherits
+  the enclosing location's settings, as other nginx modules' directives do.
+  See Upgrade notes.
+
+- **Rewritten HTML names the request headers that change it in `Vary`.**
+  With image optimization on, the markup chosen for a page can differ by the
+  browser's image-format support (`Accept`), its data-saver preference
+  (`Save-Data`) and its device (`User-Agent`). Pages rewritten with such
+  optimizations now carry `Vary` naming exactly the headers the configured
+  filters depend on; the value depends only on your configuration, not on
+  the request or on cache state. With the default settings HTML is still
+  served as not cacheable by shared caches, so most sites see no change. If
+  you let a CDN or shared cache store rewritten HTML, this lets a cache that
+  honours Vary keep each variant separate. Update recommended for those
+  sites; see Upgrade notes.
+
+- **A client reload no longer bypasses the optimizer's cached copy of a
+  resource unless you ask for it.** Before, a request with
+  `Cache-Control: no-cache` or `Pragma: no-cache` was sent to the origin
+  instead of being served from the optimizer's cache, while
+  `Cache-Control: max-age=0` never was. Now all of these are served from the
+  cache by default. The new option `DaemonServeHonorRequestFreshness` (per
+  server or site, default off) turns the bypass back on for all three forms,
+  in any letter case. Apache: `ModPagespeedDaemonServeHonorRequestFreshness
+  on`; nginx: `pagespeed DaemonServeHonorRequestFreshness on;`; IIS:
+  `pagespeed DaemonServeHonorRequestFreshness on`. Apache, nginx and IIS
+  with the optimizer.
+
+- **New option `PublicAdminAccess` for an intentionally public admin
+  console.** Process scope, default off. When on, the module logs one
+  informational line instead of the "intended for loopback" warning for
+  admin handlers, and the console's Overview shows "This console is public
+  by configuration" instead of "Admin console reachable from the network".
+  Access control is unchanged. Apache: `ModPagespeedPublicAdminAccess on`;
+  nginx: `pagespeed PublicAdminAccess on;` in the main context.
+
+- **Statistics for responses served from the optimizer's stored original.**
+  With the optimizer service stopped, recorded URLs were answered with the
+  stored original while `ipro_daemon_served` kept climbing and the response
+  carried the `W/"ps-` ETag that marks optimized output. `ipro_daemon_served`
+  now counts optimized variants only; the new `ipro_daemon_served_original`
+  counts responses answered with the stored original, and those carry the
+  origin's own weak ETag. An origin that sent no ETag, or a malformed one,
+  now yields a response with no ETag. Apache, nginx and IIS.
+
+- **`prioritize_critical_images` sends `Vary: Save-Data` consistently.**
+  With Save-Data image qualities in effect, HTML handled by this filter now
+  carries `Vary: Save-Data` whenever the filter and critical-image reporting
+  are enabled. Before, the header appeared only once browsers had reported
+  critical images, so right after a cache purge a shared cache could key the
+  page inconsistently.
+
+- **Messages say "optimizer" instead of "daemon".** Module log and error
+  messages (split cache volume, volume open, socket reachability, in-place
+  serve lines, admin proxy errors) and the admin console's headings, alerts
+  and help text now say "the optimizer" or "the optimizer worker".
+  Directives (`DaemonSocketPath`, `DaemonVolumePath`, ...), statistics, the
+  `/v1/daemon/*` endpoints and their error codes are unchanged. If you match
+  log lines by text, check your patterns.
+
+- **Package descriptions name the product mod_pagespeed.** `apt show` and
+  `dnf info` describe `mod-pagespeed` and `nginx-module-pagespeed` as the
+  mod_pagespeed web page optimization module for Apache httpd and for nginx.
+
+- **The admin console no longer lists `inserted_ga_snippets`.** Only
+  `insert_ga` could increase it, and that filter is now a no-op.
+
+- **Building from source.**
+  - The Bazel build uses Bazel 8.8.1 and is bzlmod only: every dependency is
+    declared in `MODULE.bazel` with a committed `MODULE.bazel.lock`. The
+    `WORKSPACE` files and `scripts/use-envoy-workspace.sh` are removed.
+  - The Closure Compiler is no longer a build dependency; the client scripts
+    are built with a pinned esbuild, so Java is not needed. The shipped
+    scripts behave the same and keep their public names; the
+    deferred-JavaScript script grew by about 8 KB uncompressed and 1 KB
+    gzipped (from about 12 KB to about 20 KB uncompressed, and from about
+    4.2 KB to about 5.2 KB gzipped).
+  - The Envoy filter builds again, against Envoy 1.40.1:
+    `bazel build --config=envoy-filter //pagespeed/envoy:envoy_pagespeed
+    //pagespeed/envoy:pagespeed_filter.so`. It remains experimental and
+    ships in no package.
+  - `pagespeed_libraries.conf` now lives at
+    `install/common/pagespeed_libraries.conf` in the source tree (the old
+    `net/instaweb/genfiles/` tree is removed). The installed file and its
+    location are unchanged; update any script or link that fetched it from
+    the repository.
+  - The Debian and RPM package build scripts now stop with an error when
+    `pagespeed_libraries.conf` is missing, instead of producing a package
+    without it.
+
+**Fixed**
+
+- **IIS and Apache pick up an optimizer service that starts or restarts
+  after the web server, without a restart.** A worker process that started
+  while the service was not running kept in-place optimization off until
+  the application pool was recycled or the server restarted. The module now
+  checks again every 30 seconds and turns in-place optimization back on once
+  the service answers, with one info line. A split cache volume and other
+  configuration or package faults are still final until a restart. Affected:
+  1.16.0 to 2.5.2.
+
+- **nginx picks up an optimizer that starts after nginx, without a
+  reload.** A worker process that started while the optimizer was not
+  running kept in-place optimization off until nginx was reloaded or
+  restarted. While requests arrive, each nginx worker process now checks
+  for the optimizer again at most once every 30 seconds, off the request
+  path, and turns in-place optimization back on once the optimizer answers,
+  with one info line in the error log. A split cache volume and other
+  configuration or package faults remain final until a restart. Affected:
+  1.17.0 to 2.5.2.
+
+- **A web server process can no longer attach to a cache file that another
+  process is discarding.** When the module and the optimizer disagree on the
+  cache layout (for example during an upgrade), a second process starting at
+  the same moment could attach to the file being discarded and run without
+  in-place optimization until it restarted. Opens of the optimizer's cache
+  are now coordinated between the web server's processes. On Windows a small
+  hidden lock file (`.pagespeed-module-open.lock`) appears in the
+  optimizer's cache directory; it is expected and can be left in place.
+  Affected: 1.16.0 to 2.5.2.
+
+- **A changed optimized resource is no longer answered `304 Not Modified`
+  when its origin sends neither `ETag` nor `Last-Modified`.** Its validator
+  was derived from the response length alone, so a new version of the same
+  optimized length could be confirmed as unchanged and the browser kept the
+  old script, stylesheet, image or page. Such a response now carries no
+  `ETag` when its content identity is unknown. Apache, nginx and IIS with the
+  optimizer. Update recommended; no configuration change and no cache purge
+  required. See Upgrade notes. Affected: 1.16.0 to 2.5.2.
+
+- **Conditional requests to resources served from the optimizer cache
+  follow HTTP more closely.** If a request carries both `If-None-Match` and
+  `If-Modified-Since`, only the entity tag is used, as HTTP requires; before,
+  a resource that had changed but kept an older modification date could be
+  answered `304 Not Modified` and the client kept the outdated copy. Entity
+  tags that contain a comma are recognized, so such a resource is
+  revalidated with a `304` instead of being sent in full, and
+  `If-None-Match: *` is answered with `304 Not Modified`. A stored original
+  that is re-recorded while it is being served now goes out with the
+  headers of the copy actually sent. Apache, nginx and IIS with the
+  optimizer. Update recommended. Affected: 1.16.0 to 2.5.2.
+
+- **Optimizer cache entries are now kept apart per site.** The optimizer
+  cache key now includes the site's port. See Upgrade notes. Affected: 1.16.0
+  to 2.5.2.
+
+- **A failed read of a stored original no longer lets an optimized variant
+  through without the origin's headers** (for example
+  `Access-Control-Allow-Origin` or `Vary: Accept`); such a request now goes
+  to the origin, like a cache miss. Apache, nginx and IIS with the
+  optimizer. Affected: 1.16.0 to 2.5.2.
+
+- **Resources whose origin states its lifetime only with `Expires` are
+  served with that lifetime**, not the optimizer's type default (300 seconds
+  for CSS and JavaScript, 3600 seconds for images). An `Expires` already in
+  the past is treated as not freshly cacheable. Apache, nginx and IIS with
+  the optimizer. Affected: 1.16.0 to 2.5.2.
+
+- **Lower request latency on Apache and IIS with the optimizer.** Requests
+  no longer wait on one another to reach the optimizer cache. While the
+  cache is being opened, for example right after a full cache purge, other
+  requests are answered by the origin instead of waiting. Affected: 1.16.0
+  to 2.5.2.
+
+- **Apache: caching headers on rewritten HTML and static resources.**
+  `Cache-Control` and `Expires` set by php-fpm, CGI or `Header always set`
+  are now handled like any other origin header: rewritten HTML no longer
+  carries the origin's `Cache-Control` (with a `max-age` or `s-maxage` a
+  shared cache could honour) next to the module's `max-age=0, no-cache`, and
+  in-place `s-maxage` on a static resource is merged into a single
+  `Cache-Control` header instead of a second one. mod_php setups never
+  had this problem. Affected: 0.9.13 to 2.5.2.
+
+- **Apache with the optimizer: stylesheets and scripts compressed by
+  mod_deflate or mod_brotli are now recorded and optimized.** Before, such
+  responses were refused as content-encoded, so browser traffic never fed
+  the optimizer. The compressor still compresses the response on the way
+  out. Affected: 1.16.0 to 2.5.2.
+
+- **Apache: smaller correctness fixes.**
+  - The module's own 404 responses (unknown `.pagespeed.` resources, missing
+    static assets) now use the site's `ErrorDocument` instead of Apache's
+    built-in error page. The `resource_404_count` and `slurp_404_count`
+    statistics are still counted. Affected: 0.9.1 to 2.5.2.
+  - A proxy request that fails `ModPagespeedProxyAuth` is now rejected with
+    403. Affected: 1.10.33 to 2.5.2.
+  - `<Files>` and `<FilesMatch>` sections now apply to `.pagespeed.` URLs.
+    Affected: 1.1.23 to 2.5.2.
+  - Memory use on long-lived connections no longer grows over time.
+    Affected: 0.10.22 to 2.5.2.
+  - A deprecated filter enabled in `.htaccess` logs its warning once instead
+    of on every request. Affected: 1.15.0 (from revision r20) to
+    2.5.2.
+
+- **IIS: a worker process crash or corrupted response that could occur
+  while rewriting HTML under load is fixed.** Affected: 1.15.0 to 2.5.2.
+  Update recommended.
+
+- **IIS: rewritten HTML keeps the origin's `no-store` and `no-transform`, and
+  `ModifyCachingHeaders off` is honoured for HTML**, as on Apache and nginx.
+  Before, pages marked never-store could land in browser disk and
+  back/forward caches, and HTML that did not go through the classic in-place
+  lookup lost `Expires` and `Last-Modified` despite
+  `ModifyCachingHeaders off`. Affected: 1.15.0 to 2.5.2.
+
+- **IIS: the entity tag travels under its standard `ETag` name.** It was
+  sent as `E-Tag`, so clients did not get a usable validator, and rewritten
+  HTML kept the origin's `ETag` for a body it no longer describes. A `HEAD`
+  request for a resource not in the in-place cache is no longer counted and
+  logged as a failed recording. Affected: 1.15.0 to 2.5.2.
+
+- **IIS: the module can reach an optimizer worker that runs under another
+  account**, for example with the module in an application pool identity
+  and the worker under a service account. Before, every request that needed
+  the optimizer reported `X-Pagespeed-Init-Status: daemon-unavailable`.
+  Affected: 1.17.0 to 2.5.2.
+
+- **IIS: no worker process failure when a site whose module startup failed
+  is recycled or its configuration is fixed** (for example after a missing
+  or unwritable `FileCachePath`); such failures counted towards rapid-fail
+  protection. Editing `pagespeed.config` while the site is serving traffic
+  no longer risks a stalled or failed worker process: the previous
+  configuration is retired in the background once its last request has
+  finished. Affected: 1.15.0 to 2.5.2.
+
+- **Windows: a full cache purge takes effect while IIS or an ASP.NET Core
+  application is serving.** Before, a full purge (`POST /v1/cache/purge`
+  with `"scope": "all"`) could report success without removing anything
+  while the web server had the cache open. The module and the
+  `WeAmp.PageSpeed` package (the ASP.NET Core middleware) now open the cache
+  volume so that a full purge can replace it while open, as on Linux; the
+  web server picks up the empty cache within about a second. If an
+  application with an older module or an older `WeAmp.PageSpeed` package
+  still holds the volume, the purge reports that the cache volume could not
+  be removed instead of success; the cache keeps serving and its generation
+  is not advanced. A failed full purge also no longer risks stopping the
+  optimizer. Other platforms are unchanged. Affected: 1.17.0 to 2.5.2.
+
+- **IIS: requests no longer stall for one second when another module raises
+  a custom notification.** Affected: 1.15.0 to 2.5.2.
+
+- **IIS: native memory no longer grows with every response recorded for
+  in-place optimization.** Affected: 1.15.0 to 2.5.2.
+
+- **nginx: in-place optimization without the optimizer service no longer
+  slows other clients.** Newly seen resources are stored from a
+  background thread, so recording a cache miss no longer adds latency for
+  other clients on the same worker. Under heavy load a recording may be
+  skipped (counted in `ipro_classic_record_dropped`); the resource is
+  recorded on a later request. Affected: 1.7.30 to 2.5.2.
+
+- **nginx: a remote configuration refresh no longer pauses the worker when
+  the native fetcher is in use.** With `RemoteConfigurationUrl` and
+  `UseNativeFetcher on` and the default file cache, requests during a
+  refresh use the local configuration and later requests the refreshed
+  copy. With an external cache (memcached or redis) the module still waits
+  up to `RemoteConfigurationTimeoutMs` and warns about the combination at
+  startup; with the default fetcher a refresh can still delay requests by up
+  to the timeout. Affected: 1.10.33 to 2.5.2.
+
+- **nginx: `nginx -t` no longer creates the file cache's volume files.** A
+  configuration test only validates the configuration, so it no longer takes
+  a minute on a slow disk. Normal startup still creates and checks the
+  volumes. Affected: 1.15.0 to 2.5.2.
+
+- **nginx: admin and request-path fixes.** A request whose scripted option
+  value (`ProcessScriptVariables on`) is invalid is served without
+  optimization instead of having its connection closed, and the
+  message-history endpoint answers its refusals with 405 or 429 instead of
+  200. Affected: 1.9.32 to 2.5.2.
+
+- **nginx: reload and shutdown fixes.** Reloading with
+  `master_process off` no longer crashes (the reload is refused with an
+  error and pagespeed stays off until nginx is restarted), a worker exiting
+  with work outstanding no longer crashes, and the Web Bot Auth key file is
+  rechecked at most every 5 seconds instead of on every signed request.
+  Affected: 1.5.27 to 2.5.2.
+
+- **`resize_rendered_image_dimensions` uses the largest size of an image that
+  appears more than once on a page, as documented.** Before, the first
+  appearance's size was used, so a larger appearance could get a smaller
+  image that the browser scaled up. Affected: 1.9.32 to 2.5.2.
+
+**Action required when upgrading**
+
+- **nginx: check nested `location`, `if` and `limit_except` blocks.** A
+  nested block that sets no `pagespeed` directives now inherits the
+  enclosing location's settings. If you relied on a nested block escaping
+  them (for example to keep optimization on below a location with
+  `pagespeed off`), set the directives in the nested block itself.
+
+- **CDN or shared cache in front of rewritten HTML: expect fewer HTML hits
+  on caches that key on the full `User-Agent`.** Rewritten HTML now carries
+  `Vary: Accept, Save-Data, User-Agent` (with the default `CoreFilters`), or
+  the subset your filters depend on. To keep HTML hit rates high, use
+  `ImagePreserveURLs on` with the optimizer worker installed so images are
+  selected at their own URLs, or normalize these headers at the cache as
+  described in the deployment guide. Sites whose HTML is not stored by a
+  shared cache, the default, see no change.
+
+- **Client reloads and the optimizer cache.** A browser reload
+  (`Cache-Control: no-cache`, `max-age=0` or `Pragma: no-cache`) is now
+  answered from the optimizer's cache. Set
+  `DaemonServeHonorRequestFreshness on` if you want those requests to go to
+  the origin.
+
+- **ETags after the upgrade.** Clients may download some optimized
+  resources once more, because their validators change; resources whose
+  origin sends no validator are revalidated with a full response until the
+  optimizer has processed them again. No configuration change and no cache
+  purge are needed.
+
+- **One host name on several ports: purge the optimizer cache once.** If you
+  serve one host name on several ports (for example `http://example.com/`
+  and `http://example.com:8080/`), purge the optimizer cache once after
+  upgrading, because existing entries may already be mixed between the
+  sites.
+
+- **nginx and an optimizer that starts after nginx.** No reload is needed
+  any more: each nginx worker process checks again at most once every 30
+  seconds while requests arrive and turns in-place optimization back on by
+  itself, logging one info line. A split cache volume or other
+  configuration fault still needs a restart.
+
+- **Apache: `ErrorDocument 404` now applies to the module's own 404s.** If a
+  site has an `ErrorDocument 404`, requests for unknown `.pagespeed.`
+  resources and missing static assets now receive that page.
+
+- **Windows: a lock file in the cache directory.** A small hidden
+  `.pagespeed-module-open.lock` file appears in the optimizer's cache
+  directory; leave it in place.
+
+- **Monitoring `ipro_daemon_served`.** After the upgrade this statistic
+  counts optimized responses only. Add `ipro_daemon_served_original` to
+  dashboards or alerts that used it as a health signal; a rising
+  `ipro_daemon_served_original` with a flat `ipro_daemon_served` means the
+  optimizer is not producing variants.
+
+- **Remove `mobilize`, `insert_ga`, `LogMobilizationSamples`, `AnalyticsID`
+  and `UseAnalyticsJs` from your configuration** to silence the new
+  warnings, and the `ga=` component from experiment specs. If you relied on
+  `insert_ga` for analytics, add your own analytics snippet.
+
+- **Log matching.** Module messages now say "optimizer" where they said
+  "daemon"; update log filters or alerts that match the old text.
+
+- **Shared caches and Save-Data.** Pages handled by
+  `prioritize_critical_images` with Save-Data qualities now always carry
+  `Vary: Save-Data`, so a shared cache keeps a copy per Save-Data value.
+
+- **Building from source:** install Bazel 8.8.1 (or use bazelisk with the
+  repository's `.bazelversion`); scripts that called
+  `scripts/use-envoy-workspace.sh` or relied on `WORKSPACE` need updating.
+  Java is no longer required. If you fetch `pagespeed_libraries.conf` from
+  the repository, use `install/common/pagespeed_libraries.conf`.
+
+**Deprecations**
+
+- **`mobilize` is a no-op.** It had no rewriting behaviour of its own. It can
+  still be named and now logs a warning that it has no effect;
+  `LogMobilizationSamples` is accepted and ignored with a warning. Enabling
+  `mobilize` no longer adds a `head` element to pages without one, and no
+  longer makes the server look up a per-origin property cache page per
+  request.
+- **`insert_ga` is a no-op.** It injected a Universal Analytics tracker, and
+  Universal Analytics was discontinued in July 2023. It can still be named
+  and now logs a warning; `AnalyticsID`, `UseAnalyticsJs` and the `ga=`
+  component of an experiment spec are accepted and ignored with a warning.
+
+**pagespeed-optimizer**
+
+The optimizer worker, the container images and the `WeAmp.PageSpeed` NuGet
+package.
+
+_Added_
+
+- **Software bill of materials, VEX and signed checksums.** Releases of the
+  host packages include an SPDX 2.3 software bill of materials
+  (`pagespeed-optimizer-<version>.spdx.json`) and an OpenVEX file
+  (`pagespeed-optimizer-<version>.vex.json`) listing known vulnerabilities
+  in bundled components that do not affect these packages, with the reason
+  for each; both are listed in `SHA256SUMS`. Each package has a build
+  provenance attestation and an SBOM attestation in the public Sigstore
+  transparency log, and `SHA256SUMS` has a Sigstore signature
+  (`SHA256SUMS.sigstore.json`) next to the existing PGP signature. The
+  existing `gpg` and `sha256sum` check works as before; RELEASING.md lists
+  the `gh attestation verify` and `cosign verify-blob` commands.
+
+_Changed_
+
+- **More browsers get WebP and AVIF.** When a WebP or AVIF image comes out
+  larger than the optimized image in the original format, the optimizer now
+  tries up to two smaller WebP encodes, or one AVIF encode, at the same
+  visual quality target before falling back to the original format; a
+  browser is not sent a larger image than the original-format one. This
+  applies
+  when an image is optimized afresh, not to an image whose original-format
+  copy is already cached, until that copy expires or is purged. `/v1/stats`
+  and the Prometheus metrics report `image_size_refused` and
+  `image_budget_rescued`.
+
+- **The worker's log lines and `--version` output, and the nginx module's
+  load notice, name the product mod_pagespeed.** The version number and
+  build commit are unchanged.
+
+_Fixed_
+
+- **ETags on optimized responses.** An optimized script, stylesheet, image
+  or page whose origin sends neither `ETag` nor `Last-Modified` could be
+  answered `304 Not Modified` after it changed, when the new optimized
+  version had the same size. Optimized responses now carry a validator
+  derived from the source content, and none when no content identity is
+  available, so a stale copy is no longer confirmed as unchanged. Pages,
+  stylesheets and scripts the optimizer leaves unchanged carry an `ETag`
+  again and answer a matching `If-None-Match` with `304 Not Modified`. With
+  the nginx module, a
+  response revalidated with the origin now carries the same `ETag` as a
+  cache hit for the same bytes, so the browser gets a `304` instead of a
+  full response. Update recommended; see Upgrade notes. Affected: 2.0.0 to
+  2.5.2.
+
+- **nginx: a compressed optimized response served right after a 304
+  revalidation keeps its `Content-Encoding`.** Before, a gzip or Brotli
+  response marked `X-PageSpeed: REVALIDATED` could be sent without the
+  header, so clients received compressed bytes labelled as plain content.
+
+- **Proactive image variants: desktop and tablet browsers get the optimized
+  image again.** With the nginx module and
+  `PAGESPEED_PROACTIVE_IMAGE_VARIANTS=true` or `--proactive-image-variants`,
+  since 2.5.1 desktop browsers could be served the original image in its
+  original format for images up to 768 pixels wide, and tablet browsers
+  that accept only JPEG for images up to 480 pixels wide. An affected image
+  is rebuilt the next time a desktop browser requests it; no purge is
+  needed. Affected: 2.5.1 to 2.5.2, only with proactive image variants
+  enabled (off by default).
+
+- **When an origin starts sending `Vary: Accept` for a URL, the optimized
+  copies stored before the change are dropped at the next origin refresh**
+  instead of being served until a purge. Affected: 2.1.0 to 2.5.2.
+
+- **The default worker thread count follows the container's CPU limit.** It
+  is now the smallest of the CPUs the worker may run on and the container's
+  CPU limit (`docker run --cpus`, a Kubernetes CPU limit), between 2 and
+  128; an explicit `--num-threads` still wins. Affected: 2.0.0 to 2.5.2.
+
+- **Recovery of a cache volume that failed to open removes the damaged
+  volume files.** Before, it removed nothing, and the site ran without
+  optimization on every restart until the file was removed by hand. For a
+  permission, symlink or I/O error, or a volume another running process
+  still holds, nothing is deleted: the reason is logged and the worker
+  starts in degraded mode.
+
+- **Windows: a full cache purge replaces the cache volume while a 2.6.0 web
+  server module or `WeAmp.PageSpeed` package has it open.** See "Windows: a
+  full cache purge takes effect while IIS or an ASP.NET Core application is
+  serving" under mod_pagespeed, Fixed. Affected: 2.0.0 to 2.5.2.
+
+- **Windows: the client library and the ASP.NET Core middleware can notify
+  an optimizer worker that runs under another account**, for example an IIS
+  application pool identity with the worker under a service account. Before,
+  the connection failed with access denied. Affected: 2.2.0 to 2.5.2.
+
+- **Configuration updates through `PATCH /v1/config` no longer pause the
+  worker while the settings are saved to disk.** The update still returns
+  once the change is saved; if saving fails, for example because the disk is
+  full, the response carries a warning and the change stays in force until
+  the next restart. Affected: 2.0.0 to 2.5.2.
+
+- **A crashed browser renderer during a screenshot or waterfall capture is
+  reported as 502 Bad Gateway** (`BAD_GATEWAY`) with a message naming the
+  crashed target; 504 is kept for captures that really time out.
+
+- **Smaller fixes.**
+  - With gzip (or brotli) compression turned off, the optimizer no longer
+    recompresses and rewrites the stored copy of an image type it cannot
+    optimize after a restart.
+  - Request headers the nginx module adds for conditional revalidation are
+    handled like every other request header. Affected: 2.0.0 to 2.5.2.
+  - The `--help` text says `--agent-optimize-llms-txt` requires
+    `--agent-optimize`.
+  - C API: `ps_notify_worker` reports an invalid-argument error for a
+    notification it cannot serialize, including a scheme other than `http`
+    or `https`, instead of success; the nginx module does not use this entry
+    point.
+
+_Upgrade notes_
+
+- **ETags change once.** Clients may download some optimized resources once
+  more after the upgrade; resources without any validator are revalidated
+  with a full response until the optimizer has processed them again. No
+  purge is needed.
+- **Worker threads in containers with a CPU limit.** The default thread
+  count may now be lower; set `--num-threads` to keep the previous size.
+- **Windows full purge.** The 2.6.0 web server modules and `WeAmp.PageSpeed`
+  package let a full purge replace the cache volume while the application
+  that uses them has it open. If a full purge reports that the cache volume
+  could not be removed, an application with an older module or an older
+  `WeAmp.PageSpeed` package holds it: update that application, then purge
+  again.
+
+**ASP.NET Core sidecar (`WeAmp.PageSpeed.Sidecar`, `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`)**
+
+The sidecar NuGet packages are published with this release.
+
+- **The sidecar packages now carry the product version.**
+- **Changed: user-visible strings name the product mod_pagespeed.** The
+  NuGet description, the options validator's error for use off Linux and the
+  build warning for an unsupported runtime identifier say mod_pagespeed
+  instead of "ModPageSpeed 2.0".
+- **Fixed: optimized requests keep the client's scheme behind a TLS
+  terminator (Inverse mode).** An inbound `X-Forwarded-Proto` is passed
+  through on a plain-HTTP connection and the request's own scheme is used
+  when it is absent; on HTTPS the real scheme always wins. This ends the
+  redirect loop with `UseHttpsRedirection()` and `http` absolute URLs
+  (canonical links, OAuth redirect URIs, `Location` headers) on optimized
+  requests. Affected: 1.15.0 to 1.17.0.
+- **Fixed: `ExcludePaths` means one thing.** Every entry is a path prefix
+  (`/api/`) or a glob (`/admin/*`, `*.json`; `*` matches any sequence, `?`
+  any single character), and the middleware and the generated nginx
+  configuration exclude exactly the same paths. Before, `*.json` produced an
+  invalid nginx configuration, `/admin/*` also excluded unrelated paths such
+  as `/docs/administration`, and the documented `^/api/` never matched in
+  the middleware. Affected: 1.15.0 to 1.17.0.
+- **Fixed: a stuck `nginx -t` validation is killed and reported** with the
+  elapsed time and the output captured so far, instead of a bare
+  cancellation error and a leftover process. New option
+  `PageSpeed:Sidecar:ConfigValidationTimeoutMs` (default 60 seconds, was a
+  fixed 15 seconds); non-positive values are rejected at startup. The
+  validation also no longer creates cache volume files, so it finishes
+  faster on a slow disk. Affected: 1.15.0 to 1.17.0.
+- **Fixed: a restart that misses its startup deadline is stopped and
+  retried, and shutdown stops a restarting sidecar.** Before, such a restart
+  could leave the sidecar in "restarting" for the life of the app: requests
+  bypassed optimization, health checks reported degraded and shutdown
+  skipped the graceful stop. Each retry counts toward the restart-attempt
+  limit, so a host whose restarts are always slow ends in the failed state
+  instead of a silent bypass. Affected: 1.15.0 to 1.17.0.
+- **Fixed: housekeeping.** Invalid timing options fail at startup, a failed
+  sidecar stops repeating its error, health probes are more reliable, and
+  the per-start socket temp directory is removed on shutdown. Affected: 1.15.0
+  to 1.17.0.
+
+_Sidecar upgrade notes_
+
+- **Action required: check your `ExcludePaths` entries before upgrading.**
+  Regular-expression entries such as `^/api/`, which the option was
+  documented to accept, now fail at startup with a message naming the
+  accepted syntax. Rewrite them as prefixes or globs. A regular expression
+  built only from allowed characters is read as a glob, so `/api/.*` must
+  become `/api/`; a startup warning flags entries containing `.*` or `.+`.
+- **Check the timing options.** `PageSpeed:Sidecar:HealthCheckIntervalMs`,
+  `HealthCheckTimeoutMs` and `ShutdownTimeoutMs` must be positive and at
+  most ten minutes, or the app fails at startup.
+- **Slow hosts: raise `StartupTimeoutMs`** if sidecar restarts regularly
+  miss their startup deadline; such restarts now end in the failed state
+  instead of bypassing optimization silently.
+- **`nginx -t` validation timeout** is configurable through
+  `PageSpeed:Sidecar:ConfigValidationTimeoutMs` (default 60 seconds); the new
+  default only changes behaviour on hosts too loaded to finish validation.
 
 ---
 

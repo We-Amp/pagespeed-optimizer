@@ -1,8 +1,8 @@
 {
   "source": {
     "repo": "https://github.com/We-Amp/mod_pagespeed",
-    "tag": "v2.5.2",
-    "commit": "16cd467a9f269688e8021736830b3d8db2426bfa"
+    "tag": "v2.6.0",
+    "commit": "da5e9a5c91666e10e38a250708726ca3dcb30542"
   },
   "generator": "website/scripts/generate-references.mjs",
   "areas": [
@@ -434,7 +434,7 @@
         "query": false
       },
       "since": null,
-      "description": "Deprecated and ignored: it no longer affects in-place optimization. With the optimizer daemon attached, in-place images are served in the format the request's Accept header selects, with Vary: Accept.",
+      "description": "Deprecated and ignored: it no longer affects in-place optimization. With the optimizer worker attached, in-place images are served in the format the request's Accept header selects, with Vary: Accept.",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "string",
@@ -508,7 +508,7 @@
     {
       "name": "AnalyticsID",
       "kind": "option",
-      "area": "Experiments and analytics",
+      "area": "Deprecated and ignored",
       "platforms": [
         "apache",
         "nginx"
@@ -533,13 +533,13 @@
         "query": false
       },
       "since": null,
-      "description": "Google Analytics ID to use on site.",
+      "description": "Deprecated and ignored (configured the insert_ga filter).",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "string",
       "id": "ig",
       "origin": "rewrite_options",
-      "deprecated": false,
+      "deprecated": true,
       "safeToPrint": true
     },
     {
@@ -1343,7 +1343,7 @@
     {
       "name": "ContentExperimentID",
       "kind": "option",
-      "area": "Experiments and analytics",
+      "area": "Deprecated and ignored",
       "platforms": [
         "apache",
         "nginx"
@@ -1368,19 +1368,19 @@
         "query": false
       },
       "since": null,
-      "description": "Which Google Analytics content experiment to log to.",
+      "description": "Deprecated and ignored (configured the insert_ga filter).",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "string",
       "id": "cxid",
       "origin": "rewrite_options",
-      "deprecated": false,
+      "deprecated": true,
       "safeToPrint": true
     },
     {
       "name": "ContentExperimentVariantID",
       "kind": "option",
-      "area": "Experiments and analytics",
+      "area": "Deprecated and ignored",
       "platforms": [
         "apache",
         "nginx"
@@ -1405,13 +1405,13 @@
         "query": false
       },
       "since": null,
-      "description": "Which Google Analytics content experiment variant to log to.",
+      "description": "Deprecated and ignored (configured the insert_ga filter).",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "string",
       "id": "cxvid",
       "origin": "rewrite_options",
-      "deprecated": false,
+      "deprecated": true,
       "safeToPrint": true
     },
     {
@@ -1871,14 +1871,48 @@
         "query": false
       },
       "since": null,
-      "description": "Path of the optimizer daemon's management API unix socket, backing the /v1/daemon/* admin endpoints. Empty disables them. This is a different socket from DaemonSocketPath (the notification socket).",
+      "description": "Path of the optimizer worker's management API unix socket, backing the /v1/daemon/* admin endpoints. Empty disables them. This is a different socket from DaemonSocketPath (the notification socket).",
       "descriptionSource": "source",
       "descriptionByPlatform": {
-        "nginx": "Set the unix socket path of the optimizer daemon's management API, backing the /v1/daemon/* admin endpoints. Empty disables them."
+        "nginx": "Set the unix socket path of the optimizer worker's management API, backing the /v1/daemon/* admin endpoints. Empty disables them."
       },
       "scope": "server",
       "valueType": "string",
       "id": "dasp",
+      "origin": "apache",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
+      "name": "DaemonServeHonorRequestFreshness",
+      "kind": "option",
+      "area": "Optimizer worker",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedDaemonServeHonorRequestFreshness on|off",
+        "nginx": "pagespeed DaemonServeHonorRequestFreshness on|off;"
+      },
+      "default": "off",
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Let a client's reload headers (Cache-Control: no-cache or max-age=0, or Pragma: no-cache without a Cache-Control) bypass the optimizer daemon's cached copy of a resource, so the origin's own bytes are sent. Default off: a reload is served from the cache.",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": "bool",
+      "id": "dshrf",
       "origin": "apache",
       "deprecated": false,
       "safeToPrint": true
@@ -1908,7 +1942,7 @@
         "query": false
       },
       "since": null,
-      "description": "Serve the optimizer daemon's stored gzip and brotli copies of stylesheets, scripts and SVG images to clients that accept them, labelled with Content-Encoding, instead of compressing the uncompressed copy on the way out. Default off.",
+      "description": "Serve the optimizer worker's stored gzip and brotli copies of stylesheets, scripts and SVG images to clients that accept them, labelled with Content-Encoding, instead of compressing the uncompressed copy on the way out. Default off.",
       "descriptionSource": "source",
       "scope": "server",
       "valueType": "bool",
@@ -1942,10 +1976,10 @@
         "query": false
       },
       "since": null,
-      "description": "Path of the optimizer daemon's notification socket. Set this together with DaemonVolumePath to hand in-place optimization to the daemon; leave both unset to keep the classic in-place path.",
+      "description": "Path of the optimizer worker's notification socket. Set this together with DaemonVolumePath to hand in-place optimization to the worker; leave both unset to keep the classic in-place path.",
       "descriptionSource": "source",
       "descriptionByPlatform": {
-        "nginx": "Path of the optimizer daemon's notification socket. Set this together with DaemonVolumePath; leave both unset to keep the classic in-place path. With both set, the nginx port records through the daemon and serves the optimized copies from its shared cache. See docs/install-nginx.md."
+        "nginx": "Path of the optimizer worker's notification socket. Set this together with DaemonVolumePath; leave both unset to keep the classic in-place path. With both set, the nginx port records through the worker and serves the optimized copies from its shared cache. See docs/install-nginx.md."
       },
       "scope": "server",
       "valueType": "string",
@@ -1979,10 +2013,10 @@
         "query": false
       },
       "since": null,
-      "description": "Path of the optimizer daemon's shared cache volume. Keep this on a DIFFERENT path from FileCachePath. Set this together with DaemonSocketPath; leave both unset to keep the classic in-place path.",
+      "description": "Path of the optimizer worker's shared cache volume. Keep this on a DIFFERENT path from FileCachePath. Set this together with DaemonSocketPath; leave both unset to keep the classic in-place path.",
       "descriptionSource": "source",
       "descriptionByPlatform": {
-        "nginx": "Path of the optimizer daemon's shared cache volume. Keep this on a DIFFERENT path from FileCachePath. Set this together with DaemonSocketPath; leave both unset to keep the classic in-place path. With both set, the nginx port records through the daemon and serves the optimized copies from its shared cache. See docs/install-nginx.md."
+        "nginx": "Path of the optimizer worker's shared cache volume. Keep this on a DIFFERENT path from FileCachePath. Set this together with DaemonSocketPath; leave both unset to keep the classic in-place path. With both set, the nginx port records through the worker and serves the optimized copies from its shared cache. See docs/install-nginx.md."
       },
       "scope": "server",
       "valueType": "string",
@@ -3257,7 +3291,7 @@
         "query": false
       },
       "since": null,
-      "description": "Configuration for one side of an experiment in the form: 'id= ;enabled= ;disabled= ;ga= ;percent= ...'",
+      "description": "Configuration for one side of an experiment in the form: 'id= ;enabled= ;disabled= ;ga= ;percent= ...' The 'ga=' component is accepted for compatibility and ignored.",
       "descriptionSource": "source",
       "scope": "directory",
       "scopeNginx": "directory",
@@ -3270,7 +3304,7 @@
     {
       "name": "ExperimentVariable",
       "kind": "directive",
-      "area": "Experiments and analytics",
+      "area": "Deprecated and ignored",
       "platforms": [
         "apache",
         "nginx"
@@ -3295,7 +3329,7 @@
         "query": false
       },
       "since": null,
-      "description": "Specify the custom variable slot with which to run experiments.Defaults to 1.",
+      "description": "Deprecated and ignored (configured the insert_ga filter).",
       "descriptionSource": "source",
       "scope": "directory",
       "scopeNginx": "directory",
@@ -4963,7 +4997,7 @@
     {
       "name": "IncreaseSpeedTracking",
       "kind": "option",
-      "area": "Experiments and analytics",
+      "area": "Deprecated and ignored",
       "platforms": [
         "apache",
         "nginx"
@@ -4988,13 +5022,13 @@
         "query": false
       },
       "since": null,
-      "description": "Increase the percentage of sites that have Google Analytics page speed tracking",
+      "description": "Deprecated and ignored (configured the insert_ga filter).",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "bool",
       "id": "st",
       "origin": "rewrite_options",
-      "deprecated": false,
+      "deprecated": true,
       "safeToPrint": true
     },
     {
@@ -6178,7 +6212,7 @@
     {
       "name": "LogMobilizationSamples",
       "kind": "option",
-      "area": "Statistics, console and logging",
+      "area": "Deprecated and ignored",
       "platforms": [
         "apache",
         "nginx"
@@ -6203,13 +6237,13 @@
         "query": false
       },
       "since": null,
-      "description": "Verbose debugging of all sample data generated by mobilization_label_filter.",
+      "description": "Deprecated and ignored (configured the mobilize filter).",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "bool",
       "id": "lms",
       "origin": "rewrite_options",
-      "deprecated": false,
+      "deprecated": true,
       "safeToPrint": false
     },
     {
@@ -7281,7 +7315,7 @@
         "query": false
       },
       "since": null,
-      "description": "Set to false to disallow mod_pagespeed from editing HTML Cache-Control headers. This is not safe in general and can cause the incorrect versions of HTML to be served to users.",
+      "description": "Set to false to disallow mod_pagespeed from editing HTML Cache-Control headers. This is not safe in general and can cause the incorrect versions of HTML to be served to users. Rewritten HTML names the request headers its image URLs depend on (Accept, Save-Data, User-Agent) in Vary even when this is off, so a shared cache that honours Vary keeps the variants apart; caches that ignore Vary need their own cache key or a bypass for HTML.",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "bool",
@@ -7833,7 +7867,7 @@
         "query": false
       },
       "since": null,
-      "description": "Deprecated and ignored: in-place optimized resources are no longer downgraded to Cache-Control: private for Internet Explorer. With the optimizer daemon attached, in-place images vary by the request's Accept header and carry Vary: Accept.",
+      "description": "Deprecated and ignored: in-place optimized resources are no longer downgraded to Cache-Control: private for Internet Explorer. With the optimizer worker attached, in-place images vary by the request's Accept header and carry Vary: Accept.",
       "descriptionSource": "source",
       "scope": "directory",
       "valueType": "bool",
@@ -8040,6 +8074,38 @@
       "origin": "rewrite_options",
       "deprecated": false,
       "safeToPrint": null
+    },
+    {
+      "name": "PublicAdminAccess",
+      "kind": "option",
+      "area": "Threads and limits",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedPublicAdminAccess on|off",
+        "nginx": "pagespeed PublicAdminAccess on|off;"
+      },
+      "default": "off",
+      "context": {
+        "apache": [
+          "server config"
+        ],
+        "nginx": [
+          "http"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "OPT-IN, default off. Declares that the admin pages are reachable from the network on purpose. When on, the loopback warning for admin handlers is replaced by one informational line, and the console shows an informational finding instead of the exposure warning. Access control is unchanged.",
+      "descriptionSource": "source",
+      "scope": "process",
+      "valueType": "bool",
+      "id": "paa",
+      "origin": "system",
+      "deprecated": false,
+      "safeToPrint": false
     },
     {
       "name": "PubliclyCacheMismatchedHashesExperimental",
@@ -10496,7 +10562,7 @@
     {
       "name": "UseAnalyticsJs",
       "kind": "option",
-      "area": "JavaScript",
+      "area": "Deprecated and ignored",
       "platforms": [
         "apache",
         "nginx"
@@ -10521,13 +10587,13 @@
         "query": true
       },
       "since": null,
-      "description": "Log to analytics.js instead of ga.js with insert_ga.",
+      "description": "Deprecated and ignored (configured the insert_ga filter).",
       "descriptionSource": "source",
       "scope": "query",
       "valueType": "bool",
       "id": "uajs",
       "origin": "rewrite_options",
-      "deprecated": false,
+      "deprecated": true,
       "safeToPrint": true
     },
     {
