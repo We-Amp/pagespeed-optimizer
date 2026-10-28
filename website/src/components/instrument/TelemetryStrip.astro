@@ -30,6 +30,12 @@
 // ("captured 2026-10-08", 19ch, vs "this view · live", 16ch, vs the non-2xx
 // form "this view · HTTP 405", 20ch), so the live upgrade never moves the
 // fields sideways.
+//
+// The vary value is three headers ("Save-Data,Accept-Encoding,User-Agent",
+// 36 glyphs), so its field reserves 45ch. At 1280px the row only holds the
+// five fields plus the link when each reserve stays close to its measured
+// need, so the other four reserves (23, 13, 17.5 and 11ch) follow the same
+// method; the flex row absorbs the remaining few pixels.
 
 import { formatBytes } from '../../lib/instrument';
 import capture from '../../data/telemetry-capture.json';
@@ -65,7 +71,7 @@ const fields = [
   {
     term: 'x-mod-pagespeed:',
     value: header('x-mod-pagespeed'),
-    width: '28ch',
+    width: '23ch',
     wide: false,
     mid: false,
     t: 'xmps',
@@ -73,7 +79,7 @@ const fields = [
   {
     term: 'wire',
     value: entry ? formatBytes(entry.wireBytes) : '—',
-    width: '14ch',
+    width: '13ch',
     wide: false,
     mid: true,
     t: 'wire',
@@ -81,16 +87,16 @@ const fields = [
   {
     term: 'decoded',
     value: entry ? formatBytes(entry.decodedBytes) : '—',
-    width: '18.5ch',
+    width: '17.5ch',
     wide: true,
     mid: false,
     t: 'decoded',
   },
-  { term: 'vary:', value: header('vary'), width: '35.5ch', wide: true, mid: false, t: 'vary' },
+  { term: 'vary:', value: header('vary'), width: '45ch', wide: true, mid: false, t: 'vary' },
   {
     term: 'ttfb',
     value: entry?.ttfbMs != null ? `${entry.ttfbMs} ms` : '—',
-    width: '12ch',
+    width: '11ch',
     wide: true,
     mid: false,
     t: 'ttfb',
