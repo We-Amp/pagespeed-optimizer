@@ -2685,6 +2685,51 @@ TEST(CriticalCssExtractorTest, StandaloneSupportsBlock) {
   EXPECT_EQ(result.critical_css.find("unknown-class"), std::string::npos);
 }
 
+TEST(CriticalCssExtractorTest, MinifiedSupportsBoundaryKeepsAboveFoldRules) {
+  CriticalCssExtractor extractor;
+  std::vector<CollectedElement> elements;
+  elements.push_back(MakeElement("div", 0, 0));
+
+  const std::string css =
+      "@supports(display:grid){div{display:grid}.unknown-class{color:blue}}";
+
+  auto result = extractor.Extract(elements, css);
+  EXPECT_TRUE(result.success);
+  EXPECT_NE(result.critical_css.find("@supports(display:grid)"),
+            std::string::npos);
+  EXPECT_NE(result.critical_css.find("display:grid"), std::string::npos);
+  EXPECT_EQ(result.critical_css.find("unknown-class"), std::string::npos);
+}
+
+TEST(CriticalCssExtractorTest, MinifiedLayerBoundaryKeepsAboveFoldRules) {
+  CriticalCssExtractor extractor;
+  std::vector<CollectedElement> elements;
+  elements.push_back(MakeElement("div", 0, 0));
+
+  const std::string css =
+      "@layer(x){div{margin:0}.unknown-class{color:blue}}";
+
+  auto result = extractor.Extract(elements, css);
+  EXPECT_TRUE(result.success);
+  EXPECT_NE(result.critical_css.find("@layer(x)"), std::string::npos);
+  EXPECT_NE(result.critical_css.find("margin:0"), std::string::npos);
+  EXPECT_EQ(result.critical_css.find("unknown-class"), std::string::npos);
+}
+
+TEST(CriticalCssExtractorTest, SpacedSupportsFormUnchanged) {
+  CriticalCssExtractor extractor;
+  std::vector<CollectedElement> elements;
+  elements.push_back(MakeElement("div", 0, 0));
+
+  // Spaced form still filters its inner rules.
+  auto spaced = extractor.Extract(
+      elements, "@supports (display:grid){div{display:grid}.unused{color:red}}");
+  EXPECT_TRUE(spaced.success);
+  EXPECT_NE(spaced.critical_css.find("display:grid"), std::string::npos);
+  EXPECT_EQ(spaced.critical_css.find("unused"), std::string::npos);
+
+}
+
 TEST(CriticalCssExtractorTest, AnonymousLayerBlock) {
   CriticalCssExtractor extractor;
   std::vector<CollectedElement> elements;
