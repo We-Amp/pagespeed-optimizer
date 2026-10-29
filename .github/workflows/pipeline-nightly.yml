@@ -2322,7 +2322,7 @@ jobs:
   # The pin is 335c9f2d, the first commit of this repository's history that
   # carries the comparator: its css_token_stream.h and css_phases.h are
   # byte-identical to the previously ratified revision (the files that define
-  # the verdicts), and it is an ancestor of main. Dispatching the nightly caller runs the whole nightly beside this lane.
+  # the verdicts), and it is an ancestor of main. A nightly dispatch with css_fuzz_shadow set runs the whole nightly beside this lane.
   # The fleet guard of a fleet job is pinned verbatim by the workflow-shape
   # gate, so the css_fuzz_shadow switch is a hosted gate job: it runs (no
   # work, no fleet slot) only on a dispatch that sets the input, and the
