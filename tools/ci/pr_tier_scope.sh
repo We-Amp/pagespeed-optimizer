@@ -22,8 +22,8 @@
 #
 # The push rule: a push whose commit the merge queue already proved (a
 # completed, successful check suite of GitHub Actions on a gh-readonly-queue/
-# branch for the same SHA, and the pull request of every commit in the push,
-# looked up by the last "(#N)" of its subject, is same-repo and not from
+# branch for the same SHA, and the pull request of every commit of the queue
+# group, looked up by the last "(#N)" of its subject, is same-repo and not from
 # dependabot[bot])
 # skips the fleet jobs, unless the push changes the pipeline itself. A group
 # with a fork or Dependabot pull request ran on hosted runners, so it is not
@@ -108,19 +108,21 @@ pr_status() {
   fi
 }
 
-# pr_trusted <base>: prints true, false or error for the whole queue group.
-# <base> is the group's base commit, taken from the proof suite's branch
-# (gh-readonly-queue/<default>/pr-N-<base>). Every commit in <base>..SHA (a
-# merge group lands up to 3 entries) must map, by the last "(#N)" of its
-# subject, to a trusted pull request: the proof ran the whole group, so a push
-# range shorter than the group would hide an untrusted entry that merged in an
-# earlier push. A queue check suite alone is not proof for a fork or Dependabot
-# group, which ran on hosted runners. Anything unknown (BEFORE_SHA missing,
-# all-zero, not an ancestor of SHA; <base> not an ancestor of SHA; an empty or
-# unreadable range; a merge commit; more than 3 commits; a subject without a
-# number; a failed lookup) is error, which runs the full tier.
+# pr_trusted: prints true, false or error for the push. The proof is the
+# queue group's check suite, and the group is every commit between the default
+# branch and the group head. A stacked group's base is the previous entry's
+# queue commit, so the group cannot be read from the suite's branch name.
+# Instead the pull requests of the union of BEFORE_SHA..SHA and the last 3
+# first-parent commits ending at SHA (a group builds at most 3 entries) must all
+# be trusted: same-repo and not authored by dependabot[bot], each commit mapped
+# by the last "(#N)" of its subject. A queue check suite alone is not proof for
+# a fork or Dependabot group, which ran on hosted runners. Anything unknown
+# (BEFORE_SHA missing, all-zero, unreachable or not an ancestor of SHA; an
+# empty or unreadable range; a merge commit; more than 3 commits in
+# BEFORE_SHA..SHA; a subject without a number; a failed lookup) is error, which
+# runs the full tier.
 pr_trusted() {
-  local base="$1" shas sha subject n nums="" count=0 st result=true
+  local push_shas window shas sha subject n nums="" count=0 st result=true
   case "${BEFORE_SHA:-}" in
     ""|*[!0]*) ;;
     *) echo error; return ;;
@@ -128,17 +130,17 @@ pr_trusted() {
   [ -n "${BEFORE_SHA:-}" ] || { echo error; return; }
   git rev-parse -q --verify "${BEFORE_SHA}^{commit}" >/dev/null 2>&1 || { echo error; return; }
   git merge-base --is-ancestor "${BEFORE_SHA}" "${SHA:-HEAD}" 2>/dev/null || { echo error; return; }
-  git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 || { echo error; return; }
-  git merge-base --is-ancestor "${base}" "${SHA:-HEAD}" 2>/dev/null || { echo error; return; }
-  shas="$(git rev-list "${base}..${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
-  [ -n "${shas}" ] || { echo error; return; }
-  [ -z "$(git rev-list --min-parents=2 "${base}..${SHA:-HEAD}" 2>/dev/null)" ] || { echo error; return; }
-  for sha in ${shas}; do
+  push_shas="$(git rev-list "${BEFORE_SHA}..${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
+  [ -n "${push_shas}" ] || { echo error; return; }
+  window="$(git rev-list --first-parent -n 3 "${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
+  [ -n "${window}" ] || { echo error; return; }
+  for sha in ${push_shas}; do
     count=$((count + 1))
-    if [ "${count}" -gt 3 ]; then
-      echo error
-      return
-    fi
+  done
+  [ "${count}" -le 3 ] || { echo error; return; }
+  shas="$(printf '%s\n%s\n' "${push_shas}" "${window}" | sort -u)"
+  for sha in ${shas}; do
+    [ "$(git rev-list --no-walk --min-parents=2 "${sha}" 2>/dev/null | wc -l | tr -dc '0-9')" = 0 ] || { echo error; return; }
     subject="$(git log -1 --format=%s "${sha}" 2>/dev/null)" || { echo error; return; }
     n="$(printf '%s\n' "${subject}" | grep -oE '\(#[0-9]+\)' | tail -n 1 | tr -dc '0-9' || true)"
     [ -n "${n}" ] || { echo error; return; }
@@ -153,26 +155,6 @@ pr_trusted() {
     esac
   done
   echo "${result}"
-}
-
-# proof_from_branches <"none" | space-separated suite branches>: prints true,
-# false or error. The group's base commit is the last "-"-separated part of a
-# branch gh-readonly-queue/<default>/pr-N-<base>; it must be a full commit id,
-# and all suites must agree on it.
-proof_from_branches() {
-  local b base bases=""
-  [ "$1" != none ] || { echo false; return; }
-  for b in $1; do
-    base="${b##*-}"
-    case "${base}" in
-      *[!0-9a-f]*) echo error; return ;;
-    esac
-    [ "${#base}" = 40 ] || { echo error; return; }
-    case " ${bases} " in *" ${base} "*) ;; *) bases="${bases} ${base}" ;; esac
-  done
-  set -- ${bases}
-  [ "$#" = 1 ] || { echo error; return; }
-  pr_trusted "$1"
 }
 
 # queue_proof: prints true, false or error.
@@ -190,9 +172,13 @@ queue_proof() {
         [ (.check_suites? // [])[]?
           | select(((.head_branch // "") | startswith("gh-readonly-queue/"))
                    and .status == "completed" and .conclusion == "success")
-          | .head_branch ] | unique | if length == 0 then "none" else join(" ") end' 2>/dev/null)" &&
-      [ -n "${result}" ]; then
-      proof_from_branches "${result}"
+          | .head_branch ] | if length == 0 then "none" else "some" end' 2>/dev/null)" &&
+      { [ "${result}" = none ] || [ "${result}" = some ]; }; then
+      if [ "${result}" = some ]; then
+        pr_trusted
+      else
+        echo false
+      fi
       return
     fi
     if [ "${tries}" -ge 3 ]; then

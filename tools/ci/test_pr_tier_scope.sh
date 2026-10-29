@@ -57,7 +57,7 @@ make_repo() {
   git init -q "${REPO}"
   git -C "${REPO}" config user.email t@example.invalid
   git -C "${REPO}" config user.name t
-  git -C "${REPO}" commit -q --allow-empty -m "root"
+  git -C "${REPO}" commit -q --allow-empty -m "root (#1)"
   DEF_BEFORE="$(git -C "${REPO}" rev-parse HEAD)"
   if [ $# -gt 0 ]; then
     mkdir -p "${REPO}/$(dirname "$1")"
@@ -359,29 +359,25 @@ CUR=push-range-commit-without-number-runs
 run_scope CI_SCOPE=push
 check "${CUR}" true "proof=error"
 
-# Group base: the proof covers the whole group (base..SHA), not just the push.
+# Group window: a stacked group's base is the previous entry's commit, so the
+# proof is checked against the last 3 first-parent commits as well as the push.
 make_repo
-ROOT_SHA="${DEF_BEFORE}"
 add_commit src/a.cc "fork change (#551)"
-FORK_SHA="${SHA_VAL}"
-add_commit src/b.cc "same-repo change (#12)"
-CUR=push-group-base-before-push-with-fork-runs
-run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" FAKE_BASE="${ROOT_SHA}" "FAKE_PULL_551=true${TAB}someone${TAB}someone/example"
+add_commit src/b.cc "second (#12)"
+add_commit src/c.cc "tip (#13)"
+TIP_PARENT="$(git -C "${REPO}" rev-parse HEAD~1)"
+CUR=push-window-fork-two-below-tip-runs
+run_scope CI_SCOPE=push BEFORE_SHA="${TIP_PARENT}" "FAKE_PULL_551=true${TAB}someone${TAB}someone/example"
 check "${CUR}" true "proof=false"
-CUR=push-group-base-after-fork-skips
-run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" FAKE_BASE="${FORK_SHA}"
+CUR=push-window-three-trusted-skips
+run_scope CI_SCOPE=push BEFORE_SHA="${TIP_PARENT}"
 check "${CUR}" false "reason=queue proof"
-CUR=push-group-base-not-ancestor-runs
-run_scope CI_SCOPE=push FAKE_BASE=2222222222222222222222222222222222222222
-check "${CUR}" true "proof=error"
-CUR=push-group-base-unparseable-runs
-run_scope CI_SCOPE=push FAKE_BASE=abc
-check "${CUR}" true "proof=error"
-CUR=push-group-suites-disagree-runs
-run_scope CI_SCOPE=push FAKE_GH_BODY="$(body "$(suite gh-readonly-queue/master/pr-12-@BASE@ completed '"success"')" "$(suite gh-readonly-queue/master/pr-13-${FORK_SHA} completed '"success"')")"
-check "${CUR}" true "proof=error"
+CUR=push-window-ignores-suite-branch-base
+run_scope CI_SCOPE=push BEFORE_SHA="${TIP_PARENT}" FAKE_BASE=abc "FAKE_PULL_551=true${TAB}someone${TAB}someone/example"
+check "${CUR}" true "proof=false"
+FORK_SHA="$(git -C "${REPO}" rev-parse HEAD~2)"
 CUR=push-before-not-ancestor-runs
-run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" FAKE_BASE="${ROOT_SHA}" SHA="${ROOT_SHA}"
+run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" SHA="${ROOT_SHA:-${DEF_BEFORE}}"
 check "${CUR}" true "would_skip=false"
 
 if [ "${FAILS}" -ne 0 ]; then

@@ -487,7 +487,10 @@ jobs:
       # A merge group that holds a fork or Dependabot pull request runs on
       # GitHub-hosted runners; any other merge group runs on the fleet. The
       # classifier (exit 0 trusted, 3 untrusted, anything else refused) is
-      # read from the default branch, never from the queued tree. Fleet jobs
+      # read from the default branch, never from the queued tree. The group is
+      # every commit between a freshly fetched default branch and the group head
+      # (a stacked group's base_sha is the previous entry's commit, so it is not
+      # the range base). Fleet jobs
       # read the result from this job's `route` output, directly.
       - name: Classify the merge group
         id: queue
@@ -500,8 +503,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          git rev-parse -q --verify "origin/${DEFAULT_BRANCH}^{commit}" >/dev/null ||
-            git fetch --no-tags --depth=1 origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+          git fetch --no-tags origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
           git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" > "${RUNNER_TEMP}/qfg.sh"
           rc=0; bash "${RUNNER_TEMP}/qfg.sh" || rc=$?
           case "${rc}" in 0) echo route=fleet;; 3) echo route=hosted;; *) exit 1;; esac >> "$GITHUB_OUTPUT"
