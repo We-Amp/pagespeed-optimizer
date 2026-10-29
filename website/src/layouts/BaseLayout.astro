@@ -1258,7 +1258,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
     </div>
-    <footer class="border-t border-border bg-bg-secondary">
+    <footer data-site-footer class="border-t border-border bg-bg-secondary">
       <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
         <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-8 xl:gap-7">
           <div class="col-span-2 sm:col-span-3 lg:col-span-1">
@@ -1480,7 +1480,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             }
             /* Hide it while the footer is on screen so it never covers the
                provenance line. */
-            var footer = document.querySelector('footer');
+            var footer = document.querySelector('[data-site-footer]');
             if (footer && 'IntersectionObserver' in window) {
               new IntersectionObserver(function (entries) {
                 footerInView = entries[0].isIntersecting;
