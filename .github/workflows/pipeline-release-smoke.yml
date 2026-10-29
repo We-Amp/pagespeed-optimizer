@@ -1099,6 +1099,26 @@ jobs:
             exit 1
           fi
 
+      # The bundled nginx links PCRE (libpcre.so.3), which a consumer host
+      # provides and the hosted images no longer ship; install it only when
+      # the published nginx has an unresolved library (same step as the
+      # NuGet lane's test job).
+      - name: Install the PCRE runtime the bundled nginx needs
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUB="$SMOKE_ROOT/publish"
+          NGINX="$PUB/nginx"
+          [ -f "$NGINX" ] || NGINX="$PUB/runtimes/${{ matrix.rid }}/native/nginx"
+          if ldd "$NGINX" | grep -q 'not found'; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq --no-install-recommends libpcre3 >/dev/null
+          fi
+          if ldd "$NGINX" | grep 'not found'; then
+            echo "::error::the bundled nginx has unresolved libraries on this runner" >&2
+            exit 1
+          fi
+
       - name: Start the app with the bundled nginx
         shell: bash
         run: |

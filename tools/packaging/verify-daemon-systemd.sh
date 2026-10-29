@@ -240,6 +240,25 @@ wait_for_api() {
   done
   return 1
 }
+# After a restart the API answers before Chrome is up.  Wait (bounded, 30 s)
+# until /v1/health reports the browser running with no consecutive failures,
+# so the first render does not race the browser start.  Always returns 0 so
+# the checks that follow report the real state.
+wait_for_browser() {
+  local up
+  for _ in $(seq 1 60); do
+    up="$(api_get /v1/health | python3 -c '
+import json,sys
+try:
+    b=json.load(sys.stdin).get("browser",{})
+    print(1 if b.get("chrome_running") and not b.get("chrome_consecutive_failures") else 0)
+except Exception:
+    print(0)' 2>/dev/null || true)"
+    [[ "$up" == 1 ]] && return 0
+    sleep 0.5
+  done
+  return 0
+}
 
 echo "=== $(. /etc/os-release && echo "$PRETTY_NAME") -- booted systemd $(systemctl --version | head -1) ==="
 
@@ -1007,6 +1026,7 @@ EOF
   browser_half() { # label -> sets B_HEALTH B_RENDER B_EXITED B_SIGSYS B_KILLS
     restart_and_wait || true
     wait_for_api || true
+    wait_for_browser
     local t0; t0="$(date '+%Y-%m-%d %H:%M:%S')"
     local k0; k0="$(chrome_kills)"
     check "$1: service is active" "active" "$(systemctl is-active "$PKG.service")"
@@ -1074,6 +1094,7 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
         systemctl reload-or-restart "$PKG.service" 2>/dev/null || true
         restart_and_wait || true
         wait_for_api || true
+        wait_for_browser
         sleep 5
       fi
     done
