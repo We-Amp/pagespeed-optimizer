@@ -785,9 +785,9 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       )
     }
     <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
-      <nav class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+      <nav class="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         <div class="flex h-16 items-center justify-between">
-          <a href="/" class="flex items-center" aria-label={`${currentLabel} — Home`}>
+          <a href="/" class="flex xl:shrink-0 items-center" aria-label={`${currentLabel} — Home`}>
             <img
               src={logoLight}
               alt={currentLabel}
@@ -871,7 +871,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                     data-umami-event={link.umamiEvent}
                     aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
                     class:list={[
-                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5 whitespace-nowrap',
+                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5 xl:whitespace-nowrap',
                       link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : 'inline-flex',
                       currentPath.startsWith(link.href!)
                         ? 'text-interactive nav-item-active'
@@ -905,7 +905,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             </button>
             <a
               href="https://github.com/sponsors/We-Amp"
-              rel="noopener noreferrer"
+              rel="noopener"
               aria-label="Sponsor We-Amp on GitHub"
               data-umami-event="cta_sponsor_nav"
               class="hidden xl:inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border px-2.5 py-1 text-sm font-medium text-text-muted transition-colors hover:text-text-body hover:border-text-annotation"
@@ -1057,7 +1057,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           }
           <a
             href="https://github.com/sponsors/We-Amp"
-            rel="noopener noreferrer"
+            rel="noopener"
             data-umami-event="cta_sponsor_nav_mobile"
             class="flex items-center gap-2 py-3 text-sm font-medium text-text-muted hover:text-text-body"
           >
@@ -1144,7 +1144,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             </div>
             <a
               href="https://github.com/sponsors/We-Amp"
-              rel="noopener noreferrer"
+              rel="noopener"
               aria-label="Sponsor We-Amp on GitHub"
               data-umami-event="cta_sponsor"
               class="mt-4 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-muted transition-colors hover:text-text-body hover:border-text-annotation"
