@@ -535,8 +535,11 @@ this text.
 
 These in-tree guards bind runs whose caller workflow is unmodified: a queued
 tree controls its own caller `ci.yml`, so maintainers review `.github/` changes
-before queueing. Maintainers do not queue a fork pull request that changes
-`.github/` or `tools/ci/`; such changes are re-landed from a branch. What keeps
+before queueing. Contributors cannot add their own pull requests to the merge
+queue. A maintainer reads the full diff of a pull request from a fork,
+including any `.github/` or `tools/ci/` changes, before adding it to the queue;
+fork pull requests that change those paths are re-landed from a branch
+instead. What keeps
 a fork pull request's code off the shared build runners is the runner group
 that serves them, which accepts only the pipeline workflows at the default
 branch (and `ci-dev`), together with the classifier in the default branch's
