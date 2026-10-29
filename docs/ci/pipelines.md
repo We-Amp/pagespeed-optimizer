@@ -480,7 +480,7 @@ through the queue.
 The classifier refuses (exit `1`, the job fails, `CI gate` goes red) when it
 cannot decide: a pull request has lost its head repository, the fork flag is
 unreadable, the range is empty, a commit subject has no `(#N)`, the `head_ref`
-cannot be parsed, or a lookup still fails after the last try. It also refuses
+cannot be parsed, a pull request is not open (one in a merge group always is), or a lookup still fails after the last try. It also refuses
 a fork pull request (not a Dependabot one) whose squash commit changes a path
 under `.github/` or `tools/ci/`: such a change is re-landed by a maintainer
 from a branch.
@@ -576,12 +576,14 @@ full tier run as before.
   check suite on a `gh-readonly-queue/` branch
   (`gh api repos/<repo>/commits/<sha>/check-suites?app_id=15368`, up to 3
   tries, 2 and 4 s apart; an empty or unparseable answer after the last try
-  counts as no proof). The suite is not enough by itself: the commit's pull
-  request (the last `(#N)` of its subject, looked up with `gh api`, 3 tries)
-  must be from this repository and not authored by `dependabot[bot]`, because
-  a queue group with a fork or Dependabot pull request ran on hosted runners.
-  A missing number or a failed lookup counts as no proof, and the full tier
-  runs. A change to the PR tier: any path under
+  counts as no proof). The suite is not enough by itself: the pull request of each commit in the push
+  (`BEFORE_SHA..SHA`, the last `(#N)` of each subject, looked up with `gh api`,
+  3 tries) must be from this repository and not authored by `dependabot[bot]`,
+  because a queue group with a fork or Dependabot pull request ran on hosted
+  runners and a merge group can land up to 3 entries in one push. A missing or
+  zero `BEFORE_SHA`, an empty or unreadable range, more than 3 commits, a
+  subject without a number or a failed lookup counts as no proof, and the full
+  tier runs. A change to the PR tier: any path under
   `.github/actions/` or `tools/ci/`, or `.github/workflows/pipeline-pr.yml` or
   `.github/workflows/ci.yml`, in the pushed commit; a commit without a parent
   counts as one. The callers grant `checks: read` to the `pr` job for the

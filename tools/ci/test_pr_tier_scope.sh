@@ -30,6 +30,8 @@ fi
 case "$*" in
   *"/pulls/"*)
     [ "${FAKE_PULL_FAIL:-0}" != "1" ] || { echo "HTTP 500" >&2; exit 1; }
+    pn="${2##*/}"; pv="FAKE_PULL_${pn}"
+    if [ -n "${!pv+x}" ]; then printf '%s\n' "${!pv}"; exit 0; fi
     printf '%s\n' "${FAKE_PULL-false$(printf '\t')oschaaf$(printf '\t')We-Amp/example}"
     exit 0 ;;
 esac
@@ -56,6 +58,7 @@ make_repo() {
   git -C "${REPO}" config user.email t@example.invalid
   git -C "${REPO}" config user.name t
   git -C "${REPO}" commit -q --allow-empty -m "root"
+  DEF_BEFORE="$(git -C "${REPO}" rev-parse HEAD)"
   if [ $# -gt 0 ]; then
     mkdir -p "${REPO}/$(dirname "$1")"
     echo x > "${REPO}/$1"
@@ -89,7 +92,7 @@ run_scope() {
   set +e
   (cd "${REPO}" && env PATH="${BIN}:${PATH}" FAKE_LOG="${WORK}/gh.log" SLEEP_LOG="${WORK}/sleep.log" \
     GITHUB_EVENT_NAME=push GITHUB_REPOSITORY=We-Amp/example SHA="${SHA_VAL}" GH_TOKEN=x \
-    FORK_OR_BOT=false PR_FULL=false CI_SCOPE= FAKE_GH_BODY="${PROOF_TRUE}" \
+    FORK_OR_BOT=false PR_FULL=false CI_SCOPE= BEFORE_SHA="${DEF_BEFORE}" FAKE_GH_BODY="${PROOF_TRUE}" \
     "$@" bash "${SCOPE}" > "${OUT}" 2> "${ERR}")
   RC=$?
   set -e
@@ -214,7 +217,7 @@ check "${CUR}" false "pipeline_change=false"
 
 make_repo
 CUR=push-root-commit-runs
-run_scope CI_SCOPE=push
+run_scope CI_SCOPE=push BEFORE_SHA=
 check "${CUR}" true "pipeline_change=true"
 
 # Rename detection and the multi-commit push range.
@@ -250,9 +253,9 @@ SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
 CUR=push-batch-nontip-pipeline-change-runs
 run_scope CI_SCOPE=push BEFORE_SHA="${BEFORE_VAL}"
 check "${CUR}" true "pipeline_change=true" "would_skip=false"
-CUR=push-batch-tip-only-would-miss
-run_scope CI_SCOPE=push
-check "${CUR}" false "pipeline_change=false"
+CUR=push-batch-before-missing-runs
+run_scope CI_SCOPE=push BEFORE_SHA=
+check "${CUR}" true "pipeline_change=false" "proof=error"
 
 CUR=push-before-unreachable-runs
 run_scope CI_SCOPE=push BEFORE_SHA=1111111111111111111111111111111111111111
@@ -312,6 +315,47 @@ make_repo src/a.cc
 git -C "${REPO}" commit -q --amend -m "no number here"
 SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
 CUR=push-proof-no-pr-number-runs
+run_scope CI_SCOPE=push
+check "${CUR}" true "proof=error"
+
+# Push-range trust: every commit in BEFORE_SHA..SHA must map to a trusted PR.
+add_commit() { # <file> <subject>
+  mkdir -p "${REPO}/$(dirname "$1")"
+  echo x >> "${REPO}/$1"
+  git -C "${REPO}" add -A
+  git -C "${REPO}" commit -q -m "$2"
+  SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
+}
+make_repo
+add_commit src/a.cc "fork change (#551)"
+add_commit src/b.cc "same-repo change (#12)"
+CUR=push-range-fork-first-same-repo-tip-runs
+run_scope CI_SCOPE=push "FAKE_PULL_551=true${TAB}someone${TAB}someone/example"
+check "${CUR}" true "proof=false"
+make_repo
+add_commit src/a.cc "a (#1)"
+add_commit src/b.cc "b (#2)"
+add_commit src/c.cc "c (#3)"
+CUR=push-range-three-trusted-skips
+run_scope CI_SCOPE=push
+check "${CUR}" false "reason=queue proof"
+add_commit src/d.cc "d (#4)"
+CUR=push-range-over-limit-runs
+run_scope CI_SCOPE=push
+check "${CUR}" true "proof=error"
+CUR=push-range-before-missing-runs
+run_scope CI_SCOPE=push BEFORE_SHA=
+check "${CUR}" true "proof=error"
+CUR=push-range-before-zero-runs
+run_scope CI_SCOPE=push BEFORE_SHA=0000000000000000000000000000000000000000
+check "${CUR}" true "would_skip=false"
+CUR=push-range-before-unreadable-runs
+run_scope CI_SCOPE=push BEFORE_SHA=1234567890123456789012345678901234567890
+check "${CUR}" true "would_skip=false"
+make_repo
+add_commit src/a.cc "a (#1)"
+add_commit src/b.cc "no number"
+CUR=push-range-commit-without-number-runs
 run_scope CI_SCOPE=push
 check "${CUR}" true "proof=error"
 

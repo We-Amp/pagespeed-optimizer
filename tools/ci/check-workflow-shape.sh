@@ -167,7 +167,9 @@ write_perm_records() {
   awk -v tab="${TAB}" '
     function haswrite(line) {
       sub(/[[:space:]]+#.*$/, "", line)
-      return (line ~ /write-all/ || line ~ /:[[:space:]]*[\047"]?write[\047"]?[[:space:]]*([,}]|$)/)
+      # Also the value on the next line (`contents:` then an indented `write`),
+      # and any id-token key (it grants nothing but write).
+      return (line ~ /write-all/ || line ~ /:[[:space:]]*[\047"]?write[\047"]?[[:space:]]*([,}]|$)/ || line ~ /^[[:space:]]*[\047"]?write[\047"]?[[:space:]]*$/ || line ~ /(^|[[:space:]{,\047"])id-token[\047"]?[[:space:]]*:/)
     }
     /^[[:space:]]*#/ { next }
     /^jobs:[[:space:]]*$/ { injobs=1; inperm=0; job="-"; next }
