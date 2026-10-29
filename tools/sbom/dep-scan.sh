@@ -70,6 +70,8 @@ GRYPE_SEVERITY="${GRYPE_SEVERITY:-medium}"   # reported threshold (NOT enforced)
 SYFT_PIN="1.44.0"
 GRYPE_PIN="0.112.0"
 SCAN_IMAGES=0
+PUBLISHED_VERSION=""
+SYFT_ARGS=()
 SUMMARY_MD=""
 WORK=""
 VEX_ARGS=()
@@ -93,6 +95,8 @@ sev_rank() {
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --images) SCAN_IMAGES=1 ;;
+    --published-images) shift; PUBLISHED_VERSION="${1:-}" ;;
+    --published-images=*) PUBLISHED_VERSION="${1#*=}" ;;
     --fail-on) shift; FAIL_ON="${1:-}" ;;
     --fail-on=*) FAIL_ON="${1#*=}" ;;
     --surfaces) shift; SURFACES="${1:-}" ;;
@@ -121,6 +125,10 @@ want_surface() {
 
 # Built product images (local docker tags from docker/build-release.sh). ":latest"
 # is what the build machine retags after each build; absent images skip cleanly.
+# Published images (ghcr.io/we-amp/<name>:<version>), for --published-images.
+PUBLISHED_NAMES="pagespeed-worker pagespeed-nginx pagespeed-combined"
+PUBLISHED_PLATFORMS="linux/amd64 linux/arm64"
+
 PRODUCT_IMAGES="
 modpagespeed/worker:latest
 modpagespeed/nginx:latest
@@ -212,7 +220,7 @@ assert_npm_coverage() {
 run_scan() {
   local kind="$1" name="$2" src="$3"
   local sbom="${OUT_DIR}/${name}.spdx.json" rpt="${OUT_DIR}/${name}.grype.json"
-  if ! syft "${src}" -o "spdx-json=${sbom}" -q 2>"${OUT_DIR}/${name}.syft.err"; then
+  if ! syft "${src}" ${SYFT_ARGS[@]+"${SYFT_ARGS[@]}"} -o "spdx-json=${sbom}" -q 2>"${OUT_DIR}/${name}.syft.err"; then
     warn "syft FAILED for ${name} (${src}) — see ${name}.syft.err"
     if [ -n "$FAIL_ON" ] && ! is_report_only "$name"; then GATE_HITS=$((GATE_HITS + 1)); fi
     emit_row "$name" "$kind" "scan-failed" "**scan failed**"; return
@@ -373,6 +381,21 @@ EOF
   # dependency-scan run does exactly that (the CVE ratchet). Absent images
   # degrade to a "not
   # built" row (no gate hit), so a runner with a cold cache can't false-pass.
+  # --- published images (ghcr.io; what customers pull) ---
+  # Always the image gate shape; a pull or scan failure is a gate hit, never
+  # a clean row.
+  if [ -n "$PUBLISHED_VERSION" ] && want_surface image; then
+    local pname pplat pslug
+    for pname in $PUBLISHED_NAMES; do
+      for pplat in $PUBLISHED_PLATFORMS; do
+        pslug="${pname}-${PUBLISHED_VERSION}-$(printf '%s' "$pplat" | tr '/' '-')"
+        SYFT_ARGS=(--platform "$pplat")
+        run_scan image "$pslug" "registry:ghcr.io/we-amp/${pname}:${PUBLISHED_VERSION}"
+        SYFT_ARGS=()
+      done
+    done
+  fi
+
   if [ "$SCAN_IMAGES" = "1" ] && want_surface image; then
     if command -v docker >/dev/null 2>&1; then
       local img slug
@@ -388,7 +411,7 @@ EOF
     else
       warn "docker not present; skipping image scans"
     fi
-  else
+  elif [ -z "$PUBLISHED_VERSION" ]; then
     note "image scan skipped (pass --images; runs on the build machine where images exist)"
   fi
 

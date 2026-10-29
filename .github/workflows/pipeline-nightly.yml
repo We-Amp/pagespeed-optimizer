@@ -22,7 +22,9 @@
 #   hosted        dep-scan-images (pulls and scans images from the x64 bundle,
 #                 no C++ compile), and the report jobs (dep-scan-report,
 #                 async-css-probe-report, css-fuzz-report), the only jobs
-#                 that write to GitHub
+#                 that write to GitHub; dep-scan-published (scans the
+#                 images published on ghcr.io, builds nothing) and its
+#                 report job dep-scan-published-report
 #
 # Left out:
 #   * frozen-scan (the weekly scan of the frozen 2.0 release line): it scans
@@ -2570,6 +2572,154 @@ jobs:
           fi
           bash tools/sbom/post-findings-issue.sh \
             "dependencies-cve" "Dependency CVE findings (automated dependency scan)" "${F}/findings.md"
+
+      - name: Note a missing findings artifact
+        if: steps.findings.outcome != 'success'
+        run: echo "::warning::no findings artifact from the scan job; the findings issue was left alone"
+
+  # ---------------------------------------------------------------------
+  # Dependency scan, published image leg. Scans the images customers pull
+  # (ghcr.io, current release, linux/amd64 and linux/arm64), not images built
+  # here, so a CVE disclosed after a release surfaces within a day. Builds
+  # nothing, so it has no needs. Same pinned database, VEX files and image gate
+  # shape as dep-scan-images (fixable medium and above, High and Critical
+  # always). Its own tracking issue, separate from the nightly image scan.
+  # ---------------------------------------------------------------------
+  dep-scan-published:
+    name: Dependency Scan (nightly, published images)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SYFT_VERSION: v1.44.0
+      GRYPE_VERSION: v0.112.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate VEX statements
+        run: python3 tools/ci/validate-vex.py sbom/
+
+      - name: Ensure pinned syft + grype
+        run: bash tools/ci/ensure-syft-grype.sh
+
+      - name: Enforce grype DB pin age
+        env:
+          GRYPE_DB_CACHE_DIR: ${{ github.workspace }}/.grype-db-pinned
+        run: bash tools/sbom/provision-grype-db.sh --enforce-age
+
+      # Newest published release: not a draft, not a prerelease, tag v<digits>...
+      - name: Resolve the current release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+            --jq '[.[] | select((.draft|not) and (.prerelease|not) and (.tag_name|test("^v[0-9]")))][0].tag_name // empty')"
+          if [ -z "$tag" ]; then
+            echo "::error::no published release tag matching v[0-9]* found"
+            exit 1
+          fi
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "Scanning published images at ${tag#v}"
+
+      - name: Run dependency scan (blocking)
+        env:
+          GRYPE_DB_CACHE_DIR: ${{ github.workspace }}/.grype-db-pinned
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -uo pipefail
+          rc=0
+          bash tools/sbom/dep-scan.sh --published-images "$VERSION" --fail-on medium --surfaces image || rc=$?
+          if [ -f sbom/scan/SUMMARY.md ]; then cat sbom/scan/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"; fi
+          exit "$rc"
+
+      - name: Collect the findings
+        if: always()
+        run: |
+          set -uo pipefail
+          OUT="${RUNNER_TEMP}/dep-scan-report"
+          mkdir -p "$OUT"
+          F="$OUT/findings.md"; : > "$F"
+          # Only what the gate counts: High and Critical, and medium with a fix.
+          SEL='.matches[]?|select((.vulnerability.severity|test("Critical|High")) or (.vulnerability.severity=="Medium" and .vulnerability.fix.state=="fixed"))'
+          for r in sbom/scan/*.grype.json; do
+            [ -f "$r" ] || continue
+            src="$(basename "$r" .grype.json)"
+            n="$(jq "[${SEL}]|length" "$r" 2>/dev/null || echo 0)"
+            [ "${n:-0}" -gt 0 ] || continue
+            {
+              echo "### \`${src}\`: ${n} gating finding(s)"
+              jq -r "${SEL}"'
+                | "- **\(.artifact.name)@\(.artifact.version)**: \(.vulnerability.severity) [\(.vulnerability.id)] fix: \((.vulnerability.fix.versions // []) | join(", ") | if .=="" then "none" else . end)"' "$r"
+              echo ""
+            } >> "$F"
+          done
+          # A verdict needs a report for every image and platform: a missing
+          # report means the scan did not finish, and the issue is left alone.
+          n="$(find sbom/scan -name '*.grype.json' 2>/dev/null | wc -l | tr -d ' ')"
+          if [ "${n:-0}" -ge 6 ] && ! grep -q 'scan failed' sbom/scan/SUMMARY.md 2>/dev/null; then
+            touch "$OUT/lane-ran"
+          fi
+
+      - name: Upload the findings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nightly-published-scan-findings
+          path: ${{ runner.temp }}/dep-scan-report/
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Upload SBOMs and grype reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nightly-published-scan-reports
+          path: sbom/scan/
+          if-no-files-found: warn
+          retention-days: 3
+
+  dep-scan-published-report:
+    name: Published image scan report
+    needs: dep-scan-published
+    if: ${{ !cancelled() && needs.dep-scan-published.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tools run below hold a write token: take them from main, never
+          # from a dispatched branch.
+          ref: main
+
+      - name: Download the findings
+        id: findings
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nightly-published-scan-findings
+          path: ${{ runner.temp }}/findings
+
+      # One auto-managed issue: opened on medium+ findings, closed when clean.
+      # Live only on the default branch.
+      - name: File or close the findings issue
+        if: steps.findings.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && '0' || '1' }}
+        run: |
+          set -uo pipefail
+          F="${RUNNER_TEMP}/findings"
+          if [ ! -f "${F}/lane-ran" ]; then
+            echo "::notice::the scan did not reach a verdict; leaving the findings issue alone"
+            exit 0
+          fi
+          bash tools/sbom/post-findings-issue.sh \
+            "published-images-cve" "Published images: dependency findings" "${F}/findings.md"
 
       - name: Note a missing findings artifact
         if: steps.findings.outcome != 'success'
