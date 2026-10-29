@@ -805,7 +805,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           </a>
 
           {/* Desktop nav */}
-          <div class="hidden md:flex items-center gap-5 lg:gap-6">
+          <div class="hidden md:flex items-center gap-5 lg:gap-6 xl:gap-4">
             {
               navLinks.map((link, index) =>
                 link.children ? (
@@ -871,7 +871,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                     data-umami-event={link.umamiEvent}
                     aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
                     class:list={[
-                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5',
+                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5 whitespace-nowrap',
                       link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : 'inline-flex',
                       currentPath.startsWith(link.href!)
                         ? 'text-interactive nav-item-active'
@@ -903,6 +903,16 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                 aria-hidden="true">/</kbd
               >
             </button>
+            <a
+              href="https://github.com/sponsors/We-Amp"
+              rel="noopener noreferrer"
+              aria-label="Sponsor We-Amp on GitHub"
+              data-umami-event="cta_sponsor_nav"
+              class="hidden xl:inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border px-2.5 py-1 text-sm font-medium text-text-muted transition-colors hover:text-text-body hover:border-text-annotation"
+            >
+              <Icon name="heart" class="h-4 w-4" />
+              Sponsor
+            </a>
             <a
               href="https://github.com/We-Amp/mod_pagespeed"
               aria-label="Source on GitHub"
@@ -1045,6 +1055,15 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
               ),
             )
           }
+          <a
+            href="https://github.com/sponsors/We-Amp"
+            rel="noopener noreferrer"
+            data-umami-event="cta_sponsor_nav_mobile"
+            class="flex items-center gap-2 py-3 text-sm font-medium text-text-muted hover:text-text-body"
+          >
+            <Icon name="heart" class="h-4 w-4" />
+            Sponsor
+          </a>
           <a
             href="/download/"
             data-umami-event="cta_nav_download_mobile"
