@@ -363,9 +363,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.5.2`](https://github.com/We-Amp/mod_pagespeed/tree/v2.5.2): 323 directives.
+Generated from the mod_pagespeed source at tag [`v2.6.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.6.0): 325 directives.
 
-Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (4) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (31) · [Images](#area-images) (43) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (10) · [Caching](#area-caching) (46) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (2) · [Experiments and analytics](#area-experiments-and-analytics) (11) · [Deprecated and ignored](#area-deprecated-and-ignored) (28).
+Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (5) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (30) · [Images](#area-images) (43) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (9) · [Caching](#area-caching) (46) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (3) · [Experiments and analytics](#area-experiments-and-analytics) (6) · [Deprecated and ignored](#area-deprecated-and-ignored) (35).
 
 ### Enabling and filter selection {#area-enabling-and-filter-selection}
 
@@ -654,7 +654,7 @@ Specifies the resource types that can be inlined into HTML even if they do not b
 - **Default:** `on`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Set to false to disallow mod_pagespeed from editing HTML Cache-Control headers. This is not safe in general and can cause the incorrect versions of HTML to be served to users.
+Set to false to disallow mod_pagespeed from editing HTML Cache-Control headers. This is not safe in general and can cause the incorrect versions of HTML to be served to users. Rewritten HTML names the request headers its image URLs depend on (Accept, Save-Data, User-Agent) in Vary even when this is off, so a shared cache that honours Vary keeps the variants apart; caches that ignore Vary need their own cache key or a bypass for HTML.
 
 Controls whether the module sets caching headers on HTML responses. Do not
 disable it unless you fully understand the interaction with downstream caches:
@@ -1150,7 +1150,7 @@ Declares an extra element attribute that holds a URL, with the resource category
 
 ### Optimizer worker {#area-optimizer-worker}
 
-[`DaemonApiSocketPath`](#daemonapisocketpath), [`DaemonServeStoredEncodings`](#daemonservestoredencodings), [`DaemonSocketPath`](#daemonsocketpath), [`DaemonVolumePath`](#daemonvolumepath)
+[`DaemonApiSocketPath`](#daemonapisocketpath), [`DaemonServeHonorRequestFreshness`](#daemonservehonorrequestfreshness), [`DaemonServeStoredEncodings`](#daemonservestoredencodings), [`DaemonSocketPath`](#daemonsocketpath), [`DaemonVolumePath`](#daemonvolumepath)
 
 #### DaemonApiSocketPath {#daemonapisocketpath}
 
@@ -1161,6 +1161,14 @@ Declares an extra element attribute that holds a URL, with the resource category
 Path of the optimizer worker's management API unix socket, backing the /v1/daemon/\* admin endpoints. Empty disables them. This is a different socket from DaemonSocketPath (the notification socket).
 
 On nginx: Set the unix socket path of the optimizer worker's management API, backing the /v1/daemon/\* admin endpoints. Empty disables them.
+
+#### DaemonServeHonorRequestFreshness {#daemonservehonorrequestfreshness}
+
+- **Syntax:** `ModPagespeedDaemonServeHonorRequestFreshness on|off` (Apache) · `pagespeed DaemonServeHonorRequestFreshness on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Let a client's reload headers (Cache-Control: no-cache or max-age=0, or Pragma: no-cache without a Cache-Control) bypass the optimizer worker's cached copy of a resource, so the origin's own bytes are sent. Default off: a reload is served from the cache.
 
 #### DaemonServeStoredEncodings {#daemonservestoredencodings}
 
@@ -1424,7 +1432,7 @@ Verified-bot registry: comma-separated keyid=name pairs.
 
 ### Statistics, console and logging {#area-statistics-console-and-logging}
 
-[`AdminDomains`](#admindomains), [`AdminPath`](#adminpath), [`ConsoleDomains`](#consoledomains), [`ConsolePath`](#consolepath), [`GlobalAdminDomains`](#globaladmindomains), [`GlobalAdminPath`](#globaladminpath), [`GlobalStatisticsDomains`](#globalstatisticsdomains), [`GlobalStatisticsPath`](#globalstatisticspath), [`InstallCrashHandler`](#installcrashhandler), [`ListOutstandingUrlsOnError`](#listoutstandingurlsonerror), [`LogBackgroundRewrite`](#logbackgroundrewrite), [`LogDir`](#logdir), [`LogMobilizationSamples`](#logmobilizationsamples), [`LogRewriteTiming`](#logrewritetiming), [`LogUrlIndices`](#logurlindices), [`MaxRewriteInfoLogSize`](#maxrewriteinfologsize), [`MessageBufferSize`](#messagebuffersize), [`MessagesDomains`](#messagesdomains), [`MessagesPath`](#messagespath), [`ReportUnloadTime`](#reportunloadtime), [`SlowFileLatencyUs`](#slowfilelatencyus), [`Statistics`](#statistics), [`StatisticsDomains`](#statisticsdomains), [`StatisticsLogging`](#statisticslogging), [`StatisticsLoggingChartsCSS`](#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](#statisticsloggingmaxfilesizekb), [`StatisticsPath`](#statisticspath), [`StrictAdminAccess`](#strictadminaccess), [`UsePerVHostStatistics`](#usepervhoststatistics)
+[`AdminDomains`](#admindomains), [`AdminPath`](#adminpath), [`ConsoleDomains`](#consoledomains), [`ConsolePath`](#consolepath), [`GlobalAdminDomains`](#globaladmindomains), [`GlobalAdminPath`](#globaladminpath), [`GlobalStatisticsDomains`](#globalstatisticsdomains), [`GlobalStatisticsPath`](#globalstatisticspath), [`InstallCrashHandler`](#installcrashhandler), [`ListOutstandingUrlsOnError`](#listoutstandingurlsonerror), [`LogBackgroundRewrite`](#logbackgroundrewrite), [`LogDir`](#logdir), [`LogRewriteTiming`](#logrewritetiming), [`LogUrlIndices`](#logurlindices), [`MaxRewriteInfoLogSize`](#maxrewriteinfologsize), [`MessageBufferSize`](#messagebuffersize), [`MessagesDomains`](#messagesdomains), [`MessagesPath`](#messagespath), [`ReportUnloadTime`](#reportunloadtime), [`SlowFileLatencyUs`](#slowfilelatencyus), [`Statistics`](#statistics), [`StatisticsDomains`](#statisticsdomains), [`StatisticsLogging`](#statisticslogging), [`StatisticsLoggingChartsCSS`](#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](#statisticsloggingmaxfilesizekb), [`StatisticsPath`](#statisticspath), [`StrictAdminAccess`](#strictadminaccess), [`UsePerVHostStatistics`](#usepervhoststatistics)
 
 #### AdminDomains {#admindomains}
 
@@ -1528,14 +1536,6 @@ _The module source carries no help text for this option._
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 Directory to store logs in.
-
-#### LogMobilizationSamples {#logmobilizationsamples}
-
-- **Syntax:** `ModPagespeedLogMobilizationSamples on|off` (Apache) · `pagespeed LogMobilizationSamples on|off;` (nginx)
-- **Default:** `off`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Verbose debugging of all sample data generated by mobilization_label_filter.
 
 #### LogRewriteTiming {#logrewritetiming}
 
@@ -2115,7 +2115,7 @@ Stops the prioritize_critical_css filter from invoking its JavaScript that appli
 
 ### JavaScript {#area-javascript}
 
-[`AvoidRenamingIntrospectiveJavascript`](#avoidrenamingintrospectivejavascript), [`ClearInheritedScripts`](#clearinheritedscripts), [`EnableDeferJsExperimental`](#enabledeferjsexperimental), [`EnablePrioritizingScripts`](#enableprioritizingscripts), [`JsInlineMaxBytes`](#jsinlinemaxbytes), [`JsOutlineMinBytes`](#jsoutlineminbytes), [`Library`](#library), [`MaxCombinedJsBytes`](#maxcombinedjsbytes), [`ProcessScriptVariables`](#processscriptvariables), [`UseAnalyticsJs`](#useanalyticsjs)
+[`AvoidRenamingIntrospectiveJavascript`](#avoidrenamingintrospectivejavascript), [`ClearInheritedScripts`](#clearinheritedscripts), [`EnableDeferJsExperimental`](#enabledeferjsexperimental), [`EnablePrioritizingScripts`](#enableprioritizingscripts), [`JsInlineMaxBytes`](#jsinlinemaxbytes), [`JsOutlineMinBytes`](#jsoutlineminbytes), [`Library`](#library), [`MaxCombinedJsBytes`](#maxcombinedjsbytes), [`ProcessScriptVariables`](#processscriptvariables)
 
 #### AvoidRenamingIntrospectiveJavascript {#avoidrenamingintrospectivejavascript}
 
@@ -2191,14 +2191,6 @@ Maximum size allowed for the combined JavaScript resource.
 - **Platform:** nginx only
 
 Evaluate nginx script variables ($var) in pagespeed directive arguments at request time: off, on (the LoadFromFile\*, EnableFilters, DisableFilters, DownstreamCache\* and ShardDomain directives) or all (every query- and directory-scoped option too). Settable once, at the top level.
-
-#### UseAnalyticsJs {#useanalyticsjs}
-
-- **Syntax:** `ModPagespeedUseAnalyticsJs on|off` (Apache) · `pagespeed UseAnalyticsJs on|off;` (nginx)
-- **Default:** `on`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
-
-Log to analytics.js instead of ga.js with insert_ga.
 
 ### Caching {#area-caching}
 
@@ -2841,7 +2833,7 @@ Retain HTML comments matching wildcard, even with remove_comments enabled
 
 ### Threads and limits {#area-threads-and-limits}
 
-[`NumExpensiveRewriteThreads`](#numexpensiverewritethreads), [`NumRewriteThreads`](#numrewritethreads)
+[`NumExpensiveRewriteThreads`](#numexpensiverewritethreads), [`NumRewriteThreads`](#numrewritethreads), [`PublicAdminAccess`](#publicadminaccess)
 
 #### NumExpensiveRewriteThreads {#numexpensiverewritethreads}
 
@@ -2865,33 +2857,17 @@ Global: set it once per server, not per virtual host or location. How `auto`
 resolves per server, and when to override it, is in
 [Optimization threads](#optimization-threads).
 
+#### PublicAdminAccess {#publicadminaccess}
+
+- **Syntax:** `ModPagespeedPublicAdminAccess on|off` (Apache) · `pagespeed PublicAdminAccess on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config · nginx: http
+
+OPT-IN, default off. Declares that the admin pages are reachable from the network on purpose. When on, the loopback warning for admin handlers is replaced by one informational line, and the console shows an informational finding instead of the exposure warning. Access control is unchanged.
+
 ### Experiments and analytics {#area-experiments-and-analytics}
 
-[`AnalyticsID`](#analyticsid), [`ContentExperimentID`](#contentexperimentid), [`ContentExperimentVariantID`](#contentexperimentvariantid), [`EnrollExperiment`](#enrollexperiment), [`ExperimentCookieDurationMs`](#experimentcookiedurationms), [`ExperimentSlot`](#experimentslot), [`ExperimentSpec`](#experimentspec), [`ExperimentVariable`](#experimentvariable), [`IncreaseSpeedTracking`](#increasespeedtracking), [`Noop`](#noop), [`RunExperiment`](#runexperiment)
-
-#### AnalyticsID {#analyticsid}
-
-- **Syntax:** `ModPagespeedAnalyticsID value` (Apache) · `pagespeed AnalyticsID value;` (nginx)
-- **Default:** `(empty)`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Google Analytics ID to use on site.
-
-#### ContentExperimentID {#contentexperimentid}
-
-- **Syntax:** `ModPagespeedContentExperimentID value` (Apache) · `pagespeed ContentExperimentID value;` (nginx)
-- **Default:** `(empty)`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Which Google Analytics content experiment to log to.
-
-#### ContentExperimentVariantID {#contentexperimentvariantid}
-
-- **Syntax:** `ModPagespeedContentExperimentVariantID value` (Apache) · `pagespeed ContentExperimentVariantID value;` (nginx)
-- **Default:** `(empty)`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Which Google Analytics content experiment variant to log to.
+[`EnrollExperiment`](#enrollexperiment), [`ExperimentCookieDurationMs`](#experimentcookiedurationms), [`ExperimentSlot`](#experimentslot), [`ExperimentSpec`](#experimentspec), [`Noop`](#noop), [`RunExperiment`](#runexperiment)
 
 #### EnrollExperiment {#enrollexperiment}
 
@@ -2925,23 +2901,7 @@ _The module source carries no help text for this option._
 - **Default:** —
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Configuration for one side of an experiment in the form: 'id= ;enabled= ;disabled= ;ga= ;percent= ...'
-
-#### ExperimentVariable {#experimentvariable}
-
-- **Syntax:** `ModPagespeedExperimentVariable slot` (Apache) · `pagespeed ExperimentVariable slot;` (nginx)
-- **Default:** —
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Specify the custom variable slot with which to run experiments.Defaults to 1.
-
-#### IncreaseSpeedTracking {#increasespeedtracking}
-
-- **Syntax:** `ModPagespeedIncreaseSpeedTracking on|off` (Apache) · `pagespeed IncreaseSpeedTracking on|off;` (nginx)
-- **Default:** `on`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
-
-Increase the percentage of sites that have Google Analytics page speed tracking
+Configuration for one side of an experiment in the form: 'id= ;enabled= ;disabled= ;ga= ;percent= ...' The 'ga=' component is accepted for compatibility and ignored.
 
 #### Noop {#noop}
 
@@ -2961,7 +2921,7 @@ Run an experiment to test the effectiveness of rewriters.
 
 ### Deprecated and ignored {#area-deprecated-and-ignored}
 
-[`AllowVaryOn`](#allowvaryon), [`CollectRefererStatistics`](#collectrefererstatistics), [`DisableForBots`](#disableforbots), [`DistributedRewriteKey`](#distributedrewritekey), [`DistributedRewriteServers`](#distributedrewriteservers), [`DistributedRewriteTimeoutMs`](#distributedrewritetimeoutms), [`DistributeFetches`](#distributefetches), [`ExperimentalCentralControllerPort`](#experimentalcentralcontrollerport), [`ExperimentalPopularityContestMaxInFlight`](#experimentalpopularitycontestmaxinflight), [`ExperimentalPopularityContestMaxQueueSize`](#experimentalpopularitycontestmaxqueuesize), [`FetchFromModSpdy`](#fetchfrommodspdy), [`FileCacheCleanIntervalMs`](#filecachecleanintervalms), [`FileCacheInodeLimit`](#filecacheinodelimit), [`GeneratedFilePrefix`](#generatedfileprefix), [`HashRefererStatistics`](#hashrefererstatistics), [`If`](#if), [`ImageWebpRecompressionQuality`](#imagewebprecompressionquality), [`ImageWebpRecompressionQualityForSmallScreens`](#imagewebprecompressionqualityforsmallscreens), [`ImgInlineMaxBytes`](#imginlinemaxbytes), [`ImgMaxRewritesAtOnce`](#imgmaxrewritesatonce), [`InheritVHostConfig`](#inheritvhostconfig), [`MaxPrefetchJsElements`](#maxprefetchjselements), [`NumShards`](#numshards), [`PrivateNotVaryForIE`](#privatenotvaryforie), [`RefererStatisticsOutputLevel`](#refererstatisticsoutputlevel), [`StatisticsLoggingFile`](#statisticsloggingfile), [`UrlPrefix`](#urlprefix), [`UseExperimentalJsMinifier`](#useexperimentaljsminifier)
+[`AllowVaryOn`](#allowvaryon), [`AnalyticsID`](#analyticsid), [`CollectRefererStatistics`](#collectrefererstatistics), [`ContentExperimentID`](#contentexperimentid), [`ContentExperimentVariantID`](#contentexperimentvariantid), [`DisableForBots`](#disableforbots), [`DistributedRewriteKey`](#distributedrewritekey), [`DistributedRewriteServers`](#distributedrewriteservers), [`DistributedRewriteTimeoutMs`](#distributedrewritetimeoutms), [`DistributeFetches`](#distributefetches), [`ExperimentalCentralControllerPort`](#experimentalcentralcontrollerport), [`ExperimentalPopularityContestMaxInFlight`](#experimentalpopularitycontestmaxinflight), [`ExperimentalPopularityContestMaxQueueSize`](#experimentalpopularitycontestmaxqueuesize), [`ExperimentVariable`](#experimentvariable), [`FetchFromModSpdy`](#fetchfrommodspdy), [`FileCacheCleanIntervalMs`](#filecachecleanintervalms), [`FileCacheInodeLimit`](#filecacheinodelimit), [`GeneratedFilePrefix`](#generatedfileprefix), [`HashRefererStatistics`](#hashrefererstatistics), [`If`](#if), [`ImageWebpRecompressionQuality`](#imagewebprecompressionquality), [`ImageWebpRecompressionQualityForSmallScreens`](#imagewebprecompressionqualityforsmallscreens), [`ImgInlineMaxBytes`](#imginlinemaxbytes), [`ImgMaxRewritesAtOnce`](#imgmaxrewritesatonce), [`IncreaseSpeedTracking`](#increasespeedtracking), [`InheritVHostConfig`](#inheritvhostconfig), [`LogMobilizationSamples`](#logmobilizationsamples), [`MaxPrefetchJsElements`](#maxprefetchjselements), [`NumShards`](#numshards), [`PrivateNotVaryForIE`](#privatenotvaryforie), [`RefererStatisticsOutputLevel`](#refererstatisticsoutputlevel), [`StatisticsLoggingFile`](#statisticsloggingfile), [`UrlPrefix`](#urlprefix), [`UseAnalyticsJs`](#useanalyticsjs), [`UseExperimentalJsMinifier`](#useexperimentaljsminifier)
 
 #### AllowVaryOn {#allowvaryon}
 
@@ -2971,6 +2931,14 @@ Run an experiment to test the effectiveness of rewriters.
 
 Deprecated and ignored: it no longer affects in-place optimization. With the optimizer worker attached, in-place images are served in the format the request's Accept header selects, with Vary: Accept.
 
+#### AnalyticsID {#analyticsid}
+
+- **Syntax:** `ModPagespeedAnalyticsID value` (Apache) · `pagespeed AnalyticsID value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
+
 #### CollectRefererStatistics {#collectrefererstatistics}
 
 - **Syntax:** `ModPagespeedCollectRefererStatistics value` (Apache)
@@ -2979,6 +2947,22 @@ Deprecated and ignored: it no longer affects in-place optimization. With the opt
 - **Platform:** Apache only
 
 Removed option; the name is still accepted and ignored.
+
+#### ContentExperimentID {#contentexperimentid}
+
+- **Syntax:** `ModPagespeedContentExperimentID value` (Apache) · `pagespeed ContentExperimentID value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
+
+#### ContentExperimentVariantID {#contentexperimentvariantid}
+
+- **Syntax:** `ModPagespeedContentExperimentVariantID value` (Apache) · `pagespeed ContentExperimentVariantID value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
 
 #### DisableForBots {#disableforbots}
 
@@ -3044,6 +3028,14 @@ Deprecated and ignored: the experimental gRPC central controller was removed
 - **Context:** Apache: server config · nginx: http
 
 Deprecated and ignored: the experimental gRPC central controller was removed
+
+#### ExperimentVariable {#experimentvariable}
+
+- **Syntax:** `ModPagespeedExperimentVariable slot` (Apache) · `pagespeed ExperimentVariable slot;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
 
 #### FetchFromModSpdy {#fetchfrommodspdy}
 
@@ -3131,6 +3123,14 @@ Former name of ImageInlineMaxBytes; accepted and mapped to it.
 
 Former name of ImageMaxRewritesAtOnce; accepted and mapped to it.
 
+#### IncreaseSpeedTracking {#increasespeedtracking}
+
+- **Syntax:** `ModPagespeedIncreaseSpeedTracking on|off` (Apache) · `pagespeed IncreaseSpeedTracking on|off;` (nginx)
+- **Default:** `on`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the insert_ga filter).
+
 #### InheritVHostConfig {#inheritvhostconfig}
 
 - **Syntax:** `ModPagespeedInheritVHostConfig value` (Apache)
@@ -3139,6 +3139,14 @@ Former name of ImageMaxRewritesAtOnce; accepted and mapped to it.
 - **Platform:** Apache only
 
 Removed option; the name is still accepted and ignored.
+
+#### LogMobilizationSamples {#logmobilizationsamples}
+
+- **Syntax:** `ModPagespeedLogMobilizationSamples on|off` (Apache) · `pagespeed LogMobilizationSamples on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Deprecated and ignored (configured the mobilize filter).
 
 #### MaxPrefetchJsElements {#maxprefetchjselements}
 
@@ -3191,6 +3199,14 @@ Removed option; the name is still accepted and ignored.
 - **Platform:** Apache only
 
 Removed option; the name is still accepted and ignored.
+
+#### UseAnalyticsJs {#useanalyticsjs}
+
+- **Syntax:** `ModPagespeedUseAnalyticsJs on|off` (Apache) · `pagespeed UseAnalyticsJs on|off;` (nginx)
+- **Default:** `on`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
+
+Deprecated and ignored (configured the insert_ga filter).
 
 #### UseExperimentalJsMinifier {#useexperimentaljsminifier}
 

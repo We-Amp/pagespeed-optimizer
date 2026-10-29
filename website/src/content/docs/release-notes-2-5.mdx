@@ -3,19 +3,19 @@ title: 'Release notes: 2.5'
 description: 'mod_pagespeed 2.5 release notes: 2.5.2, a security update for the bundled nginx and libpng, and 2.5.0, with one version number from then on.'
 order: 79
 group: 'Release notes by line'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-28
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 
 <ReleaseNotesDeepLink />
 
-mod_pagespeed 2.5.2 is the current release: the module and the optimizer worker, released together on 2026-10-22 and installed as a matching pair. From 2.5.0 on, the packages in the signed apt and yum repositories, the container images, the NuGet packages and the Helm chart's application version all carry the product version. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The 2.5.0 entry is collapsed; open it to read it in place.
+mod_pagespeed 2.5 was released as 2.5.0 on 2026-10-19 and 2.5.2 on 2026-10-22: the module and the optimizer worker together, installed as a matching pair. From 2.5.0 on, the packages in the signed apt and yum repositories, the container images, the NuGet packages and the Helm chart's application version all carry the product version. The newest release is [2.6.0](/docs/release-notes-2-6/). The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. Both entries are collapsed; open one to read it in place.
 
-<span id="v2-5-2" class="rn-alias" aria-hidden="true"></span>
-<div class="rn-entry rn-entry-current">
+## Releases
 
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.5.2</span> <span class="rn-date">2026-10-22</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<details id="v2-5-2" class="rn-entry">
+<summary><span class="rn-ver">2.5.2</span> <span class="rn-date">2026-10-22</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Security update for the module and the optimizer worker, released together: the bundled nginx and libpng are updated, and images chosen by the optimizer worker carry the full Vary list. Update recommended.</span></summary>
 
 **mod_pagespeed 2.5.2 is a security update for the module and the optimizer worker, released together and installed as a matching pair. Update recommended.** The packages `mod-pagespeed` (Apache), `nginx-module-pagespeed`, the IIS installer and the cPanel package are all 2.5.2, with `pagespeed-optimizer` 2.5.2; the container images, the NuGet packages and the Helm chart's application version (chart 0.3.11) are 2.5.2 as well. No ASP.NET Core sidecar package (`WeAmp.PageSpeed.Sidecar`, `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`) is published with this release; 1.17.0 remains the latest. There is no module release 2.5.1; the module moves from 2.5.0 to 2.5.2 to pair with pagespeed-optimizer 2.5.2. The optimizer worker 2.5.1 was superseded the same day by 2.5.2, which carries all of its changes; they are listed below.
 
@@ -51,9 +51,7 @@ Changed (nginx admin pages): the new snippet is not included anywhere on its own
 
 Purge the cache once after upgrading the module and `pagespeed-optimizer` together: in the console use purge everything, or send `POST /v1/cache/purge` with `{"scope": "all"}` to the management API. Image variants stored by 2.5.0 are otherwise served until they are refreshed, and the optimizer rebuilds them as images are requested again. The cache format is the one 2.5.0 introduced, so nothing else is cleared and no other configuration changes. Behind a shared cache or CDN, also purge the images it holds once, since copies cached before the upgrade still carry `Vary: Accept` alone.
 
-</div>
-
-## Earlier releases
+</details>
 
 <details id="v2-5-0" class="rn-entry">
 <summary><span class="rn-ver">2.5.0</span> <span class="rn-date">2026-10-19</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Security update for the module and the optimizer worker, released together, and one version number from this release on. Update recommended.</span></summary>
