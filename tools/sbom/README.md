@@ -58,6 +58,18 @@ carry fixable findings (including Highs — e.g. netty/openjdk in its 2.6k-packa
 population); they are visible in every summary (⚠ row) and the daily issue, and
 a periodic dev-image rebuild sweep is the cheap way to keep that pile down.
 
+### Published images (nightly)
+
+The nightly also scans the images customers actually pull, so a CVE disclosed after a
+release surfaces within a day. The `dep-scan-published` job resolves the newest published
+(non-draft, non-prerelease) `v*` release, then runs
+`dep-scan.sh --published-images <version> --fail-on medium --surfaces image` over
+`ghcr.io/we-amp/pagespeed-worker`, `pagespeed-nginx` and `pagespeed-combined` at that
+version, for both `linux/amd64` and `linux/arm64`. It uses the pinned grype database, the
+same VEX files and the image gate shape above, and fails when the gate trips. Findings are
+tracked in one issue titled "Published images: dependency findings", separate from the
+nightly image scan issue.
+
 ### Two modes
 
 ```sh
