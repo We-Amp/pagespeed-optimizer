@@ -21,7 +21,7 @@ test.describe('Navigation', () => {
     ];
     for (const link of directLinks) {
       await page.goto('/');
-      await page.locator(`header nav .md\\:flex > a:has-text("${link.label}")`).first().click();
+      await page.locator(`header nav .lg\\:flex > a:has-text("${link.label}")`).first().click();
       await expect(page).toHaveURL(link.href);
     }
     await page.goto('/');
@@ -123,7 +123,7 @@ test.describe('Navigation', () => {
 
   test('active nav link is highlighted for current page', async ({ page }) => {
     await page.goto('/blog/');
-    const desktopNav = page.locator('header nav .md\\:flex > a[href="/blog/"]').first();
+    const desktopNav = page.locator('header nav .lg\\:flex > a[href="/blog/"]').first();
     await expect(desktopNav).toHaveClass(/text-interactive/);
     await expect(desktopNav).toHaveAttribute('aria-current', 'page');
   });
