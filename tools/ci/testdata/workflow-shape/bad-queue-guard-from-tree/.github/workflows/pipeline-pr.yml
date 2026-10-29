@@ -38,7 +38,8 @@ jobs:
           set -euo pipefail
           [ "${ACTOR}" != "github-actions[bot]" ] || { echo "::error::dispatches made with a workflow token are not allowed"; exit 1; }
 
-      - name: Refuse fork and Dependabot PRs in the merge queue
+      - name: Classify the merge group
+        id: queue
         if: github.event_name == 'merge_group'
         run: bash tools/ci/queue_fork_guard.sh
 

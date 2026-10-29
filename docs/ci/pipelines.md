@@ -170,9 +170,10 @@ Host safety contract:
 ## Runner routing
 
 Every fleet job chooses its runner from the event, never from inputs. A pull
-request from a fork, or from Dependabot, runs on a GitHub-hosted runner;
-everything else runs on a fleet class label. The expression, copied
-verbatim into every fleet job:
+request from a fork, or from Dependabot, runs on a GitHub-hosted runner, and
+so does a merge group that holds one (see "Merge-queue runs"); everything else
+runs on a fleet class label. The expression, copied verbatim into every fleet
+job:
 
 ```yaml
 runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -193,6 +194,16 @@ is off:
 
 ```yaml
 runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+```
+
+In `pipeline-pr.yml` the expression has one more hosted term, the route the
+`changes` job decided for the whole run (a merge group with a fork or
+Dependabot pull request is `hosted`; a missing or empty route also means
+hosted), and the job lists `changes` in its `needs` so it reads the route
+directly:
+
+```yaml
+runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
 ```
 
 Such a job carries no `if:` guard (it always runs, on one side or the other),
@@ -450,29 +461,48 @@ behind the long nightly stress legs. The logic is tested against a fake `gh` by
 
 ## Merge-queue runs
 
-A `merge_group` run is routed to the fleet unconditionally, so a fork or
-Dependabot pull request in a merge group would build its code on a fleet
-runner. The `changes` job (hosted) therefore starts with the step `Refuse fork
-and Dependabot PRs in the merge queue`, which runs only on `merge_group`. It
+A `merge_group` run is classified, not refused. The `changes` job (hosted)
+has a step `Classify the merge group`, which runs only on `merge_group`. It
 resolves every pull request in the group, taking the last `(#N)` of each
 commit subject in `base_sha..head_sha` plus the number in the group's
 `head_ref`, and looks each one up with `gh api` (5 tries, 2, 4, 8 and 16 s
-apart). It refuses (the job fails) when a pull request comes from a fork, is
-authored by `dependabot[bot]`, has lost its head repository, or has a head
-repository other than this one (compared case-insensitively); when the range
-is empty, a commit subject has no `(#N)` or the `head_ref` cannot be parsed;
-or when a lookup still fails after the last try. `vendor` needs `changes`, and
-every other fleet job needs `vendor` or `changes`, so a refusal skips the
-whole fleet and `CI gate` goes red.
+apart). A group is **trusted** when every pull request comes from this
+repository and none is authored by `dependabot[bot]`; it is **untrusted** when
+it holds a fork pull request, a pull request whose head repository is another
+one (compared case-insensitively) or a Dependabot pull request. The step turns
+the classifier's exit status into the `route` output: `0` is `fleet`, `3` is
+`hosted`, and any other status fails the step. A trusted group runs on the
+fleet as before. An untrusted group runs every leg on GitHub-hosted runners:
+slower (a Windows unit-test leg on the critical path), without the shared
+caches, but with the same checks, and the fork pull request still merges
+through the queue.
+
+The classifier refuses (exit `1`, the job fails, `CI gate` goes red) when it
+cannot decide: a pull request has lost its head repository, the fork flag is
+unreadable, the range is empty, a commit subject has no `(#N)`, the `head_ref`
+cannot be parsed, or a lookup still fails after the last try. It also refuses
+a fork pull request (not a Dependabot one) whose squash commit changes a path
+under `.github/` or `tools/ci/`: such a change is re-landed by a maintainer
+from a branch.
+
+A separate step, `Decide the runner route`, publishes the one `route` output of
+the `changes` job for every event: for a merge group it requires exactly
+`fleet` or `hosted` from the classification step; a pull request from a fork
+or from Dependabot is `hosted`, and any other pull request, push or dispatch
+is `fleet`; any other event fails the step. Every fleet job lists `changes` in
+its `needs` and reads `needs.changes.outputs.route` directly; the value is
+never passed through `vendor`, which runs the queued tree's code. A missing or
+empty route means hosted.
 
 The classifier is `tools/ci/queue_fork_guard.sh`. The step reads it from
 `origin/main` and pipes it to `bash`; it never runs the copy in the
 queued tree, and a script missing on the default branch fails the step. The
 workflow-shape gate (`queue-guard-reads-default-branch`) requires the step in
-the `changes` job, restricts its `run:` block to that read (plus `set -euo
-pipefail` and the default-branch fetch) and rejects any other read of the
-script in a workflow file.
-`tools/ci/test_queue_fork_guard.sh` covers the classifier against a fake `gh`.
+the `changes` job, restricts its `run:` block to that read and the exit-status
+mapping (plus `set -euo pipefail` and the default-branch fetch), pins the route
+step and rejects any other read of the script in a workflow file.
+`tools/ci/test_queue_fork_guard.sh` covers the classifier against a fake `gh`
+and a temporary git repository.
 
 The PR-number rule depends on the queue's **squash** merge method: one squash
 commit per pull request, its subject ending in `(#N)`. A different method
@@ -503,15 +533,15 @@ a dispatch made by `github-actions[bot]`. The shape gate
 step, in this order, as the first steps after the checkout, each in exactly
 this text.
 
-This narrows the merge-queue boundary; it does not close it. The policy stays:
-no fork or Dependabot pull request is added to the merge queue. The `@ci-dev`
-allow-list entries stay. Pushing `ci-dev` from a `main`-based branch gives its
-copies of `pipeline-pr.yml` and `pipeline-full.yml` the queue fork guard and
-this guard, but that alone does not close the `@ci-dev` path: it stays open
-until the default workflow token permission is read-only and the `ci-dev`
-branch is restricted so that only administrators can update it (or the
-`@ci-dev` allow-list entries are removed), and `ci-dev` has been pushed again
-from the default branch. Until then the policy above applies.
+These in-tree guards bind runs whose caller workflow is unmodified: a queued
+tree controls its own caller `ci.yml`, so maintainers review `.github/` changes
+before queueing. What keeps a fork pull request's code off the shared build
+runners is the runner group that serves them, which accepts only the
+pipeline workflows at the default branch (and `ci-dev`), not these checks. The
+`@ci-dev` allow-list entries stay. Pushing `ci-dev` from a `main`-based branch
+gives its copies of `pipeline-pr.yml` and `pipeline-full.yml` the classifier
+and the guards above, so after a change to them lands on `main` a maintainer
+pushes `ci-dev` again from `main`.
 
 ## CI_SCOPE: the fleet scope of the PR tier
 
@@ -649,7 +679,10 @@ job and fails the build when the shape breaks:
   fleet class, or the switch routing expression; a job routed by the plain
   expression carries one of the three fleet guards verbatim (the general form
   optionally narrowed by a `changes` path filter, see above), and a job routed
-  by the switch expression carries none;
+  by the switch expression carries none. In `pipeline-pr.yml` the switch
+  expression must be the queue form (with the `needs.changes.outputs.route !=
+  'fleet'` term; the plain switch form is rejected there) and the job lists
+  `changes` in its `needs`;
 - **(e)** `.github/` and `tools/ci/` carry no LAN address literals, no
   `.home` names, no `:9090`, no `self-hosted` and none of the retired runner
   label words;
@@ -660,7 +693,9 @@ job and fails the build when the shape breaks:
   after the checkout step (after the push-ref and token-dispatch refusal
   steps; the checkout sets no `env:`), with fixed keys (compared unquoted), `if:`,
   `run:` block (the classifier is read from `origin/${DEFAULT_BRANCH}` with
-  `git show`) and only the guard's own env keys; no other line names the
+  `git show` and its exit status mapped to `route=fleet` or `route=hosted`),
+  an `id: queue` and only the guard's own env keys; the job also holds the
+  pinned step `Decide the runner route` and publishes `route` from it; no other line names the
   script in any spelling, and the job has no glob, `find`, `source` or
   `GITHUB_ENV` write under `tools/ci/`; `BASH_ENV`, `PATH`, `GIT_DIR`, `GIT_WORK_TREE` and `GIT_CONFIG*` are not
   set at workflow level or in that job; `vendor` has `needs: changes` and

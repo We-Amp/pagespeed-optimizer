@@ -45,7 +45,8 @@ jobs:
   other:
     runs-on: ubuntu-latest
     steps:
-      - name: Refuse fork and Dependabot PRs in the merge queue
+      - name: Classify the merge group
+        id: queue
         if: github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,7 +58,8 @@ jobs:
           set -euo pipefail
           git rev-parse -q --verify "origin/${DEFAULT_BRANCH}^{commit}" >/dev/null ||
             git fetch --no-tags --depth=1 origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
-          git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" | bash
+          rc=0; git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" | bash || rc=$?
+          case "${rc}" in 0) echo route=fleet;; 3) echo route=hosted;; *) exit 1;; esac >> "$GITHUB_OUTPUT"
   vendor:
     needs: changes
     runs-on: ubuntu-latest
