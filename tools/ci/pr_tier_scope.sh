@@ -108,23 +108,31 @@ pr_status() {
   fi
 }
 
-# pr_trusted: prints true, false or error for the whole push. Every commit in
-# BEFORE_SHA..SHA (a merge group can land up to 3 entries in one push) must map,
-# by the last "(#N)" of its subject, to a trusted pull request. A queue check
-# suite alone is not proof for a fork or Dependabot group, which ran on hosted
-# runners. Anything unknown (no BEFORE_SHA, an all-zero or unreachable one, an
-# empty or unreadable range, more than 3 commits, a subject without a number, a
-# failed lookup) is error, which runs the full tier.
+# pr_trusted <base>: prints true, false or error for the whole queue group.
+# <base> is the group's base commit, taken from the proof suite's branch
+# (gh-readonly-queue/<default>/pr-N-<base>). Every commit in <base>..SHA (a
+# merge group lands up to 3 entries) must map, by the last "(#N)" of its
+# subject, to a trusted pull request: the proof ran the whole group, so a push
+# range shorter than the group would hide an untrusted entry that merged in an
+# earlier push. A queue check suite alone is not proof for a fork or Dependabot
+# group, which ran on hosted runners. Anything unknown (BEFORE_SHA missing,
+# all-zero, not an ancestor of SHA; <base> not an ancestor of SHA; an empty or
+# unreadable range; a merge commit; more than 3 commits; a subject without a
+# number; a failed lookup) is error, which runs the full tier.
 pr_trusted() {
-  local shas sha subject n nums="" count=0 st result=true
+  local base="$1" shas sha subject n nums="" count=0 st result=true
   case "${BEFORE_SHA:-}" in
     ""|*[!0]*) ;;
     *) echo error; return ;;
   esac
   [ -n "${BEFORE_SHA:-}" ] || { echo error; return; }
   git rev-parse -q --verify "${BEFORE_SHA}^{commit}" >/dev/null 2>&1 || { echo error; return; }
-  shas="$(git rev-list "${BEFORE_SHA}..${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
+  git merge-base --is-ancestor "${BEFORE_SHA}" "${SHA:-HEAD}" 2>/dev/null || { echo error; return; }
+  git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 || { echo error; return; }
+  git merge-base --is-ancestor "${base}" "${SHA:-HEAD}" 2>/dev/null || { echo error; return; }
+  shas="$(git rev-list "${base}..${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
   [ -n "${shas}" ] || { echo error; return; }
+  [ -z "$(git rev-list --min-parents=2 "${base}..${SHA:-HEAD}" 2>/dev/null)" ] || { echo error; return; }
   for sha in ${shas}; do
     count=$((count + 1))
     if [ "${count}" -gt 3 ]; then
@@ -147,6 +155,26 @@ pr_trusted() {
   echo "${result}"
 }
 
+# proof_from_branches <"none" | space-separated suite branches>: prints true,
+# false or error. The group's base commit is the last "-"-separated part of a
+# branch gh-readonly-queue/<default>/pr-N-<base>; it must be a full commit id,
+# and all suites must agree on it.
+proof_from_branches() {
+  local b base bases=""
+  [ "$1" != none ] || { echo false; return; }
+  for b in $1; do
+    base="${b##*-}"
+    case "${base}" in
+      *[!0-9a-f]*) echo error; return ;;
+    esac
+    [ "${#base}" = 40 ] || { echo error; return; }
+    case " ${bases} " in *" ${base} "*) ;; *) bases="${bases} ${base}" ;; esac
+  done
+  set -- ${bases}
+  [ "$#" = 1 ] || { echo error; return; }
+  pr_trusted "$1"
+}
+
 # queue_proof: prints true, false or error.
 queue_proof() {
   local path="repos/${GITHUB_REPOSITORY:-}/commits/${SHA:-}/check-suites?app_id=15368&per_page=100"
@@ -161,13 +189,10 @@ queue_proof() {
       result="$(printf '%s' "${body}" | jq -r '
         [ (.check_suites? // [])[]?
           | select(((.head_branch // "") | startswith("gh-readonly-queue/"))
-                   and .status == "completed" and .conclusion == "success") ]
-        | if length > 0 then "true" else "false" end' 2>/dev/null)" &&
-      { [ "${result}" = true ] || [ "${result}" = false ]; }; then
-      if [ "${result}" = true ]; then
-        result="$(pr_trusted)"
-      fi
-      echo "${result}"
+                   and .status == "completed" and .conclusion == "success")
+          | .head_branch ] | unique | if length == 0 then "none" else join(" ") end' 2>/dev/null)" &&
+      [ -n "${result}" ]; then
+      proof_from_branches "${result}"
       return
     fi
     if [ "${tries}" -ge 3 ]; then

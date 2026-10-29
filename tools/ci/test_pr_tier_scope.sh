@@ -35,7 +35,7 @@ case "$*" in
     printf '%s\n' "${FAKE_PULL-false$(printf '\t')oschaaf$(printf '\t')We-Amp/example}"
     exit 0 ;;
 esac
-printf '%s' "${FAKE_GH_BODY-}"
+printf '%s' "${FAKE_GH_BODY-}" | sed "s/@BASE@/${FAKE_BASE-}/g"
 GH
 cat > "${BIN}/sleep" <<'SL'
 #!/usr/bin/env bash
@@ -76,10 +76,10 @@ body() { # <suite>...
   printf '{"total_count":%d,"check_suites":[%s]}' "$#" "$*"
 }
 
-PROOF_TRUE="$(body "$(suite gh-readonly-queue/master/pr-12-abc completed '"success"')")"
+PROOF_TRUE="$(body "$(suite gh-readonly-queue/master/pr-12-@BASE@ completed '"success"')")"
 PROOF_MASTER="$(body "$(suite master completed '"success"')")"
-PROOF_FAILED="$(body "$(suite gh-readonly-queue/master/pr-12-abc completed '"failure"')")"
-PROOF_RUNNING="$(body "$(suite gh-readonly-queue/master/pr-12-abc in_progress null)")"
+PROOF_FAILED="$(body "$(suite gh-readonly-queue/master/pr-12-@BASE@ completed '"failure"')")"
+PROOF_RUNNING="$(body "$(suite gh-readonly-queue/master/pr-12-@BASE@ in_progress null)")"
 
 OUT="${WORK}/out"
 ERR="${WORK}/err"
@@ -92,7 +92,7 @@ run_scope() {
   set +e
   (cd "${REPO}" && env PATH="${BIN}:${PATH}" FAKE_LOG="${WORK}/gh.log" SLEEP_LOG="${WORK}/sleep.log" \
     GITHUB_EVENT_NAME=push GITHUB_REPOSITORY=We-Amp/example SHA="${SHA_VAL}" GH_TOKEN=x \
-    FORK_OR_BOT=false PR_FULL=false CI_SCOPE= BEFORE_SHA="${DEF_BEFORE}" FAKE_GH_BODY="${PROOF_TRUE}" \
+    FORK_OR_BOT=false PR_FULL=false CI_SCOPE= BEFORE_SHA="${DEF_BEFORE}" FAKE_BASE="${DEF_BEFORE}" FAKE_GH_BODY="${PROOF_TRUE}" \
     "$@" bash "${SCOPE}" > "${OUT}" 2> "${ERR}")
   RC=$?
   set -e
@@ -358,6 +358,31 @@ add_commit src/b.cc "no number"
 CUR=push-range-commit-without-number-runs
 run_scope CI_SCOPE=push
 check "${CUR}" true "proof=error"
+
+# Group base: the proof covers the whole group (base..SHA), not just the push.
+make_repo
+ROOT_SHA="${DEF_BEFORE}"
+add_commit src/a.cc "fork change (#551)"
+FORK_SHA="${SHA_VAL}"
+add_commit src/b.cc "same-repo change (#12)"
+CUR=push-group-base-before-push-with-fork-runs
+run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" FAKE_BASE="${ROOT_SHA}" "FAKE_PULL_551=true${TAB}someone${TAB}someone/example"
+check "${CUR}" true "proof=false"
+CUR=push-group-base-after-fork-skips
+run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" FAKE_BASE="${FORK_SHA}"
+check "${CUR}" false "reason=queue proof"
+CUR=push-group-base-not-ancestor-runs
+run_scope CI_SCOPE=push FAKE_BASE=2222222222222222222222222222222222222222
+check "${CUR}" true "proof=error"
+CUR=push-group-base-unparseable-runs
+run_scope CI_SCOPE=push FAKE_BASE=abc
+check "${CUR}" true "proof=error"
+CUR=push-group-suites-disagree-runs
+run_scope CI_SCOPE=push FAKE_GH_BODY="$(body "$(suite gh-readonly-queue/master/pr-12-@BASE@ completed '"success"')" "$(suite gh-readonly-queue/master/pr-13-${FORK_SHA} completed '"success"')")"
+check "${CUR}" true "proof=error"
+CUR=push-before-not-ancestor-runs
+run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" FAKE_BASE="${ROOT_SHA}" SHA="${ROOT_SHA}"
+check "${CUR}" true "would_skip=false"
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "${FAILS} case(s) failed"
