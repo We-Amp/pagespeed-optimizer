@@ -143,14 +143,14 @@ const docsSections: DocsSection[] = [
     title: 'Get started',
     position: 'getting_started',
     links: [
-      { href: '/docs/getting-started/', label: 'Getting started' },
+      { href: '/docs/getting-started/', label: 'Quick start' },
       { href: '/docs/is-it-working/', label: 'Is it working?' },
       { href: '/docs/installation-module/', label: 'Install on Apache and nginx' },
       { href: '/docs/installation-docker/', label: 'Install with Docker' },
       { href: '/docs/helm-deployment/', label: 'Deploy with Helm' },
       { href: '/docs/install-iis/', label: 'Install on IIS' },
       { href: '/docs/aspnet-getting-started/', label: 'ASP.NET Core middleware' },
-      { href: '/docs/upgrade/', label: 'Upgrade' },
+      { href: '/docs/upgrade/', label: 'Upgrade and migrate' },
     ],
   },
   {
@@ -169,12 +169,11 @@ const docsSections: DocsSection[] = [
     title: 'Rule & transform packs',
     position: 'packs',
     links: [
-      { href: '/packs/', label: 'Rule packs', umamiEvent: 'nav-packs' },
-      { href: '/docs/rule-packs/', label: 'Rule packs reference' },
+      { href: '/packs/', label: 'Browse rule packs', umamiEvent: 'nav-packs' },
+      { href: '/docs/rule-packs/', label: 'Rule pack format' },
       { href: '/platform/', label: 'Transform packs' },
       { href: '/platform/edge-seo/', label: 'Edge SEO' },
       { href: '/platform/consent/', label: 'Consent enforcement' },
-      { href: '/docs/agent-optimize/', label: 'Markdown for AI agents' },
     ],
   },
   {
@@ -185,6 +184,7 @@ const docsSections: DocsSection[] = [
       { href: '/docs/monitoring/', label: 'Monitoring' },
       { href: '/docs/troubleshooting/', label: 'Troubleshooting' },
       { href: '/docs/http-api/', label: 'Worker HTTP API' },
+      { href: '/docs/agent-optimize/', label: 'Markdown for AI agents' },
       { href: '/docs/release-notes/', label: 'Release notes' },
     ],
   },
@@ -890,9 +890,9 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                     </button>
                     <div
                       id={`nav-panel-${index}`}
-                      class="nav-dropdown-panel absolute left-8 pt-4 hidden z-50"
+                      class="nav-dropdown-panel absolute left-4 right-4 sm:left-6 sm:right-6 lg:left-8 lg:right-auto xl:right-8 pt-4 hidden z-50"
                     >
-                      <div class="nav-panel-box w-[34rem] xl:w-[64rem] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-5rem)] overflow-auto rounded-[var(--radius-card)] border border-border bg-bg-elevated p-4">
+                      <div class="nav-panel-box w-[34rem] xl:w-auto max-w-full max-h-[calc(100dvh-7rem)] overflow-auto rounded-[var(--radius-card)] border border-border bg-bg-elevated p-4">
                         <a
                           href={docsHome.href}
                           data-umami-event={docsHome.umamiEvent}
@@ -1122,22 +1122,26 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             navLinks.map((link) =>
               link.docsMenu ? (
                 <div>
+                  <p class="eyebrow py-2">{link.label}</p>
                   <a
                     href={docsHome.href}
                     data-umami-event={`${docsHome.umamiEvent}-mobile`}
                     aria-current={isExact(docsHome.href) ? 'page' : undefined}
                     class:list={[
                       'flex items-center gap-2 py-3 text-sm font-medium',
-                      isDocsActive ? 'text-interactive' : 'text-text-muted hover:text-text-body',
+                      isExact(docsHome.href) ? 'text-interactive' : 'text-text-muted hover:text-text-body',
                     ]}
                   >
                     <span>{docsHome.label}</span>
                   </a>
                   {docsSections.map((section) => (
-                    <details class="mobile-docs-section">
+                    <details
+                      class="group mobile-docs-section"
+                      open={section.links.some((l) => isExact(l.href))}
+                    >
                       <summary class="flex min-h-12 cursor-pointer items-center justify-between py-3 pl-4 text-sm font-medium text-text-muted hover:text-text-body">
                         {section.title}
-                        <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
+                        <Icon name="chevron-down" class="h-4 w-4 opacity-50 group-open:rotate-180" />
                       </summary>
                       <ul>
                         {section.links.map((item) => (
@@ -1469,9 +1473,19 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           (function () {
             var cta = document.getElementById('sticky-cta');
             if (!cta) return;
+            var footerInView = false;
             function update() {
               var past = window.scrollY > window.innerHeight * 0.9;
-              cta.setAttribute('data-sticky-cta', past ? 'visible' : 'hidden');
+              cta.setAttribute('data-sticky-cta', past && !footerInView ? 'visible' : 'hidden');
+            }
+            /* Hide it while the footer is on screen so it never covers the
+               provenance line. */
+            var footer = document.querySelector('footer');
+            if (footer && 'IntersectionObserver' in window) {
+              new IntersectionObserver(function (entries) {
+                footerInView = entries[0].isIntersecting;
+                update();
+              }).observe(footer);
             }
             update();
             window.addEventListener('scroll', update, { passive: true });
@@ -1523,11 +1537,12 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
 
       // Crossing into the desktop layout (lg, 1024px) hides the mobile menu
       // button, so an open menu would stay expanded with nothing to close it.
-      window
-        .matchMedia('(min-width: 1024px)')
-        .addEventListener('change', (e) => {
-          if (e.matches) closeMobileMenu(false);
-        });
+      const desktopMql = window.matchMedia('(min-width: 1024px)');
+      const onDesktopChange = (e: MediaQueryListEvent) => {
+        if (e.matches) closeMobileMenu(false);
+      };
+      if (desktopMql.addEventListener) desktopMql.addEventListener('change', onDesktopChange);
+      else desktopMql.addListener(onDesktopChange);
 
       // Desktop nav dropdowns (Docs, Tools, Support, Compare) — click + keyboard support.
       // Each group is independent; aria-expanded is the single source of truth
@@ -1561,6 +1576,11 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         });
 
         group.btn.addEventListener('keydown', (e) => {
+          if ((e.key === 'Enter' || e.key === ' ') && !group.panel.classList.contains('hidden')) {
+            e.preventDefault();
+            setGroupOpen(group, false);
+            return;
+          }
           if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             closeAllDropdowns();
@@ -1746,9 +1766,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       }
       #mobile-menu summary::-webkit-details-marker {
         display: none;
-      }
-      #mobile-menu details[open] > summary svg {
-        transform: rotate(180deg);
       }
       /* Links inside a Docs section sit under the summary's rule, not their own. */
       #mobile-menu details a:not(.btn-primary) {
