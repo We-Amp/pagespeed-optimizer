@@ -74,9 +74,14 @@ jobs:
       # Bazel repository cache (dependency downloads, incl. the cyclone
       # clone) + output base (external repos and build outputs). Same key
       # per dependency-relevant file set; restore-keys give a warm-ish start
-      # when only the source changes.
-      - name: Cache Bazel repository cache + output base
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # when only the source changes. Restored on every event, saved only by
+      # a push to main (step "Save Bazel repository cache + output base"):
+      # a pull request or merge queue ref would keep its own ~1 GB copy that
+      # only that ref can read (a merge queue ref never runs again), which
+      # the repository cache quota pays for.
+      - name: Restore Bazel repository cache + output base
+        id: bazel-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/bazel
@@ -129,6 +134,17 @@ jobs:
           //test/src/worker:json_output_test
           //test/src/worker:cache_handlers_test
           //test/src/worker:capture_handlers_test
+
+      - name: Save Bazel repository cache + output base
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.bazel-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazel-repo
+          key: ${{ steps.bazel-cache.outputs.cache-primary-key }}
 
   rat:
     name: License audit (Apache RAT)
