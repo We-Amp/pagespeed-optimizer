@@ -10,12 +10,8 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/');
   });
 
-  test('header nav: Docs, Rule packs, Blog and Contact are direct links', async ({ page }) => {
-    // Target IA: Docs is a direct link (no dropdown); Tools, Support and
-    // Compare are click-to-open dropdowns; Blog and Contact are flat.
+  test('header nav: Blog and Contact are direct links; Docs is a dropdown', async ({ page }) => {
     const directLinks = [
-      { label: 'Docs', href: '/docs/' },
-      { label: 'Rule packs', href: '/packs/' },
       { label: 'Blog', href: '/blog/' },
       { label: 'Contact', href: '/contact/' },
     ];
@@ -25,11 +21,141 @@ test.describe('Navigation', () => {
       await expect(page).toHaveURL(link.href);
     }
     await page.goto('/');
-    await expect(page.locator('header nav button.nav-dropdown-btn:has-text("Docs")')).toHaveCount(
-      0,
-    );
     const groups = await page.locator('header nav button.nav-dropdown-btn').allInnerTexts();
-    expect(groups.map((g) => g.trim())).toEqual(['Tools', 'Support', 'Compare']);
+    expect(groups.map((g) => g.trim())).toEqual(['Docs', 'Tools', 'Support', 'Compare']);
+    // Rule packs left the top level; it lives in the Docs panel.
+    await expect(page.locator('header nav .lg\\:flex > a:has-text("Rule packs")')).toHaveCount(0);
+  });
+
+  test('Docs dropdown: Docs home, four columns, Rule packs reachable', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Docs")').click();
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    const home = panel.locator('a[href="/docs/"]');
+    await expect(home).toContainText('Docs home');
+    await expect(home).toHaveAttribute('data-umami-event', 'nav-docs');
+    for (const title of [
+      'Get started',
+      'Configure',
+      'Rule & transform packs',
+      'Operate & reference',
+    ]) {
+      await expect(panel.getByText(title, { exact: true })).toBeVisible();
+    }
+    const packs = panel.locator('a[href="/packs/"]');
+    await expect(packs).toContainText('Browse rule packs');
+    await expect(packs).toHaveAttribute('data-umami-event', 'nav-packs');
+    const install = panel.locator('a[href="/docs/installation-docker/"]');
+    await expect(install).toHaveAttribute('data-umami-event', 'nav-docs-menu');
+    await expect(install).toHaveAttribute('data-umami-event-position', 'getting_started');
+    await packs.click();
+    await expect(page).toHaveURL('/packs/');
+  });
+
+  test('Docs dropdown: active state and aria-current', async ({ page }) => {
+    await page.goto('/docs/cache-modes/');
+    const btn = page.locator('header nav button.nav-dropdown-btn:has-text("Docs")');
+    await expect(btn).toHaveClass(/nav-item-active/);
+    await btn.click();
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    await expect(panel.locator('a[href="/docs/cache-modes/"]')).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await expect(panel.locator('a[href="/docs/"]')).not.toHaveAttribute('aria-current', 'page');
+    await page.goto('/packs/');
+    await expect(btn).toHaveClass(/nav-item-active/);
+  });
+
+  test('Docs dropdown is keyboard operable', async ({ page }) => {
+    await page.goto('/');
+    const btn = page.locator('header nav button.nav-dropdown-btn:has-text("Docs")');
+    await btn.focus();
+    await page.keyboard.press('ArrowDown');
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    await expect(panel).toBeVisible();
+    await expect(panel.locator('a').first()).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(panel).toBeHidden();
+    await expect(btn).toBeFocused();
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    // Enter and Space on an open button toggle it closed.
+    await page.keyboard.press('Enter');
+    await expect(panel).toBeVisible();
+    await btn.focus();
+    await page.keyboard.press('Enter');
+    await expect(panel).toBeHidden();
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('Docs panel fits a short 1024x700 viewport and scrolls inside itself', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 700 });
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Docs")').click();
+    const box = await page.locator('.nav-dropdown-panel:visible .nav-panel-box').boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(700);
+  });
+
+  test('Docs menu columns hold at most eight links', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Docs")').click();
+    const lists = page.locator('.nav-dropdown-panel:visible ul');
+    expect(await lists.count()).toBe(4);
+    for (let i = 0; i < 4; i++) {
+      expect(await lists.nth(i).locator('a').count()).toBeLessThanOrEqual(8);
+    }
+  });
+
+  test('mobile Docs menu opens the section holding the current page', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/docs/cache-modes/');
+    await page.locator('#mobile-menu-btn').click();
+    const open = page.locator('#mobile-menu details[open]');
+    await expect(open).toHaveCount(1);
+    await expect(open.locator('summary')).toContainText('Configure');
+  });
+
+  for (const width of [1024, 1280, 1440]) {
+    test(`Docs panel stays inside the viewport at ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/');
+      await page.locator('header nav button.nav-dropdown-btn:has-text("Docs")').click();
+      const box = await page.locator('.nav-dropdown-panel:visible .nav-panel-box').boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(800);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+    });
+  }
+
+  test('an open mobile menu closes when the viewport grows to desktop width', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 700 });
+    await page.goto('/');
+    const btn = page.locator('#mobile-menu-btn');
+    await btn.click();
+    await expect(btn).toHaveAttribute('aria-expanded', 'true');
+    await page.setViewportSize({ width: 1100, height: 700 });
+    await expect(btn).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#mobile-menu')).toHaveClass(/hidden/);
+    await page.setViewportSize({ width: 800, height: 700 });
+    await expect(page.locator('#mobile-menu')).toBeHidden();
+  });
+
+  test('the sticky mobile CTA appears after scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+    const cta = page.locator('#sticky-cta');
+    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 1.5));
+    await expect(cta).toHaveAttribute('data-sticky-cta', 'visible');
+    await expect(cta).toBeVisible();
+    // At the bottom the footer is in view and the CTA steps aside.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
   });
 
   test('Tools dropdown names the two lead tools plainly', async ({ page }) => {
@@ -261,7 +387,11 @@ test.describe('Navigation', () => {
     }
     await expect(mobileMenu.locator('[data-qm-open]')).toHaveCount(0);
 
-    await expect(mobileMenu.locator('a[href="/packs/"]')).toContainText('Rule packs');
+    // Docs: a plain home link, then one <details> per column.
+    await expect(mobileMenu.locator('a[href="/docs/"]')).toContainText('Docs home');
+    const packsSection = mobileMenu.locator('details', { hasText: 'Rule & transform packs' });
+    await packsSection.locator('summary').click();
+    await expect(packsSection.locator('a[href="/packs/"]')).toContainText('Browse rule packs');
 
     await mobileMenu.locator('a[href="/docs/"]').click();
     await expect(page).toHaveURL('/docs/');
