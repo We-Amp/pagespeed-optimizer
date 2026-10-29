@@ -466,7 +466,7 @@ has a step `Classify the merge group`, which runs only on `merge_group`. It
 fetches the default branch afresh, takes the group to be every commit between
 it and the group head (a stacked group's `base_sha` is the previous entry's
 queue commit, so it is not used; the default branch must be an ancestor of the
-head, and the range may hold at most 3 entries), resolves every pull request
+head, and the range may hold at most 10 commits), resolves every pull request
 in it from the last `(#N)` of each commit subject (the head commit's number
 must equal the one in the group's `head_ref`), and looks each one up with `gh api` (5 tries, 2, 4, 8 and 16 s
 apart). A group is **trusted** when every pull request comes from this
@@ -482,7 +482,7 @@ through the queue.
 
 The classifier refuses (exit `1`, the job fails, `CI gate` goes red) when it
 cannot decide: a pull request has lost its head repository, the fork flag is
-unreadable, the range is empty or holds more than 3 commits, the default branch is not an ancestor of the head, a commit subject has no `(#N)`, the `head_ref`
+unreadable, the range is empty or holds more than 10 commits, the default branch is not an ancestor of the head, a commit subject has no `(#N)`, the `head_ref`
 cannot be parsed, a pull request is not open (one in a merge group is, unless it merged earlier in the same queue run as the commit the group attributes to it), or a lookup still fails after the last try. It also refuses
 a fork pull request (not a Dependabot one) whose squash commit changes a path
 under `.github/` or `tools/ci/`: such a change is re-landed by a maintainer
@@ -583,13 +583,13 @@ full tier run as before.
   which is every commit between the default branch and the group head. A
   stacked group's base is the previous entry's queue commit, so the group is
   not read from the suite's branch name. Instead the pull request of each
-  commit in the union of `BEFORE_SHA..SHA` and the last 3 first-parent commits
+  commit in the union of `BEFORE_SHA..SHA` and the last 10 first-parent commits
   ending at `SHA` (the last `(#N)` of each subject, looked up with `gh api`, 3
   tries) must be from this repository and not authored by `dependabot[bot]`: a
   group with a fork or Dependabot pull request ran on hosted runners, and a
-  merge group can land up to 3 entries over more than one push. A missing or
+  merge group can land several entries over more than one push. A missing or
   zero `BEFORE_SHA` or one that is not an ancestor of `SHA`, an empty or
-  unreadable range, a merge commit, more than 3 commits in `BEFORE_SHA..SHA`, a
+  unreadable range, a merge commit, more than 10 commits in `BEFORE_SHA..SHA`, a
   subject without a number or a failed lookup counts as no proof, and the full
   tier runs. A change to the PR tier: any path under
   `.github/actions/` or `tools/ci/`, or `.github/workflows/pipeline-pr.yml` or

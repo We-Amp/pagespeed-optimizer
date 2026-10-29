@@ -339,7 +339,11 @@ add_commit src/c.cc "c (#3)"
 CUR=push-range-three-trusted-skips
 run_scope CI_SCOPE=push
 check "${CUR}" false "reason=queue proof"
-add_commit src/d.cc "d (#4)"
+for k in 4 5 6 7 8 9 10; do add_commit "src/n${k}.cc" "n${k} (#${k})"; done
+CUR=push-range-ten-trusted-skips
+run_scope CI_SCOPE=push
+check "${CUR}" false "reason=queue proof"
+add_commit src/n11.cc "n11 (#11)"
 CUR=push-range-over-limit-runs
 run_scope CI_SCOPE=push
 check "${CUR}" true "proof=error"
@@ -379,6 +383,17 @@ FORK_SHA="$(git -C "${REPO}" rev-parse HEAD~2)"
 CUR=push-before-not-ancestor-runs
 run_scope CI_SCOPE=push BEFORE_SHA="${FORK_SHA}" SHA="${ROOT_SHA:-${DEF_BEFORE}}"
 check "${CUR}" true "would_skip=false"
+
+make_repo
+add_commit src/a.cc "fork change (#551)"
+for k in 21 22 23 24; do add_commit "src/w${k}.cc" "w${k} (#${k})"; done
+WIN_PARENT="$(git -C "${REPO}" rev-parse HEAD~1)"
+CUR=push-window-fork-five-deep-runs
+run_scope CI_SCOPE=push BEFORE_SHA="${WIN_PARENT}" "FAKE_PULL_551=true${TAB}someone${TAB}someone/example"
+check "${CUR}" true "proof=false"
+CUR=push-window-five-deep-trusted-skips
+run_scope CI_SCOPE=push BEFORE_SHA="${WIN_PARENT}"
+check "${CUR}" false "reason=queue proof"
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "${FAILS} case(s) failed"

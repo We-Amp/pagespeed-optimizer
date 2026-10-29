@@ -112,13 +112,13 @@ pr_status() {
 # queue group's check suite, and the group is every commit between the default
 # branch and the group head. A stacked group's base is the previous entry's
 # queue commit, so the group cannot be read from the suite's branch name.
-# Instead the pull requests of the union of BEFORE_SHA..SHA and the last 3
-# first-parent commits ending at SHA (a group builds at most 3 entries) must all
+# Instead the pull requests of the union of BEFORE_SHA..SHA and the last 10
+# first-parent commits ending at SHA (a group has been seen up to 5 commits deep) must all
 # be trusted: same-repo and not authored by dependabot[bot], each commit mapped
 # by the last "(#N)" of its subject. A queue check suite alone is not proof for
 # a fork or Dependabot group, which ran on hosted runners. Anything unknown
 # (BEFORE_SHA missing, all-zero, unreachable or not an ancestor of SHA; an
-# empty or unreadable range; a merge commit; more than 3 commits in
+# empty or unreadable range; a merge commit; more than 10 commits in
 # BEFORE_SHA..SHA; a subject without a number; a failed lookup) is error, which
 # runs the full tier.
 pr_trusted() {
@@ -132,12 +132,12 @@ pr_trusted() {
   git merge-base --is-ancestor "${BEFORE_SHA}" "${SHA:-HEAD}" 2>/dev/null || { echo error; return; }
   push_shas="$(git rev-list "${BEFORE_SHA}..${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
   [ -n "${push_shas}" ] || { echo error; return; }
-  window="$(git rev-list --first-parent -n 3 "${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
+  window="$(git rev-list --first-parent -n 10 "${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
   [ -n "${window}" ] || { echo error; return; }
   for sha in ${push_shas}; do
     count=$((count + 1))
   done
-  [ "${count}" -le 3 ] || { echo error; return; }
+  [ "${count}" -le 10 ] || { echo error; return; }
   shas="$(printf '%s\n%s\n' "${push_shas}" "${window}" | sort -u)"
   for sha in ${shas}; do
     [ "$(git rev-list --no-walk --min-parents=2 "${sha}" 2>/dev/null | wc -l | tr -dc '0-9')" = 0 ] || { echo error; return; }
