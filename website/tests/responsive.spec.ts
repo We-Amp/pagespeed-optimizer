@@ -8,7 +8,7 @@ test.describe('Responsive layout', () => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.goto('/');
     // Desktop nav should be visible
-    const desktopNav = page.locator('header .hidden.md\\:flex');
+    const desktopNav = page.locator('header .hidden.lg\\:flex');
     await expect(desktopNav).toBeVisible();
     // Hamburger should be hidden
     await expect(page.locator('#mobile-menu-btn')).toBeHidden();
@@ -18,7 +18,7 @@ test.describe('Responsive layout', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/');
     // Desktop nav should be hidden
-    const desktopNav = page.locator('header .hidden.md\\:flex');
+    const desktopNav = page.locator('header .hidden.lg\\:flex');
     await expect(desktopNav).toBeHidden();
     // Hamburger should be visible
     await expect(page.locator('#mobile-menu-btn')).toBeVisible();
