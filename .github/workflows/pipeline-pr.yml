@@ -9,9 +9,13 @@
 # tools/ci/check-workflow-shape.sh:
 #   * a pull request from a fork, or from Dependabot, runs on a
 #     GitHub-hosted runner;
+#   * a merge group runs on a GitHub-hosted runner when it holds a fork or
+#     Dependabot pull request (the `changes` job classifies it and publishes
+#     the `route` output), and on the fleet otherwise;
 #   * everything else runs on a fleet class label;
-#   * the choice is made from the event payload and the variable here, never
-#     from inputs.
+#   * the choice is made from the event payload, the `route` output of the
+#     `changes` job and the variable here, never from inputs. A missing or
+#     empty route means hosted.
 # Fleet jobs also run on the hosted side while the repository variable
 # FLEET_ENABLED is 'false' (the kill switch; unset means on).
 #
@@ -445,6 +449,7 @@ jobs:
     outputs:
       fleet: ${{ steps.scope.outputs.fleet }}
       heavy: ${{ steps.scope.outputs.heavy }}
+      route: ${{ steps.route.outputs.route }}
       css: ${{ steps.diff.outputs.css }}
       js: ${{ steps.diff.outputs.js }}
       etag: ${{ steps.diff.outputs.etag }}
@@ -479,10 +484,16 @@ jobs:
           set -euo pipefail
           [ "${ACTOR}" != "github-actions[bot]" ] || { echo "::error::dispatches made with a workflow token are not allowed"; exit 1; }
 
-      # A merge group is built on the fleet, so a fork or Dependabot pull
-      # request in it is refused here, on a hosted runner, before any fleet job
-      # starts: `vendor` needs this job, and every fleet job needs `vendor`.
-      - name: Refuse fork and Dependabot PRs in the merge queue
+      # A merge group that holds a fork or Dependabot pull request runs on
+      # GitHub-hosted runners; any other merge group runs on the fleet. The
+      # classifier (exit 0 trusted, 3 untrusted, anything else refused) is
+      # read from the default branch, never from the queued tree. The group is
+      # every commit between a freshly fetched default branch and the group head
+      # (a stacked group's base_sha is the previous entry's commit, so it is not
+      # the range base). Fleet jobs
+      # read the result from this job's `route` output, directly.
+      - name: Classify the merge group
+        id: queue
         if: github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -490,12 +501,12 @@ jobs:
           HEAD_SHA: ${{ github.event.merge_group.head_sha }}
           HEAD_REF: ${{ github.event.merge_group.head_ref }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-        # The guard is read from the default branch, never from the queued tree.
         run: |
           set -euo pipefail
-          git rev-parse -q --verify "origin/${DEFAULT_BRANCH}^{commit}" >/dev/null ||
-            git fetch --no-tags --depth=1 origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
-          git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" | bash
+          git fetch --no-tags origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+          git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" > "${RUNNER_TEMP}/qfg.sh"
+          rc=0; bash "${RUNNER_TEMP}/qfg.sh" || rc=$?
+          case "${rc}" in 0) echo route=fleet;; 3) echo route=hosted;; *) exit 1;; esac >> "$GITHUB_OUTPUT"
 
       - name: Decide the fleet scope
         id: scope
@@ -525,6 +536,30 @@ jobs:
               fi ;;
           esac
           cat "${out}" >> "$GITHUB_OUTPUT"
+
+      # The runner route of the whole run: `fleet` or `hosted`. Fails closed:
+      # a merge group needs a classification, a pull request is hosted unless
+      # it is known to be same-repo and not from Dependabot, and an event this
+      # pipeline does not expect stops the run.
+      - name: Decide the runner route
+        id: route
+        env:
+          QUEUE_ROUTE: ${{ steps.queue.outputs.route }}
+          SAME_REPO_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+        run: |
+          set -euo pipefail
+          case "${GITHUB_EVENT_NAME}" in
+            merge_group)
+              case "${QUEUE_ROUTE}" in
+                fleet|hosted) route="${QUEUE_ROUTE}" ;;
+                *) echo "::error::the merge group was not classified"; exit 1 ;;
+              esac ;;
+            pull_request)
+              if [ "${SAME_REPO_PR}" = "true" ]; then route=fleet; else route=hosted; fi ;;
+            push|workflow_dispatch) route=fleet ;;
+            *) echo "::error::event ${GITHUB_EVENT_NAME} is not expected in this pipeline"; exit 1 ;;
+          esac
+          echo "route=${route}" >> "$GITHUB_OUTPUT"
 
       - name: Diff against the base commit
         id: diff
@@ -836,7 +871,7 @@ jobs:
     name: Vendor Dependencies
     needs: changes
     if: ${{ needs.changes.outputs.fleet == 'true' }}
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 45
     outputs:
       short_sha: ${{ steps.stamp.outputs.short_sha }}
@@ -1020,8 +1055,8 @@ jobs:
 
   linux-build:
     name: Linux Build
-    needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    needs: [changes, vendor]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1250,8 +1285,8 @@ jobs:
 
   linux-unit-tests:
     name: Linux Unit Tests
-    needs: [vendor, linux-build]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    needs: [changes, vendor, linux-build]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 120
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1342,7 +1377,7 @@ jobs:
   production-readiness-etag:
     name: Production readiness (ETag subset)
     needs: [changes, linux-build]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.etag == 'true' }}
     timeout-minutes: 30
     steps:
@@ -1439,8 +1474,8 @@ jobs:
 
   lint:
     name: Lint (clang-tidy + clang-format)
-    needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    needs: [changes, vendor]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     # A scoped lint finishes in a minute or two; a FULL-tree lint (every .cc
     # touched, e.g. a header sweep) takes tens of minutes, longer on a cold
     # lint cache or a hosted runner (which also builds the image first).
@@ -1775,8 +1810,8 @@ jobs:
     # TODO(follow-up): compare the kernel pin by content (tree id) against the
     # public repository instead of by commit id, so a floor move can resolve.
     name: JS Kernel Differential (vendored goldens)
-    needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    needs: [changes, vendor]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1887,8 +1922,8 @@ jobs:
     # TODO(follow-up): compare the kernel pin by content (tree id) against the
     # public repository instead of by commit id, so a floor move can resolve.
     name: HTML Parse Differential (vendored goldens)
-    needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    needs: [changes, vendor]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -2004,8 +2039,8 @@ jobs:
   # and executes nothing: the Linux Unit Tests job already runs the suite.
   release-compile-smoke:
     name: Release-config test compile
-    needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    needs: [changes, vendor]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -2089,7 +2124,7 @@ jobs:
   css-fuzz-smoke:
     name: CSS fuzz smoke (deterministic oracle replay)
     needs: changes
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.css == 'true' }}
     timeout-minutes: 20
     steps:
@@ -2173,7 +2208,7 @@ jobs:
   js-fuzz-smoke:
     name: JS fuzz smoke (deterministic oracle replay)
     needs: changes
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.js == 'true' }}
     timeout-minutes: 20
     steps:
@@ -2246,8 +2281,8 @@ jobs:
   # generous on purpose.
   windows-build:
     name: Windows Build
-    needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
+    needs: [changes, vendor]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
     timeout-minutes: 90
     defaults:
       run:
@@ -2517,8 +2552,8 @@ jobs:
   # disk cache or a remote cache compiles the tree again here.
   windows-unit-tests:
     name: Windows Unit Tests
-    needs: [vendor, windows-build]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
+    needs: [changes, vendor, windows-build]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
     timeout-minutes: 120
     defaults:
       run:

@@ -74,6 +74,13 @@ Website changes (`website/`) are ordinary pull requests too; see
   `bash tools/ci/check_release_note.sh --base origin/main --head HEAD`.
   Details in [RELEASING.md](RELEASING.md).
 - Describe the problem, the change and how you verified it.
+- Pull requests from forks are welcome. They merge through the merge queue
+  like any other, with CI running on GitHub-hosted runners (slower than the
+  maintainers' own runs). Contributors cannot add their own pull requests to
+  the merge queue. A maintainer reads the full diff of a pull request from a
+  fork, including any `.github/` or `tools/ci/` changes, before adding it to
+  the queue; fork pull requests that change those paths are re-landed from a
+  branch instead.
 
 ## Licensing
 

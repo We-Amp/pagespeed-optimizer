@@ -14,6 +14,7 @@ jobs:
     outputs:
       fleet: ${{ steps.scope.outputs.fleet }}
       heavy: ${{ steps.scope.outputs.heavy }}
+      route: ${{ steps.route.outputs.route }}
     steps:
       - run: echo unlock
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -39,7 +40,8 @@ jobs:
           set -euo pipefail
           [ "${ACTOR}" != "github-actions[bot]" ] || { echo "::error::dispatches made with a workflow token are not allowed"; exit 1; }
 
-      - name: Refuse fork and Dependabot PRs in the merge queue
+      - name: Classify the merge group
+        id: queue
         if: github.event_name == 'merge_group'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,9 +51,10 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          git rev-parse -q --verify "origin/${DEFAULT_BRANCH}^{commit}" >/dev/null ||
-            git fetch --no-tags --depth=1 origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
-          git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" | bash
+          git fetch --no-tags origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+          git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" > "${RUNNER_TEMP}/qfg.sh"
+          rc=0; bash "${RUNNER_TEMP}/qfg.sh" || rc=$?
+          case "${rc}" in 0) echo route=fleet;; 3) echo route=hosted;; *) exit 1;; esac >> "$GITHUB_OUTPUT"
 
       - name: Decide the fleet scope
         id: scope
@@ -81,6 +84,25 @@ jobs:
               fi ;;
           esac
           cat "${out}" >> "$GITHUB_OUTPUT"
+      - name: Decide the runner route
+        id: route
+        env:
+          QUEUE_ROUTE: ${{ steps.queue.outputs.route }}
+          SAME_REPO_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+        run: |
+          set -euo pipefail
+          case "${GITHUB_EVENT_NAME}" in
+            merge_group)
+              case "${QUEUE_ROUTE}" in
+                fleet|hosted) route="${QUEUE_ROUTE}" ;;
+                *) echo "::error::the merge group was not classified"; exit 1 ;;
+              esac ;;
+            pull_request)
+              if [ "${SAME_REPO_PR}" = "true" ]; then route=fleet; else route=hosted; fi ;;
+            push|workflow_dispatch) route=fleet ;;
+            *) echo "::error::event ${GITHUB_EVENT_NAME} is not expected in this pipeline"; exit 1 ;;
+          esac
+          echo "route=${route}" >> "$GITHUB_OUTPUT"
       - run: echo diff
   vendor:
     needs: changes
@@ -100,3 +122,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: bash tools/ci/test_queue_fork_guard.sh
+  build:
+    needs: [changes, vendor]
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    steps:
+      - run: echo build
+  iis:
+    needs: [changes, vendor]
+    if: ${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && needs.changes.outputs.route == 'fleet' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-iis' }}
+    steps:
+      - run: echo iis
+  report:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - run: echo report

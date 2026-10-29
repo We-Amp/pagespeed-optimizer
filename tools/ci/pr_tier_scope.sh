@@ -22,8 +22,12 @@
 #
 # The push rule: a push whose commit the merge queue already proved (a
 # completed, successful check suite of GitHub Actions on a gh-readonly-queue/
-# branch for the same SHA) skips the fleet jobs, unless the push changes the
-# pipeline itself. It is on only when CI_SCOPE is push, pr-build or pr; any
+# branch for the same SHA, and the pull request of every commit of the queue
+# group, looked up by the last "(#N)" of its subject, is same-repo and not from
+# dependabot[bot])
+# skips the fleet jobs, unless the push changes the pipeline itself. A group
+# with a fork or Dependabot pull request ran on hosted runners, so it is not
+# proof. It is on only when CI_SCOPE is push, pr-build or pr; any
 # other value, or none, is `full` and runs everything. Every other event runs
 # everything. Anything unexpected fails safe to the full tier.
 
@@ -68,6 +72,91 @@ pipeline_change() {
   grep -qE '^(\.github/workflows/(pipeline-pr|ci)\.yml$|\.github/actions/|tools/ci/)' <<< "${changed}"
 }
 
+# pr_status <n>: prints true, false or error for one pull request: true when
+# it is same-repo, not a fork and not authored by dependabot[bot]; false when
+# it is a fork, from another repository or Dependabot; error for anything
+# unknown (failed lookup, missing head repository).
+pr_status() {
+  local n="$1" tries=0 delay=2 out fork login full want_lc full_lc
+  while :; do
+    tries=$((tries + 1))
+    if out="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${n}" \
+      --jq '[(.head.repo.fork | tostring), (.user.login // ""), (.head.repo.full_name // "")] | @tsv' 2>/dev/null)" &&
+      [ -n "${out}" ]; then
+      break
+    fi
+    if [ "${tries}" -ge 3 ]; then
+      echo error
+      return
+    fi
+    sleep "${delay}"
+    delay=$((delay * 2))
+  done
+  fork="${out%%$'\t'*}"
+  out="${out#*$'\t'}"
+  login="${out%%$'\t'*}"
+  full=""
+  case "${out}" in *$'\t'*) full="${out#*$'\t'}" ;; esac
+  want_lc="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+  full_lc="$(printf '%s' "${full}" | tr '[:upper:]' '[:lower:]')"
+  if [ "${fork}" != "false" ] && [ "${fork}" != "true" ]; then
+    echo error
+  elif [ "${fork}" = "true" ] || [ "${full_lc}" != "${want_lc}" ] || [ "${login}" = "dependabot[bot]" ] || [ -z "${login}" ] || [ -z "${full}" ]; then
+    echo false
+  else
+    echo true
+  fi
+}
+
+# pr_trusted: prints true, false or error for the push. The proof is the
+# queue group's check suite, and the group is every commit between the default
+# branch and the group head. A stacked group's base is the previous entry's
+# queue commit, so the group cannot be read from the suite's branch name.
+# Instead the pull requests of the union of BEFORE_SHA..SHA and the last 10
+# first-parent commits ending at SHA (a group has been seen up to 5 commits deep) must all
+# be trusted: same-repo and not authored by dependabot[bot], each commit mapped
+# by the last "(#N)" of its subject. A queue check suite alone is not proof for
+# a fork or Dependabot group, which ran on hosted runners. Anything unknown
+# (BEFORE_SHA missing, all-zero, unreachable or not an ancestor of SHA; an
+# empty or unreadable range; a merge commit; more than 10 commits in
+# BEFORE_SHA..SHA; a subject without a number; a failed lookup) is error, which
+# runs the full tier.
+pr_trusted() {
+  local push_shas window shas sha subject n nums="" count=0 st result=true
+  case "${BEFORE_SHA:-}" in
+    ""|*[!0]*) ;;
+    *) echo error; return ;;
+  esac
+  [ -n "${BEFORE_SHA:-}" ] || { echo error; return; }
+  git rev-parse -q --verify "${BEFORE_SHA}^{commit}" >/dev/null 2>&1 || { echo error; return; }
+  git merge-base --is-ancestor "${BEFORE_SHA}" "${SHA:-HEAD}" 2>/dev/null || { echo error; return; }
+  push_shas="$(git rev-list "${BEFORE_SHA}..${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
+  [ -n "${push_shas}" ] || { echo error; return; }
+  window="$(git rev-list --first-parent -n 10 "${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
+  [ -n "${window}" ] || { echo error; return; }
+  for sha in ${push_shas}; do
+    count=$((count + 1))
+  done
+  [ "${count}" -le 10 ] || { echo error; return; }
+  shas="$(printf '%s\n%s\n' "${push_shas}" "${window}" | sort -u)"
+  for sha in ${shas}; do
+    [ "$(git rev-list --no-walk --min-parents=2 "${sha}" 2>/dev/null | wc -l | tr -dc '0-9')" = 0 ] || { echo error; return; }
+    subject="$(git log -1 --format=%s "${sha}" 2>/dev/null)" || { echo error; return; }
+    n="$(printf '%s\n' "${subject}" | grep -oE '\(#[0-9]+\)' | tail -n 1 | tr -dc '0-9' || true)"
+    [ -n "${n}" ] || { echo error; return; }
+    nums="${nums} ${n}"
+  done
+  for n in $(printf '%s\n' ${nums} | sort -un); do
+    st="$(pr_status "${n}")"
+    case "${st}" in
+      true) ;;
+      false) result=false ;;
+      *) echo error; return ;;
+    esac
+  done
+  echo "${result}"
+}
+
 # queue_proof: prints true, false or error.
 queue_proof() {
   local path="repos/${GITHUB_REPOSITORY:-}/commits/${SHA:-}/check-suites?app_id=15368&per_page=100"
@@ -82,10 +171,14 @@ queue_proof() {
       result="$(printf '%s' "${body}" | jq -r '
         [ (.check_suites? // [])[]?
           | select(((.head_branch // "") | startswith("gh-readonly-queue/"))
-                   and .status == "completed" and .conclusion == "success") ]
-        | if length > 0 then "true" else "false" end' 2>/dev/null)" &&
-      { [ "${result}" = true ] || [ "${result}" = false ]; }; then
-      echo "${result}"
+                   and .status == "completed" and .conclusion == "success")
+          | .head_branch ] | if length == 0 then "none" else "some" end' 2>/dev/null)" &&
+      { [ "${result}" = none ] || [ "${result}" = some ]; }; then
+      if [ "${result}" = some ]; then
+        pr_trusted
+      else
+        echo false
+      fi
       return
     fi
     if [ "${tries}" -ge 3 ]; then
