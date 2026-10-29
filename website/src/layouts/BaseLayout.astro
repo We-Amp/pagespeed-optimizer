@@ -111,8 +111,8 @@ const canonicalUrl = canonical ?? new URL(canonicalPath, 'https://modpagespeed.c
 const logoLight = '/logo.svg';
 const logoDark = '/logo-dark.svg';
 
-// Primary nav (target IA): Docs is a direct link; the tools, the commercial
-// offers and the comparisons are three dropdowns; Blog and Contact are flat;
+// Primary nav (target IA): Docs (a structured, four-column menu), the tools,
+// the commercial offers and the comparisons are four dropdowns; Blog and Contact are flat;
 // "Download & run" is the one button. Support items are paid CTAs and carry
 // the cta_commercial event with offer/surface/position properties (umami
 // `data-umami-event-<prop>`); other items keep their existing event names.
@@ -128,6 +128,67 @@ type NavChild = {
   umamiProps?: UmamiProps;
   external?: boolean;
 };
+type DocsLink = { href: string; label: string; umamiEvent?: string };
+type DocsSection = { title: string; position: string; links: DocsLink[] };
+// The Docs menu. Every /docs/<slug>/ href is checked against the docs
+// collection by test/nav-docs-links.test.ts. Plain links, one heading per column.
+const docsHome = {
+  href: '/docs/',
+  label: 'Docs home',
+  subtitle: 'All guides, by topic',
+  umamiEvent: 'nav-docs',
+};
+const docsSections: DocsSection[] = [
+  {
+    title: 'Get started',
+    position: 'getting_started',
+    links: [
+      { href: '/docs/getting-started/', label: 'Getting started' },
+      { href: '/docs/is-it-working/', label: 'Is it working?' },
+      { href: '/docs/installation-module/', label: 'Install on Apache and nginx' },
+      { href: '/docs/installation-docker/', label: 'Install with Docker' },
+      { href: '/docs/helm-deployment/', label: 'Deploy with Helm' },
+      { href: '/docs/install-iis/', label: 'Install on IIS' },
+      { href: '/docs/aspnet-getting-started/', label: 'ASP.NET Core middleware' },
+      { href: '/docs/upgrade/', label: 'Upgrade' },
+    ],
+  },
+  {
+    title: 'Configure',
+    position: 'configure',
+    links: [
+      { href: '/docs/configuration/', label: 'Apache and nginx directives' },
+      { href: '/docs/worker-configuration/', label: 'Worker configuration' },
+      { href: '/docs/cache-modes/', label: 'Cache modes' },
+      { href: '/docs/cdn-integration/', label: 'CDN integration' },
+      { href: '/docs/filter-selection/', label: 'Filter selection' },
+      { href: '/docs/filters/', label: 'Filter reference' },
+    ],
+  },
+  {
+    title: 'Rule & transform packs',
+    position: 'packs',
+    links: [
+      { href: '/packs/', label: 'Rule packs', umamiEvent: 'nav-packs' },
+      { href: '/docs/rule-packs/', label: 'Rule packs reference' },
+      { href: '/platform/', label: 'Transform packs' },
+      { href: '/platform/edge-seo/', label: 'Edge SEO' },
+      { href: '/platform/consent/', label: 'Consent enforcement' },
+      { href: '/docs/agent-optimize/', label: 'Markdown for AI agents' },
+    ],
+  },
+  {
+    title: 'Operate & reference',
+    position: 'operate',
+    links: [
+      { href: '/docs/deployment/', label: 'Run in production' },
+      { href: '/docs/monitoring/', label: 'Monitoring' },
+      { href: '/docs/troubleshooting/', label: 'Troubleshooting' },
+      { href: '/docs/http-api/', label: 'Worker HTTP API' },
+      { href: '/docs/release-notes/', label: 'Release notes' },
+    ],
+  },
+];
 const commercial = (offer: string, position: string): UmamiProps => ({
   offer,
   surface: 'nav',
@@ -138,11 +199,10 @@ const navLinks: Array<{
   label: string;
   badge?: string;
   umamiEvent?: string;
-  desktopOnlyFromLg?: boolean;
+  docsMenu?: boolean;
   children?: NavChild[];
 }> = [
-  { href: '/docs/', label: 'Docs', umamiEvent: 'nav-docs' },
-  { href: '/packs/', label: 'Rule packs', umamiEvent: 'nav-packs', desktopOnlyFromLg: true },
+  { label: 'Docs', docsMenu: true },
   {
     label: 'Tools',
     children: [
@@ -383,6 +443,10 @@ const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
 ];
 
 const currentPath = Astro.url.pathname;
+const docsPrefixes = ['/docs/', '/packs/', '/platform/'];
+const normPath = currentPath.endsWith('/') ? currentPath : `${currentPath}/`;
+const isDocsActive = docsPrefixes.some((p) => normPath.startsWith(p));
+const isExact = (href: string) => normPath === href;
 
 // --- BreadcrumbList JSON-LD ---
 const segmentNames: Record<string, string> = {
@@ -785,7 +849,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       )
     }
     <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
-      <nav class="mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+      <nav class="relative mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         <div class="flex h-16 items-center justify-between">
           <a href="/" class="flex shrink-0 items-center" aria-label={`${currentLabel} — Home`}>
             <img
@@ -808,7 +872,69 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           <div class="hidden lg:flex items-center gap-4">
             {
               navLinks.map((link, index) =>
-                link.children ? (
+                link.docsMenu ? (
+                  <div class="group nav-dropdown-group">
+                    <button
+                      type="button"
+                      class:list={[
+                        'nav-dropdown-btn text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
+                        isDocsActive
+                          ? 'text-interactive nav-item-active'
+                          : 'text-text-muted hover:text-text-body',
+                      ]}
+                      aria-controls={`nav-panel-${index}`}
+                      aria-expanded="false"
+                    >
+                      {link.label}
+                      <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
+                    </button>
+                    <div
+                      id={`nav-panel-${index}`}
+                      class="nav-dropdown-panel absolute left-8 pt-4 hidden z-50"
+                    >
+                      <div class="nav-panel-box w-[34rem] xl:w-[64rem] max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-5rem)] overflow-auto rounded-[var(--radius-card)] border border-border bg-bg-elevated p-4">
+                        <a
+                          href={docsHome.href}
+                          data-umami-event={docsHome.umamiEvent}
+                          aria-current={isExact(docsHome.href) ? 'page' : undefined}
+                          class="block rounded-md px-3 py-2 hover:bg-bg-secondary transition-colors"
+                        >
+                          <span class="text-sm font-medium text-text-body">{docsHome.label}</span>
+                          <span class="block text-xs text-text-annotation">{docsHome.subtitle}</span>
+                        </a>
+                        <div class="mt-3 grid grid-cols-2 xl:grid-cols-[repeat(4,max-content)] xl:justify-between gap-x-4 gap-y-5 border-t border-border pt-4">
+                          {docsSections.map((section, si) => (
+                            <div>
+                              <p id={`docs-menu-h-${si}`} class="eyebrow px-3 pb-1 xl:whitespace-nowrap">
+                                {section.title}
+                              </p>
+                              <ul aria-labelledby={`docs-menu-h-${si}`}>
+                                {section.links.map((item) => (
+                                  <li>
+                                    <a
+                                      href={item.href}
+                                      data-umami-event={item.umamiEvent ?? 'nav-docs-menu'}
+                                      {...umamiAttrs({ position: section.position })}
+                                      aria-current={isExact(item.href) ? 'page' : undefined}
+                                      class:list={[
+                                        'block rounded-md px-3 py-1.5 text-sm hover:bg-bg-secondary transition-colors',
+                                        isExact(item.href)
+                                          ? 'text-interactive font-medium'
+                                          : 'text-text-body',
+                                      ]}
+                                    >
+                                      {item.label}
+                                    </a>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : link.children ? (
                   <div class="relative group nav-dropdown-group">
                     <button
                       type="button"
@@ -871,8 +997,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                     data-umami-event={link.umamiEvent}
                     aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
                     class:list={[
-                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5 xl:whitespace-nowrap',
-                      link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : 'inline-flex',
+                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5 xl:whitespace-nowrap inline-flex',
                       currentPath.startsWith(link.href!)
                         ? 'text-interactive nav-item-active'
                         : 'text-text-muted hover:text-text-body',
@@ -995,7 +1120,49 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         >
           {
             navLinks.map((link) =>
-              link.children ? (
+              link.docsMenu ? (
+                <div>
+                  <a
+                    href={docsHome.href}
+                    data-umami-event={`${docsHome.umamiEvent}-mobile`}
+                    aria-current={isExact(docsHome.href) ? 'page' : undefined}
+                    class:list={[
+                      'flex items-center gap-2 py-3 text-sm font-medium',
+                      isDocsActive ? 'text-interactive' : 'text-text-muted hover:text-text-body',
+                    ]}
+                  >
+                    <span>{docsHome.label}</span>
+                  </a>
+                  {docsSections.map((section) => (
+                    <details class="mobile-docs-section">
+                      <summary class="flex min-h-12 cursor-pointer items-center justify-between py-3 pl-4 text-sm font-medium text-text-muted hover:text-text-body">
+                        {section.title}
+                        <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
+                      </summary>
+                      <ul>
+                        {section.links.map((item) => (
+                          <li>
+                            <a
+                              href={item.href}
+                              data-umami-event={item.umamiEvent ? `${item.umamiEvent}-mobile` : 'nav-docs-menu'}
+                              {...umamiAttrs({ position: section.position }, '_mobile')}
+                              aria-current={isExact(item.href) ? 'page' : undefined}
+                              class:list={[
+                                'block py-3 pl-8 text-sm font-medium',
+                                isExact(item.href)
+                                  ? 'text-interactive'
+                                  : 'text-text-muted hover:text-text-body',
+                              ]}
+                            >
+                              {item.label}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  ))}
+                </div>
+              ) : link.children ? (
                 <div>
                   <p class="eyebrow py-2">
                     {link.label}
@@ -1295,11 +1462,10 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     {
       showStickyCta && (
         <script is:inline>
-          {`
           /* Reveal the mobile sticky CTA once the user scrolls past the hero
-             (~90% of the first viewport). Toggles a data attribute; the fade/
-             slide is pure CSS so reduced-motion users still get an instant flip
-             via the global motion reset. */
+             (~90% of the first viewport). Toggles a data attribute; the fade is
+             pure CSS so reduced-motion users still get an instant flip via the
+             global motion reset. */
           (function () {
             var cta = document.getElementById('sticky-cta');
             if (!cta) return;
@@ -1311,7 +1477,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             window.addEventListener('scroll', update, { passive: true });
             window.addEventListener('resize', update, { passive: true });
           })();
-          `}
         </script>
       )
     }
@@ -1356,7 +1521,15 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         if (e.key === 'Escape') closeMobileMenu(true);
       });
 
-      // Desktop nav dropdowns (Tools, Docs) — click + keyboard support.
+      // Crossing into the desktop layout (lg, 1024px) hides the mobile menu
+      // button, so an open menu would stay expanded with nothing to close it.
+      window
+        .matchMedia('(min-width: 1024px)')
+        .addEventListener('change', (e) => {
+          if (e.matches) closeMobileMenu(false);
+        });
+
+      // Desktop nav dropdowns (Docs, Tools, Support, Compare) — click + keyboard support.
       // Each group is independent; aria-expanded is the single source of truth
       // and visual state mirrors it. Opening one closes the others.
       const dropdownGroups = Array.from(
@@ -1564,8 +1737,22 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           inset 0 0 0 1px var(--color-border);
       }
       /* Mobile menu: a hairline divider on every item row. */
-      #mobile-menu a:not(.btn-primary) {
+      #mobile-menu a:not(.btn-primary),
+      #mobile-menu summary {
         border-top: 1px solid var(--color-border);
+      }
+      #mobile-menu summary {
+        list-style: none;
+      }
+      #mobile-menu summary::-webkit-details-marker {
+        display: none;
+      }
+      #mobile-menu details[open] > summary svg {
+        transform: rotate(180deg);
+      }
+      /* Links inside a Docs section sit under the summary's rule, not their own. */
+      #mobile-menu details a:not(.btn-primary) {
+        border-top: 0;
       }
     </style>
   </body>
