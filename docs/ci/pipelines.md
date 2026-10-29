@@ -494,11 +494,11 @@ its `needs` and reads `needs.changes.outputs.route` directly; the value is
 never passed through `vendor`, which runs the queued tree's code. A missing or
 empty route means hosted.
 
-The classifier is `tools/ci/queue_fork_guard.sh`. The step reads it from
-`origin/main` and pipes it to `bash`; it never runs the copy in the
+The classifier is `tools/ci/queue_fork_guard.sh`. The step writes it from
+`origin/main` to a file in the runner's temp directory and runs that file; it never runs the copy in the
 queued tree, and a script missing on the default branch fails the step. The
 workflow-shape gate (`queue-guard-reads-default-branch`) requires the step in
-the `changes` job, restricts its `run:` block to that read and the exit-status
+the `changes` job, restricts its `run:` block to that read, the run of the file and the exit-status
 mapping (plus `set -euo pipefail` and the default-branch fetch), pins the route
 step and rejects any other read of the script in a workflow file.
 `tools/ci/test_queue_fork_guard.sh` covers the classifier against a fake `gh`
@@ -535,9 +535,12 @@ this text.
 
 These in-tree guards bind runs whose caller workflow is unmodified: a queued
 tree controls its own caller `ci.yml`, so maintainers review `.github/` changes
-before queueing. What keeps a fork pull request's code off the shared build
-runners is the runner group that serves them, which accepts only the
-pipeline workflows at the default branch (and `ci-dev`), not these checks. The
+before queueing. Maintainers do not queue a fork pull request that changes
+`.github/` or `tools/ci/`; such changes are re-landed from a branch. What keeps
+a fork pull request's code off the shared build runners is the runner group
+that serves them, which accepts only the pipeline workflows at the default
+branch (and `ci-dev`), together with the classifier in the default branch's
+pipeline. The
 `@ci-dev` allow-list entries stay. Pushing `ci-dev` from a `main`-based branch
 gives its copies of `pipeline-pr.yml` and `pipeline-full.yml` the classifier
 and the guards above, so after a change to them lands on `main` a maintainer
@@ -570,11 +573,17 @@ full tier run as before.
   check suite on a `gh-readonly-queue/` branch
   (`gh api repos/<repo>/commits/<sha>/check-suites?app_id=15368`, up to 3
   tries, 2 and 4 s apart; an empty or unparseable answer after the last try
-  counts as no proof). A change to the PR tier: any path under
+  counts as no proof). The suite is not enough by itself: the commit's pull
+  request (the last `(#N)` of its subject, looked up with `gh api`, 3 tries)
+  must be from this repository and not authored by `dependabot[bot]`, because
+  a queue group with a fork or Dependabot pull request ran on hosted runners.
+  A missing number or a failed lookup counts as no proof, and the full tier
+  runs. A change to the PR tier: any path under
   `.github/actions/` or `tools/ci/`, or `.github/workflows/pipeline-pr.yml` or
   `.github/workflows/ci.yml`, in the pushed commit; a commit without a parent
   counts as one. The callers grant `checks: read` to the `pr` job for the
-  lookup.
+  lookup; the pull request lookup uses the `pull-requests: read` the `changes`
+  job already has.
 - **Log lines.** The script writes one line
   `fleet scope: event=<event> scope=<level> fleet=<bool> heavy=<bool> reason=<text>`
   and, on every push whatever the level,
@@ -681,13 +690,16 @@ job and fails the build when the shape breaks:
   optionally narrowed by a `changes` path filter, see above), and a job routed
   by the switch expression carries none. In `pipeline-pr.yml` the switch
   expression must be the queue form (with the `needs.changes.outputs.route !=
-  'fleet'` term; the plain switch form is rejected there) and the job lists
-  `changes` in its `needs`;
+  'fleet'` term; the plain switch form is rejected there), and a fleet-only
+  job (plain route) carries a fleet-only guard ending in `&& needs.changes.outputs.route
+  == 'fleet'`; every such job lists `changes` in its `needs`;
 - **(e)** `.github/` and `tools/ci/` carry no LAN address literals, no
   `.home` names, no `:9090`, no `self-hosted` and none of the retired runner
   label words;
 - **(f)** in a reusable workflow a `write` permission (workflow or job level)
-  is allowed only on a job with a hosted `runs-on`;
+  is allowed only on a job with a hosted `runs-on`; in `pipeline-pr.yml` also
+  only on a job whose `if:` keeps it off `merge_group`, so a job that can run
+  on a merge group stays read-only;
 - **(queue-guard-reads-default-branch)** in `pipeline-pr.yml`: the `changes`
   job holds the merge-queue guard step as the third of three fixed steps
   after the checkout step (after the push-ref and token-dispatch refusal

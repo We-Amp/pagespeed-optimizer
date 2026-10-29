@@ -76,8 +76,8 @@ Website changes (`website/`) are ordinary pull requests too; see
 - Describe the problem, the change and how you verified it.
 - Pull requests from forks are welcome. They merge through the merge queue
   like any other, with CI running on GitHub-hosted runners (slower than the
-  maintainers' own runs). A fork pull request that changes `.github/` or
-  `tools/ci/` is re-landed by a maintainer from a branch.
+  maintainers' own runs). Maintainers do not queue a fork pull request that
+  changes `.github/` or `tools/ci/`; such changes are re-landed from a branch.
 
 ## Licensing
 

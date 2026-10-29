@@ -97,6 +97,12 @@ FLEET_DISPATCH_GUARD="\${{ github.event_name == 'workflow_dispatch' && vars.FLEE
 # FLEET_ENABLED variable is 'false' (unset means on).
 FLEET_ONLY_SWITCH_GUARD="\${{ vars.FLEET_ENABLED != 'false' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}"
 
+# Queue variants of the fleet-only guards, for pipeline-pr.yml: the same
+# guard with the route of the `changes` job required to be `fleet`.
+FLEET_ONLY_QUEUE_GUARD="${FLEET_ONLY_GUARD% \}\}} && needs.changes.outputs.route == 'fleet' }}"
+FLEET_ONLY_SWITCH_QUEUE_GUARD="${FLEET_ONLY_SWITCH_GUARD% \}\}} && needs.changes.outputs.route == 'fleet' }}"
+FLEET_DISPATCH_QUEUE_GUARD="${FLEET_DISPATCH_GUARD% \}\}} && needs.changes.outputs.route == 'fleet' }}"
+
 status=0
 err() { echo "::error::$*" >&2; status=1; }
 
@@ -366,6 +372,18 @@ EOT
         if ! is_switch_if "${if_val}"; then
           err "${wf}:${lineno}: switch-routed job '${job}' may carry no if:, only a needs.changes.outputs.<name> == 'true' path filter, or exactly \${{ github.event_name != 'push' }} (rule d)"
         fi
+      elif [ "${base}" = "pipeline-pr.yml" ] && is_fleet_route "${val}"; then
+        # Fleet-only job in the PR tier: the plain route has no route term, so
+        # the job's if: must supply it (and the job must read it directly).
+        if_val="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${job}" '$1=="KEY" && $2==j && $3=="if" {print $5}')"
+        if [ "${if_val}" != "${FLEET_ONLY_QUEUE_GUARD}" ] \
+           && [ "${if_val}" != "${FLEET_ONLY_SWITCH_QUEUE_GUARD}" ] \
+           && [ "${if_val}" != "${FLEET_DISPATCH_QUEUE_GUARD}" ]; then
+          err "${wf}:${lineno}: fleet job '${job}' in pipeline-pr.yml must use the queue switch expression, or the plain route with a fleet-only guard that ends in \`&& needs.changes.outputs.route == 'fleet'\` (rule d)"
+        fi
+        if ! job_needs_changes "${records}" "${job}"; then
+          err "${wf}:${lineno}: fleet job '${job}' must list 'changes' in its needs, so the route is read directly (rule d)"
+        fi
       elif is_fleet_route "${val}"; then
         # A fleet job carries the fleet guard verbatim as its if: (the
         # FLEET_ENABLED kill switch, docs/ci/pipelines.md).
@@ -392,6 +410,15 @@ EOF
       if [ "${wjob}" = "-" ]; then
         err "${wf}:${wline}: workflow-level write permission in a reusable workflow; keep it read-only and raise write on a hosted job (rule f)"
         continue
+      fi
+      if [ "${base}" = "pipeline-pr.yml" ]; then
+        # A merge group runs the PR tier from the queued tree's caller: no job
+        # that can run on merge_group may hold a write permission or id-token.
+        wif="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${wjob}" '$1=="KEY" && $2==j && $3=="if" {print $5}')"
+        case "${wif}" in
+          "\${{ github.event_name == 'pull_request' }}"|"\${{ github.event_name == 'workflow_dispatch' }}"|"\${{ github.event_name != 'merge_group' }}") ;;
+          *) err "${wf}:${wline}: job '${wjob}' holds a write or id-token permission but can run on merge_group; pipeline-pr.yml jobs that run on a merge group stay read-only (rule f)" ;;
+        esac
       fi
       wruns="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${wjob}" '$1=="KEY" && $2==j && $3=="runs-on" {print $5}')"
       if ! is_hosted_label "${wruns}"; then
@@ -469,11 +496,13 @@ QG_REV='git rev-parse -q --verify "origin/${DEFAULT_BRANCH}^{commit}" >/dev/null
 # shellcheck disable=SC2016
 QG_FETCH='  git fetch --no-tags --depth=1 origin "+refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"'
 # shellcheck disable=SC2016
-QG_SHOW='rc=0; git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" | bash || rc=$?'
+QG_SHOW='git show "origin/${DEFAULT_BRANCH}:tools/ci/queue_fork_guard.sh" > "${RUNNER_TEMP}/qfg.sh"'
+# shellcheck disable=SC2016
+QG_RUN='rc=0; bash "${RUNNER_TEMP}/qfg.sh" || rc=$?'
 # shellcheck disable=SC2016
 QG_CASE='case "${rc}" in 0) echo route=fleet;; 3) echo route=hosted;; *) exit 1;; esac >> "$GITHUB_OUTPUT"'
-QG_BODY_FULL="$(printf '%s\n%s\n%s\n%s\n%s' "${QG_SET}" "${QG_REV}" "${QG_FETCH}" "${QG_SHOW}" "${QG_CASE}")"
-QG_BODY_MIN="$(printf '%s\n%s\n%s' "${QG_SET}" "${QG_SHOW}" "${QG_CASE}")"
+QG_BODY_FULL="$(printf '%s\n%s\n%s\n%s\n%s\n%s' "${QG_SET}" "${QG_REV}" "${QG_FETCH}" "${QG_SHOW}" "${QG_RUN}" "${QG_CASE}")"
+QG_BODY_MIN="$(printf '%s\n%s\n%s\n%s' "${QG_SET}" "${QG_SHOW}" "${QG_RUN}" "${QG_CASE}")"
 # shellcheck disable=SC2016
 VENDOR_IF='    if: ${{ needs.changes.outputs.fleet == '"'true'"' }}'
 QG_PUSH_STEP="Refuse pushes that are not on the default branch"

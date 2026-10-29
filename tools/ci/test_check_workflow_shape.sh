@@ -111,6 +111,13 @@ expect_bad bad-queue-route-step-missing 'Decide the runner route'
 expect_bad bad-queue-route-step-drift 'Decide the runner route'
 expect_bad bad-queue-route-output-missing 'steps.route.outputs.route'
 expect_bad bad-queue-route-unknown-queue-fleet 'Decide the runner route'
+expect_bad bad-queue-route-plain-fleet-only 'fleet-only guard'
+expect_bad bad-queue-route-plain-no-changes "must list 'changes'"
+expect_bad bad-queue-route-needs-lookalike "must list 'changes'"
+expect_bad bad-queue-route-write-merge-group 'can run on merge_group'
+expect_bad bad-queue-route-id-token 'can run on merge_group'
+expect_bad bad-queue-route-write-if-widened 'can run on merge_group'
+expect_bad bad-queue-guard-pipe-bash 'queue-guard-reads-default-branch'
 expect_bad bad-queue-guard-case-widened 'queue-guard-reads-default-branch'
 expect_bad bad-queue-guard-vendor-no-needs 'queue-guard-reads-default-branch'
 expect_bad bad-queue-guard-vendor-if 'queue-guard-reads-default-branch'

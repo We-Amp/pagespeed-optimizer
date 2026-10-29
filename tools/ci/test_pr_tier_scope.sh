@@ -27,6 +27,12 @@ if [ "${FAKE_GH_FAIL:-0}" = "1" ]; then
   echo "HTTP 500" >&2
   exit 1
 fi
+case "$*" in
+  *"/pulls/"*)
+    [ "${FAKE_PULL_FAIL:-0}" != "1" ] || { echo "HTTP 500" >&2; exit 1; }
+    printf '%s\n' "${FAKE_PULL-false$(printf '\t')oschaaf$(printf '\t')We-Amp/example}"
+    exit 0 ;;
+esac
 printf '%s' "${FAKE_GH_BODY-}"
 GH
 cat > "${BIN}/sleep" <<'SL'
@@ -54,7 +60,7 @@ make_repo() {
     mkdir -p "${REPO}/$(dirname "$1")"
     echo x > "${REPO}/$1"
     git -C "${REPO}" add -A
-    git -C "${REPO}" commit -q -m "change $1"
+    git -C "${REPO}" commit -q -m "change $1 (#7)"
   fi
   SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
 }
@@ -238,7 +244,7 @@ for f in tools/ci/a.sh src/b.cc docs/c.md; do
   mkdir -p "${REPO}/$(dirname "${f}")"
   echo x > "${REPO}/${f}"
   git -C "${REPO}" add -A
-  git -C "${REPO}" commit -q -m "change ${f}"
+  git -C "${REPO}" commit -q -m "change ${f} (#7)"
 done
 SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
 CUR=push-batch-nontip-pipeline-change-runs
@@ -281,6 +287,33 @@ if [ -z "${STDOUT_BAD}" ]; then
 else
   fail "stdout-is-two-lines: not 2 lines in:${STDOUT_BAD}"
 fi
+
+TAB="$(printf '\t')"
+make_repo src/a.cc
+CUR=push-proof-fork-pr-runs
+run_scope CI_SCOPE=push "FAKE_PULL=true${TAB}someone${TAB}someone/example"
+check "${CUR}" true "proof=false"
+CUR=push-proof-foreign-head-runs
+run_scope CI_SCOPE=push "FAKE_PULL=false${TAB}someone${TAB}other/example"
+check "${CUR}" true "proof=false"
+CUR=push-proof-dependabot-runs
+run_scope CI_SCOPE=push "FAKE_PULL=false${TAB}dependabot[bot]${TAB}We-Amp/example"
+check "${CUR}" true "proof=false"
+CUR=push-proof-null-head-runs
+run_scope CI_SCOPE=push "FAKE_PULL=null${TAB}someone${TAB}"
+check "${CUR}" true "proof=error"
+CUR=push-proof-pull-lookup-fails-runs
+run_scope CI_SCOPE=push FAKE_PULL_FAIL=1
+check "${CUR}" true "proof=error"
+CUR=push-proof-same-repo-skips
+run_scope CI_SCOPE=push
+check "${CUR}" false "reason=queue proof"
+make_repo src/a.cc
+git -C "${REPO}" commit -q --amend -m "no number here"
+SHA_VAL="$(git -C "${REPO}" rev-parse HEAD)"
+CUR=push-proof-no-pr-number-runs
+run_scope CI_SCOPE=push
+check "${CUR}" true "proof=error"
 
 if [ "${FAILS}" -ne 0 ]; then
   echo "${FAILS} case(s) failed"

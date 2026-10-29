@@ -22,8 +22,11 @@
 #
 # The push rule: a push whose commit the merge queue already proved (a
 # completed, successful check suite of GitHub Actions on a gh-readonly-queue/
-# branch for the same SHA) skips the fleet jobs, unless the push changes the
-# pipeline itself. It is on only when CI_SCOPE is push, pr-build or pr; any
+# branch for the same SHA, and the commit's pull request, looked up by the
+# last "(#N)" of its subject, is same-repo and not from dependabot[bot])
+# skips the fleet jobs, unless the push changes the pipeline itself. A group
+# with a fork or Dependabot pull request ran on hosted runners, so it is not
+# proof. It is on only when CI_SCOPE is push, pr-build or pr; any
 # other value, or none, is `full` and runs everything. Every other event runs
 # everything. Anything unexpected fails safe to the full tier.
 
@@ -68,6 +71,50 @@ pipeline_change() {
   grep -qE '^(\.github/workflows/(pipeline-pr|ci)\.yml$|\.github/actions/|tools/ci/)' <<< "${changed}"
 }
 
+# pr_trusted: prints true, false or error. The pushed commit's pull request
+# (the last "(#N)" of its subject) must be a same-repo pull request not
+# authored by dependabot[bot]. A queue check suite alone is not proof for a
+# fork or Dependabot group, which ran on hosted runners. Anything unknown
+# (no number, failed or unreadable lookup, missing head repository) is
+# error, which runs the full tier.
+pr_trusted() {
+  local subject n tries=0 delay=2 out fork login full want_lc full_lc
+  subject="$(git log -1 --format=%s "${SHA:-HEAD}" 2>/dev/null)" || { echo error; return; }
+  n="$(printf '%s\n' "${subject}" | grep -oE '\(#[0-9]+\)' | tail -n 1 | tr -dc '0-9' || true)"
+  if [ -z "${n}" ]; then
+    echo error
+    return
+  fi
+  while :; do
+    tries=$((tries + 1))
+    if out="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${n}" \
+      --jq '[(.head.repo.fork | tostring), (.user.login // ""), (.head.repo.full_name // "")] | @tsv' 2>/dev/null)" &&
+      [ -n "${out}" ]; then
+      break
+    fi
+    if [ "${tries}" -ge 3 ]; then
+      echo error
+      return
+    fi
+    sleep "${delay}"
+    delay=$((delay * 2))
+  done
+  fork="${out%%$'\t'*}"
+  out="${out#*$'\t'}"
+  login="${out%%$'\t'*}"
+  full=""
+  case "${out}" in *$'\t'*) full="${out#*$'\t'}" ;; esac
+  want_lc="$(printf '%s' "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+  full_lc="$(printf '%s' "${full}" | tr '[:upper:]' '[:lower:]')"
+  if [ "${fork}" != "false" ] && [ "${fork}" != "true" ]; then
+    echo error
+  elif [ "${fork}" = "true" ] || [ "${full_lc}" != "${want_lc}" ] || [ "${login}" = "dependabot[bot]" ] || [ -z "${login}" ] || [ -z "${full}" ]; then
+    echo false
+  else
+    echo true
+  fi
+}
+
 # queue_proof: prints true, false or error.
 queue_proof() {
   local path="repos/${GITHUB_REPOSITORY:-}/commits/${SHA:-}/check-suites?app_id=15368&per_page=100"
@@ -85,6 +132,9 @@ queue_proof() {
                    and .status == "completed" and .conclusion == "success") ]
         | if length > 0 then "true" else "false" end' 2>/dev/null)" &&
       { [ "${result}" = true ] || [ "${result}" = false ]; }; then
+      if [ "${result}" = true ]; then
+        result="$(pr_trusted)"
+      fi
       echo "${result}"
       return
     fi
