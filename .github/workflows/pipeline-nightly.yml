@@ -10,7 +10,7 @@
 #   macOS (hosted macos-15, arm64)
 #                 macos-build, macos-unit-tests, macos-pkg-smoke
 #   fleet-heavy   periodic-vendor, periodic-build-x64,
-#                 css-fuzz-nightly, css-fuzz-shadow (dispatch only),
+#                 css-fuzz-nightly, css-fuzz-shadow (dispatch with css_fuzz_shadow),
 #                 the x64 legs (fleet only, they mount the container
 #                 socket or run privileged containers):
 #                 stress-x64, production-tests-x64, realworld-tests-x64,
@@ -53,6 +53,11 @@ on:
         required: false
         type: string
         default: "600"
+      css_fuzz_shadow:
+        description: Also run the manual CSS oracle shadow lane (dispatch only)
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -2318,9 +2323,22 @@ jobs:
   # carries the comparator: its css_token_stream.h and css_phases.h are
   # byte-identical to the previously ratified revision (the files that define
   # the verdicts), and it is an ancestor of main. Dispatching the nightly caller runs the whole nightly beside this lane.
+  # The fleet guard of a fleet job is pinned verbatim by the workflow-shape
+  # gate, so the css_fuzz_shadow switch is a hosted gate job: it runs (no
+  # work, no fleet slot) only on a dispatch that sets the input, and the
+  # shadow lane needs it, so it is skipped on every other run.
+  css-fuzz-shadow-gate:
+    name: CSS oracle shadow switch
+    needs: event-guard
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.css_fuzz_shadow }}
+    timeout-minutes: 5
+    steps:
+      - run: echo "css_fuzz_shadow is set; running the shadow lane"
+
   css-fuzz-shadow:
     name: CSS oracle shadow (baseline vs current agreement)
-    needs: event-guard
+    needs: [event-guard, css-fuzz-shadow-gate]
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
     if: ${{ github.event_name == 'workflow_dispatch' && vars.FLEET_ENABLED == 'true' }}
     timeout-minutes: 30

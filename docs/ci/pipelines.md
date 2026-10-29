@@ -372,6 +372,8 @@ concurrency group, so a late cron run that waited for a running dispatch sees
 it and skips. If the guard cannot read the run list it lets the run proceed.
 A skipped run has no `full` job, so `nightly-red` is skipped too.
 
+The manual CSS oracle shadow lane (`css-fuzz-shadow`) runs only on a dispatch with `css_fuzz_shadow` set (default false), so the nightly dispatch does not add it.
+
 ### The nightly-red issue
 
 `nightly.yml` ends with the hosted job `nightly-red` (`Nightly full-tier

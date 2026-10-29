@@ -18,6 +18,10 @@ on:
         description: libFuzzer time budget in seconds
         required: false
         default: "600"
+      css_fuzz_shadow:
+        description: Also run the manual CSS oracle shadow lane
+        type: boolean
+        default: false
       full_tier:
         description: Also run the full tier (default branch only)
         type: boolean
@@ -84,6 +88,7 @@ jobs:
     uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nightly.yml@main
     with:
       fuzz_seconds: ${{ inputs.fuzz_seconds || '600' }}
+      css_fuzz_shadow: ${{ inputs.css_fuzz_shadow || false }}
 
   # The full tier, named `full` like the push tier's call in ci.yml, so its
   # checks read `full / <job name>` in both. It runs on every scheduled night
