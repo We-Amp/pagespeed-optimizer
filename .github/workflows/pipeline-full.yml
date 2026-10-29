@@ -846,6 +846,11 @@ jobs:
           . tools/ci/runner-ports.sh
           for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=http-compliance-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
       - name: Docker preflight
         run: tools/ci/docker-preflight.sh
 
@@ -924,6 +929,7 @@ jobs:
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e COMPLIANCE_NO_LIFECYCLE=1 \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -e "COMPLIANCE_NGINX_PORT=${COMPLIANCE_NGINX_PORT:-8180}" \
             -e "COMPLIANCE_AGGRESSIVE_PORT=${COMPLIANCE_AGGRESSIVE_PORT:-8183}" \
             -e "COMPLIANCE_ORIGIN_PORT=${COMPLIANCE_ORIGIN_PORT:-8181}" \
