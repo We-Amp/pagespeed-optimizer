@@ -303,6 +303,9 @@ jobs:
           bash tools/ci/test_publish_vendor_tarball.sh
           bash tools/ci/test_prune_vendor_dir.sh
 
+      - name: Bazel disk cache prune - self-test
+        run: bash tools/ci/test_prune_bazel_disk_cache.sh
+
       - name: Slot-budget helper - self-test
         run: bash tools/ci/test_slot_budget.sh
 

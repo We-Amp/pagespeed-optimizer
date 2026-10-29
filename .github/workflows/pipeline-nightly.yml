@@ -87,11 +87,15 @@ jobs:
   # macOS, daily (hosted macos-15, arm64). The hosted runner has no remote
   # cache and no hub, so builds restore a Bazel disk cache by prefix and
   # save it even when a step runs out of time: a cold first night converges
-  # over the next ones. The build and pkg-smoke jobs stay under 30 minutes;
-  # macos-unit-tests gets 50 (test step 40) because the worker_test shards
-  # run uncached at 200 to 575 s each on three slots. Each step carries its
-  # own, shorter timeout so the cache save can still run. At most five
-  # macOS jobs run at once across the organization.
+  # over the next ones. Each job keeps one entry per ISO week, capped before
+  # the save (build 256M, unit tests 512M); a run that did not succeed saves
+  # under a per-run suffix instead, so a partial cache never takes the
+  # week's key and the next night still saves it. The build and pkg-smoke
+  # jobs stay under 30 minutes; macos-unit-tests gets 50 (test step 40)
+  # because the worker_test shards run uncached at 200 to 575 s each on
+  # three slots. Each step carries its own, shorter timeout so the cache
+  # save can still run. At most five macOS jobs run at once across the
+  # organization.
   # ---------------------------------------------------------------------
   macos-build:
     name: macOS Build
@@ -115,12 +119,18 @@ jobs:
           fi
           bazel --version
 
+      - name: Name the disk cache week
+        id: week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
       - name: Restore the Bazel disk cache
+        id: disk-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/optimizer-bazel-disk-macos
-          key: optimizer-bazel-disk-macos-build-${{ github.run_id }}-${{ github.run_attempt }}
+          key: optimizer-bazel-disk-macos-build-${{ steps.week.outputs.week }}
           restore-keys: |
+            optimizer-bazel-disk-macos-build-
             optimizer-bazel-disk-macos-
 
       # Only the two shipped targets: the unit-test job below builds the
@@ -135,12 +145,18 @@ jobs:
             --experimental_disk_cache_gc_max_size=3G \
             //lib/pagespeed:libpagespeed.so //src/worker:factory_worker
 
+      # Bazel never collects this cache, so cap it before the save. The prune
+      # never fails the job.
+      - name: Cap the Bazel disk cache
+        if: always() && steps.disk-cache.outputs.cache-hit != 'true'
+        run: bash tools/ci/prune-bazel-disk-cache.sh "${HOME}/.cache/optimizer-bazel-disk-macos" 7d 256M || true
+
       - name: Save the Bazel disk cache
-        if: always()
+        if: always() && steps.disk-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/optimizer-bazel-disk-macos
-          key: optimizer-bazel-disk-macos-build-${{ github.run_id }}-${{ github.run_attempt }}
+          key: optimizer-bazel-disk-macos-build-${{ steps.week.outputs.week }}${{ job.status != 'success' && format('-partial-{0}-{1}', github.run_id, github.run_attempt) || '' }}
 
       - name: Stage the build bundle
         run: |
@@ -191,12 +207,18 @@ jobs:
           fi
           bazel --version
 
+      - name: Name the disk cache week
+        id: week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
       - name: Restore the Bazel disk cache
+        id: disk-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/optimizer-bazel-disk-macos
-          key: optimizer-bazel-disk-macos-test-${{ github.run_id }}-${{ github.run_attempt }}
+          key: optimizer-bazel-disk-macos-test-${{ steps.week.outputs.week }}
           restore-keys: |
+            optimizer-bazel-disk-macos-test-
             optimizer-bazel-disk-macos-
 
       - name: Run unit tests
@@ -217,12 +239,18 @@ jobs:
           fi
           exit "$rc"
 
+      # Bazel never collects this cache, so cap it before the save. The prune
+      # never fails the job.
+      - name: Cap the Bazel disk cache
+        if: always() && steps.disk-cache.outputs.cache-hit != 'true'
+        run: bash tools/ci/prune-bazel-disk-cache.sh "${HOME}/.cache/optimizer-bazel-disk-macos" 7d 512M || true
+
       - name: Save the Bazel disk cache
-        if: always()
+        if: always() && steps.disk-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/optimizer-bazel-disk-macos
-          key: optimizer-bazel-disk-macos-test-${{ github.run_id }}-${{ github.run_attempt }}
+          key: optimizer-bazel-disk-macos-test-${{ steps.week.outputs.week }}${{ job.status != 'success' && format('-partial-{0}-{1}', github.run_id, github.run_attempt) || '' }}
 
   macos-pkg-smoke:
     name: macOS Pkg Smoke
@@ -629,11 +657,19 @@ jobs:
       - name: Stamp GIT_COMMIT
         run: echo -n "$GITHUB_SHA" > GIT_COMMIT
 
+      # The same weekly entry as the full tier's arm64 jobs (pipeline-full.yml),
+      # by design: the --config=opt build reuses most of their outputs, and a
+      # separate entry would not fit the repository's cache quota.
+      - name: Name the disk cache week
+        id: week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
       - name: Restore the Bazel disk cache
+        id: disk-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/optimizer-bazel-disk-arm64
-          key: optimizer-bazel-disk-arm64-nightly-${{ github.run_id }}-${{ github.run_attempt }}
+          key: optimizer-bazel-disk-arm64-${{ steps.week.outputs.week }}
           restore-keys: |
             optimizer-bazel-disk-arm64-
 
@@ -681,6 +717,13 @@ jobs:
               ls -d /nginx-src/nginx-*/ | head -1 | sed "s#.*/nginx-##; s#/##" > "$OUT/nginx-version"
               echo "Recorded module nginx-version: $(cat "$OUT/nginx-version")"
             '
+
+      # Bazel never collects this cache (its container exits right after the
+      # last command), so cap it before actions/cache saves a new entry. The
+      # prune never fails the job.
+      - name: Cap the Bazel disk cache
+        if: steps.disk-cache.outputs.cache-hit != 'true'
+        run: bash tools/ci/prune-bazel-disk-cache.sh "${HOME}/.cache/optimizer-bazel-disk-arm64" 7d 1G || true
 
       - name: Finalize the build bundle
         run: |
