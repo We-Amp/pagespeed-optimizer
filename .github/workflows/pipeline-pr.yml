@@ -76,9 +76,9 @@ jobs:
       # per dependency-relevant file set; restore-keys give a warm-ish start
       # when only the source changes. Restored on every event, saved only by
       # a push to main (step "Save Bazel repository cache + output base"):
-      # a pull request or merge queue ref would keep its own ~1 GB copy
-      # that no later run can read, which the repository cache quota pays
-      # for.
+      # a pull request or merge queue ref would keep its own ~1 GB copy that
+      # only that ref can read (a merge queue ref never runs again), which
+      # the repository cache quota pays for.
       - name: Restore Bazel repository cache + output base
         id: bazel-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
