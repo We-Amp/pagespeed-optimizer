@@ -8348,6 +8348,63 @@ TEST_F(ImageTranscoderTest, DecodeToPixelsBakesExifOrientation) {
   }
 }
 
+// The same contract for WebP and PNG sources, whose EXIF chunk drives the
+// orientation (fixtures: test/lib/image/testdata/exif/).
+TEST_F(ImageTranscoderTest, DecodeToPixelsBakesExifOrientationWebpAndPng) {
+  for (const char* ext : {"png", "webp"}) {
+    for (int orientation : {3, 6, 8}) {
+      const std::string what =
+          std::string(ext) + " orientation " + std::to_string(orientation);
+      std::string image = ReadTestFile("exif/exif_orientation_" +
+                                       std::to_string(orientation) + "." + ext);
+      ASSERT_FALSE(image.empty()) << what;
+      DecodedImage decoded = transcoder_.DecodeToPixels(image);
+      ASSERT_FALSE(decoded.pixel_buffer.empty()) << what;
+      EXPECT_EQ(decoded.width, 32u) << what;
+      EXPECT_EQ(decoded.height, 16u) << what;
+      ExpectUprightQuadrants(decoded, what);
+    }
+  }
+}
+
+// A lossy WebP with an orientation tag re-encoded in its own format: the
+// output decodes upright and carries no tag, so the rotation is applied once.
+TEST_F(ImageTranscoderTest, LossyWebpWithExifOrientationReencodesUprightOnce) {
+  std::string webp = ReadTestFile("exif/exif_orientation_6_lossy.webp");
+  ASSERT_FALSE(webp.empty());
+  ImageTranscoderConfig config;
+  config.quality_verify = false;
+  config.webp_quality = 40;
+  ImageTranscoder transcoder(config, &handler_);
+  CapabilityMask mask;
+  mask.set_image_format(CapabilityMask::ImageFormat::kOriginal);
+  auto result = transcoder.Transcode(webp, mask);
+  ASSERT_TRUE(result.success) << result.error_message;
+  EXPECT_EQ(result.output_mime_type, "image/webp");
+  EXPECT_EQ(pagespeed::image_compression::ReadWebpExifOrientation(
+                result.output_data.data(), result.output_data.size()),
+            1);
+  EXPECT_EQ(result.output_data.find("EXIF"), std::string::npos);
+  DecodedImage decoded = transcoder.DecodeToPixels(result.output_data);
+  ASSERT_FALSE(decoded.pixel_buffer.empty());
+  EXPECT_EQ(decoded.width, 32u);
+  EXPECT_EQ(decoded.height, 16u);
+  ExpectUprightQuadrants(decoded, "lossy webp re-encode");
+}
+
+// A PNG optimized in its own format is re-encoded without ancillary chunks,
+// which would drop the eXIf chunk that keeps a rotated image upright. Such a
+// PNG is left as the origin sent it.
+TEST_F(ImageTranscoderTest, OptimizePngWithExifOrientationIsKeptVerbatim) {
+  std::string png = ReadTestFile("exif/exif_orientation_6.png");
+  ASSERT_FALSE(png.empty());
+  CapabilityMask mask;
+  mask.set_image_format(CapabilityMask::ImageFormat::kOriginal);
+  auto result = transcoder_.Transcode(png, mask);
+  EXPECT_FALSE(result.success);
+  EXPECT_TRUE(result.output_data.empty());
+}
+
 // Every output format of a multi-transcode must render upright with no
 // reliance on an Orientation tag surviving.
 TEST_F(ImageTranscoderTest, TranscodeMultiBakesOrientationInAllFormats) {

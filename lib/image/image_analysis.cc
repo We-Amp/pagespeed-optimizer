@@ -15,8 +15,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <utility>
 
 #include "lib/base/message_handler.h"
+#include "lib/image/exif_orientation.h"
 #include "lib/image/gif_reader.h"
 #include "lib/image/image_frame_interface.h"
 #include "lib/image/jpeg_utils.h"
@@ -285,6 +287,13 @@ bool ReadHeaderDimensions(ImageFormat image_type, const void* image_buffer,
       if (!ok) {
         return false;
       }
+      // PNG: report display dimensions. The eXIf chunk may follow IDAT, so
+      // scan the full buffer (chunk hops only), not the header prefix.
+      if (image_type == IMAGE_PNG &&
+          ExifOrientationSwapsDimensions(
+              ReadPngExifOrientation(image_buffer, buffer_length))) {
+        std::swap(header_width, header_height);
+      }
       break;
     }
     case IMAGE_WEBP: {
@@ -295,6 +304,12 @@ bool ReadHeaderDimensions(ImageFormat image_type, const void* image_buffer,
       }
       header_width = features.width;
       header_height = features.height;
+      // Report display dimensions, as the decode boundary does for JPEG:
+      // the full buffer is scanned for the EXIF chunk (chunk hops only).
+      if (ExifOrientationSwapsDimensions(
+              ReadWebpExifOrientation(image_buffer, buffer_length))) {
+        std::swap(header_width, header_height);
+      }
       break;
     }
     case IMAGE_JPEG: {

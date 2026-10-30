@@ -79,6 +79,15 @@ uint8_t ParseTiffOrientation(const uint8_t* tiff, size_t length) {
   return 0;
 }
 
+// Parses an EXIF payload that may or may not start with the "Exif\0\0"
+// prefix (WebP writers differ; PNG eXIf has none). Returns 0 when not found.
+uint8_t ParseExifPayload(const uint8_t* payload, size_t length) {
+  if (length >= 6 && memcmp(payload, "Exif\0\0", 6) == 0) {
+    return ParseTiffOrientation(payload + 6, length - 6);
+  }
+  return ParseTiffOrientation(payload, length);
+}
+
 // Storage for the test-overridable bake ceiling (see header).
 size_t& OrientationBakeByteLimitStorage() {
   static size_t limit = kMaxOrientationBakeBytes;
@@ -127,6 +136,88 @@ uint8_t ReadJpegExifOrientation(const void* data, size_t length) {
       }
     }
     pos += segment_length;
+  }
+  return 1;
+}
+
+uint8_t ReadWebpExifOrientation(const void* data, size_t length) {
+  constexpr size_t kRiffHeaderSize = 12;  // "RIFF" size "WEBP".
+  constexpr size_t kChunkHeaderSize = 8;  // fourcc + little-endian size.
+  constexpr uint8_t kVp8xExifFlag = 0x08;
+  const uint8_t* bytes = static_cast<const uint8_t*>(data);
+  if (bytes == nullptr || length < kRiffHeaderSize + kChunkHeaderSize ||
+      memcmp(bytes, "RIFF", 4) != 0 || memcmp(bytes + 8, "WEBP", 4) != 0) {
+    return 1;
+  }
+  // Never read past the RIFF payload the file declares, nor past the buffer.
+  size_t end = length;
+  const uint64_t declared = static_cast<uint64_t>(Read32(bytes + 4, false)) + 8;
+  if (declared < end) end = static_cast<size_t>(declared);
+  if (end < kRiffHeaderSize) return 1;
+  size_t pos = kRiffHeaderSize;
+  bool exif_flag = false;
+  bool first = true;
+  while (end - pos >= kChunkHeaderSize) {  // pos <= end always holds.
+    const uint8_t* chunk = bytes + pos;
+    const size_t chunk_size = Read32(chunk + 4, false);
+    const size_t payload_pos = pos + kChunkHeaderSize;
+    if (chunk_size > end - payload_pos) return 1;
+    if (first) {
+      first = false;
+      // The EXIF chunk is only defined in the extended (VP8X) layout, whose
+      // header chunk comes first and carries the EXIF-present flag.
+      if (memcmp(chunk, "VP8X", 4) != 0 || chunk_size < 10) return 1;
+      exif_flag = (bytes[payload_pos] & kVp8xExifFlag) != 0;
+      if (!exif_flag) return 1;
+    } else if (memcmp(chunk, "EXIF", 4) == 0) {
+      const uint8_t orientation =
+          ParseExifPayload(bytes + payload_pos, chunk_size);
+      return orientation != 0 ? orientation : 1;
+    }
+    // Chunk payloads are padded to an even size.
+    const size_t advance = chunk_size + (chunk_size & 1);
+    if (advance > end - payload_pos) return 1;
+    pos = payload_pos + advance;
+  }
+  return 1;
+}
+
+uint8_t ReadPngExifOrientation(const void* data, size_t length) {
+  constexpr size_t kSignatureSize = 8;
+  constexpr size_t kChunkOverhead = 12;  // length(4) type(4) crc(4).
+  static constexpr uint8_t kSignature[kSignatureSize] = {
+      0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A};
+  const uint8_t* bytes = static_cast<const uint8_t*>(data);
+  if (bytes == nullptr || length < kSignatureSize + kChunkOverhead ||
+      memcmp(bytes, kSignature, kSignatureSize) != 0) {
+    return 1;
+  }
+  size_t pos = kSignatureSize;
+  while (length - pos >= kChunkOverhead) {  // pos <= length always holds.
+    const uint8_t* chunk = bytes + pos;
+    const size_t chunk_size = Read32(chunk, true);
+    if (chunk_size > length - pos - kChunkOverhead) return 1;
+    if (memcmp(chunk + 4, "eXIf", 4) == 0) {
+      const uint8_t orientation = ParseTiffOrientation(chunk + 8, chunk_size);
+      return orientation != 0 ? orientation : 1;
+    }
+    if (memcmp(chunk + 4, "IEND", 4) == 0) return 1;
+    pos += kChunkOverhead + chunk_size;
+  }
+  return 1;
+}
+
+uint8_t ReadExifOrientation(const void* data, size_t length) {
+  const uint8_t* bytes = static_cast<const uint8_t*>(data);
+  if (bytes == nullptr || length < 4) return 1;
+  if (bytes[0] == 0xFF && bytes[1] == 0xD8) {
+    return ReadJpegExifOrientation(data, length);
+  }
+  if (bytes[0] == 'R' && bytes[1] == 'I') {
+    return ReadWebpExifOrientation(data, length);
+  }
+  if (bytes[0] == 0x89 && bytes[1] == 'P') {
+    return ReadPngExifOrientation(data, length);
   }
   return 1;
 }
@@ -246,7 +337,7 @@ ScanlineStatus ExifOrientedScanlineReader::InitializeWithStatus(
   if (!status.Success()) {
     return status;
   }
-  orientation_ = ReadJpegExifOrientation(image_buffer, buffer_length);
+  orientation_ = ReadExifOrientation(image_buffer, buffer_length);
   if (orientation_ == 1) {
     return status;  // Passthrough; no further state needed.
   }

@@ -19,6 +19,7 @@
 #include "lib/base/message_handler.h"
 #include "lib/image/bilateral_filter.h"
 #include "lib/image/content_analyzer.h"
+#include "lib/image/exif_orientation.h"
 #include "lib/image/image_converter.h"
 #include "lib/image/image_resizer.h"
 #include "lib/image/image_util.h"
@@ -287,6 +288,15 @@ TranscodeResult ImageTranscoder::OptimizeJpeg(
 TranscodeResult ImageTranscoder::OptimizePng(std::string_view input_data) {
   std::string src(input_data);
   std::string output;
+
+  // The PNG re-encode drops ancillary chunks, including the eXIf chunk that
+  // makes a rotated image display upright, and this path does not bake the
+  // orientation into the pixels. Keep serving the original bytes, which still
+  // carry the tag.
+  if (image_compression::ReadPngExifOrientation(input_data.data(),
+                                                input_data.size()) != 1) {
+    return {false, {}, {}, "PNG has EXIF orientation; kept verbatim"};
+  }
 
   PngReader reader(handler_);
   if (PngOptimizer::OptimizePng(reader, src, &output, handler_)) {

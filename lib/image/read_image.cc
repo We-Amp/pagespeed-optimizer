@@ -53,8 +53,10 @@ ScanlineReaderInterface* InstantiateScanlineReader(ImageFormat image_type,
   *status = ScanlineStatus(SCANLINE_STATUS_SUCCESS);
   switch (image_type) {
     case IMAGE_PNG:
-      reader = new PngScanlineReaderRaw(handler);
-      which = "PngScanlineReaderRaw";
+      // Same orientation baking as JPEG, driven by the PNG eXIf chunk.
+      reader = new ExifOrientedScanlineReader(new PngScanlineReaderRaw(handler),
+                                              handler);
+      which = "ExifOrientedScanlineReader(PngScanlineReaderRaw)";
       break;
 
     case IMAGE_JPEG:
@@ -68,8 +70,10 @@ ScanlineReaderInterface* InstantiateScanlineReader(ImageFormat image_type,
       break;
 
     case IMAGE_WEBP:
-      reader = new WebpScanlineReader(handler);
-      which = "WebpScanlineReader";
+      // Same orientation baking as JPEG, driven by the WebP EXIF chunk.
+      reader = new ExifOrientedScanlineReader(new WebpScanlineReader(handler),
+                                              handler);
+      which = "ExifOrientedScanlineReader(WebpScanlineReader)";
       break;
 
     case IMAGE_GIF: {
