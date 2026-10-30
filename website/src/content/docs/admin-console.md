@@ -438,7 +438,7 @@ The Logs page has a severity filter (Fatal, Error, Warning, Info) with a live co
 
 ## Views turned off on this console {#views-turned-off}
 
-A web server or proxy in front of the console can refuse some of its read-only views: a `location` block that denies the path, a WAF rule, or an access rule. When a view answers 401, 403, 404 or 410, the console no longer shows an error. The affected page (Logs, Configuration, URLs, a URL's detail view, Rule packs, and the message-log findings on Overview) shows a card that reads "Not available on this console. The server administrator has turned this view off." with a link to this page.
+From 2.7.0, a web server or proxy in front of the console can refuse some of its read-only views: a `location` block that denies the path, a WAF rule, or an access rule. When a view answers 401, 403, 404 or 410, the console no longer shows an error. The affected page (Logs, Configuration, URLs, a URL's detail view, Rule packs, and the message-log findings on Overview) shows a card that reads "Not available on this console. The server administrator has turned this view off." with a link to this page.
 
 A view refused with 401, 403 or 410 stays off until you reload the console, or until the console reconnects after losing the server. While it is off the console does not ask for it again, and shows no error or reconnect banner. A refusal of a single entry, such as one cache entry or one URL's variants, shows the card for that entry only. A sidebar entry gets a muted "off" marker once every view its page reads is refused. To turn a view back on, lift the restriction in the web server or proxy and reload the console. This is a state of the view, not a fault in the module.
 
