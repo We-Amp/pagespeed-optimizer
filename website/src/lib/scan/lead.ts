@@ -12,11 +12,13 @@ import {
   complianceFixCtaApplies,
   consentEnforcementCtaApplies,
   edgeSeoCtaApplies,
+  markdownOriginCtaApplies,
   pageIntegrityCtaApplies,
   responseFirewallCtaApplies,
   thirdPartyFreezeCtaApplies,
   tollboothCtaApplies,
 } from './demand.mjs';
+import { AUDIT_PRICE_EUR, formatEur } from '../../data/product-facts.mjs';
 import type { TileState } from './status';
 
 /** The most topics one submission may carry (the endpoint allows five POSTs a minute). */
@@ -38,6 +40,8 @@ interface ChipDef {
   id: string;
   label: string;
   fires: (r: Report) => boolean;
+  /** False: offered when the gate fires, but never pre-selected. */
+  preselect?: boolean;
 }
 
 // Display order follows the panels: AI readability, Risk & SEO, then Speed.
@@ -82,10 +86,20 @@ const GATED: ChipDef[] = [
     label: 'Leaked errors and outdated software',
     fires: (r) => responseFirewallCtaApplies(r.responseExposure),
   },
+  {
+    id: 'markdown-origin',
+    label: 'Serving AI agents a Markdown copy at the origin',
+    fires: (r) => markdownOriginCtaApplies(r.agentSignals),
+    preselect: false,
+  },
 ];
 
 export const CONSULTING = { id: 'consulting', label: 'Help applying the speed fixes' };
 export const AGENTS = { id: 'agents', label: 'AI agents and crawlers' };
+export const AUDIT = {
+  id: 'audit',
+  label: `Agent-readiness audit (${formatEur(AUDIT_PRICE_EUR)} per site, excl. VAT)`,
+};
 
 /** Wedges whose lead carries the optional "sites you run" count. */
 export const SITES_WEDGES = ['edge-seo', 'response-firewall'];
@@ -94,8 +108,8 @@ export const SITES_WEDGES = ['edge-seo', 'response-firewall'];
  * The chips for a result, in display order. Gated chips appear only when
  * their gate fires and are pre-selected up to the cap; the speed-help chip
  * appears once the speed result has settled (`speed` is null while it is still
- * checking) and is pre-selected only when Speed is Poor; the agents chip is
- * always offered, unselected. With no report only the ungated chips remain.
+ * checking) and is pre-selected only when Speed is Poor; the agents and audit chips
+ * are always offered, unselected. With no report only the ungated chips remain.
  * On the /analyze/ surface a Poor speed result takes pre-selection priority
  * over the gated chips when the cap bites; display order is unchanged.
  */
@@ -108,7 +122,13 @@ export function chipsFor(
   if (report) {
     for (const def of GATED) {
       if (def.fires(report)) {
-        chips.push({ id: def.id, label: def.label, wedge: def.id, gated: true, selected: true });
+        chips.push({
+          id: def.id,
+          label: def.label,
+          wedge: def.id,
+          gated: true,
+          selected: def.preselect !== false,
+        });
       }
     }
   }
@@ -116,6 +136,7 @@ export function chipsFor(
     chips.push({ ...CONSULTING, wedge: '', gated: false, selected: speed === 'poor' });
   }
   chips.push({ ...AGENTS, wedge: '', gated: false, selected: false });
+  if (report) chips.push({ ...AUDIT, wedge: '', gated: false, selected: false });
   let left = MAX_TOPICS;
   const priority = surface === 'analyze' ? chips.filter((c) => c.id === CONSULTING.id) : [];
   for (const chip of [...priority, ...chips.filter((c) => !priority.includes(c))]) {

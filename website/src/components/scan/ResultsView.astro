@@ -8,7 +8,7 @@
 // a label; every result string is written by the scan controller at run time
 // with textContent. The section is hidden until a scan starts and is kept out
 // of the search index.
-import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { AUDIT_PRICE_EUR, FREE_TO_RUN_LINE, formatEur } from '../../data/product-facts.mjs';
 
 interface Props {
   idPrefix?: string;
@@ -47,6 +47,21 @@ const pillars = [
       Checking 3 of 3 areas…
     </p>
     <p class="mt-1 min-h-5 text-sm text-text-muted" data-scan-hint></p>
+    <p class="mt-2 text-sm text-text-muted">
+      <span class="invisible" data-scan-audit>
+        Want a full check of this site? Agent-readiness audit, {formatEur(AUDIT_PRICE_EUR)} per
+        site, excl. VAT: one written report, one review call, the configuration change for each
+        finding.
+        <a
+          href="/contact/?topic=audit"
+          class="ml-1 font-medium text-interactive underline"
+          data-scan-cta="audit"
+          data-umami-event="cta_commercial"
+          data-umami-event-offer="audit"
+          data-umami-event-position="scan_result">Ask for an audit</a
+        >
+      </span>
+    </p>
   </div>
 
   <div class="scan-tiles mt-4" data-scan-tiles>
@@ -107,6 +122,8 @@ const pillars = [
     <p class="mt-1 text-sm text-text-muted">
       Pick what you want to talk about.<span data-scan-preselected hidden>
         We pre-selected topics from your results.</span
+      ><span data-scan-fallback hidden>
+        Questions about how AI agents read your site? Tell us.</span
       >
     </p>
     <fieldset class="mt-4" data-scan-topics aria-describedby={`${idPrefix}-lead-msg`}>
