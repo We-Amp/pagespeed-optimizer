@@ -401,7 +401,10 @@ class PageSpeedCache {
   // Replace the diagnostic logger (not owned; nullptr disables logging).
   // Not synchronised: call it before the cache is shared with other threads.
   // The C API uses it to drop a logger that only lives for ps_cache_open.
-  void set_handler(MessageHandler* handler) { handler_ = handler; }
+  void set_handler(MessageHandler* handler) {
+    handler_ = handler;
+    config_.handler = handler;
+  }
 
   // Compose a CacheKey from URL, pre-normalized hostname, and scheme.
   // The hostname MUST already be normalized via NormalizeHostname().

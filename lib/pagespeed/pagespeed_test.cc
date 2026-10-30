@@ -3510,6 +3510,7 @@ TEST(PageSpeedCApi, CacheOpenFailureReportsReason) {
 
 // A volume the cache refuses to use (here: a second hard link to the same
 // bytes) reports what was wrong with it, which the cache logs while opening.
+#ifndef _WIN32
 TEST(PageSpeedCApi, CacheOpenRefusedVolumeReportsLoggedReason) {
   const std::string dir = pagespeed::test::MakeTempDir();
   const std::string path = dir + "/cache.vol";
@@ -3543,6 +3544,7 @@ TEST(PageSpeedCApi, CacheOpenRefusedVolumeReportsLoggedReason) {
 
   std::filesystem::remove_all(dir);
 }
+#endif  // _WIN32
 
 // ================================================================
 // Read early hints from non-existent key (NOT_FOUND via MapError)
