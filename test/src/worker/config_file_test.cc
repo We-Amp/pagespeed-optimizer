@@ -604,35 +604,26 @@ static bool HasDeprecationWarning(const ConfigApplyResult& r) {
   return false;
 }
 
-TEST_F(ConfigFileTest, QualityCapMarginWarnsOncePerProcess) {
-  ResetQualityCapMarginWarningForTest();
+TEST_F(ConfigFileTest, QualityCapMarginWarnsWheneverSetToNonDefault) {
   WorkerConfig config;
-  // Config file / PATCH route: ApplyConfigJson reports it the first time.
+  // Reported on every request that carries it (config file, then each PATCH).
   EXPECT_TRUE(HasDeprecationWarning(
-      ApplyConfigJson(json{{"quality_cap_margin", 10}}, &config)));
-  // A later PATCH, or the command line, does not repeat it.
-  EXPECT_FALSE(HasDeprecationWarning(
       ApplyConfigJson(json{{"quality_cap_margin", 20}}, &config)));
-  EXPECT_FALSE(ClaimQualityCapMarginWarning());
-}
-
-TEST_F(ConfigFileTest, QualityCapMarginCommandLineClaimsTheWarning) {
-  ResetQualityCapMarginWarningForTest();
-  // The command-line parser claims the warning before the config is applied.
-  EXPECT_TRUE(ClaimQualityCapMarginWarning());
-  WorkerConfig config;
-  EXPECT_FALSE(HasDeprecationWarning(
-      ApplyConfigJson(json{{"quality_cap_margin", 10}}, &config)));
+  EXPECT_TRUE(HasDeprecationWarning(
+      ApplyConfigJson(json{{"quality_cap_margin", 5}}, &config)));
 }
 
 TEST_F(ConfigFileTest, NoQualityCapMarginNoDeprecationWarning) {
-  ResetQualityCapMarginWarningForTest();
   WorkerConfig config;
   EXPECT_FALSE(HasDeprecationWarning(
       ApplyConfigJson(json{{"jpeg_quality", 80}, {"no_quality_cap", true}},
                       &config)));
-  // The warning is still unclaimed.
-  EXPECT_TRUE(ClaimQualityCapMarginWarning());
+}
+
+TEST_F(ConfigFileTest, PersistedDefaultConfigDoesNotWarnQualityCapMargin) {
+  WorkerConfig config;
+  EXPECT_FALSE(HasDeprecationWarning(
+      ApplyConfigJson(ConfigToJsonPersistable(WorkerConfig{}), &config)));
 }
 
 TEST_F(ConfigFileTest, NoClampWarningOnInRangeValues) {

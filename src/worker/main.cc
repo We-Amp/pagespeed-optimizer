@@ -184,7 +184,6 @@ void PrintUsage(const char* program) {
          "(default: 50)\n"
       << "  --savedata-avif-quality N  Save-Data AVIF quality "
          "(default: 45)\n"
-      << "  --quality-cap-margin N     Deprecated, ignored\n"
       << "  --max-url-length BYTES     Max URL length "
          "(default: 8192)\n"
       << "  --max-html-size BYTES      Max HTML size "
@@ -666,17 +665,6 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
       const OptionMatch api_match = ParseApiOption(arg, &i, argc, argv, config);
       if (api_match == OptionMatch::kError) return 1;
       if (api_match == OptionMatch::kConsumed) continue;
-      // Deprecated: accepted so existing command lines keep starting, but it
-      // no longer changes the quality cap.  Matched here, outside the chain
-      // below, for the same MSVC nesting reason as above.
-      if (arg == "--quality-cap-margin" && i + 1 < argc) {
-        config.quality_cap_margin = std::stoi(argv[++i]);
-        if (pagespeed::ClaimQualityCapMarginWarning()) {
-          std::cerr << "Warning: --quality-cap-margin: "
-                    << pagespeed::kQualityCapMarginDeprecatedWarning << "\n";
-        }
-        continue;
-      }
       if (arg == "--socket" && i + 1 < argc) {
         config.socket_path = argv[++i];
       } else if (arg == "--cache-path" && i + 1 < argc) {
