@@ -309,8 +309,8 @@ test.describe('the one lead form', () => {
       contentType: 'text/html; charset=utf-8',
       varyAccept: false,
     });
-    expect(String(posted[1].message)).toContain(
     for (const p of posted) expect(typeof p.t).toBe('number');
+    expect(String(posted[1].message)).toContain(
       'Operator note / crawl volume: sites: 12; WordPress',
     );
     expect(String(posted[0].message)).toContain('Operator note / crawl volume: WordPress');
@@ -396,7 +396,7 @@ test.describe('the one lead form', () => {
     await page.fill('#scan-url', 'shop.example.com');
     await page.click('#scan-submit');
     await expect(form(page)).toBeVisible({ timeout: 15000 });
-    expect(await chipIds(page)).toEqual(['agents', 'audit']);
+    await expect.poll(() => chipIds(page)).toEqual(['agents', 'audit']);
     await chip(page, 'agents').check();
     release();
     await expect(chip(page, 'consulting')).toBeChecked();
