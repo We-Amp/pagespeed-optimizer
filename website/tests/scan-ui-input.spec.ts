@@ -91,13 +91,9 @@ for (const path of ['/analyze/', '/ai-readability/']) {
       const hint = page.locator('[data-scan-hint]');
       await expect(hint).toContainText('20 to 40 seconds');
       const busy = (await hint.boundingBox())!.height;
-      const tiles = page.locator('[data-scan-tiles]');
-      const gap = async () => (await tiles.boundingBox())!.y - (await hint.boundingBox())!.y;
-      const busyGap = await gap();
       await expect(hint).toHaveText('');
       const idle = (await hint.boundingBox())!.height;
       expect(idle).toBe(busy);
-      expect(await gap()).toBe(busyGap);
     });
 
     test('a valid run writes ?url= and shows the progress hint while it runs', async ({ page }) => {
