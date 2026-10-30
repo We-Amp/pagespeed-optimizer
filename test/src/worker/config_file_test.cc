@@ -615,9 +615,8 @@ TEST_F(ConfigFileTest, QualityCapMarginWarnsWheneverSetToNonDefault) {
 
 TEST_F(ConfigFileTest, NoQualityCapMarginNoDeprecationWarning) {
   WorkerConfig config;
-  EXPECT_FALSE(HasDeprecationWarning(
-      ApplyConfigJson(json{{"jpeg_quality", 80}, {"no_quality_cap", true}},
-                      &config)));
+  EXPECT_FALSE(HasDeprecationWarning(ApplyConfigJson(
+      json{{"jpeg_quality", 80}, {"no_quality_cap", true}}, &config)));
 }
 
 TEST_F(ConfigFileTest, PersistedDefaultConfigDoesNotWarnQualityCapMargin) {
