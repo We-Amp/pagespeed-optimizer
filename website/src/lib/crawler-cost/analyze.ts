@@ -69,7 +69,7 @@ export async function analyzeFiles(
           if (text.trim() === '') {
             blankRun += 1;
             if (blankRun >= GIVE_UP_WINDOW) {
-              report.givenUp = true;
+              if (report.lines === 0) report.givenUp = true;
               break;
             }
             continue;

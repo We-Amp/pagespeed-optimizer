@@ -181,10 +181,10 @@ describe('analyzeFiles goldens', () => {
     const a = await analyzeFiles([src('blank.txt', '\n'.repeat(GIVE_UP_WINDOW * 5))]);
     expect(a.files[0]).toMatchObject({ givenUp: true, lines: 0 });
   });
-  it('a long run of blank lines gives up even after real lines', async () => {
+  it('a long run of blank lines after real lines stops the read without discarding them', async () => {
     const log = fixture('cc-nginx-combined.log').toString('utf8');
     const a = await analyzeFiles([src('access.log', log + '\n'.repeat(GIVE_UP_WINDOW * 5))]);
-    expect(a.files[0]).toMatchObject({ givenUp: true });
+    expect(a.files[0]).toMatchObject({ givenUp: false });
     expect(a.requests).toBe(8);
   });
   it('blank lines inside a real log do not trigger the give-up', async () => {
