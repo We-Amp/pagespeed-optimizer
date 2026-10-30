@@ -29,11 +29,11 @@ concurrency:
   group: release-smoke-${{ github.sha }}
   cancel-in-progress: false
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   smoke:
+    permissions: {}
     if: >-
       github.event_name == 'workflow_dispatch' ||
       startsWith(github.event.release.tag_name, 'v')

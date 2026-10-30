@@ -58,11 +58,12 @@ concurrency:
   group: website-${{ github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   website-build:
+    permissions:
+      contents: read
     name: Website unit tests & build (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -241,6 +242,8 @@ jobs:
   # plus `npm run gen:references`. The generator and renderer are plain
   # Node scripts without dependencies, so no npm install is needed.
   website-reference-drift:
+    permissions:
+      contents: read
     name: Reference data matches the pinned module source (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -290,6 +293,8 @@ jobs:
   # hrefs or intercepted with page.route(), so the job runs on a hosted
   # runner with no secrets and no specs are excluded.
   website-playwright:
+    permissions:
+      contents: read
     name: Website browser suite (Playwright, ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -356,6 +361,8 @@ jobs:
   # helper. package.json forces lighthouse 13.5.0 under @lhci/cli, whose own
   # pin (12.6.1) cannot audit current Chrome builds.
   website-lighthouse:
+    permissions:
+      contents: read
     name: Website Lighthouse budgets (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 30
