@@ -1314,7 +1314,7 @@ jobs:
       - name: Resolve compose network name
         id: net
         run: |
-          NET=$(docker network ls --filter name=workbench-demo_default --format '{{.Name}}' | head -1)
+          NET=$(docker network ls --filter "name=^${COMPOSE_PROJECT_NAME}_default$" --format '{{.Name}}' | head -1)
           echo "name=$NET" >> "$GITHUB_OUTPUT"
           echo "Compose network: $NET"
 

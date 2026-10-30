@@ -23,7 +23,7 @@ import sys
 
 # script basename -> reason it is not run by any workflow
 ALLOW_UNREGISTERED = {
-    "test_deployment_smoke.sh": "needs Docker and the published images; run by hand before a release",
+    "test_deployment_smoke.sh": "quick-start smoke against published images; to be registered in a nightly or after-publish job",
 }
 
 TEST_REF = re.compile(r"(?:^|[\s;&|(\"'])(?:(?:bash|sh)\s+)?(?:\./)?tools/ci/(test[_-][\w.-]*\.sh)")
@@ -103,8 +103,8 @@ def check_test_steps(path, lines, errs):
             name = m.group(1)
             head, tail = text[: m.start(1)], text[m.end():]
             where = "%s:%d (%s)" % (path, n, name)
-            if re.search(r"\|\|(?!\s*(exit|return)\b)", tail):
-                errs.append(where + ": exit status swallowed by ||")
+            if re.search(r"\|\|(?!\s*(?:exit|return)(?:\s+[1-9][0-9]*)?\s*(?:$|[;&|)]))", tail):
+                errs.append(where + ": exit status swallowed by || (only a bare or non-zero exit/return may follow)")
             if re.search(r"(?<![|&])\|(?!\|)", tail):
                 errs.append(where + ": output piped, exit status masked")
             if re.search(r"&\s*$", tail):
