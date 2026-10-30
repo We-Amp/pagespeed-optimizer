@@ -1749,6 +1749,20 @@ bool PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError error) {
   }
 }
 
+std::expected<std::unique_ptr<PageSpeedCache>, cyclone::CacheError>
+PageSpeedCache::CreateRecreatingDamagedVolume(
+    const PageSpeedCacheConfig& config, bool* deleted_damaged_volume,
+    cyclone::CacheError* first_error) {
+  if (deleted_damaged_volume != nullptr) *deleted_damaged_volume = false;
+  auto result = Create(config);
+  if (result.has_value()) return result;
+  if (first_error != nullptr) *first_error = result.error();
+  if (!OpenFailureIsDamagedVolume(result.error())) return result;
+  RemoveVolumeFiles(config.volume_path);
+  if (deleted_damaged_volume != nullptr) *deleted_damaged_volume = true;
+  return Create(config);
+}
+
 bool PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path,
                                        std::string* failed_path,
                                        std::string* failure_message) {
