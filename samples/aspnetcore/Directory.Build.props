@@ -24,42 +24,17 @@
     <PackageIcon>icon.png</PackageIcon>
     <PackageReleaseNotes>Release notes for this version: https://modpagespeed.com/docs/release-notes/#v$(Version.Replace('.','-'))
 See CHANGELOG.md in the repository for the full history.</PackageReleaseNotes>
-    <!-- Source repo is private — strip ALL git-detected repository metadata.
-         Belt-and-braces: kill SourceLink auto-detection, then null the fields
-         in a late-binding target before GenerateNuspec emits them. -->
-    <PublishRepositoryUrl>false</PublishRepositoryUrl>
-    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <!-- The authoritative kill-switch (1.15-sidecar learning): stop the SDK's
-         _InitializeSourceControlInformation from populating SourceRevisionId /
-         RepositoryCommit at the SOURCE. Without it, that target can run AFTER the
-         BeforeTargets="GenerateNuspec" blanking below and re-inject the private-repo
-         HEAD SHA into <repository commit> — exactly what leaked in the sidecar's
-         1.15.0-preview.1 despite the identical ClearPrivateRepositoryMetadata target.
-         release.yml's leak-guard would still CATCH a regression; this PREVENTS at source. -->
-    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
-    <IncludeRepositoryUrlInNuspec>false</IncludeRepositoryUrlInNuspec>
-    <EnableSourceLink>false</EnableSourceLink>
-    <EmbedUntrackedSources>false</EmbedUntrackedSources>
-    <DeterministicSourcePaths>false</DeterministicSourcePaths>
-    <SourceRevisionId></SourceRevisionId>
-    <RepositoryUrl></RepositoryUrl>
-    <RepositoryType></RepositoryType>
-    <RepositoryCommit></RepositoryCommit>
-    <RepositoryBranch></RepositoryBranch>
+    <!-- Source Link: the source is public, so the packages carry the
+         repository URL and commit and debuggers can fetch the exact source
+         through Source Link. The .NET SDK bundles Microsoft.SourceLink.GitHub. -->
+    <RepositoryUrl>https://github.com/We-Amp/pagespeed-optimizer</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <!-- Embed the portable PDB (with the Source Link map) in the assembly so a
+         debugger can step into the source without a separate symbol package. -->
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
-
-  <Target Name="ClearPrivateRepositoryMetadata"
-          BeforeTargets="GenerateNuspec;_GetPackageFiles"
-          Condition="'$(IsPackable)' != 'false'">
-    <PropertyGroup>
-      <RepositoryUrl></RepositoryUrl>
-      <RepositoryType></RepositoryType>
-      <RepositoryCommit></RepositoryCommit>
-      <RepositoryBranch></RepositoryBranch>
-      <SourceRevisionId></SourceRevisionId>
-      <PrivateRepositoryUrl></PrivateRepositoryUrl>
-    </PropertyGroup>
-  </Target>
 
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)../../LICENSE" Pack="true" PackagePath="" />

@@ -1579,25 +1579,34 @@ jobs:
             { echo "### Sidecar pin mismatch"; echo; cat README-SIDECAR-PIN.txt; echo; } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # The packages carry no source-control metadata: no repository
-      # url/commit/branch attributes and no SourceLink. A bare
-      # `<repository type="git" />` (newer SDKs emit it from a git tree)
-      # carries none and is allowed.
-      - name: Guard against source-control metadata in the .nupkg files
+      # The ASP.NET Core packages carry the public repository URL and commit
+      # (Source Link); the sidecar packages carry none. Any repository url
+      # that is not the public repository, and any SourceLink element in a
+      # nuspec, fails the release.
+      - name: Guard against wrong source-control metadata in the .nupkg files
         run: |
           set -euo pipefail
           cd samples/aspnetcore/nupkg
-          leak=0
+          expected='https://github.com/We-Amp/pagespeed-optimizer'
+          bad=0
           for nupkg in *.nupkg; do
             nuspec=$(unzip -p "$nupkg" "*.nuspec" 2>/dev/null)
-            if echo "$nuspec" | grep -qiE '<repository[^/]*(url|commit|branch)=|<sourceLink'; then
-              echo "::error::source-control metadata in $nupkg:"
-              echo "$nuspec" | grep -iE '<repository[^/]*(url|commit|branch)=|<sourceLink' || true
-              leak=1
+            if echo "$nuspec" | grep -qi '<sourceLink'; then
+              echo "::error::unexpected SourceLink element in $nupkg"
+              bad=1
             fi
+            url=$(echo "$nuspec" | grep -io '<repository[^>]* url="[^"]*"' | sed -E 's/.* url="([^"]*)"/\1/' || true)
+            if [ -n "$url" ] && [ "$url" != "$expected" ]; then
+              echo "::error::repository url in $nupkg is '$url', expected '$expected'"
+              bad=1
+            fi
+            case "$nupkg" in
+              WeAmp.PageSpeed.Sidecar*) ;;
+              *) [ "$url" = "$expected" ] || { echo "::error::$nupkg has no repository url"; bad=1; } ;;
+            esac
           done
-          [ "$leak" = "0" ] || exit 1
-          echo "OK: no source-control metadata in the packages."
+          [ "$bad" = "0" ] || exit 1
+          echo "OK: source-control metadata in the packages is as expected."
 
       # A failed SPA build or a drifted EmbedWebShell glob would ship an
       # empty console and every install would answer 503 for /console/.

@@ -46,6 +46,8 @@ Fixed: the ASP.NET Core package's worker host now logs when the optimizer worker
 
 Fixed: WebP and PNG images that carry an EXIF orientation (a photo taken with the camera turned) were optimized sideways, because only JPEG orientation was honoured. The orientation in the WebP `EXIF` chunk and the PNG `eXIf` chunk is now applied, so converted and resized variants display upright, and the width and height the optimizer adds to images match the upright image. A PNG with an orientation tag that would be optimized in its own format is served as the origin sent it, so its tag is kept.
 
+Changed: the ASP.NET Core NuGet packages now carry the repository URL and commit and embed Source Link information, so a debugger can step into the middleware source and nuget.org links to the repository.
+
 ## 2.6.0 - 2026-10-28
 
 Fixed: pages from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left the page, stylesheet or script unchanged, so clients could not revalidate them and always downloaded the full page. These resources carry an `ETag` again and answer a matching `If-None-Match` with `304 Not Modified`.
