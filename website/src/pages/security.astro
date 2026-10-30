@@ -161,6 +161,28 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             </p>
           </div>
           <div>
+            <h3 class="font-semibold text-text-body">Continuous AI security scanning</h3>
+            <p class="mt-2 text-text-muted">
+              mod_pagespeed has been enrolled in{' '}
+              <a
+                href="https://github.com/anthropics/oss-scanner/blob/main/projects/mod_pagespeed/project.yaml"
+                rel="noopener noreferrer"
+                class="text-interactive hover:text-interactive-hover underline"
+              >
+                Anthropic&rsquo;s OSS Scanner
+              </a>{' '}
+              since October 2026. Its enrolment config and{' '}
+              <a
+                href="https://github.com/We-Amp/mod_pagespeed/blob/master/.oss-scanner/threat_model.md"
+                rel="noopener noreferrer"
+                class="text-interactive hover:text-interactive-hover underline"
+              >
+                threat model
+              </a>{' '}
+              are public.
+            </p>
+          </div>
+          <div>
             <h3 class="font-semibold text-text-body">SBOM</h3>
             <p class="mt-2 text-text-muted">
               An SPDX 2.3 SBOM, with a VEX document, is published in the{' '}
@@ -213,7 +235,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           connection on its own: its network traffic is the origin fetches you configure and any key
           directories you enable, and its management API is off by default. All content parsing uses
           memory-safe patterns validated by continuous sanitizer testing (ASan, UBSan, TSan). No
-          user data is transmitted externally.
+          user data is transmitted externally. The full threat model is published in the
+          mod_pagespeed repository as{' '}
+          <a
+            href="https://github.com/We-Amp/mod_pagespeed/blob/master/.oss-scanner/threat_model.md"
+            rel="noopener noreferrer"
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            <code>threat_model.md</code>
+          </a>
+          .
         </p>
       </div>
 
