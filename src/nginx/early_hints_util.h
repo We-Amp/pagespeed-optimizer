@@ -43,6 +43,16 @@ enum class FlushStatus : std::uint8_t {
 FlushStatus FlushWithRetry(const std::function<long()>& send_remaining,
                            int max_stalls = 16);
 
+// Whether a cache MISS should look up and send Early Hints for a request.
+// `url_mime` is the Content-Type implied by the URL extension ("" when the URL
+// has no recognized extension, e.g. a clean URL such as "/about"); `accept` is
+// the request's Accept header.  The hint set is only ever stored for HTML, so:
+//   - a URL that maps to text/html: yes;
+//   - a URL that maps to any other type (css, js, images, ...): no;
+//   - a URL with no recognized extension: yes when the client asks for HTML
+//     (its Accept header names text/html, as every browser navigation does).
+bool ShouldSendHintsOnMiss(std::string_view url_mime, std::string_view accept);
+
 // A resource to preload via Link header in a 103 Early Hints response.
 struct PreloadResource {
   std::string url;

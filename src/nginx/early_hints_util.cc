@@ -21,6 +21,20 @@ bool IsHexPair(std::string_view hex, char hi, char lo) {
 
 }  // namespace
 
+bool ShouldSendHintsOnMiss(std::string_view url_mime, std::string_view accept) {
+  if (!url_mime.empty()) {
+    return url_mime == "text/html";
+  }
+  // No recognized extension: key on what the client asks for.
+  for (size_t i = 0; i + 9 <= accept.size(); ++i) {
+    size_t j = 0;
+    constexpr std::string_view kHtml = "text/html";
+    while (j < kHtml.size() && LowerChar(accept[i + j]) == kHtml[j]) ++j;
+    if (j == kHtml.size()) return true;
+  }
+  return false;
+}
+
 FlushStatus FlushWithRetry(const std::function<long()>& send_remaining,
                            int max_stalls) {
   long prev_pending = -1;  // sentinel: no prior observation yet

@@ -2075,6 +2075,14 @@ static std::string_view ngx_http_pagespeed_hostname(ngx_http_request_t* r) {
         reinterpret_cast<const char*>(r->headers_in.host->value.data),
         r->headers_in.host->value.len);
   }
+  // HTTP/3 carries the host in the ":authority" pseudo-header and nginx does
+  // not synthesize a Host header from it (HTTP/1.x and HTTP/2 have one), so
+  // without this fallback every HTTP/3 request would look up the cache under
+  // an empty hostname.
+  if (r->host_end != nullptr && r->host_end > r->host_start) {
+    return std::string_view(reinterpret_cast<const char*>(r->host_start),
+                            static_cast<size_t>(r->host_end - r->host_start));
+  }
   return {};
 }
 
@@ -6430,8 +6438,18 @@ cache_miss:
   // HIT-path Link headers already passed the gate.
   if (pagespeed::AuthzCacheGateAllows(request_has_authorization,
                                       /*no stored CC signal*/ 0)) {
+    // Key on the content type, not only the extension: a clean URL such as
+    // "/about" has no extension, but its stored hint set (written for HTML
+    // only) is still wanted when the client asks for HTML.
     const char* mime = pagespeed::MimeFromUrl(url);
-    if (mime != nullptr && strcmp(mime, "text/html") == 0) {
+    static ngx_str_t accept_hdr_name = ngx_string("Accept");
+    ngx_str_t accept_hdr = ngx_http_pagespeed_get_header(r, accept_hdr_name);
+    if (pagespeed::ShouldSendHintsOnMiss(
+            mime != nullptr ? std::string_view(mime) : std::string_view(),
+            std::string_view(
+                accept_hdr.data ? reinterpret_cast<const char*>(accept_hdr.data)
+                                : "",
+                accept_hdr.data ? accept_hdr.len : 0))) {
       auto hints_read = cache->ReadAlternate(
           url, hostname, scheme,
           static_cast<AlternateId>(SentinelId::kEarlyHints));

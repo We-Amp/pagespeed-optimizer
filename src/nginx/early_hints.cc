@@ -21,22 +21,68 @@ ngx_int_t SendEarlyHints(ngx_http_request_t* r,
     return NGX_OK;
   }
 
-  // Construct the raw 103 response.
-  //
-  // nginx does not have a built-in API for sending informational
-  // responses (1xx other than 100 Continue).  We write the 103
-  // response directly to the connection as raw bytes, which is the
-  // standard approach for nginx modules that need 103 support.
+#if defined(nginx_version) && nginx_version >= 1029000
+  // nginx 1.29.0 and later: hand the Link header to nginx's own
+  // informational-response filter chain.  Each protocol (HTTP/1.1, HTTP/2,
+  // HTTP/3) frames the 103 itself, so the hint reaches clients on every
+  // protocol and never corrupts a multiplexed connection.  The chain is
+  // entered directly (not through ngx_http_send_early_hints) because that
+  // wrapper is also gated by the operator's "early_hints" directive, which
+  // controls passing a backend's 103, not this module's own hints.
+  if (r != r->main) {
+    return NGX_OK;
+  }
+
+  // The filters emit whatever is in r->headers_out.headers.  Stage the Link
+  // header in a private list and restore the real one afterwards so no other
+  // header leaks into the 103 and nothing staged leaks into the response.
+  ngx_list_t saved_headers = r->headers_out.headers;
+  if (ngx_list_init(&r->headers_out.headers, r->pool, 1,
+                    sizeof(ngx_table_elt_t)) != NGX_OK) {
+    r->headers_out.headers = saved_headers;
+    return NGX_ERROR;
+  }
+
+  ngx_int_t rc = NGX_ERROR;
+  ngx_table_elt_t* h =
+      static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_out.headers));
+  u_char* value = static_cast<u_char*>(ngx_pnalloc(r->pool, link_value.size()));
+  u_char* lowcase = static_cast<u_char*>(ngx_pnalloc(r->pool, sizeof("link")));
+  if (h != nullptr && value != nullptr && lowcase != nullptr) {
+    ngx_memcpy(lowcase, "link", sizeof("link"));
+    ngx_memcpy(value, link_value.data(), link_value.size());
+    h->hash = 1;
+    ngx_str_set(&h->key, "Link");
+    h->value.data = value;
+    h->value.len = link_value.size();
+    h->lowcase_key = lowcase;
+    rc = ngx_http_top_early_hints_filter(r);
+  }
+
+  r->headers_out.headers = saved_headers;
+
+  if (rc == NGX_ERROR) {
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                  "pagespeed: failed to send 103 Early Hints");
+    return NGX_ERROR;
+  }
+
+  ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                 "pagespeed: sent 103 Early Hints over HTTP/%d",
+                 r->http_version >= NGX_HTTP_VERSION_20 ? 2 : 1);
+  return NGX_OK;
+#else
+  // Older nginx has no API for informational responses (1xx other than 100
+  // Continue).  Write the 103 directly to the connection for HTTP/1.1 only.
   //
   // The response format:
   //   HTTP/1.1 103 Early Hints\r\n
   //   Link: <url>; rel=preload; as=style\r\n
   //   \r\n
 
-  // Only send for HTTP/1.1 clients.  HTTP/1.0 doesn't support 1xx.
-  // HTTP/2 and HTTP/3 have their own PUSH_PROMISE/server-push
-  // mechanisms, and writing raw "HTTP/1.1 103" bytes to an h2/h3
-  // connection corrupts the stream.
+  // HTTP/1.0 has no 1xx.  HTTP/2 and HTTP/3 are framed protocols: writing raw
+  // "HTTP/1.1 103" bytes to them corrupts the stream, so without nginx's own
+  // 103 support those clients get no hint.
   if (r->http_version != NGX_HTTP_VERSION_11) {
     return NGX_OK;
   }
@@ -102,6 +148,7 @@ ngx_int_t SendEarlyHints(ngx_http_request_t* r,
                  response.size());
 
   return NGX_OK;
+#endif  // nginx_version >= 1029000
 }
 
 }  // namespace pagespeed
