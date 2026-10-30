@@ -6,6 +6,7 @@ author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'ai-crawlers', 'licensing', 'nginx']
 draft: false
 lastUpdated: 2026-10-22
+tool: crawler-cost
 ---
 
 > **Status: experimental preview, not GA.** RSL-CAP enforcement ships in the mod_pagespeed module, off by default and confined to test configurations. Nothing here is priced, sold, or available to buy. Treat this post as the design, not a quickstart.

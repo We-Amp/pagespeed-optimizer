@@ -26,6 +26,11 @@ interface Props {
   // Emit <meta name="robots" content="noindex,follow"> — for error pages and
   // any utility route that should not be indexed.
   noindex?: boolean;
+  // Optional page-level Content-Security-Policy meta, rendered in production
+  // builds only (the dev server's websocket needs connect-src on localhost).
+  // A page passes it to tighten the site-wide header for itself; both policies
+  // then apply.
+  csp?: string;
   // Override the auto BreadcrumbList's final ListItem.name so the emitted
   // JSON-LD leaf matches the page's visible breadcrumb leaf (the human title)
   // rather than formatSegment(slug). Slug pages pass their human title here.
@@ -56,6 +61,7 @@ const {
   ogImage,
   jsonLd,
   noindex = false,
+  csp,
   breadcrumbLeafName,
   breadcrumbSkipSegments = [],
   alternateMarkdown,
@@ -218,6 +224,12 @@ const navLinks: Array<{
         label: 'PageSpeed analyzer',
         subtitle: 'Score any URL with PageSpeed Insights',
         umamiEvent: 'nav-analyze',
+      },
+      {
+        href: '/ai-crawler-cost/',
+        label: 'AI crawler cost',
+        subtitle: 'Estimate what AI crawlers cost your server, and how many visits AI assistants send back',
+        umamiEvent: 'nav-crawler-cost',
       },
       {
         href: '/examples/',
@@ -561,10 +573,12 @@ const searchExcluded =
   /^\/(404|500)\/?$/.test(rawPath);
 
 // Telemetry strip exclusion: the archived product sections, utility and error
-// routes, and any noindex page that is not kept in site search.
+// routes, any noindex page that is not kept in site search, and the crawler
+// cost meter, whose own code must make no request after load (the strip issues
+// a HEAD).
 const telemetryExcluded =
   (noindex && !searchable) ||
-  /^\/(1\.1|1\.0|api|go|error)(\/|$)/.test(rawPath) ||
+  /^\/(1\.1|1\.0|api|go|error|ai-crawler-cost)(\/|$)/.test(rawPath) ||
   /^\/(404|500)(\/|$)/.test(rawPath);
 const sectionNames: Record<string, string> = {
   docs: 'Docs',
@@ -581,6 +595,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
 <html lang="en" class="scroll-smooth dark" id="html-root">
   <head>
     <meta charset="utf-8" />
+    {csp && import.meta.env.PROD && <meta http-equiv="Content-Security-Policy" content={csp} />}
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     {
       /* Test fingerprint (tests/global-setup.ts): only in the dev server, or in a

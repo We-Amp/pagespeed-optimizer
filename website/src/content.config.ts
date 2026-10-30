@@ -35,6 +35,9 @@ const blog = defineCollection({
     // posts keep their current ModPageSpeed 2.0 framing; 1.1-era posts set
     // product: '1.1' explicitly.
     product: z.enum(['1.1', '2.0']).default('2.0'),
+    // Optional tool pointer rendered as a one-line aside above "Read next":
+    // the post's body stays as published, the aside carries the link.
+    tool: z.enum(['crawler-cost']).optional(),
     // Optional pin-to-top order on the blog index. Lower number = higher
     // position (1 sorts above 2). Posts without `pinned` sort by date as
     // before. Optional so existing posts keep validating without changes.
