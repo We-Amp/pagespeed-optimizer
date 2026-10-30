@@ -1004,7 +1004,7 @@ Disable the rewriting of Javascript URLs.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP.
+Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP. Access control: files served through a mapping are read directly from disk, so the web server's own access rules for those paths (Apache `&lt;Directory&gt;`, `&lt;Files&gt;` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use `LoadFromFileRule Disallow` for a filename prefix or `LoadFromFileRuleMatch Disallow` for a filename pattern; a disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
 
 #### LoadFromFileCacheTtlMs {#loadfromfilecachettlms}
 

@@ -148,6 +148,8 @@ Note the Windows-style path. The module converts backslashes to forward slashes 
 
 No network fetch occurs. mod_pagespeed reads the files from disk. This is the fastest option for static assets that are available on the local filesystem.
 
+**Access control.** Files served through a `LoadFromFile` mapping are read by mod_pagespeed directly from disk, so the web server's own access rules for those paths (Apache `<Directory>`, `<Files>` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use the mapping's own rules: `LoadFromFileRule Disallow` for a filename prefix, or `LoadFromFileRuleMatch Disallow` for a filename pattern. A disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
+
 ## Mixed content
 
 mod_pagespeed rewrites resource URLs to match the scheme of the page. Pages served over HTTPS will have their optimized resources served over HTTPS as well. This prevents mixed-content warnings in browsers.
