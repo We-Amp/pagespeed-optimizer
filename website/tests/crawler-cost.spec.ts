@@ -89,6 +89,78 @@ test.describe('AI crawler cost meter', () => {
     }
   });
 
+  test('no request of any kind carries log content, for every fixture and a gzip upload', async ({
+    context,
+    page,
+  }) => {
+    // Observe every request the context makes (page, worker, subframes), without altering any and
+    // record URL, headers and body. None may contain a distinctive piece of
+    // any uploaded log line: addresses, paths, agents, referrers.
+    // Warm the dev server first so a cold start's reload is not in the picture.
+    await page.goto('/ai-crawler-cost/');
+    await page.waitForLoadState('networkidle');
+    const seen: Array<{ url: string; headers: string; body: string }> = [];
+    context.on('request', (r) => {
+      void r.allHeaders().then((h) =>
+        seen.push({
+          url: r.url(),
+          headers: JSON.stringify(h),
+          body: r.postDataBuffer()?.toString('latin1') ?? '',
+        }),
+      );
+    });
+    const names = [
+      'cc-nginx-combined.log',
+      'cc-apache-combined.log',
+      'cc-iis-w3c.log',
+      'cc-hostile.log',
+    ];
+    const needles = new Set<string>([SENTINEL]);
+    for (const n of names) {
+      for (const line of readFileSync(fixture(n), 'utf8').split('\n')) {
+        for (const m of line.matchAll(
+          /\b\d{1,3}(?:\.\d{1,3}){3}\b|(?:GET|POST|HEAD) (\S{4,})|[A-Za-z]+Bot\/[\d.]+/g,
+        )) {
+          needles.add(m[1] ?? m[0]);
+        }
+      }
+    }
+    expect(needles.size).toBeGreaterThan(10);
+    const before = seen.length;
+    for (const n of names) {
+      await page.goto('/ai-crawler-cost/');
+      await page.setInputFiles('#cc-file', fixture(n));
+      await expect(page.locator('#cc-results'), n).toBeVisible();
+    }
+    await page.goto('/ai-crawler-cost/');
+    await page.setInputFiles('#cc-file', {
+      name: 'cc.log.gz',
+      mimeType: 'application/gzip',
+      buffer: gzipSync(readFileSync(fixture('cc-nginx-combined.log'))),
+    });
+    await expect(page.locator('#cc-results')).toBeVisible();
+    // Let any trailing analytics post settle.
+    await page.waitForTimeout(500);
+    expect(seen.length).toBeGreaterThan(before);
+    for (const r of seen) {
+      // The path of an own-site asset (for example /guide/) may coincide with a
+      // log path, so a URL is checked by its query string and fragment, plus
+      // its host when it is not this site; headers and bodies are checked whole.
+      const u = new URL(r.url);
+      const own = u.origin === new URL(page.url()).origin;
+      // The browser's own user-agent header is not log content.
+      const headers = r.headers.replace(/"user-agent":"[^"]*"/, '');
+      const haystack = [u.search, u.hash, own ? '' : u.host + u.pathname, headers, r.body].join(
+        '\n',
+      );
+      for (const needle of needles) {
+        expect(decodeURIComponent(haystack), `${r.url} must not contain ${needle}`).not.toContain(
+          needle,
+        );
+      }
+    }
+  });
+
   test('hostile fields render as text and inject nothing', async ({ page }) => {
     await page.goto('/ai-crawler-cost/');
     const title = await page.title();
