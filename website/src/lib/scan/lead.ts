@@ -136,7 +136,7 @@ export function chipsFor(
     chips.push({ ...CONSULTING, wedge: '', gated: false, selected: speed === 'poor' });
   }
   chips.push({ ...AGENTS, wedge: '', gated: false, selected: false });
-  chips.push({ ...AUDIT, wedge: '', gated: false, selected: false });
+  if (report) chips.push({ ...AUDIT, wedge: '', gated: false, selected: false });
   let left = MAX_TOPICS;
   const priority = surface === 'analyze' ? chips.filter((c) => c.id === CONSULTING.id) : [];
   for (const chip of [...priority, ...chips.filter((c) => !priority.includes(c))]) {

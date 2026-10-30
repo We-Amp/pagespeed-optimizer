@@ -234,7 +234,7 @@ test.describe('the one lead form', () => {
     await page.route('**/ai-readability/api/scan**', (route) => route.abort());
     await scanV2(page);
     await expect(form(page)).toBeVisible();
-    expect(await chipIds(page)).toEqual(['consulting', 'agents', 'audit']);
+    expect(await chipIds(page)).toEqual(['consulting', 'agents']);
     await expect(page.locator('[data-scan-audit]')).toBeHidden();
   });
 

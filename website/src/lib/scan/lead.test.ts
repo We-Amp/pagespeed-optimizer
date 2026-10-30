@@ -162,8 +162,8 @@ describe('chipsFor', () => {
 
   it('adds the speed-help chip only once Speed has settled; the agents chip is always there', () => {
     expect(chipsFor(clean, null).map((c) => c.id)).toEqual(['agents', 'audit']);
-    expect(chipsFor(null, null).map((c) => c.id)).toEqual(['agents', 'audit']);
-    expect(chipsFor(null, 'poor').map((c) => c.id)).toEqual(['consulting', 'agents', 'audit']);
+    expect(chipsFor(null, null).map((c) => c.id)).toEqual(['agents']);
+    expect(chipsFor(null, 'poor').map((c) => c.id)).toEqual(['consulting', 'agents']);
   });
 
   it('never pre-selects the audit chip and labels it with the price from the facts', () => {
