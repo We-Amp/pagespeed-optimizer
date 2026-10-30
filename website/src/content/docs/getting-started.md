@@ -5,7 +5,7 @@ seoTitle: 'Install mod_pagespeed: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 faq:
   - q: 'Which mod_pagespeed integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
@@ -171,8 +171,8 @@ curl -s -o /dev/null -D - http://localhost/
 Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
 so a HEAD never turns into a HIT there.
 
-- **Apache module:** `X-Mod-Pagespeed: on` on both responses. nginx and
-  IIS module: `X-Page-Speed: on`. The header's presence means the module
+- **Apache module:** `X-Mod-Pagespeed: on` on both responses (from 2.7.0; 2.6.0 and earlier print the
+  version). nginx and IIS module: `X-Page-Speed: on`. The header's presence means the module
   is loaded and active for that site. The value is generic by default; set the
   server-wide [`ExposeVersionInHeaders`](/docs/configuration/#expose-version-in-headers)
   option to send the version instead.

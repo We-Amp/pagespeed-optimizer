@@ -219,7 +219,7 @@ function rxVerdict(rx: Lens): string {
   // Only a version the scan can read counts: the generic header value `on` means
   // "active, version not disclosed" and is never reported as a version.
   const tells = (Array.isArray(rx.tells) ? rx.tells : []).filter(
-    (t: Lens) => t && parseVersion(t.version),
+    (t: Lens) => t && typeof t.version === 'string' && /^\d+(\.\d+)*$/.test(t.version),
   ).length;
   const list: Lens[] = Array.isArray(rx.endOfLife) ? rx.endOfLife : [];
   const lifecycle = mpsVersions(rx)

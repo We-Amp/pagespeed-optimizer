@@ -4,7 +4,7 @@ seoTitle: 'Install mod_pagespeed on Apache and nginx: signed packages'
 description: 'Install the native mod_pagespeed module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
 order: 3
 group: 'Install'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 faq:
   - q: 'Is there a native nginx module for mod_pagespeed?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'

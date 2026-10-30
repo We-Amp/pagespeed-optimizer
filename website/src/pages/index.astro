@@ -72,6 +72,7 @@ const qsNginxLines: TermLine[] = [
   { text: '$ sudo nginx -t && sudo systemctl reload nginx', tone: 'strong' },
   { text: '$ curl -I http://localhost/ | grep X-Page-Speed', tone: 'strong' },
   { text: 'X-Page-Speed: on', tone: 'ok' },
+  { text: '# on from 2.7.0; 2.6.0 and earlier print the version', tone: 'dim' },
 ];
 const qsApacheLines: TermLine[] = [
   { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
@@ -83,6 +84,7 @@ const qsApacheLines: TermLine[] = [
   { text: '$ sudo systemctl restart apache2', tone: 'strong' },
   { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
   { text: 'X-Mod-Pagespeed: on', tone: 'ok' },
+  { text: '# on from 2.7.0; 2.6.0 and earlier print the version', tone: 'dim' },
 ];
 
 // Section 06 heritage stats: 231,341 live sites per BuiltWith, rendered as a

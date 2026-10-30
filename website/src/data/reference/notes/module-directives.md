@@ -73,7 +73,7 @@ disabling it can cause stale optimized content to be served.
 ## XHeaderValue
 
 Sets the value of the `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx, IIS)
-[response header](/pagespeed-markers/#x-page-speed). The default is the generic
+[response header](/pagespeed-markers/#x-page-speed). From 2.7.0 the default is the generic
 value `on`, which does not disclose the installed version. A value set here
 takes precedence over the default and over
 [`ExposeVersionInHeaders`](#expose-version-in-headers), the server-wide option that

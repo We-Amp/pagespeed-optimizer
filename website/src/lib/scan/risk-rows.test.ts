@@ -237,6 +237,18 @@ describe('riskRows edge cases', () => {
     );
     expect(sentence('unknown')).not.toContain('mod_pagespeed ');
   });
+  it('counts a single-number version tell such as PHP/8', () => {
+    const row = riskRows(
+      rx({
+        verdict: 'clean',
+        leaks: [],
+        tells: [{ product: 'php', source: 'x-powered-by', version: '8' }],
+        endOfLife: [],
+        headers: { missing: [] },
+      }),
+    )[0];
+    expect(row.sentence).toContain('1 version tell');
+  });
   it('treats the generic header value "on" as active with no version disclosed', () => {
     for (const version of ['on', null]) {
       const row = riskRows(

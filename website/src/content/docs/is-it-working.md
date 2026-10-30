@@ -3,11 +3,11 @@ title: 'Is it working?'
 description: 'Confirm mod_pagespeed is active: the response header per server, MISS then HIT, ?PageSpeed=off, the admin console and the worker health endpoint.'
 order: 2
 group: 'Start here'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 datePublished: 2026-10-08
 faq:
   - q: 'Which response header tells me mod_pagespeed is active?'
-    a: 'It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying `on` by default (the version only when you set `ExposeVersionInHeaders`). The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.'
+    a: 'It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying `on` by default from 2.7.0 (the version only when you set `ExposeVersionInHeaders`). The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.'
   - q: 'Why is the first request a MISS and the second a HIT?'
     a: 'Optimization happens off the request path. The first request serves the original bytes, stores them in the cache and notifies the worker; the worker writes the optimized variant; the next request for the same URL and client class is served from the cache.'
   - q: 'How do I see a page without optimization for one request?'
@@ -44,10 +44,13 @@ module handles, whether or not anything on that page was rewritten. Its
 presence confirms the module is loaded and `pagespeed on` applies to that
 site; the [admin console](#the-admin-console) tells you what it did.
 
-The value is `on` by default: the header confirms the module is active and does
-not disclose which version runs. To send the version instead, set the
-server-wide `ExposeVersionInHeaders` option (Apache:
-`ModPagespeedExposeVersionInHeaders on`; nginx: `pagespeed ExposeVersionInHeaders on;`).
+From 2.7.0 the value is `on` by default: the header confirms the module is
+active and does not disclose which version runs (2.6.0 and earlier send the
+version). To send the version instead, set the server-wide
+[`ExposeVersionInHeaders`](/docs/configuration/#expose-version-in-headers) option
+(Apache: `ModPagespeedExposeVersionInHeaders on`; nginx and IIS:
+`pagespeed ExposeVersionInHeaders on`). Add it in the same step as the upgrade,
+never before: older releases reject the directive.
 A custom [`XHeaderValue`](/docs/configuration/#xheadervalue) takes precedence
 over both. The Docker reverse proxy and the ASP.NET Core middleware never send a
 version in `X-PageSpeed`; they report only the cache outcome.

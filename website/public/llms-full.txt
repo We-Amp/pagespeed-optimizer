@@ -447,8 +447,8 @@ curl -s -o /dev/null -D - http://localhost/
 Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
 so a HEAD never turns into a HIT there.
 
-- **Apache module:** `X-Mod-Pagespeed: on` on both responses. nginx and
-  IIS module: `X-Page-Speed: on`. The header's presence means the module
+- **Apache module:** `X-Mod-Pagespeed: on` on both responses (from 2.7.0; 2.6.0 and earlier print the
+  version). nginx and IIS module: `X-Page-Speed: on`. The header's presence means the module
   is loaded and active for that site. The value is generic by default; set the
   server-wide [`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers)
   option to send the version instead.
@@ -568,10 +568,13 @@ module handles, whether or not anything on that page was rewritten. Its
 presence confirms the module is loaded and `pagespeed on` applies to that
 site; the [admin console](https://modpagespeed.com/docs/is-it-working/#the-admin-console) tells you what it did.
 
-The value is `on` by default: the header confirms the module is active and does
-not disclose which version runs. To send the version instead, set the
-server-wide `ExposeVersionInHeaders` option (Apache:
-`ModPagespeedExposeVersionInHeaders on`; nginx: `pagespeed ExposeVersionInHeaders on;`).
+From 2.7.0 the value is `on` by default: the header confirms the module is
+active and does not disclose which version runs (2.6.0 and earlier send the
+version). To send the version instead, set the server-wide
+[`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers) option
+(Apache: `ModPagespeedExposeVersionInHeaders on`; nginx and IIS:
+`pagespeed ExposeVersionInHeaders on`). Add it in the same step as the upgrade,
+never before: older releases reject the directive.
 A custom [`XHeaderValue`](https://modpagespeed.com/docs/configuration/#xheadervalue) takes precedence
 over both. The Docker reverse proxy and the ASP.NET Core middleware never send a
 version in `X-PageSpeed`; they report only the cache outcome.
@@ -675,7 +678,7 @@ a page's source are explained on [PageSpeed markers](https://modpagespeed.com/pa
 
 **Which response header tells me mod_pagespeed is active?**
 
-It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying `on` by default (the version only when you set `ExposeVersionInHeaders`). The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.
+It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying `on` by default from 2.7.0 (the version only when you set `ExposeVersionInHeaders`). The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.
 
 **Why is the first request a MISS and the second a HIT?**
 
@@ -4587,7 +4590,7 @@ Key used for signing .pagespeed resource URLs.
 Set the value for the X-Mod-Pagespeed HTTP header
 
 Sets the value of the `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx, IIS)
-[response header](https://modpagespeed.com/pagespeed-markers/#x-page-speed). The default is the generic
+[response header](https://modpagespeed.com/pagespeed-markers/#x-page-speed). From 2.7.0 the default is the generic
 value `on`, which does not disclose the installed version. A value set here
 takes precedence over the default and over
 [`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers), the server-wide option that
@@ -7157,14 +7160,18 @@ URLs the module will rewrite.
 
 ## Version in response headers
 
-By default the module's response header (`X-Mod-Pagespeed` on Apache,
-`X-Page-Speed` on nginx and IIS) carries the generic value `on`. It confirms
-that the module handled the response and does not disclose which version is
-installed. Detection by header presence is unchanged.
+From 2.7.0, the module's response header (`X-Mod-Pagespeed` on Apache,
+`X-Page-Speed` on nginx and IIS) carries the generic value `on` by
+default. It confirms that the module handled the response and does not disclose
+which version is installed. Detection by header presence is unchanged. Releases
+before 2.7.0 send the version in that header.
 
 To send the module version instead, set `ExposeVersionInHeaders` once for the
 whole server. It is a server-wide boolean (default off) and is rejected inside a
-virtual host or location.
+virtual host or location. Releases before 2.7.0 do not know the directive and
+refuse to load a configuration that contains it (`apache2ctl configtest` and
+`nginx -t` fail), so add it in the same step as the upgrade to 2.7.0, never
+before.
 
 ```apache
 # Apache, global server configuration
@@ -7174,6 +7181,12 @@ ModPagespeedExposeVersionInHeaders on
 ```nginx
 # nginx, http block
 pagespeed ExposeVersionInHeaders on;
+```
+
+```text
+# IIS: the server-wide %ProgramData%\We-Amp\PageSpeed\pagespeed.config,
+# not a site's own pagespeed.config
+pagespeed ExposeVersionInHeaders on
 ```
 
 Precedence for the header value: a custom [`XHeaderValue`](https://modpagespeed.com/docs/configuration/#xheadervalue) wins,

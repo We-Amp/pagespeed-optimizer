@@ -3,7 +3,7 @@ title: 'Envoy HTTP filter (experimental)'
 description: 'PageSpeed for Envoy is an experimental HTTP filter built from the public source repository, not a packaged release: configuration, checks, known limits.'
 order: 8
 group: 'Install'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-30
 datePublished: 2026-10-08
 ---
 
