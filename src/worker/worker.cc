@@ -1037,6 +1037,42 @@ bool PreserveIdentityAsDurableOriginal(PageSpeedCache* cache,
   return wh->close_sync().has_value();
 }
 
+// Stamp the identity slot (0x08) in place when it still holds the front
+// end's own recording: the source binding is the hash of those bytes, so an
+// origin that sends no validators still yields a stable ETag and answers a
+// conditional request with a 304.  Used by the image paths that write no
+// optimized original-format variant (the bytes were already optimal, or the
+// type is passed through), where nothing else would carry the stamp.  A
+// worker-written entry, a missing entry and an entry that already carries
+// the right stamp are left alone.
+StampResult StampRawIdentityEntry(PageSpeedCache* cache, const std::string& url,
+                                  const std::string& hostname,
+                                  std::string_view scheme, bool leases_enabled,
+                                  const PurgeCheck& purge_check,
+                                  Worker* purge_undo_worker) {
+  const AlternateId identity = MaskToId(CapabilityMask());
+  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity);
+  auto rr = cache->ReadAlternate(url, hostname, scheme, identity);
+  if (!rr.has_value() || !rr->is_valid()) return StampResult::kSkipped;
+  if ((rr->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) != 0) {
+    rr->release();
+    return StampResult::kSkipped;
+  }
+  const AlternateMetadata read_meta = rr->metadata;
+  auto span = rr->content();
+  const std::string bytes(reinterpret_cast<const char*>(span.data()),
+                          span.size());
+  if (!Worker::BorrowCopyUntorn(*rr, leases_enabled)) {
+    return StampResult::kSkipped;
+  }
+  rr->release();
+  const std::array<std::byte, 32> hash =
+      cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+          reinterpret_cast<const std::byte*>(bytes.data()), bytes.size()));
+  return StampRawEntry(cache, url, hostname, scheme, read_meta, bytes, hash,
+                       purge_check, purge_undo_worker);
+}
+
 // ---------------------------------------------------------------------
 // Issue #1503: the pristine origin reference.
 //
@@ -6139,6 +6175,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                   notification.hostname, notification.scheme,
                                   br_check));
         if (coded_copies_stored) {
+          // The identity stamp must not depend on the compressed copies
+          // being absent: a passthrough image whose copies were written
+          // before the stamp existed still needs its content identity.
+          img_read_result->release();
+          CountStamp(stats_,
+                     StampRawIdentityEntry(
+                         cache_.get(), notification.url, notification.hostname,
+                         notification.scheme, cfg->read_lease_duration_ms > 0,
+                         purge_check, this));
           LogInfo(
               "Compressed variants already exist for unsupported "
               "type %.*s, skipping: %s",
@@ -6620,6 +6665,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
       auto variant_result =
           WriteImageVariants(notification, target_mask, image_data, origin_meta,
                              purge_check, cfg, origin_hash);
+      // Kept as-is: when no optimized original-format variant replaced the
+      // identity slot (the re-encode was not smaller), it still holds the
+      // front end's own bytes; give it the stamp so an origin without
+      // validators gets an ETag and a 304 for them.
+      CountStamp(stats_, StampRawIdentityEntry(cache_.get(), notification.url,
+                                               notification.hostname,
+                                               notification.scheme,
+                                               cfg->read_lease_duration_ms > 0,
+                                               purge_check, this));
       size_t smallest_raster_size = variant_result.smallest_raster_size;
       size_t expected_writes = variant_result.expected_writes;
       size_t successful_writes = variant_result.successful_writes;
