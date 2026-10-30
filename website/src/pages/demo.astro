@@ -369,7 +369,7 @@ const siteData = sites.map((site) => {
         from the actual optimization pipeline running against the demo sites above — real pipeline
         output, not marketing math. The load-time and Lighthouse figures are projections we derive
         from those measured savings, and we say so explicitly. The percentages on this page compare
-        file sizes before and after optimization. The admin console's savings figures are a
+        file sizes before and after optimization. The optimizer's savings in the admin console are a
         different measure: measured in transfer bytes, includes compression.
       </p>
       <p class="mt-4 text-sm font-semibold text-text-body">Directly measured</p>
@@ -445,8 +445,8 @@ const siteData = sites.map((site) => {
           </p>
           <p class="mt-1 text-sm text-text-muted">
             Live savings from our own production deployment: bytes saved by the module and the
-            optimizer worker, by file type and by hosted site, measured in transfer bytes and
-            including compression. The console is read-only here.{' '}
+            optimizer worker, by file type and by hosted site (the optimizer's figures are measured
+            in transfer bytes and include compression). The console is read-only here.{' '}
             <a
               href="https://we-amp.com/pagespeed_global_admin/#/savings"
               class="text-interactive underline underline-offset-2"
@@ -479,7 +479,8 @@ const siteData = sites.map((site) => {
           </p>
           <p class="mt-1 text-sm text-text-muted">
             The same console, built into the native module and running on our public Apache demo:
-            live statistics, caches, histograms and logs, served in-process with no separate worker.{' '}
+            live statistics, graphs, caches and histograms, served in-process with no separate
+            worker.{' '}
             <a
               href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics"
               class="text-interactive underline underline-offset-2"

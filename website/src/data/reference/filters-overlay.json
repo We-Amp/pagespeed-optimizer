@@ -369,7 +369,7 @@
     },
     "local_storage_cache": {
       "category": "Caching",
-      "summary": "Retired: accepted and ignored, with a warning",
+      "summary": "Retired from 2.7.0: accepted and ignored, with a warning",
       "risk": "Deprecated",
       "note": "Retired in 2.7.0: the name is still accepted but has no effect, and enabling it logs a warning."
     },

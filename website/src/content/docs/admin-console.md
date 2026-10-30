@@ -20,7 +20,7 @@ The console heads the optimizer worker's card on its Overview page "Optimizer", 
 
 <img
   src="/images/console-statistics.png"
-  alt="mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column"
+  alt="mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column, on our production sites"
   width="1440"
   height="900"
   loading="lazy"
@@ -28,7 +28,7 @@ The console heads the optimizer worker's card on its Overview page "Optimizer", 
 />
 
 :::tip[See it live]
-Explore the [mod_pagespeed admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics) running on our public Apache demo: live statistics, caches, histograms and logs, no install required.
+Explore the [mod_pagespeed admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics) running on our public Apache demo: live statistics, graphs, caches and histograms, no install required.
 :::
 
 ## Admin pages
@@ -229,7 +229,7 @@ A one-line health summary sits at the top: "All systems healthy", or "N issue(s)
 
 Both cards link to their detail page (All statistics, Optimizer status).
 
-Every savings figure in the console, on Overview and on Savings, is measured in transfer bytes and includes compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The console does not yet report the two separately.
+The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. The console does not yet report the optimizer's two parts separately.
 
 ### Alerts
 
@@ -438,9 +438,9 @@ The Logs page has a severity filter (Fatal, Error, Warning, Info) with a live co
 
 ## Views turned off on this console {#views-turned-off}
 
-A web server or proxy in front of the console can refuse some of its read-only views: a `location` block that denies the path, a WAF rule, or an access rule that answers 401, 403 or 410. When that happens the console no longer shows an error. The affected page (Logs, Configuration, URLs, a URL's detail view, Rule packs, and the message-log findings on Overview) shows a card that reads "Not available on this console. The server administrator has turned this view off." with a link to this page.
+A web server or proxy in front of the console can refuse some of its read-only views: a `location` block that denies the path, a WAF rule, or an access rule. When a view answers 401, 403, 404 or 410, the console no longer shows an error. The affected page (Logs, Configuration, URLs, a URL's detail view, Rule packs, and the message-log findings on Overview) shows a card that reads "Not available on this console. The server administrator has turned this view off." with a link to this page.
 
-The console remembers the refusal for the rest of the session: it does not ask for that view again, shows no error or reconnect banner, and does not retry. A sidebar entry gets a muted "off" marker once every view it reads has been refused. To turn a view back on, lift the restriction in the web server or proxy and reload the console. This is a state of the view, not a fault in the module.
+A view refused with 401, 403 or 410 stays off until you reload the console, or until the console reconnects after losing the server. While it is off the console does not ask for it again, and shows no error or reconnect banner. A refusal of a single entry, such as one cache entry or one URL's variants, shows the card for that entry only. A sidebar entry gets a muted "off" marker once every view its page reads is refused. To turn a view back on, lift the restriction in the web server or proxy and reload the console. This is a state of the view, not a fault in the module.
 
 ## URL-path ACLs are brittle
 
@@ -462,6 +462,8 @@ Press `?` (or the **?** button in the top bar) to open the shortcut list. None o
 | `r`          | Refresh the current page's data now (Configuration, About, and Support have nothing to refresh) |
 | `/`          | Jump to the page's search box                                                                   |
 | `g` then `o` | Go to Overview                                                                                  |
+| `g` then `v` | Go to Savings                                                                                   |
+| `g` then `u` | Go to URLs                                                                                      |
 | `g` then `s` | Go to Statistics                                                                                |
 | `g` then `c` | Go to Configuration                                                                             |
 | `g` then `h` | Go to Histograms                                                                                |

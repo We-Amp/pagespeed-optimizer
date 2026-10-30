@@ -91,7 +91,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Insert image dimensions (insert_image_dimensions)](https://modpagespeed.com/docs/filters/insert_image_dimensions/): Adds width and height attributes to <img> tags.
 - [Insert speculation rules (insert_speculation_rules)](https://modpagespeed.com/docs/filters/insert_speculation_rules/): Injects a same-origin prefetch speculation-rules script.
 - [Lazy-load images (lazyload_images)](https://modpagespeed.com/docs/filters/lazyload_images/): Defers offscreen image loading.
-- [Local storage cache (local_storage_cache)](https://modpagespeed.com/docs/filters/local_storage_cache/): Retired: accepted and ignored, with a warning.
+- [Local storage cache (local_storage_cache)](https://modpagespeed.com/docs/filters/local_storage_cache/): Retired from 2.7.0: accepted and ignored, with a warning.
 - [Move CSS above scripts (move_css_above_scripts)](https://modpagespeed.com/docs/filters/move_css_above_scripts/): Moves CSS <link> above <script> tags.
 - [Move CSS to head (move_css_to_head)](https://modpagespeed.com/docs/filters/move_css_to_head/): Moves CSS <link> into <head>.
 - [Outline CSS (outline_css)](https://modpagespeed.com/docs/filters/outline_css/): Externalizes large inline CSS blocks.
@@ -4305,11 +4305,11 @@ Adds a custom HTTP header to every optimized resource the module serves. Repeata
 Repeatable: specify it once per header, up to 20. Since v1.15.0+r18 the limit is
 enforced exactly.
 
-A configured header replaces the origin's header of the same name: if the origin
+From 2.7.0, a configured header replaces the origin's header of the same name: if the origin
 already sends `Access-Control-Allow-Origin` and you configure that name, the
 response carries only your value. Several directives with the same name are all
-sent, one header line each. Before 2.7.0 your value was added after the
-origin's, so a response could carry both.
+sent, one header line each. In 2.6.0 and earlier your value is added after the
+origin's, so a response can carry both.
 
 ```apache
 ModPagespeedAddResourceHeader "X-Custom" "value"
@@ -7435,9 +7435,9 @@ See [Domain configuration](https://modpagespeed.com/docs/domain-configuration/) 
 
 [Full guide →](https://modpagespeed.com/docs/filters/local_storage_cache/)
 
-**Retired.** Since 2.7.0 `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
+**Retired from 2.7.0.** From 2.7.0, `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
 
-The filter moved the bytes of inlined images and CSS into the browser's `localStorage` and tracked them in a `_GPSLSC` cookie. That cookie grew with every stored resource until a server could start refusing requests with "400 request header too large", and `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. Releases before 2.7.0 still have the filter and its behavior.
+The filter moved the bytes of inlined images and CSS into the browser's `localStorage` and tracked them in a `_GPSLSC` cookie. That cookie grew with every stored resource until a server could start refusing requests with "400 request header too large", and `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. In 2.6.0 and earlier the filter still runs as described here; it is not recommended there either.
 
 For the same repeat-view saving, use [`extend_cache`](https://modpagespeed.com/docs/cache-control/#extend_cache): it keeps resources at external, content-hashed URLs with a one-year lifetime, with no cookie and no scripts.
 
@@ -15982,11 +15982,11 @@ Two endpoints are exposed: `/pagespeed_admin` is the per-vhost admin handler, an
 
 The console heads the optimizer worker's card on its Overview page "Optimizer", and its sidebar groups the worker's pages (Status and Logs) under "Optimizer". This page keeps those labels where it names the UI and says "worker" everywhere else; the two words mean the same process.
 
-![mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column](https://modpagespeed.com/images/console-statistics.png)
+![mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column, on our production sites](https://modpagespeed.com/images/console-statistics.png)
 
 > **See it live**
 >
-> Explore the [mod_pagespeed admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics) running on our public Apache demo: live statistics, caches, histograms and logs, no install required.
+> Explore the [mod_pagespeed admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics) running on our public Apache demo: live statistics, graphs, caches and histograms, no install required.
 
 ## Admin pages
 
@@ -16174,7 +16174,7 @@ A one-line health summary sits at the top: "All systems healthy", or "N issue(s)
 
 Both cards link to their detail page (All statistics, Optimizer status).
 
-Every savings figure in the console, on Overview and on Savings, is measured in transfer bytes and includes compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The console does not yet report the two separately.
+The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. The console does not yet report the optimizer's two parts separately.
 
 ### Alerts
 
@@ -16365,9 +16365,9 @@ The Logs page has a severity filter (Fatal, Error, Warning, Info) with a live co
 
 ## Views turned off on this console
 
-A web server or proxy in front of the console can refuse some of its read-only views: a `location` block that denies the path, a WAF rule, or an access rule that answers 401, 403 or 410. When that happens the console no longer shows an error. The affected page (Logs, Configuration, URLs, a URL's detail view, Rule packs, and the message-log findings on Overview) shows a card that reads "Not available on this console. The server administrator has turned this view off." with a link to this page.
+A web server or proxy in front of the console can refuse some of its read-only views: a `location` block that denies the path, a WAF rule, or an access rule. When a view answers 401, 403, 404 or 410, the console no longer shows an error. The affected page (Logs, Configuration, URLs, a URL's detail view, Rule packs, and the message-log findings on Overview) shows a card that reads "Not available on this console. The server administrator has turned this view off." with a link to this page.
 
-The console remembers the refusal for the rest of the session: it does not ask for that view again, shows no error or reconnect banner, and does not retry. A sidebar entry gets a muted "off" marker once every view it reads has been refused. To turn a view back on, lift the restriction in the web server or proxy and reload the console. This is a state of the view, not a fault in the module.
+A view refused with 401, 403 or 410 stays off until you reload the console, or until the console reconnects after losing the server. While it is off the console does not ask for it again, and shows no error or reconnect banner. A refusal of a single entry, such as one cache entry or one URL's variants, shows the card for that entry only. A sidebar entry gets a muted "off" marker once every view its page reads is refused. To turn a view back on, lift the restriction in the web server or proxy and reload the console. This is a state of the view, not a fault in the module.
 
 ## URL-path ACLs are brittle
 
@@ -16389,6 +16389,8 @@ Press `?` (or the **?** button in the top bar) to open the shortcut list. None o
 | `r`          | Refresh the current page's data now (Configuration, About, and Support have nothing to refresh) |
 | `/`          | Jump to the page's search box                                                                   |
 | `g` then `o` | Go to Overview                                                                                  |
+| `g` then `v` | Go to Savings                                                                                   |
+| `g` then `u` | Go to URLs                                                                                      |
 | `g` then `s` | Go to Statistics                                                                                |
 | `g` then `c` | Go to Configuration                                                                             |
 | `g` then `h` | Go to Histograms                                                                                |
@@ -26261,7 +26263,7 @@ A PageSpeed filter is one named optimization that mod_pagespeed, the in-process 
 | Filter | Core | OFB | Risk | What it does |
 | --- | --- | --- | --- | --- |
 | [`extend_cache_pdfs`](https://modpagespeed.com/docs/cache-control/#extend_cache_pdfs) | - | - | Generally safe | Cache extension for PDF links |
-| [`local_storage_cache`](https://modpagespeed.com/docs/filters/local_storage_cache/) | - | - | Deprecated | Retired: accepted and ignored, with a warning |
+| [`local_storage_cache`](https://modpagespeed.com/docs/filters/local_storage_cache/) | - | - | Deprecated | Retired from 2.7.0: accepted and ignored, with a warning |
 | [`rewrite_domains`](https://modpagespeed.com/docs/cache-control/#rewrite_domains) | - | - | Test first | Applies domain mappings to original resources |
 | [`extend_cache`](https://modpagespeed.com/docs/filters/extend_cache/) | Yes | - | Generally safe | Content-hashed URLs with a 1-year browser cache for CSS, images and scripts |
 
@@ -28128,7 +28130,7 @@ This page is drawn from the [lazyload_images entry on Image filters](https://mod
 
 # Local storage cache (local_storage_cache)
 
-Retired: accepted and ignored, with a warning. The local_storage_cache filter: what it does, its risks and the Apache, nginx and IIS directives.
+Retired from 2.7.0: accepted and ignored, with a warning. The local_storage_cache filter: what it does, its risks and the Apache, nginx and IIS directives.
 
 Canonical URL: https://modpagespeed.com/docs/filters/local_storage_cache/
 
@@ -28137,11 +28139,11 @@ Canonical URL: https://modpagespeed.com/docs/filters/local_storage_cache/
 - OptimizeForBandwidth: No
 - Risk: Deprecated
 
-**Retired.** Since 2.7.0 `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
+**Retired from 2.7.0.** From 2.7.0, `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
 
 ## How it works
 
-The filter moved the bytes of inlined images and CSS into the browser's `localStorage` and tracked them in a `_GPSLSC` cookie. That cookie grew with every stored resource until a server could start refusing requests with "400 request header too large", and `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. Releases before 2.7.0 still have the filter and its behavior.
+The filter moved the bytes of inlined images and CSS into the browser's `localStorage` and tracked them in a `_GPSLSC` cookie. That cookie grew with every stored resource until a server could start refusing requests with "400 request header too large", and `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. In 2.6.0 and earlier the filter still runs as described here; it is not recommended there either.
 
 For the same repeat-view saving, use [`extend_cache`](https://modpagespeed.com/docs/cache-control/#extend_cache): it keeps resources at external, content-hashed URLs with a one-year lifetime, with no cookie and no scripts.
 
@@ -28187,7 +28189,7 @@ See the before and after, with the source diff: [local_storage_cache example](ht
 
 **What does the local_storage_cache filter do?**
 
-Retired. Since 2.7.0 `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
+Retired from 2.7.0. From 2.7.0, `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
 
 **Is local_storage_cache enabled by default?**
 

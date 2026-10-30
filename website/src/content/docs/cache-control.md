@@ -245,9 +245,9 @@ See [Domain configuration](/docs/domain-configuration/) for `MapRewriteDomain` a
 
 [Full guide →](/docs/filters/local_storage_cache/)
 
-**Retired.** Since 2.7.0 `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
+**Retired from 2.7.0.** From 2.7.0, `local_storage_cache` is accepted and ignored: the name still works in every configuration syntax, in `EnableFilters` and in query parameters, enabling it logs one warning per process, and nothing changes in the page. Disabling or forbidding it is silent, so a configuration that still lists it keeps loading; remove the line when convenient. A rewritten page carries no local-storage cookie, script or `data-pagespeed-lsc-*` attribute, and the filter no longer adds a `Vary: User-Agent` token or a `noscript` redirect.
 
-The filter moved the bytes of inlined images and CSS into the browser's `localStorage` and tracked them in a `_GPSLSC` cookie. That cookie grew with every stored resource until a server could start refusing requests with "400 request header too large", and `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. Releases before 2.7.0 still have the filter and its behavior.
+The filter moved the bytes of inlined images and CSS into the browser's `localStorage` and tracked them in a `_GPSLSC` cookie. That cookie grew with every stored resource until a server could start refusing requests with "400 request header too large", and `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. In 2.6.0 and earlier the filter still runs as described here; it is not recommended there either.
 
 For the same repeat-view saving, use [`extend_cache`](#extend_cache): it keeps resources at external, content-hashed URLs with a one-year lifetime, with no cookie and no scripts.
 
