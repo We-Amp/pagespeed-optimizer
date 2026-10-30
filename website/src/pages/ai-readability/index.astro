@@ -9,7 +9,7 @@ import NoscriptLead from '../../components/scan/NoscriptLead.astro';
 
 // Public front end for the AI-readability scanner (D10). The render backend
 // runs on a separate box; nginx proxies /ai-readability/api/* to it.
-// Local dev: append ?api=http://localhost:8787 to point at a local render service.
+// Local dev (page served from localhost): append ?api=http://localhost:8787 to point at a local render service.
 const title = 'AI readability checker: what AI crawlers read on your page';
 const description =
   'Free scanner: see what AI crawlers read on your page. Most skip JavaScript, so client-rendered content is invisible to them. Fix it in the HTML you serve.';
@@ -1008,7 +1008,11 @@ const jsonLd = [webApp, faqPage];
     (function () {
       // The shared scan interface (?ui=v2) drives this page instead.
       if (document.documentElement.dataset.scanUi === 'v2') return;
-      const API = new URLSearchParams(location.search).get('api') || '/ai-readability/api';
+      // A different base is honoured only when the page itself is served from localhost.
+      const API =
+        (['localhost', '127.0.0.1', '[::1]'].indexOf(location.hostname) >= 0 &&
+          new URLSearchParams(location.search).get('api')) ||
+        '/ai-readability/api';
       const loadedAt = Date.now();
       const $ = (s) => document.querySelector(s);
       const out = $('#ar-out');
