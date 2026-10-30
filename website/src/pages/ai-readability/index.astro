@@ -1009,8 +1009,10 @@ const jsonLd = [webApp, faqPage];
       // The shared scan interface (?ui=v2) drives this page instead.
       if (document.documentElement.dataset.scanUi === 'v2') return;
       // A different base is honoured only when the page itself is served from localhost.
-      const API = (['localhost', '127.0.0.1', '[::1]'].indexOf(location.hostname) >= 0 &&
-        new URLSearchParams(location.search).get('api')) || '/ai-readability/api';
+      const API =
+        (['localhost', '127.0.0.1', '[::1]'].indexOf(location.hostname) >= 0 &&
+          new URLSearchParams(location.search).get('api')) ||
+        '/ai-readability/api';
       const loadedAt = Date.now();
       const $ = (s) => document.querySelector(s);
       const out = $('#ar-out');
