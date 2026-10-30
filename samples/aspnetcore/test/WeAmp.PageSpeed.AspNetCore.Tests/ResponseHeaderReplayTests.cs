@@ -197,7 +197,7 @@ public class ResponseHeaderReplayTests
     public async Task CacheHit_IfNoneMatch_304CarriesApplicationHeaders()
     {
         var ctx = NewContext();
-        ctx.Request.Headers.IfNoneMatch = $"W/\"{1_700_000_000u:x}-{Body.Length:x}\"";
+        ctx.Request.Headers.IfNoneMatch = PageSpeedMiddleware.ComputeContentETag(Body);
         await Run(HitCache(), ctx);
         Assert.Equal(304, ctx.Response.StatusCode);
         AssertAppHeaders(ctx.Response.Headers);
@@ -498,6 +498,23 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         Assert.Equal(304, cond[0].Status);
         Assert.Equal("default-src 'self'", Values(cond[0].Response, "Content-Security-Policy").Single());
         Assert.Equal("nosniff", Values(cond[0].Response, "X-Content-Type-Options").Single());
+    }
+
+    [Fact]
+    public async Task HitETag_IsDerivedFromBodyNotFromTheApplicationValue()
+    {
+        int k = 0;
+        var res = await Get(null, c =>
+        {
+            c.Response.ContentType = "text/css";
+            c.Response.Headers.ETag = $"\"app-{++k}\"";
+            return c.Response.WriteAsync("body { color: red }");
+        }, "/etag.css");
+        var hit = res[1].Response;
+        Assert.Equal("HIT", Values(hit, "X-PageSpeed").Single());
+        var expected = PageSpeedMiddleware.ComputeContentETag(
+            Encoding.UTF8.GetBytes("body { color: red }"));
+        Assert.Equal(expected, Values(hit, "ETag").Single());
     }
 
     [Fact]

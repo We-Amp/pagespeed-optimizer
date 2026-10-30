@@ -1737,7 +1737,7 @@ public class MiddlewareTests
         });
 
         // Generate the expected ETag.
-        var expectedEtag = $"W/\"{insertedAt:x}-{body.Length:x}\"";
+        var expectedEtag = PageSpeedMiddleware.ComputeContentETag(body);
 
         var middleware = new PageSpeedMiddleware(
             _ => Task.CompletedTask, _optionsMonitor,
@@ -1757,6 +1757,99 @@ public class MiddlewareTests
         Assert.Equal(304, context.Response.StatusCode);
         Assert.Null(context.Response.ContentLength);
         Assert.Equal(0, responseBody.Length); // No body written.
+    }
+
+    private async Task<DefaultHttpContext> ServeHitAsync(
+        byte[] body, uint insertedAt, string? ifNoneMatch = null)
+    {
+        var cache = new HitPageSpeedCache(new FakeReadResult
+        {
+            ContentMemory = body,
+            Mask = 0x08,
+            ContentType = PageSpeedContentType.Css,
+            OriginContentType = "text/css",
+            CacheInsertedAt = insertedAt,
+        });
+        var middleware = new PageSpeedMiddleware(
+            _ => Task.CompletedTask, _optionsMonitor,
+            _htmlProcessor, cache, _notifier, _logger);
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/css/style.css";
+        context.Request.Scheme = "http";
+        context.Request.Host = new HostString("localhost");
+        if (ifNoneMatch != null)
+            context.Request.Headers.IfNoneMatch = ifNoneMatch;
+        context.Response.Body = new MemoryStream();
+        await middleware.InvokeAsync(context);
+        return context;
+    }
+
+    [Fact]
+    public async Task CacheHit_SameLengthPayloadsInSameSecond_GetDifferentETags()
+    {
+        var insertedAt = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 30;
+        var a = await ServeHitAsync(Encoding.UTF8.GetBytes("a{color:red}"), insertedAt);
+        var b = await ServeHitAsync(Encoding.UTF8.GetBytes("a{color:tan}"), insertedAt);
+        var etagA = a.Response.Headers.ETag.ToString();
+        var etagB = b.Response.Headers.ETag.ToString();
+        Assert.Equal("a{color:red}".Length, "a{color:tan}".Length);
+        Assert.NotEqual(etagA, etagB);
+    }
+
+    [Fact]
+    public async Task CacheHit_IdenticalContent_KeepsETagAndRevalidates304()
+    {
+        var body = Encoding.UTF8.GetBytes("a{color:red}");
+        var first = await ServeHitAsync(body, (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 90);
+        var etag = first.Response.Headers.ETag.ToString();
+        Assert.Equal(200, first.Response.StatusCode);
+
+        // Re-inserted later with the same bytes: same tag, validator matches.
+        var again = await ServeHitAsync(
+            body, (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 5, etag);
+        Assert.Equal(etag, again.Response.Headers.ETag.ToString());
+        Assert.Equal(304, again.Response.StatusCode);
+
+        // A different payload does not match the old validator.
+        var changed = await ServeHitAsync(
+            Encoding.UTF8.GetBytes("a{color:tan}"),
+            (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 5, etag);
+        Assert.Equal(200, changed.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CacheHit_NonMatchingIfNoneMatch_IgnoresIfModifiedSince()
+    {
+        var insertedAt = (uint)DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 30;
+        var first = await ServeHitAsync(Encoding.UTF8.GetBytes("a{color:red}"), insertedAt);
+        var etagA = first.Response.Headers.ETag.ToString();
+        var lastModifiedA = first.Response.Headers["Last-Modified"].ToString();
+
+        // Body B replaces body A within the same second; the client
+        // revalidates with A's tag and A's Last-Modified.
+        var cache = new HitPageSpeedCache(new FakeReadResult
+        {
+            ContentMemory = Encoding.UTF8.GetBytes("a{color:tan}"),
+            Mask = 0x08,
+            ContentType = PageSpeedContentType.Css,
+            OriginContentType = "text/css",
+            CacheInsertedAt = insertedAt,
+        });
+        var middleware = new PageSpeedMiddleware(
+            _ => Task.CompletedTask, _optionsMonitor,
+            _htmlProcessor, cache, _notifier, _logger);
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/css/style.css";
+        context.Request.Scheme = "http";
+        context.Request.Host = new HostString("localhost");
+        context.Request.Headers.IfNoneMatch = etagA;
+        context.Request.Headers.IfModifiedSince = lastModifiedA;
+        context.Response.Body = new MemoryStream();
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(200, context.Response.StatusCode);
     }
 
     [Fact]
@@ -1924,7 +2017,7 @@ public class MiddlewareTests
             _htmlProcessor, cache, _notifier, _logger);
 
         // Compute the expected ETag.
-        var etag = $"W/\"{insertedAt:x}-{1:x}\"";
+        var etag = PageSpeedMiddleware.ComputeContentETag(new byte[] { 0x01 });
 
         var context = new DefaultHttpContext();
         context.Request.Method = "GET";
@@ -1959,8 +2052,8 @@ public class MiddlewareTests
             _htmlProcessor, cache, _notifier, _logger);
 
         // Compute the expected ETag, then embed it as a substring of another.
-        var etag = $"W/\"{insertedAt:x}-{1:x}\"";
-        var fakeEtag = $"W/\"prefix-{insertedAt:x}-{1:x}-suffix\"";
+        var etag = PageSpeedMiddleware.ComputeContentETag(new byte[] { 0x01 });
+        var fakeEtag = $"W/\"prefix-{etag.Substring(3, etag.Length - 4)}-suffix\"";
 
         var context = new DefaultHttpContext();
         context.Request.Method = "GET";

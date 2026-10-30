@@ -14,6 +14,8 @@ Fixed: critical CSS now keeps the above-the-fold rules of minified `@supports(..
 
 Fixed: the EXIF orientation reader for JPEG images tightens its bounds handling of malformed metadata.
 
+Fixed: with the ASP.NET Core package, the ETag on a response served from the cache is now derived from the response body. Previously it was built from the insertion time and the length, so two different bodies of the same length cached in the same second shared an ETag and a client could keep stale content. Identical content keeps the same ETag, so conditional requests still get `304 Not Modified`. Clients revalidate once after upgrading.
+
 Security: with the ASP.NET Core package, headers the application sets (such as
 `Content-Security-Policy`, `Access-Control-Allow-Origin` and
 `X-Content-Type-Options`) could be missing from responses served from the
