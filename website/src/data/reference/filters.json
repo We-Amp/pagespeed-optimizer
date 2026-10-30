@@ -1037,10 +1037,10 @@
       "deprecated": false,
       "alternateSpellingOf": null,
       "category": "Caching",
-      "summary": "Caches inlined resources in localStorage",
-      "risk": "Experimental",
+      "summary": "Retired: accepted and ignored, with a warning",
+      "risk": "Deprecated",
       "riskSource": "docs",
-      "note": null,
+      "note": "Retired in 2.7.0: the name is still accepted but has no effect, and enabling it logs a warning.",
       "example": "/examples/local_storage_cache/"
     },
     {

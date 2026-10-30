@@ -91,6 +91,12 @@ libraries and images some filters inject). The default is `/pagespeed_static/`.
 Repeatable: specify it once per header, up to 20. Since v1.15.0+r18 the limit is
 enforced exactly.
 
+A configured header replaces the origin's header of the same name: if the origin
+already sends `Access-Control-Allow-Origin` and you configure that name, the
+response carries only your value. Several directives with the same name are all
+sent, one header line each. Before 2.7.0 your value was added after the
+origin's, so a response could carry both.
+
 ```apache
 ModPagespeedAddResourceHeader "X-Custom" "value"
 ```
