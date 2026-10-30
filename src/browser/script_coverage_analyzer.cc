@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "nlohmann/json.hpp"
@@ -226,6 +227,12 @@ struct ScriptCoverageAnalyzer::Session
   size_t fetches_served = 0;
   size_t fetches_blocked = 0;
 
+  // URLs of the scripts the browser actually received (served from the
+  // resource map). Coverage is joined to a script element only through
+  // this set: a coverage entry keyed by URL does not by itself show that
+  // the script at that URL was loaded.
+  absl::flat_hash_set<std::string> served_urls;
+
   // Overall session timeout timer.
   uv_timer_t* timeout_timer = nullptr;
 
@@ -316,6 +323,7 @@ struct ScriptCoverageAnalyzer::Session
     auto it = cached_resources->find(url);
     if (it != cached_resources->end()) {
       ++fetches_served;
+      served_urls.insert(url);
       CdpCommand fulfill_cmd;
       fulfill_cmd.method = "Fetch.fulfillRequest";
       std::string encoded = cdp_utils::Base64Encode(it->second);
@@ -413,11 +421,18 @@ struct ScriptCoverageAnalyzer::Session
           info.is_module = s.value("is_module", false);
           info.has_document_write = s.value("has_document_write", false);
 
+          // Join coverage only to scripts the browser actually received;
+          // a script that was never served has no coverage data. The
+          // request URL carries no fragment, so the element's is dropped
+          // for this check only.
+          const bool received = self->served_urls.contains(
+              info.url.substr(0, info.url.find('#')));
+
           // Look up FCP coverage.  A join with total_bytes > 0 is the only
           // execution evidence — V8 reports every COMPILED script (including
           // ones with zero executed ranges), so absence means the browser
           // never got the script's content.
-          auto fcp_it = fcp_cov.find(info.url);
+          auto fcp_it = received ? fcp_cov.find(info.url) : fcp_cov.end();
           if (fcp_it != fcp_cov.end() && fcp_it->second.total_bytes > 0) {
             info.has_coverage_data = true;
             info.coverage_at_fcp =
@@ -428,7 +443,8 @@ struct ScriptCoverageAnalyzer::Session
           }
 
           // Look up cumulative load coverage (FCP + post-FCP).
-          auto load_it = merged_load_cov.find(info.url);
+          auto load_it =
+              received ? merged_load_cov.find(info.url) : merged_load_cov.end();
           if (load_it != merged_load_cov.end() &&
               load_it->second.total_bytes > 0) {
             info.has_coverage_data = true;

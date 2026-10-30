@@ -489,6 +489,14 @@ class ScriptCoverageAnalyzerCdpTest : public ::testing::Test {
     return scripts;
   }
 
+  // Have the "browser" request a script, as it does for each script element
+  // of the page: served when the URL is in the resource map, blocked otherwise.
+  void RequestScript(const std::string& url, const std::string& request_id) {
+    SendEvent("Fetch.requestPaused",
+              {{"requestId", request_id}, {"request", {{"url", url}}}},
+              "sess-1");
+  }
+
   void AutoRespondAll() {
     RunLoop();
     for (auto& cmd : received_commands_) {
@@ -583,7 +591,11 @@ class ScriptCoverageAnalyzerCdpTest : public ::testing::Test {
 
 TEST_F(ScriptCoverageAnalyzerCdpTest, SuccessfulAnalysis) {
   ScriptCoverageAnalyzer analyzer(client_.get());
-  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  auto mutable_resources = std::make_shared<PageAnalyzer::ResourceMap>();
+  (*mutable_resources)["https://example.com/app.js"] = "var a=1;";
+  (*mutable_resources)["https://example.com/tracking.js"] = "var t=1;";
+  auto resources = std::static_pointer_cast<const PageAnalyzer::ResourceMap>(
+      mutable_resources);
 
   analyzer.Analyze("<html><body><script src='app.js'></script></body></html>",
                    resources, 1440, 900,
@@ -596,6 +608,13 @@ TEST_F(ScriptCoverageAnalyzerCdpTest, SuccessfulAnalysis) {
     AutoRespondAll();
     RunLoop();
     if (analyze_done_) break;
+  }
+
+  RequestScript("https://example.com/app.js", "req-1");
+  RequestScript("https://example.com/tracking.js", "req-2");
+  for (int i = 0; i < 5; ++i) {
+    AutoRespondAll();
+    RunLoop();
   }
 
   // Send FCP.
@@ -1070,7 +1089,10 @@ TEST_F(ScriptCoverageAnalyzerCdpTest, ARefusedFailRequestIsReportedOnce) {
 TEST_F(ScriptCoverageAnalyzerCdpTest,
        BlockedScriptAbsentFromProfilerNotDeferred) {
   ScriptCoverageAnalyzer analyzer(client_.get());
-  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  auto mutable_resources = std::make_shared<PageAnalyzer::ResourceMap>();
+  (*mutable_resources)["https://example.com/app.js"] = "var a=1;";
+  auto resources = std::static_pointer_cast<const PageAnalyzer::ResourceMap>(
+      mutable_resources);
 
   analyzer.Analyze(
       "<html><head><script src='https://example.com/app.js'></script>"
@@ -1131,6 +1153,12 @@ TEST_F(ScriptCoverageAnalyzerCdpTest,
     custom();
     RunLoop();
   }
+  RequestScript("https://example.com/app.js", "req-1");
+  RequestScript("https://example.com/blocked.js", "req-2");
+  for (int i = 0; i < 5; ++i) {
+    custom();
+    RunLoop();
+  }
   SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
             "sess-1");
   for (int i = 0; i < 5; ++i) {
@@ -1163,6 +1191,118 @@ TEST_F(ScriptCoverageAnalyzerCdpTest,
       EXPECT_FALSE(info.has_coverage_data);
     } else if (info.url == "https://example.com/app.js") {
       EXPECT_TRUE(info.has_coverage_data);
+    }
+  }
+}
+
+// A profiler entry under a URL does not show that the script at that URL was
+// loaded. A script the browser never received (here: refused by the resource
+// map) gets no coverage data from an entry reported under its URL, while a
+// script that was served keeps its coverage.
+TEST_F(ScriptCoverageAnalyzerCdpTest,
+       CoverageReportedUnderUnservedUrlIsNotJoined) {
+  ScriptCoverageAnalyzer analyzer(client_.get());
+  auto mutable_resources = std::make_shared<PageAnalyzer::ResourceMap>();
+  (*mutable_resources)["https://example.com/app.js"] = "var a=1;";
+  auto resources = std::static_pointer_cast<const PageAnalyzer::ResourceMap>(
+      mutable_resources);
+
+  analyzer.Analyze(
+      "<html><head><script>var x=1;</script>"
+      "<script src='https://example.com/app.js'></script>"
+      "<script src='https://example.com/never-loaded.js'></script>"
+      "</head></html>",
+      resources, 1440, 900,
+      [this](absl::StatusOr<ScriptCoverageResult> result) {
+        analyze_result_ = std::move(result);
+        analyze_done_ = true;
+      });
+
+  auto element = [](const std::string& url) {
+    return json{{"url", url},
+                {"selector", "script"},
+                {"is_inline", false},
+                {"is_async", false},
+                {"is_defer", false},
+                {"is_module", false},
+                {"has_document_write", false}};
+  };
+  auto custom = [this, &element]() {
+    RunLoop();
+    for (auto& cmd : received_commands_) {
+      if (responded_ids_.count(cmd.value("id", 0))) continue;
+      int id = cmd.value("id", 0);
+      std::string method = cmd.value("method", "");
+      responded_ids_.insert(id);
+
+      if (method == "Target.createTarget") {
+        RespondToCommand(id, {{"targetId", "target-1"}});
+      } else if (method == "Target.attachToTarget") {
+        RespondToCommand(id, {{"sessionId", "sess-1"}});
+      } else if (method == "Page.getFrameTree") {
+        RespondToCommand(id, {{"frameTree", {{"frame", {{"id", "frame-1"}}}}}});
+      } else if (method == "Profiler.takePreciseCoverage") {
+        // An entry reported under the URL of a script that was not served.
+        json result = json::array({
+            MakeCoverageData("s1", "https://example.com/app.js", 1000, 0, 500),
+            MakeCoverageData("s2", "https://example.com/never-loaded.js", 400,
+                             0, 400),
+        });
+        RespondToCommand(id, {{"result", result}});
+      } else if (method == "Runtime.evaluate") {
+        json scripts = json::array({
+            element("https://example.com/app.js"),
+            element("https://example.com/never-loaded.js"),
+        });
+        RespondToCommand(
+            id, {{"result", {{"type", "string"}, {"value", scripts.dump()}}}});
+      } else {
+        RespondToCommand(id, json::object());
+      }
+    }
+  };
+
+  for (int i = 0; i < 20; ++i) {
+    custom();
+    RunLoop();
+  }
+  RequestScript("https://example.com/app.js", "req-1");
+  RequestScript("https://example.com/never-loaded.js", "req-2");
+  for (int i = 0; i < 5; ++i) {
+    custom();
+    RunLoop();
+  }
+  SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
+            "sess-1");
+  for (int i = 0; i < 5; ++i) {
+    custom();
+    RunLoop();
+  }
+  SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, "sess-1");
+  for (int i = 0; i < 15; ++i) {
+    custom();
+    RunLoop();
+    if (analyze_done_) break;
+  }
+
+  ASSERT_TRUE(analyze_done_);
+  ASSERT_TRUE(analyze_result_.ok()) << analyze_result_.status().message();
+  EXPECT_EQ(analyze_result_->fetches_served, 1u);
+  EXPECT_EQ(analyze_result_->fetches_blocked, 1u);
+  ASSERT_EQ(analyze_result_->scripts.size(), 2u);
+  for (const auto& info : analyze_result_->scripts) {
+    if (info.url == "https://example.com/app.js") {
+      EXPECT_TRUE(info.has_coverage_data);
+      EXPECT_FLOAT_EQ(info.coverage_at_fcp, 0.5f);
+    } else {
+      EXPECT_EQ(info.url, "https://example.com/never-loaded.js");
+      EXPECT_FALSE(info.has_coverage_data);
+      EXPECT_FLOAT_EQ(info.coverage_at_fcp, 0.0f);
+    }
+  }
+  for (const auto& [url, advice] : analyze_result_->recommendations) {
+    if (url == "https://example.com/never-loaded.js") {
+      EXPECT_EQ(advice, DeferralAdvice::kNoCoverageData);
     }
   }
 }
