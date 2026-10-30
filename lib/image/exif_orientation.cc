@@ -53,13 +53,21 @@ uint8_t ParseTiffOrientation(const uint8_t* tiff, size_t length) {
     return 0;
   }
   if (Read16(tiff + 2, big_endian) != 42) return 0;
-  uint32_t ifd_offset = Read32(tiff + 4, big_endian);
-  if (ifd_offset < 8 || ifd_offset > length - 2) return 0;
-  uint16_t num_entries = Read16(tiff + ifd_offset, big_endian);
-  const uint8_t* entry = tiff + ifd_offset + 2;
-  for (uint16_t i = 0; i < num_entries; ++i, entry += 12) {
-    // Each IFD entry is 12 bytes: tag(2) type(2) count(4) value(4).
-    if (static_cast<size_t>(entry - tiff) + 12 > length) return 0;
+  // All offsets below are byte offsets from |tiff| held as size_t, and every
+  // read is preceded by a check against the bytes remaining in |length|; no
+  // pointer is advanced before its range has been validated.
+  constexpr size_t kIfdHeaderSize = 2;  // Entry count.
+  constexpr size_t kIfdEntrySize = 12;  // tag(2) type(2) count(4) value(4).
+  const size_t ifd_offset = Read32(tiff + 4, big_endian);
+  if (ifd_offset < 8 || ifd_offset > length - kIfdHeaderSize) return 0;
+  const size_t num_entries = Read16(tiff + ifd_offset, big_endian);
+  const size_t entries_offset = ifd_offset + kIfdHeaderSize;
+  // A declared count larger than the entries present stops at the last entry
+  // that fits in the buffer.
+  const size_t max_entries = (length - entries_offset) / kIfdEntrySize;
+  for (size_t i = 0; i < num_entries; ++i) {
+    if (i >= max_entries) return 0;
+    const uint8_t* entry = tiff + entries_offset + i * kIfdEntrySize;
     if (Read16(entry, big_endian) != kOrientationTag) continue;
     if (Read16(entry + 2, big_endian) != kTypeShort) return 0;
     if (Read32(entry + 4, big_endian) != 1) return 0;
