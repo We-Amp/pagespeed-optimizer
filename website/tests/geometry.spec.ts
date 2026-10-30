@@ -20,13 +20,11 @@
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
+import { parseWidths } from './helpers/widths';
 
-const ALL_WIDTHS = [320, 360, 375, 390, 414, 640, 767, 768, 800, 928, 1023, 1024, 1279, 1280, 1440];
-// GEOMETRY_WIDTHS=375 (comma separated) narrows the sweep; the pull-request CI
-// job uses it, the nightly run measures every width.
-const WIDTHS = process.env.GEOMETRY_WIDTHS
-  ? process.env.GEOMETRY_WIDTHS.split(',').map(Number)
-  : ALL_WIDTHS;
+// GEOMETRY_WIDTHS narrows the sweep (see tests/helpers/widths.ts): pull requests
+// use 375, the nightly run uses "all".
+const WIDTHS = parseWidths(process.env.GEOMETRY_WIDTHS);
 const HEIGHT = 800;
 const MIN_LOGO_WIDTH = 100;
 
