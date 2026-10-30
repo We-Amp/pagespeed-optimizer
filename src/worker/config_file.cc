@@ -161,6 +161,10 @@ const char* const kRetiredLicensingKeyReason =
     "removed in 2.1; the setting is ignored and can be deleted from your "
     "configuration";
 
+const char* const kQualityCapMarginDeprecatedWarning =
+    "quality_cap_margin is deprecated and ignored: it no longer changes the "
+    "quality cap; use no_quality_cap to turn the cap off";
+
 ConfigApplyResult ApplyConfigJson(const json& body, WorkerConfig* config) {
   json applied = json::object();
   json rejected = json::object();
@@ -506,6 +510,11 @@ ConfigApplyResult ApplyConfigJson(const json& body, WorkerConfig* config) {
     else if (key == "quality_cap_margin" && value.is_number_integer()) {
       int v = clamp_with_warning(key, value.get<int>(), 0, 50);
       config->quality_cap_margin = v;
+      // Saved configs always carry the key at its default, so only a
+      // non-default value means the operator set it.
+      if (v != WorkerConfig{}.quality_cap_margin) {
+        warnings.push_back(kQualityCapMarginDeprecatedWarning);
+      }
       applied[key] = v;
     } else if (key == "no_quality_cap" && value.is_boolean()) {
       config->no_quality_cap = value.get<bool>();

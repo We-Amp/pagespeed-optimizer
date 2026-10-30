@@ -597,6 +597,34 @@ TEST_F(ConfigFileTest, ClampWarningOnHighQualityCapMargin) {
   EXPECT_TRUE(found);
 }
 
+static bool HasDeprecationWarning(const ConfigApplyResult& r) {
+  for (const auto& w : r.warnings) {
+    if (w.get<std::string>() == kQualityCapMarginDeprecatedWarning) return true;
+  }
+  return false;
+}
+
+TEST_F(ConfigFileTest, QualityCapMarginWarnsWheneverSetToNonDefault) {
+  WorkerConfig config;
+  // Reported on every request that carries it (config file, then each PATCH).
+  EXPECT_TRUE(HasDeprecationWarning(
+      ApplyConfigJson(json{{"quality_cap_margin", 20}}, &config)));
+  EXPECT_TRUE(HasDeprecationWarning(
+      ApplyConfigJson(json{{"quality_cap_margin", 5}}, &config)));
+}
+
+TEST_F(ConfigFileTest, NoQualityCapMarginNoDeprecationWarning) {
+  WorkerConfig config;
+  EXPECT_FALSE(HasDeprecationWarning(ApplyConfigJson(
+      json{{"jpeg_quality", 80}, {"no_quality_cap", true}}, &config)));
+}
+
+TEST_F(ConfigFileTest, PersistedDefaultConfigDoesNotWarnQualityCapMargin) {
+  WorkerConfig config;
+  EXPECT_FALSE(HasDeprecationWarning(
+      ApplyConfigJson(ConfigToJsonPersistable(WorkerConfig{}), &config)));
+}
+
 TEST_F(ConfigFileTest, NoClampWarningOnInRangeValues) {
   // In-range values for every clamp site should not emit a clamp warning
   // (low-quality warnings for jpeg/webp/avif_quality <30 are orthogonal and
