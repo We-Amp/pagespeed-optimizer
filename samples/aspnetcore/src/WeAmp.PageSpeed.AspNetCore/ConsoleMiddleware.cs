@@ -96,6 +96,11 @@ public sealed class ConsoleMiddleware
             "Forwarded",
         };
 
+    // Connects the upstream WebSocket to the loopback worker over IPv4.
+    // Shared and never disposed: it holds no per-connection state.
+    private static readonly HttpMessageInvoker WorkerWebSocketInvoker =
+        new(LoopbackConnect.CreateHandler(), disposeHandler: false);
+
     private readonly RequestDelegate _next;
     private readonly IOptionsMonitor<PageSpeedOptions> _options;
     private readonly InternalWorkerEndpoint _endpoint;
@@ -390,7 +395,8 @@ public sealed class ConsoleMiddleware
             using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(
                 context.RequestAborted);
             connectCts.CancelAfter(TimeSpan.FromSeconds(5));
-            await upstream.ConnectAsync(targetUri, connectCts.Token);
+            await upstream.ConnectAsync(
+                targetUri, WorkerWebSocketInvoker, connectCts.Token);
         }
         catch (Exception ex) when (
             ex is WebSocketException or OperationCanceledException or HttpRequestException)
