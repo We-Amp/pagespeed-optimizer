@@ -1137,6 +1137,20 @@ class PageSpeedCache {
   // The rest are configuration, geometry and contention errors.
   static bool OpenFailureIsDamagedVolume(cyclone::CacheError error);
 
+  // Create(), then, only when the open failed because the volume is damaged
+  // (OpenFailureIsDamagedVolume), RemoveVolumeFiles + one more Create().
+  // This is the recovery the serving module runs: any other failure (a volume
+  // another live process holds, a refusal, an I/O or configuration error) is
+  // returned as it is, with every file left in place, so the caller can log
+  // the reason and run without the cache.  `deleted_damaged_volume`, when
+  // given, is set to whether the files were removed.  `first_error`, when
+  // given, receives the error of the first open on failure.
+  [[nodiscard]] static std::expected<std::unique_ptr<PageSpeedCache>,
+                                     cyclone::CacheError>
+  CreateRecreatingDamagedVolume(const PageSpeedCacheConfig& config,
+                                bool* deleted_damaged_volume = nullptr,
+                                cyclone::CacheError* first_error = nullptr);
+
   // Total capacity of the backing volume(s), in bytes.
   //
   // This is deliberately a value and not the cache: it is the whole of what

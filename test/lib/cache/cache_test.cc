@@ -7,6 +7,7 @@
 #include "lib/cache/cache.h"
 
 #ifndef _WIN32
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -1781,6 +1782,83 @@ TEST_F(PageSpeedCacheTest, OpenFailureIsDamagedVolumeClassification) {
       cyclone::CacheError::InternalError));
   EXPECT_FALSE(
       PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError::Success));
+}
+
+// The recovery the nginx module runs when its cache open fails (#439): only
+// a damaged volume is deleted and recreated; a volume another live process
+// holds is left exactly as it is.  The live-peer case needs OFD locks (POSIX
+// without macOS), like the worker's equivalent test.
+#if defined(F_OFD_SETLK)
+TEST_F(PageSpeedCacheTest, RecreatingRecoveryLeavesAVolumeAPeerHoldsAlone) {
+  PageSpeedCacheConfig peer_config;
+  peer_config.volume_path = cache_path_;
+  peer_config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  auto peer = PageSpeedCache::Create(peer_config);
+  ASSERT_TRUE(peer.has_value());
+  const std::string volume_file = (*peer)->VolumeFilePath();
+  ASSERT_FALSE(volume_file.empty());
+
+  // The shape a full disk or a power loss leaves behind, under a live peer.
+  std::error_code ec;
+  std::filesystem::resize_file(volume_file, 16, ec);
+  ASSERT_FALSE(ec) << ec.message();
+
+  PageSpeedCacheConfig module_config;
+  module_config.volume_path = cache_path_;
+  module_config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  bool deleted = true;
+  auto result =
+      PageSpeedCache::CreateRecreatingDamagedVolume(module_config, &deleted);
+
+  EXPECT_FALSE(result.has_value())
+      << "the module must run without the cache, not replace the volume";
+  EXPECT_FALSE(deleted) << "a volume another live process holds was deleted";
+  EXPECT_TRUE(std::filesystem::exists(volume_file))
+      << "the volume file a live peer holds was deleted";
+  EXPECT_EQ(std::filesystem::file_size(volume_file),
+            static_cast<std::uintmax_t>(16))
+      << "the volume file a live peer holds was replaced";
+}
+#endif  // defined(F_OFD_SETLK)
+
+TEST_F(PageSpeedCacheTest, RecreatingRecoveryRepairsADamagedVolumeNobodyHolds) {
+  std::string volume_file;
+  {
+    PageSpeedCacheConfig create_config;
+    create_config.volume_path = cache_path_;
+    create_config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+    auto created = PageSpeedCache::Create(create_config);
+    ASSERT_TRUE(created.has_value());
+    volume_file = (*created)->VolumeFilePath();
+  }
+  std::error_code ec;
+  std::filesystem::resize_file(volume_file, 16, ec);
+  ASSERT_FALSE(ec) << ec.message();
+
+  PageSpeedCacheConfig module_config;
+  module_config.volume_path = cache_path_;
+  module_config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  auto result = PageSpeedCache::CreateRecreatingDamagedVolume(module_config);
+  EXPECT_TRUE(result.has_value())
+      << "a damaged volume with no live holder must come back usable";
+}
+
+TEST_F(PageSpeedCacheTest, RecreatingRecoveryDeletesNothingOnARefusedOpen) {
+  // A volume path that cannot be opened (its parent is a regular file) is
+  // not damage: nothing may be removed and the error is returned.
+  const std::string blocker = temp_dir_ + "/blocker";
+  {
+    std::ofstream out(blocker);
+    out << "x";
+  }
+  PageSpeedCacheConfig config;
+  config.volume_path = blocker + "/cache.vol";
+  config.volume_size = 0;
+  bool deleted = true;
+  auto result = PageSpeedCache::CreateRecreatingDamagedVolume(config, &deleted);
+  EXPECT_FALSE(result.has_value());
+  EXPECT_FALSE(deleted);
+  EXPECT_TRUE(std::filesystem::exists(blocker));
 }
 
 // ========== Coverage: Stats, handler logging, edge cases ==========

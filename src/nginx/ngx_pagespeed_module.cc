@@ -871,22 +871,32 @@ static std::shared_ptr<PageSpeedCache> GetCache(std::string_view cache_path,
     result = PageSpeedCache::Create(config);
   }
   if (!result.has_value()) {
-    // Auto-recovery: delete the corrupt cache file(s) and retry once.
-    // RemoveVolumeFiles also covers Cyclone's structural-fingerprint-named
-    // sibling, which is the file actually in use — a raw unlink of
-    // cache_path would delete nothing.
-    ngx_log_error(NGX_LOG_WARN, log, 0,
-                  "pagespeed: cache open failed for %*s, attempting "
-                  "recovery (delete and recreate)",
-                  cache_path.size(), cache_path.data());
-    std::string stuck_path;
-    if (!PageSpeedCache::RemoveVolumeFiles(std::string(cache_path),
-                                           &stuck_path)) {
+    // Auto-recovery is for a damaged volume only: delete the volume file(s)
+    // and recreate once.  A volume another live process (normally the
+    // optimizer worker) holds, a refused open (ownership, permission,
+    // symlink), or an I/O or configuration error is NOT damage: deleting
+    // would leave the other process writing a file this one never reads (a
+    // silent split cache).  Those leave every file in place, are logged
+    // with the reason, and requests run without the cache (degraded).  The
+    // classification is the one the worker uses (#428).
+    bool deleted_damaged_volume = false;
+    cyclone::CacheError first_error = cyclone::CacheError::Success;
+    result = PageSpeedCache::CreateRecreatingDamagedVolume(
+        config, &deleted_damaged_volume, &first_error);
+    if (deleted_damaged_volume) {
       ngx_log_error(NGX_LOG_WARN, log, 0,
-                    "pagespeed: cache recovery could not remove %s",
-                    stuck_path.c_str());
+                    "pagespeed: cache open failed for %*s (%s), damaged "
+                    "volume deleted and recreated",
+                    cache_path.size(), cache_path.data(),
+                    make_error_code(first_error).message().c_str());
+    } else if (!result.has_value()) {
+      ngx_log_error(NGX_LOG_WARN, log, 0,
+                    "pagespeed: cache open failed for %*s (%s); the volume "
+                    "is left in place (not damaged, or held by another "
+                    "process) and requests run without the cache (degraded)",
+                    cache_path.size(), cache_path.data(),
+                    make_error_code(result.error()).message().c_str());
     }
-    result = PageSpeedCache::Create(config);
   }
   if (result.has_value()) {
     g_cache = std::move(*result);
@@ -919,8 +929,8 @@ static std::shared_ptr<PageSpeedCache> GetCache(std::string_view cache_path,
     ApplyCacheDirGeneration(cache_path, log);
   } else {
     ngx_log_error(NGX_LOG_ERR, log, 0,
-                  "pagespeed: PageSpeedCache::Create failed for %*s "
-                  "even after recovery attempt",
+                  "pagespeed: PageSpeedCache::Create failed for %*s, "
+                  "running without the cache",
                   cache_path.size(), cache_path.data());
   }
   return g_cache;

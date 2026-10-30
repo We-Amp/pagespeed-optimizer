@@ -34,6 +34,8 @@ Fixed: images from an origin that sends neither `ETag` nor `Last-Modified` were 
 
 Fixed: the script-coverage analysis now takes coverage only for scripts the analysis browser actually received. A script that could not be loaded is reported as having no coverage data, so it no longer gets a coverage figure and a deferral recommendation it did not earn.
 
+Fixed: with the nginx module, when the cache volume failed to open because another process (such as the optimizer worker) was holding it, the module deleted the volume and created a new one. The other process kept writing to the deleted file, so the two sides stopped sharing cached entries until that process restarted. The module now deletes and recreates the volume only when it is damaged. In any other case it leaves the volume in place, logs the reason and serves without the cache until the next successful open.
+
 ## 2.6.0 - 2026-10-28
 
 Fixed: pages from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left the page, stylesheet or script unchanged, so clients could not revalidate them and always downloaded the full page. These resources carry an `ETag` again and answer a matching `If-None-Match` with `304 Not Modified`.
