@@ -239,13 +239,8 @@ int undisposedHosts = 0;
 // Every assertion must pass. The only exception is an explicit, named, opt-in
 // skip for a check that depends on the environment: a failing assertion that
 // carries a skip id is reported as [SKIP] (and listed in the summary) only when
-// that id is listed in SMOKE_ALLOW_SKIP (comma-separated). Known ids:
-//   worker-port-reuse  T3.6 and T3.7, where the 2nd and 3rd factory_worker of the
-//                      run never answer their API port while the 1st worker
-//                      is still running. Seen only in the Linux x64 container
-//                      job (macOS, Linux arm64 and Windows pass); the cause is
-//                      not found yet, so only that job sets this id.
-// Nothing is skipped unless the caller asks for it by name.
+// that id is listed in SMOKE_ALLOW_SKIP (comma-separated). No check carries a
+// skip id at present. Nothing is skipped unless the caller asks for it by name.
 var allowedSkips = new HashSet<string>(
     (Environment.GetEnvironmentVariable("SMOKE_ALLOW_SKIP") ?? "")
         .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
@@ -281,6 +276,32 @@ string? FindFile(string name)
 
     return null;
 }
+
+// Helper: HTTP client for a worker's management API. The worker binds
+// 127.0.0.1 only. HttpClient's default socket is dual-stack and reaches that
+// address as ::ffff:127.0.0.1, which host networking on some container
+// runtimes refuses (the worker is up, the probe is refused).
+// Connect over IPv4 to the address the worker actually binds.
+HttpClient NewWorkerApiClient() => new HttpClient(new SocketsHttpHandler
+{
+    ConnectCallback = async (ctx, ct) =>
+    {
+        var s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
+        {
+            NoDelay = true,
+        };
+        try
+        {
+            await s.ConnectAsync(new IPEndPoint(IPAddress.Loopback, ctx.DnsEndPoint.Port), ct);
+            return new NetworkStream(s, ownsSocket: true);
+        }
+        catch
+        {
+            s.Dispose();
+            throw;
+        }
+    },
+});
 
 // ============================================================
 // TIER 0: File existence and native library loading
@@ -1231,14 +1252,14 @@ try
 
             // Wait for worker to start (up to 5 seconds)
             bool apiReachable = false;
-            using var apiClient = new HttpClient();
+            using var apiClient = NewWorkerApiClient();
             for (int attempt = 0; attempt < 10; attempt++)
             {
                 await Task.Delay(500);
                 try
                 {
                     using var healthResp = await apiClient.GetAsync(
-                        $"http://localhost:{freePort}/v1/health");
+                        $"http://127.0.0.1:{freePort}/v1/health");
                     if (healthResp.IsSuccessStatusCode)
                     {
                         apiReachable = true;
@@ -1257,7 +1278,7 @@ try
             }
             else
             {
-                Assert(false, $"T3.6: Worker API port {freePort} not reachable (factory_worker may not have started)", "worker-port-reuse");
+                Assert(false, $"T3.6: Worker API port {freePort} not reachable (factory_worker may not have started)");
             }
 
             Phase("T3.6: StopAsync() worker-API app (not disposed: native cache stays open)");
@@ -1388,14 +1409,14 @@ try
             // If we request before the worker's socket is ready, the notification
             // fails silently and the worker never gets notified (no retry).
             bool workerReady = false;
-            using var e2eStatsClient = new HttpClient();
+            using var e2eStatsClient = NewWorkerApiClient();
             for (int i = 0; i < 20; i++)
             {
                 await Task.Delay(500);
                 try
                 {
                     using var hr = await e2eStatsClient.GetAsync(
-                        $"http://localhost:{e2ePort}/v1/health");
+                        $"http://127.0.0.1:{e2ePort}/v1/health");
                     if (hr.IsSuccessStatusCode) { workerReady = true; break; }
                 }
                 catch (HttpRequestException) { }
@@ -1403,7 +1424,7 @@ try
 
             if (!workerReady)
             {
-                Assert(false, "T3.7: E2E worker did not start within 10s", "worker-port-reuse");
+                Assert(false, "T3.7: E2E worker did not start within 10s");
             }
             else
             {
@@ -1446,11 +1467,11 @@ try
                     try
                     {
                         using var diag = await e2eStatsClient.GetAsync(
-                            $"http://localhost:{e2ePort}/v1/health");
+                            $"http://127.0.0.1:{e2ePort}/v1/health");
                         var diagBody = await diag.Content.ReadAsStringAsync();
                         Console.WriteLine($"[DIAG] Worker /v1/health: {diagBody}");
                         using var statsResp = await e2eStatsClient.GetAsync(
-                            $"http://localhost:{e2ePort}/v1/stats");
+                            $"http://127.0.0.1:{e2ePort}/v1/stats");
                         var statsBody = await statsResp.Content.ReadAsStringAsync();
                         Console.WriteLine($"[DIAG] Worker /v1/stats: {statsBody}");
                     }
@@ -1462,7 +1483,7 @@ try
                     try
                     {
                         using var stats = await e2eStatsClient.GetAsync(
-                            $"http://localhost:{e2ePort}/v1/stats");
+                            $"http://127.0.0.1:{e2ePort}/v1/stats");
                         using var doc = System.Text.Json.JsonDocument.Parse(
                             await stats.Content.ReadAsStringAsync());
                         var root = doc.RootElement;
