@@ -3,7 +3,7 @@ title: 'JavaScript filters'
 description: 'Minify, combine, inline, and defer JavaScript in mod_pagespeed. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.'
 order: 45
 group: 'Filters'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 ---
 
 ## Overview
@@ -298,6 +298,42 @@ ModPagespeedEnableFilters extend_cache_scripts
 ```nginx
 pagespeed EnableFilters extend_cache_scripts;
 ```
+
+## JavaScript breaks after enabling the module {#javascript-breaks}
+
+Find the filter first, then exclude the one script that needs it. The console error usually names the filter.
+
+**1. Find the filter.** Request the broken page with the module switched off, then with one filter at a time switched off, and compare the browser console. Four filters touch scripts by default: `rewrite_javascript`, `combine_javascript`, `inline_javascript` and `extend_cache_scripts`. `defer_javascript` is not a CoreFilter, so it only runs if your configuration enabled it.
+
+```text
+https://example.com/page?PageSpeed=off
+https://example.com/page?PageSpeedFilters=-combine_javascript
+https://example.com/page?PageSpeedFilters=-defer_javascript
+```
+
+**2. Read the error.**
+
+| Console error or symptom | Cause | What to do |
+| --- | --- | --- |
+| `ReferenceError: mod_pagespeed_… is not defined` | `combine_javascript` replaces each script with `eval(mod_pagespeed_…)`, and the combined file defines that variable. The error means the combined file did not arrive as JavaScript: it was a 404, an error or login page, or was blocked. | Open the combined `.pagespeed.jc.` URL from the page source in a new tab. A 404 is covered in [Why does a `.pagespeed.` URL return 404?](/docs/troubleshooting/#optimized-resources-return-404). With several servers behind a load balancer, check each one. |
+| `pagespeed is not defined`, or `pagespeed.… is not a function` | The scripts that the module injects (the runtime behind `defer_javascript`, `lazyload_images` and the beacons) define the `pagespeed` object. The page ran code that uses it without that runtime, because it was not loaded or the HTML was cached from an older configuration. | The runtime is inlined or served from `/pagespeed_static/` (the [`StaticAssetPrefix`](/docs/configuration/#staticassetprefix)). Check that the path is not a 404 (on nginx, the `^/pagespeed_static/` location from the sample configuration), not blocked by a `Content-Security-Policy`, and purge cached copies of the HTML. |
+| A script that calls `document.write` fails, or content appears in the wrong place | `defer_javascript` runs scripts after the page has parsed. It replays `document.write` calls, but only approximately. | Exclude the script (below), or leave `defer_javascript` off. |
+| jQuery or another library starts too early or never | While deferred scripts are pending, the `defer_javascript` runtime makes `document.readyState` report `loading`, then `interactive`, and fires the load event afterwards. Code that reads `readyState` or listens for `DOMContentLoaded` at a different moment can run before the library it needs. | Exclude the library and the scripts that depend on it, or leave `defer_javascript` off. |
+| Another script misbehaves, or the order of effects changes | One of the filters in step 1 changed how or when the script runs. | Find the filter with the URLs above, then exclude the script. |
+
+**3. Exclude what breaks.** Pick the narrowest tool.
+
+- **One `<script>` tag:** add the `data-pagespeed-no-defer` attribute (the older spelling `pagespeed_no_defer` also works). `combine_javascript` leaves such a script out of every group, and `defer_javascript` does not defer it. See [`data-pagespeed-no-defer`](/pagespeed-markers/#data-pagespeed-no-defer).
+
+  ```html
+  <script src="/js/payment.js" data-pagespeed-no-defer></script>
+  ```
+
+- **A file or a path:** [`Disallow`](/docs/configuration/#disallow) with a wildcard, for example `pagespeed Disallow "*/js/payment*";` (Apache: `ModPagespeedDisallow`). The module leaves matching resources alone.
+- **A whole filter, for part of the site:** [`DisableFilters`](/docs/configuration/#disablefilters) in the `location` block (nginx) or the `<Location>` or `.htaccess` (Apache) that serves the affected pages.
+- **A whole filter:** drop it from `EnableFilters`, or list it in `DisableFilters` at server level.
+
+After a change, request the page once to let the module rebuild its copy, then reload. If you cannot tell which script is at fault, [`?PageSpeedFilters=+debug`](/docs/html-filters/) adds comments to the HTML that say what each filter did to each tag.
 
 ## Dangerous and deprecated filters
 

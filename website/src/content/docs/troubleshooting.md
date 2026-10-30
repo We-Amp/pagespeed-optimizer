@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 ---
 
 Most mod_pagespeed problems surface in one place: the `X-PageSpeed`
@@ -637,17 +637,35 @@ rather than the Docker / nginx reverse-proxy worker.
 - If repeated requests still serve the original resources, check cache directory permissions and disk space.
 - Verify the cache path exists and is writable by the web server process.
 
-### Optimized resources return 404
+### Why does a `.pagespeed.` URL return 404? {#optimized-resources-return-404}
 
-**Cause:** The `.pagespeed.` URL pattern is not being routed to mod_pagespeed.
+A rewritten URL such as `/css/a.css+b.css.pagespeed.cc.HASH.css` carries what the module needs to rebuild the file: the original URL (or URLs, for a combined file), the filter id and a content hash. A flushed cache or a page cached by a CDN does not by itself break it: when the module gets a request for a `.pagespeed.` URL it does not have, it fetches the original and rewrites it again. A request whose hash is stale (the original changed after the page was cached) is still answered, with a shortened cache lifetime, rather than with a 404; the exception is a JavaScript source map, which is refused when its hash does not match. A 404 therefore means one of the causes below. The log line each one leaves tells them apart (the ones marked "info" need the log level raised to info; the admin console's [message history](/docs/admin-console/#message-history) shows the same messages):
 
-**Fix:**
+| Log text | Cause |
+| --- | --- |
+| nothing from the module; the web server answers 404 itself | The request never reached the module ([routing](#pagespeed-404-routing)) |
+| `Decoding of resource name … failed because … no filter with id` (info) | The URL names a filter id this module does not know, or the filter cannot decode the name |
+| `Decoding of resource name … failed because … filter_id … is forbidden` (info) | The filter is disabled for the request by [`ForbidFilters`](/docs/configuration/#forbidfilters) (or `ForbidAllDisabledFilters`) |
+| `Invalid resource signature for … provided. Received …` (info) | [URL signing](#pagespeed-404-signing) is on and the signature does not match |
+| `Resource based on … but cannot access the original` (warning) | [The original cannot be fetched](#pagespeed-404-original) |
+
+<a id="pagespeed-404-original"></a>
+
+**The original cannot be fetched.** The module rebuilds a file from its original, so a 404 from the origin (the file was removed or renamed), a fetch that fails (the origin refuses the module's request, a TLS or DNS problem, a timeout) or a domain the module is not [authorized](/docs/domain-configuration/#domain-authorization) to fetch from all end as a 404 on the `.pagespeed.` URL. For a file with a single original (an image, a stylesheet, a script), a rewrite that fails while the original is fetchable is answered with the original instead. A _combined_ file has several originals and no such fallback: if one of them cannot be fetched at that moment, the whole combined URL answers 404. A fetch that timed out is remembered for ten seconds, then retried; a 404 or 410 that the origin itself sent is remembered for five minutes by default. To see which input failed, look in the log for the `Resource based on …` warning above and for `Fetch failed for resource url`, then request that original URL yourself, from the machine that runs the module. Pages in a CDN or a browser cache that still name a removed original stay broken until the page is refreshed; purge those pages rather than the `.pagespeed.` URLs.
+
+<a id="pagespeed-404-signing"></a>
+
+**URL signing.** With `UrlSigningKey` set, every `.pagespeed.` URL carries a signature, and the module treats a URL with a wrong or missing one as not its own, so the web server answers 404 for the file it does not have. Changing the key invalidates every signed URL in HTML that is already cached downstream. `AcceptInvalidSignatures on` accepts them while you rotate the key. On nginx the signature also makes the hash segment longer (ten more characters by default), so the `[^.]{10}` in the `.pagespeed.` location block of the sample configuration no longer matches; use `[^.]{20}`.
+
+<a id="pagespeed-404-routing"></a>
+
+**The request never reaches the module.** Fix this per web server:
 
 <!-- platform: nginx -->
 
 <div data-platform="nginx" data-platform-label="nginx">
 
-Ensure the `.pagespeed.` location block is present and appears before other location blocks that might match.
+Keep the three `location` blocks of the [sample configuration](/docs/configuration/#minimal-working-configuration) in the server that serves the page: the `.pagespeed.` pattern, `^/pagespeed_static/` and `^/ngx_pagespeed_beacon$`. A regular-expression `location` earlier in the file that matches `.js`, `.css` or image extensions (a static-file or cache rule) takes the request first, and the module never sees it.
 
 </div>
 
@@ -676,7 +694,11 @@ Also verify that the IIS app pool has not been recycled mid-optimization. The mo
 
 </div>
 
-Verify that the configuration options match between the HTML-serving VHost and the resource-serving VHost.
+Verify that the configuration options match between the HTML-serving VHost and the resource-serving VHost. A `.pagespeed.` URL is decoded with the options of the host and path it is requested on, so a filter enabled for the page but forbidden, or not configured, where the resource is served cannot be decoded there.
+
+**A CDN or load balancer in front.** The CDN must send `.pagespeed.` requests to the server that runs the module, not to a separate storage origin, and it must forward the request path unchanged. If the CDN caches error responses, one early failure (a request that arrived while the original was unreachable) is replayed until its cache lifetime ends; give 404 responses a short TTL at the CDN. See [Behind a TLS terminator, load balancer or CDN](/docs/cdn-integration/#behind-a-tls-terminator-load-balancer-or-cdn).
+
+**The beacon returns 404.** The beacon endpoint (`/mod_pagespeed_beacon` on Apache, `/ngx_pagespeed_beacon` on nginx, or the path set by `BeaconUrl`) is answered by the module, so the request has to reach it: on nginx that means the `^/ngx_pagespeed_beacon$` location block above, and on Apache the module answers the path itself, so a 404 there usually comes from a rule that sends the path elsewhere first, such as a `ProxyPass` or a redirect. The module matches the beacon path without its query string; check that the `BeaconUrl` in the page source is the path your server actually routes to the module. A beacon 404 costs the beacon-driven filters their data but does not affect the page. Without those filters, set `CriticalImagesBeaconEnabled false`.
 
 ### mod_pagespeed broke my page layout or JavaScript
 
