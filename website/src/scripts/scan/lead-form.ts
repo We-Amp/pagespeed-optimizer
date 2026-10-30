@@ -7,6 +7,7 @@
 // the speed result settles, and sends one lead per selected chip. Messages go
 // through the shell's single live region.
 
+import { resolveApiBase } from '../../lib/scan/api-base';
 import { speedStatus, type TileState } from '../../lib/scan/status';
 import {
   MAX_TOPICS,
@@ -265,7 +266,7 @@ export function initLeadForm(state: ScanState) {
     attributeFilter: ['data-state', 'hidden'],
   });
 
-  const apiBase = () => new URLSearchParams(location.search).get('api') || '/ai-readability/api';
+  const apiBase = () => resolveApiBase(location.search, location.hostname);
   async function post(payload: LeadPayload): Promise<boolean> {
     try {
       const res = await fetch(`${apiBase()}/contact`, {

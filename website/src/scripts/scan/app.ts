@@ -26,6 +26,7 @@ import {
   markMappingFailed,
   reloadError,
 } from '../../lib/scan/psi';
+import { resolveApiBase } from '../../lib/scan/api-base';
 import { proxyErrorText, scanErrorCopy } from '../../lib/scan/scan-errors';
 import { renderSpeedPanel } from './panels/speed';
 
@@ -480,7 +481,7 @@ export function init() {
   }
 
   function apiBase() {
-    return new URLSearchParams(location.search).get('api') || '/ai-readability/api';
+    return resolveApiBase(location.search, location.hostname);
   }
 
   function setBusy(busy: boolean) {
