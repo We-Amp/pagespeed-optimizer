@@ -22,6 +22,15 @@ public sealed class WorkerProcessHost : BackgroundService
     private readonly ILogger<WorkerProcessHost> _logger;
     private Process? _process;
 
+    /// <summary>How many of the worker's last stderr lines the exit report carries.</summary>
+    internal const int StderrTailLines = 20;
+
+    /// <summary>
+    /// Test seam: when set, this executable is launched instead of the
+    /// resolved factory_worker binary.
+    /// </summary>
+    internal string? WorkerPathOverride { get; set; }
+
     /// <summary>
     /// Creates a new worker process host.
     /// </summary>
@@ -79,7 +88,7 @@ public sealed class WorkerProcessHost : BackgroundService
         // auto-path off its own (distinct) WorkerOptions instance.
         _endpoint.SetSocketPath(socketPath);
 
-        var workerPath = ResolveWorkerPath();
+        var workerPath = WorkerPathOverride ?? ResolveWorkerPath();
         if (workerPath == null)
         {
             _logger.LogWarning(
@@ -178,6 +187,10 @@ public sealed class WorkerProcessHost : BackgroundService
                 return;
             }
 
+            var pid = _process.Id;
+            var startedAt = Stopwatch.StartNew();
+            var stderrTail = new Queue<string>(StderrTailLines);
+
             // Drain stdout/stderr to prevent OS pipe buffer deadlock.
             _ = Task.Run(async () =>
             {
@@ -188,15 +201,23 @@ public sealed class WorkerProcessHost : BackgroundService
                 }
                 catch { /* process exited */ }
             }, stoppingToken);
-            _ = Task.Run(async () =>
+            var stderrDrain = Task.Run(async () =>
             {
                 try
                 {
                     while (await _process.StandardError.ReadLineAsync() is { } line)
+                    {
                         _logger.LogDebug("worker stderr: {Line}", line);
+                        lock (stderrTail)
+                        {
+                            if (stderrTail.Count == StderrTailLines)
+                                stderrTail.Dequeue();
+                            stderrTail.Enqueue(line);
+                        }
+                    }
                 }
                 catch { /* process exited */ }
-            }, stoppingToken);
+            }, CancellationToken.None);
 
             _logger.LogInformation(
                 "factory_worker started (PID {Pid})", _process.Id);
@@ -208,11 +229,80 @@ public sealed class WorkerProcessHost : BackgroundService
             catch (OperationCanceledException)
             {
                 // Shutdown requested.
+                _logger.LogInformation(
+                    "factory_worker (PID {Pid}) stopping with the host", pid);
+                return;
             }
+
+            // Read everything we need from the Process now: Dispose() can
+            // kill and dispose it while this method is still running.
+            var exitCode = _process.ExitCode;
+            var runtime = startedAt.Elapsed;
+
+            // The worker shares the host's process group, so Ctrl+C or a
+            // service stop can reach it before the host's stop token fires.
+            // Give the token a moment: an exit during shutdown is normal.
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation(
+                    "factory_worker (PID {Pid}) exited during host shutdown (code {ExitCode})",
+                    pid, exitCode);
+                return;
+            }
+
+            // The worker ended on its own. Let the stderr reader reach
+            // end-of-file so the tail is complete, but never wait long.
+            await Task.WhenAny(stderrDrain, Task.Delay(TimeSpan.FromSeconds(2)));
+            string tail;
+            lock (stderrTail)
+                tail = string.Join(Environment.NewLine, stderrTail);
+            LogWorkerExit(_logger, pid, exitCode, runtime, tail);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "factory_worker process failed");
+        }
+    }
+
+    /// <summary>
+    /// Reports that the worker process ended without the host asking it to.
+    /// A non-zero exit is an Error and carries the worker's last stderr
+    /// lines; a clean exit is a Warning, because the host expects the worker
+    /// to run until shutdown.
+    /// </summary>
+    internal static void LogWorkerExit(
+        ILogger logger, int pid, int exitCode, TimeSpan runtime, string stderrTail)
+    {
+        // On Unix a process killed by signal N reports 128 + N.
+        var signalNote = exitCode is > 128 and <= 192
+                         && !RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? $" (likely signal {exitCode - 128})"
+            : string.Empty;
+        var earlyNote = runtime < TimeSpan.FromSeconds(10)
+            ? " It exited within seconds of starting; check its stderr output "
+              + "(for example a port or cache directory it could not use)."
+            : string.Empty;
+
+        if (exitCode != 0)
+        {
+            logger.LogError(
+                "factory_worker (PID {Pid}) exited with code {ExitCode}{Signal} "
+                + "after {Seconds:F1}s.{Early} Last stderr lines:{NewLine}{StderrTail}",
+                pid, exitCode, signalNote, runtime.TotalSeconds, earlyNote,
+                Environment.NewLine,
+                string.IsNullOrEmpty(stderrTail) ? "(none)" : stderrTail);
+        }
+        else
+        {
+            logger.LogWarning(
+                "factory_worker (PID {Pid}) exited with code 0 after {Seconds:F1}s, "
+                + "but the host expects it to run until shutdown; the worker is "
+                + "not restarted.{Early}",
+                pid, runtime.TotalSeconds, earlyNote);
         }
     }
 
