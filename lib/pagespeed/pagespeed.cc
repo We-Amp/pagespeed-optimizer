@@ -9,6 +9,7 @@
 #include "lib/pagespeed/pagespeed.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstddef>
 #include <cstring>
 #include <ctime>
@@ -20,6 +21,7 @@
 #include <string_view>
 #include <vector>
 
+#include "lib/base/message_handler.h"
 #include "lib/base/string_writer.h"
 #include "lib/cache/cache.h"
 #include "lib/cache/cache_control_header.h"
@@ -408,6 +410,53 @@ extern "C" void ps_cache_config_init(ps_cache_config_t* config) {
 // Cache open / close
 // ================================================================
 
+namespace {
+
+// Remembers the most recent warning or error the cache logs while it opens, so
+// ps_cache_open can hand the real reason (for example a refused volume file)
+// to the caller through ps_last_error_message(). It lives on the stack of
+// ps_cache_open and is detached from the cache before that returns.
+class OpenReasonHandler final : public pagespeed::MessageHandler {
+ public:
+  OpenReasonHandler() { SetMinLogLevel(pagespeed::LogLevel::kWarning); }
+
+  void Message(pagespeed::MessageType type, const char* format, ...) override {
+    va_list args;
+    va_start(args, format);
+    MessageV(type, format, args);
+    va_end(args);
+  }
+
+  const std::string& last_reason() const { return last_reason_; }
+
+ protected:
+  void MessageV(pagespeed::MessageType type, const char* format,
+                va_list args) override {
+    if (MessageTypeToLogLevel(type) < min_log_level()) return;
+    last_reason_ = FormatMessage(format, args);
+  }
+
+ private:
+  std::string last_reason_;
+};
+
+// Builds the text ps_last_error_message() reports when opening the cache
+// fails: the cache library's own status message, plus the last warning or
+// error it logged while opening, when there was one.
+std::string DescribeCacheOpenFailure(cyclone::CacheError err,
+                                     const std::string& logged_reason) {
+  std::string msg = "Failed to create cache: ";
+  msg += make_error_code(err).message();
+  if (!logged_reason.empty()) {
+    msg += " (";
+    msg += logged_reason;
+    msg += ")";
+  }
+  return msg;
+}
+
+}  // namespace
+
 extern "C" ps_error_t ps_cache_open(const ps_cache_config_t* config,
                                     ps_cache_t** out_cache) {
   ClearLastError();
@@ -427,11 +476,17 @@ extern "C" ps_error_t ps_cache_open(const ps_cache_config_t* config,
     // Always enable multi-process sharing.
     cpp_config.multi_process.enabled = true;
 
+    OpenReasonHandler open_reason;
+    cpp_config.handler = &open_reason;
+
     auto result = pagespeed::PageSpeedCache::Create(cpp_config);
     if (!result.has_value()) {
-      SetLastError("Failed to create cache");
+      SetLastError(
+          DescribeCacheOpenFailure(result.error(), open_reason.last_reason()));
       return MapError(result.error());
     }
+    // The logger is stack-local: the cache must not keep a pointer to it.
+    (*result)->set_handler(nullptr);
 
     auto* c = new ps_cache_s();
     c->cache = std::move(*result);
