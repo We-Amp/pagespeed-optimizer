@@ -4,7 +4,7 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
-Fixed: in the nginx module, HTTP/1.1 requests over TLS were cached under the `http` scheme, so they shared entries with plain-HTTP requests for the same host and URL and did not share them with HTTP/2 and HTTP/3 requests. The scheme now comes from the connection's TLS state, so every protocol over TLS uses `https` and plain HTTP uses `http`. Entries cached by an earlier version for HTTP/1.1 over TLS are fetched again from the origin. `pagespeed_trust_x_forwarded_proto` behaves as before.
+Fixed: in the nginx module, HTTP/1.1 requests over TLS were cached under the `http` scheme, so they shared entries with plain-HTTP requests for the same host and URL and did not share them with HTTP/2 and HTTP/3 requests. The scheme now comes from the connection's TLS state for every protocol, so requests over TLS use `https` and plain HTTP uses `http`. Entries cached by an earlier version for HTTP/1.1 over TLS are fetched again from the origin. `pagespeed_trust_x_forwarded_proto` behaves as before.
 
 Fixed: on Windows the cache now works when the cache directory path contains non-ASCII characters (the Cyclone cache library was updated).
 

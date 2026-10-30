@@ -14,6 +14,11 @@
 # same Host header, so an "X-PageSpeed: HIT" shows which scheme the request was
 # keyed under.
 #
+# This is a manual system test (not run in CI).  Build the module the way it
+# ships: against nginx source configured with --with-compat only.  Load it into
+# an nginx binary of the same version built with --with-compat plus the SSL and
+# v2 modules.
+#
 # Needs an nginx built with --with-compat, the SSL and v2 modules, the module
 # built against that same nginx source, and curl with HTTP/2 support.
 #
@@ -64,10 +69,10 @@ seed() {  # volume url scheme
     --content "h1{color:red}" --content_type css --mask 0x08 >/dev/null \
     || { echo "seeding $2 failed"; exit 2; }
 }
-for u in /https-only-a.css /https-only-b.css /https-only-c.css /https-only-d.css /https-only-e.css; do
+for u in /https-only-a.css /https-only-b.css /https-only-c.css /https-only-d.css /https-only-e.css /https-only-f.css; do
   seed "${VOL}" "${u}" https
 done
-for u in /http-only-a.css /http-only-b.css; do
+for u in /http-only-a.css /http-only-b.css /http-only-c.css; do
   seed "${VOL}" "${u}" http
 done
 # Entries for the listeners that trust X-Forwarded-Proto.
@@ -172,6 +177,11 @@ expect "forwarded header ignored (plain, directive off)" MISS --http1.1 plain "$
   -H "X-Forwarded-Proto: https"
 expect "forwarded header ignored (TLS, directive off)"   HIT  --http1.1 tls   "${TLS_PORT}"   /https-only-e.css \
   -H "X-Forwarded-Proto: http"
+# The request line does not choose the scheme; the connection does.
+expect "absolute-form https on plain HTTP stays http" MISS --http1.1 plain "${PLAIN_PORT}" /https-only-f.css \
+  --request-target "https://${HOST_HDR}/https-only-f.css"
+expect "absolute-form http over TLS stays https"      MISS --http1.1 tls   "${TLS_PORT}"   /http-only-c.css \
+  --request-target "http://${HOST_HDR}/http-only-c.css"
 # With the directive on, a valid header decides; without it the connection does.
 expect "trusted forwarded https over plain HTTP"  HIT  --http1.1 plain "${FWD_PLAIN_PORT}" /fwd-https-a.css \
   -H "X-Forwarded-Proto: https"
