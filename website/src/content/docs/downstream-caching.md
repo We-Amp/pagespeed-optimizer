@@ -36,7 +36,7 @@ Trailing slashes on the prefix are dropped. Point the prefix at the address wher
 
 Some of what the module writes into a page depends on what the visitor's browser can do. A cache that ignores this stores the copy that the first visitor's browser could use and serves it to everyone. The `PS-CapabilityList` request header tells the module which of those optimizations the page may contain. You set it in the cache, per request, and the cache includes it in its cache key, so each value gets its own copy.
 
-The value is a comma-separated list of filter ids, optionally followed by a colon and any text (the text after the colon is ignored, so you can use it to label the entry):
+The value is a comma-separated list of filter ids that ends with a colon, optionally followed by any text (the text after the colon is ignored, so you can use it to label the entry). End the list with the colon: in `ii,ll` without it, the last id is not recognized; write `ii,ll:`.
 
 | Id | Filter | The page may contain |
 | --- | --- | --- |
