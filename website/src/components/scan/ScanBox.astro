@@ -22,6 +22,8 @@ const privacyLink =
 <form
   id={`${idPrefix}-form`}
   class:list={['mt-10 max-w-2xl text-left', surface === 'analyze' && 'mx-auto']}
+  action={surface === 'airead' ? '/ai-readability/' : '/analyze/'}
+  method="get"
   novalidate
   autocomplete="off"
   data-scan-box

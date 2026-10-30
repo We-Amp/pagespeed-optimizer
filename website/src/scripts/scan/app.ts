@@ -146,6 +146,18 @@ export function rerun(pillar: Pillar) {
   controller?.rerun(pillar);
 }
 
+// A host the backends can resolve: dotted DNS labels (letters, digits, hyphens;
+// punycode is already applied by URL), a final label that is not all digits, so
+// IP literals and "1.2"-style numeric hosts are out. A trailing dot is allowed.
+export function isPublicDnsName(hostname: string): boolean {
+  const host = hostname.replace(/\.$/, '');
+  if (host.length > 253) return false;
+  const labels = host.split('.');
+  if (labels.length < 2) return false;
+  if (!labels.every((l) => /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(l))) return false;
+  return /[a-z]/i.test(labels[labels.length - 1]);
+}
+
 // Normalise what the visitor typed: a bare host gets https://, then it must
 // parse as an http(s) URL with a public-looking hostname.
 export function normalizeUrl(
@@ -165,6 +177,12 @@ export function normalizeUrl(
   }
   if (!parsed.hostname || parsed.hostname === 'localhost') {
     return { ok: false, reason: 'We need a publicly reachable hostname. Localhost won’t work.' };
+  }
+  if (!isPublicDnsName(parsed.hostname)) {
+    return {
+      ok: false,
+      reason: 'That does not look like a real website address. Check for typos (try example.com).',
+    };
   }
   return { ok: true, url: parsed.toString() };
 }
@@ -227,6 +245,7 @@ export function init() {
   const heading = root.querySelector<HTMLElement>('[data-scan-heading]')!;
   const hostEl = root.querySelector<HTMLElement>('[data-scan-host]')!;
   const healthEl = root.querySelector<HTMLElement>('[data-scan-health]')!;
+  const hintEl = root.querySelector<HTMLElement>('[data-scan-hint]');
   const tiles = new Map<Pillar, HTMLButtonElement>();
   const panels = new Map<Pillar, HTMLElement>();
   for (const p of PILLARS) {
@@ -463,6 +482,13 @@ export function init() {
     submit.setAttribute('aria-disabled', String(busy));
     submit.setAttribute('aria-busy', String(busy));
     submitLabel.textContent = busy ? 'Checking…' : 'Check page';
+    // The line keeps its height (CSS min-height) so its text coming and going
+    // never moves what is below it.
+    if (hintEl) {
+      hintEl.textContent = busy
+        ? 'This usually takes 20 to 40 seconds. PageSpeed Insights is the slow part.'
+        : '';
+    }
   }
 
   function showError(reason: string | null) {
@@ -521,12 +547,22 @@ export function init() {
       return;
     }
     showError(null);
+    // Keep the address bar shareable: the checked URL goes into ?url=.
+    try {
+      const next = new URLSearchParams(location.search);
+      next.set('url', result.url);
+      history.replaceState(null, '', `${location.pathname}?${next.toString()}${location.hash}`);
+    } catch {
+      /* a blocked history API must not stop the run */
+    }
     start(result.url);
   });
 
-  // ?url= deep links run on both pages.
-  const preset = new URLSearchParams(location.search).get('url');
-  if (preset) {
+  // ?url= deep links run on both pages. A submit before this script loaded
+  // arrives as a plain GET with the field's value, possibly empty.
+  const presetParams = new URLSearchParams(location.search);
+  if (presetParams.has('url')) {
+    const preset = presetParams.get('url') ?? '';
     input.value = preset;
     const result = normalizeUrl(preset);
     if (result.ok) start(result.url);
