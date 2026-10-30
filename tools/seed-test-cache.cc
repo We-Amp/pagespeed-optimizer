@@ -242,9 +242,14 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Write alternate.
-  auto wh = cache->WriteAlternate(url, host, absl::GetFlag(FLAGS_scheme), id,
-                                  content.size(), meta);
+  // Write alternate.  A sentinel id (e.g. 0x1C, Early Hints) is stored with
+  // WriteSentinel: no metadata prefix, and WriteAlternate refuses it.
+  auto wh = pagespeed::IsSentinel(id)
+                ? cache->WriteSentinel(url, host, absl::GetFlag(FLAGS_scheme),
+                                       static_cast<pagespeed::SentinelId>(id),
+                                       content.size())
+                : cache->WriteAlternate(url, host, absl::GetFlag(FLAGS_scheme),
+                                        id, content.size(), meta);
   if (!wh.has_value()) {
     std::cerr << "Error: WriteAlternate failed err="
               << static_cast<int>(wh.error()) << "\n";

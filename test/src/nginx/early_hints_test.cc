@@ -414,5 +414,26 @@ TEST(FormatLinkHeaderTest, CommaInUrlDoesNotInjectSecondLink) {
   EXPECT_EQ(std::count(out.begin(), out.end(), '>'), 1);
 }
 
+TEST(ShouldSendHintsOnMissTest, HtmlExtensionSendsRegardlessOfAccept) {
+  EXPECT_TRUE(ShouldSendHintsOnMiss("text/html", ""));
+  EXPECT_TRUE(ShouldSendHintsOnMiss("text/html", "*/*"));
+}
+
+TEST(ShouldSendHintsOnMissTest, OtherKnownTypesNeverSend) {
+  EXPECT_FALSE(ShouldSendHintsOnMiss("text/css", "text/html"));
+  EXPECT_FALSE(ShouldSendHintsOnMiss("image/png", "text/html,*/*"));
+  EXPECT_FALSE(ShouldSendHintsOnMiss("application/json", "text/html"));
+}
+
+TEST(ShouldSendHintsOnMissTest, ExtensionlessKeysOnAcceptingHtml) {
+  EXPECT_TRUE(ShouldSendHintsOnMiss(
+      "", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"));
+  EXPECT_TRUE(ShouldSendHintsOnMiss("", "Text/HTML"));
+  EXPECT_FALSE(ShouldSendHintsOnMiss("", ""));
+  EXPECT_FALSE(ShouldSendHintsOnMiss("", "*/*"));
+  EXPECT_FALSE(ShouldSendHintsOnMiss("", "application/json"));
+  EXPECT_FALSE(ShouldSendHintsOnMiss("", "text/htm"));
+}
+
 }  // namespace
 }  // namespace pagespeed

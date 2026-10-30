@@ -247,7 +247,14 @@ FNV-1a hash, probabilistic eviction). When threshold exceeded (default: 5,
 ## Early Hints (103)
 
 On cache MISS for HTML, reads `SentinelId::kEarlyHints` alternate and sends
-`103 Early Hints` with Link headers before proxying. Suppressed for
+`103 Early Hints` with Link headers before proxying. Built against nginx
+1.29.0 or newer, the 103 goes through nginx's own early-hints filter chain
+(`ngx_http_top_early_hints_filter`), so it is framed correctly on HTTP/1.1,
+HTTP/2 and HTTP/3; older nginx has no such API and only HTTP/1.1 gets a raw
+103. The MISS-path lookup is keyed on content type
+(`ShouldSendHintsOnMiss`): `.html` URLs, plus extensionless URLs when the
+request's Accept names `text/html`. System test:
+`tools/test-early-hints-protocols.sh`. Suppressed for
 §3.5-effective Authorization-bearing requests: hints derive from a stored
 response, the sentinel carries no metadata prefix (no CC flags), and the
 main entry's metadata is unavailable or gate-refused at that point — so no
