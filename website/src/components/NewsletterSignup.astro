@@ -121,7 +121,7 @@ const statusId = `${uid}-status`;
       data-newsletter-status
       role="status"
       aria-live="polite"
-      class="hidden text-sm"
+      class="min-h-5 text-sm"
     ></p>
   </div>
 </form>
@@ -166,12 +166,11 @@ const statusId = `${uid}-status`;
     if (!emailEl || !consentEl || !submitBtn || !statusEl) return;
 
     function setStatus(kind: 'success' | 'error' | null, msg: string) {
+      // The live region stays in the DOM and is never hidden: only its text
+      // changes, which is what assistive technology announces.
       statusEl!.textContent = msg;
-      statusEl!.classList.remove('hidden', 'text-interactive', 'text-accent');
-      if (kind === null) {
-        statusEl!.classList.add('hidden');
-        return;
-      }
+      statusEl!.classList.remove('text-interactive', 'text-accent');
+      if (kind === null) return;
       statusEl!.classList.add(kind === 'success' ? 'text-interactive' : 'text-accent');
     }
 
@@ -179,15 +178,21 @@ const statusId = `${uid}-status`;
       event.preventDefault();
       const email = (emailEl!.value ?? '').trim();
 
-      // Genuine consent gate: no submit path without an affirmative tick.
-      if (!consentEl!.checked) {
-        setStatus('error', "Tick the box to confirm you'd like the emails.");
-        consentEl!.focus();
+      // The field comes first, so an empty form names the empty field.
+      if (!email) {
+        setStatus('error', 'Enter your email address.');
+        emailEl!.focus();
         return;
       }
       if (!EMAIL_RE.test(email)) {
         setStatus('error', "That email address doesn't look right. Check it and try again.");
         emailEl!.focus();
+        return;
+      }
+      // Genuine consent gate: no submit path without an affirmative tick.
+      if (!consentEl!.checked) {
+        setStatus('error', "Tick the box to confirm you'd like the emails.");
+        consentEl!.focus();
         return;
       }
 

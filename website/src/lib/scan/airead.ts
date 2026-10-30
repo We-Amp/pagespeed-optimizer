@@ -87,7 +87,7 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
         av.detail.exposurePct +
         '% of your content is already in the raw HTML ' +
         plural(av.detail.aiCrawlersAllowed.length, 'AI crawler') +
-        ' can read — but your origin can’t tell a real signed agent from an impostor.',
+        ' can read, but your origin can’t tell a real signed agent from an impostor.',
     });
   }
   if (agentPassCtaApplies(sa)) {

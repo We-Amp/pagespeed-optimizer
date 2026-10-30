@@ -16,11 +16,11 @@ mod_pagespeed includes built-in admin pages for monitoring, configuration inspec
 
 Two endpoints are exposed: `/pagespeed_admin` is the per-vhost admin handler, and `/pagespeed_global_admin` is the process-wide handler. Both are read-write (cache purge) and warrant the same access restrictions in production.
 
-The console heads the optimizer worker's card on its Overview page "Optimizer daemon"; its sidebar groups the worker's pages under "Optimizer". This page keeps those labels where it names the UI and says "worker" everywhere else; the two words mean the same process.
+The console heads the optimizer worker's card on its Overview page "Optimizer", and its sidebar groups the worker's pages (Status and Logs) under "Optimizer". This page keeps those labels where it names the UI and says "worker" everywhere else; the two words mean the same process.
 
 <img
-  src="/images/console-1.1-admin.png"
-  alt="mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column"
+  src="/images/console-statistics.png"
+  alt="mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column, on our production sites"
   width="1440"
   height="900"
   loading="lazy"
@@ -28,7 +28,7 @@ The console heads the optimizer worker's card on its Overview page "Optimizer da
 />
 
 :::tip[See it live]
-Explore the [mod_pagespeed 1.15 admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console) running on our public Apache demo — live statistics, caches, histograms, and message history, no install required.
+Explore the [mod_pagespeed admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics) running on our public Apache demo: live statistics, graphs, caches and histograms, no install required.
 :::
 
 ## Admin pages
@@ -40,8 +40,8 @@ Explore the [mod_pagespeed 1.15 admin console](https://demo-httpd-1.1.modpagespe
 | Configuration  | `/pagespeed_admin/config`          | Active filters and directive values                     |
 | Histograms     | `/pagespeed_admin/histograms`      | Page load time, rewrite latency distributions           |
 | Caches         | `/pagespeed_admin/cache`           | Cache status, inspection, and purge                     |
-| Console        | `/pagespeed_admin/console`         | Historical graphs (requires StatisticsLogging)          |
-| Messages       | `/pagespeed_admin/message_history` | Recent log messages, filterable by severity             |
+| Graphs         | `/pagespeed_admin/console`         | Historical graphs, under Statistics (needs StatisticsLogging) |
+| Logs           | `/pagespeed_admin/message_history` | Recent log messages, filterable by severity             |
 | Status         | (in the sidebar under "Optimizer") | Optimizer worker health, load and cache on one page     |
 | About, Support | (in the sidebar under "Help")      | Build/optimizer versions, documentation and legal links |
 
@@ -224,10 +224,12 @@ The console opens on the Overview page. It answers three questions at a glance: 
 
 A one-line health summary sits at the top: "All systems healthy", or "N issue(s) need attention" in warning or error color depending on the worst alert currently active. Below it are two cards:
 
-- **Module** — bytes saved by optimization (and the percentage of the original size), how much was served from the optimizer's cache (of the in-place requests it handled), and resource fetch failures (linked to the [Messages page](#message-history) filtered to warnings and worse). Before any traffic has been optimized, the card says so instead of showing zeros.
-- **Optimizer daemon** (the console's label for the worker) — its state (Running, Not configured, Unreachable, Outdated, or Checking — see [Optimizer status page](#optimizer-daemon-panels) for what each one means), version, uptime, and bytes saved on responses it served (with the percentage of the original size). A note appears when all of its worker threads are busy, when its version is older than this console supports, or when its version does not report the statistics needed for savings and alerts.
+- **Module**: bytes saved by optimization (and the percentage of the original size), how much was served from the optimizer's cache (of the in-place requests it handled), and resource fetch failures (linked to the [Logs page](#message-history) filtered to warnings and worse). Before any traffic has been optimized, the card says so instead of showing zeros.
+- **Optimizer** (the optimizer worker): its state (Running, Not configured, Unreachable, Outdated, or Checking; see [Optimizer status page](#optimizer-daemon-panels) for what each one means), version, uptime, and bytes saved on responses it served (with the percentage of the original size). A note appears when all of its worker threads are busy, when its version is older than this console supports, or when its version does not report the statistics needed for savings and alerts.
 
 Both cards link to their detail page (All statistics, Optimizer status).
+
+The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. The console does not yet report the optimizer's two parts separately.
 
 ### Alerts
 
@@ -241,7 +243,7 @@ The Overview raises alerts above the cards, ranked with errors before warnings:
 | Optimizer version                 | Warning  | The optimizer is too old for this console, or too old to report the statistics it reads                                     |
 | Optimizer errors                  | Warning  | The optimizer's error count increases                                                                                       |
 | Origin sends compressed responses | Warning  | The optimizer received a response it cannot optimize because the origin (or a proxy in front of it) compressed it           |
-| Module fetch failures             | Warning  | The module's resource-fetch-failure count increases; links to Messages                                                      |
+| Module fetch failures             | Warning  | The module's resource-fetch-failure count increases; links to Logs                                                          |
 | Browser analysis stopped          | Warning  | Browser-based analysis is enabled but the browser is not running (falls back to heuristic analysis)                         |
 | Optimizer threads busy            | Warning  | Every optimizer worker thread is busy; new work waits                                                                       |
 | Optimizer connections             | Warning  | Optimizer connections are above 90% of the configured maximum; change notifications from the web server may be dropped      |
@@ -315,9 +317,9 @@ Per-vhost statistics are enabled by default on IIS. Each website gets its own se
 
 `UsePerVhostStatistics` enables per-virtual-host stats while still exposing aggregates at the global admin path.
 
-## Cache telemetry (v1.15.0+r18)
+## Cache telemetry
 
-v1.15.0+r18 adds cache observability counters to the caches page (`/pagespeed_admin/cache`), reported per Cyclone cache:
+The caches page (`/pagespeed_admin/cache`) reports cache observability counters for each Cyclone cache:
 
 - **Current entries / Current size bytes** — how full the cache is.
 - **RAM cache bytes / RAM cache hits / RAM cache misses** — activity of the optional RAM tier (`CycloneRamCacheKb`).
@@ -325,7 +327,7 @@ v1.15.0+r18 adds cache observability counters to the caches page (`/pagespeed_ad
 - **Evictions / Tag collision evictions** — entries displaced by capacity pressure or key collisions.
 - **Write buffer wraps / Wraps deferred by lease / Writes dropped by lease / Wraps forced past lease** — write-buffer turnover and how zero-copy serving interacts with it; sustained deferred or dropped counts indicate a cache that is too small for its write rate.
 
-The statistics page also gains counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](/docs/cache-modes/#zero-copy-serving) for the zero-copy options.
+The statistics page also has counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](/docs/cache-modes/#zero-copy-serving) for the zero-copy options.
 
 ## Optimizer status page {#optimizer-daemon-panels}
 
@@ -345,9 +347,9 @@ The worker is an optional companion, so a section with nothing to show renders a
 
 None of these states raise the [connection banner](#refresh-and-connectivity) or flip the top bar to "reconnecting" — only the module's own web server being unreachable does that. The Overview page's optimizer card summarizes the same states as Not configured, Unreachable, Outdated, or Checking (transient — the next refresh tries again).
 
-## Console (historical graphs)
+## Graphs {#console}
 
-The console requires `StatisticsLogging` to record data over time:
+The Graphs page, reached from Statistics, plots history over time. It needs `StatisticsLogging` to record the data:
 
 <!-- platform: nginx -->
 
@@ -392,9 +394,9 @@ The Graphs page tells apart three reasons it might have nothing to plot, instead
 - **No samples in this range** — the log has samples, just none in the selected time window; choose a longer range, or check the current counters on Statistics. On the _global_ console specifically, this also means per-virtual-host statistics are enabled: once they are, the whole-server log stops receiving samples and each virtual host's own console has the graphs instead, with a link to open it.
 - **No graph data available** — this server build or configuration has no graphs endpoint at all; Statistics still shows the current counters.
 
-## Message history
+## Logs page {#message-history}
 
-Set the message buffer size to enable recent log message viewing:
+The Logs page shows the recent log messages the module keeps in memory. Set the message buffer size to enable it:
 
 <!-- platform: nginx -->
 
@@ -432,7 +434,13 @@ Default is 0 (disabled).
 
 ### Filtering by severity
 
-The Messages page has a severity filter — Fatal, Error, Warning, Info — with a live count of each, and shows the most recent messages first. A link of the form `#/messages?level=warning` opens Messages already filtered to that severity and anything more severe (`#/messages?level=error` shows fatal and error only, and so on); an unrecognized or missing level shows everything. The Overview page's fetch-failures figure and its "Module fetch failures" alert both open Messages this way, preset to warnings and worse. The filter is a starting point, not a lock — change or clear it from the page once it's open (a "Show all" link is always there when a level is preset).
+The Logs page has a severity filter (Fatal, Error, Warning, Info) with a live count of each, and shows the most recent messages first. A link of the form `#/logs?level=warning` opens Logs already filtered to that severity and anything more severe (`#/logs?level=error` shows fatal and error only, and so on); an unrecognized or missing level shows everything. The Overview page's fetch-failures figure and its "Module fetch failures" alert both open Logs this way, preset to warnings and worse. The filter is a starting point, not a lock: change or clear it from the page once it's open (a "Show all" link is always there when a level is preset).
+
+## Views turned off on this console {#views-turned-off}
+
+From 2.7.0, a web server or proxy in front of the console can refuse some of its read-only views: a `location` block that denies the path, a WAF rule, or an access rule. When a view answers 401, 403, 404 or 410, the console no longer shows an error. The affected page (Logs, Configuration, URLs, a URL's detail view, Rule packs, and the message-log findings on Overview) shows a card that reads "Not available on this console. The server administrator has turned this view off." with a link to this page.
+
+A view refused with 401, 403 or 410 stays off until you reload the console, or until the console reconnects after losing the server. While it is off the console does not ask for it again, and shows no error or reconnect banner. A refusal of a single entry, such as one cache entry or one URL's variants, shows the card for that entry only. A sidebar entry gets a muted "off" marker once every view its page reads is refused. To turn a view back on, lift the restriction in the web server or proxy and reload the console. This is a state of the view, not a fault in the module.
 
 ## URL-path ACLs are brittle
 
@@ -454,11 +462,14 @@ Press `?` (or the **?** button in the top bar) to open the shortcut list. None o
 | `r`          | Refresh the current page's data now (Configuration, About, and Support have nothing to refresh) |
 | `/`          | Jump to the page's search box                                                                   |
 | `g` then `o` | Go to Overview                                                                                  |
+| `g` then `v` | Go to Savings                                                                                   |
+| `g` then `u` | Go to URLs                                                                                      |
 | `g` then `s` | Go to Statistics                                                                                |
 | `g` then `c` | Go to Configuration                                                                             |
 | `g` then `h` | Go to Histograms                                                                                |
 | `g` then `a` | Go to Caches                                                                                    |
-| `g` then `m` | Go to Messages                                                                                  |
+| `g` then `m` | Go to Logs, showing the module's messages                                                       |
+| `g` then `l` | Go to Logs                                                                                      |
 | `g` then `g` | Go to Graphs                                                                                    |
 | `g` then `d` | Go to Optimizer status                                                                          |
 | `Esc`        | Close the shortcuts dialog                                                                      |

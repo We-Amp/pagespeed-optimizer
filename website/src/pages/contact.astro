@@ -315,7 +315,7 @@ const nextSteps = [
           </button>
           .
         </p>
-        <p id="contact-status" role="status" aria-live="polite" class="hidden text-sm"></p>
+        <p id="contact-status" role="status" aria-live="polite" class="min-h-5 text-sm"></p>
       </div>
     </form>
 
@@ -419,12 +419,11 @@ const nextSteps = [
 
       function setStatus(kind: 'success' | 'error' | null, msg: string) {
         if (!statusEl) return;
+        // The live region stays in the DOM and is never hidden: only its text
+        // changes, which is what assistive technology announces.
         statusEl.textContent = msg;
-        statusEl.classList.remove('hidden', 'text-interactive', 'text-accent');
-        if (kind === null) {
-          statusEl.classList.add('hidden');
-          return;
-        }
+        statusEl.classList.remove('text-interactive', 'text-accent');
+        if (kind === null) return;
         if (kind === 'success') {
           statusEl.classList.add('text-interactive');
         } else {

@@ -15,9 +15,11 @@
 // `message`, the way the contact form folds its qualifiers in, so the
 // email notification is self-describing.
 //
-// Without JavaScript the form posts to a mailto: of the commercial address
-// (the contact form's fallback); the hidden topic and wedge fields keep that
-// mail self-describing too.
+// Without JavaScript the form posts natively to the same contact endpoint
+// (form-encoded, like the contact form's own no-JS path) and the endpoint
+// redirects to the thanks page; the hidden topic and wedge fields keep the
+// lead self-describing. There is deliberately no mailto: form action, which
+// browsers and Lighthouse report as an insecure form target.
 //
 // Analytics: on a successful POST only, umami.track(<wedge>) plus the
 // site-wide lead_submit event with channel "platform".
@@ -59,9 +61,8 @@ const inputClass =
 ---
 
 <form
-  action={`mailto:${COMMERCIAL_EMAIL}`}
+  action="/ai-readability/api/contact"
   method="post"
-  enctype="text/plain"
   data-platform-form
   data-wedge={wedge}
   data-pack={pack}
@@ -71,6 +72,21 @@ const inputClass =
 >
   <input type="hidden" name="topic" value="platform" />
   <input type="hidden" name="wedge" value={wedge} />
+  <input type="hidden" name="redirect" value="/contact/thanks/" />
+  <input type="hidden" name="t" value="" />
+  <div
+    style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"
+    aria-hidden="true"
+  >
+    <label for={`${id}-company`}>Leave this field empty</label>
+    <input
+      id={`${id}-company`}
+      type="text"
+      name="company"
+      tabindex="-1"
+      autocomplete="new-password"
+    />
+  </div>
 
   <div>
     <label for={`${id}-email`} class="eyebrow">
@@ -158,7 +174,7 @@ const inputClass =
     <button type="submit" class="btn-primary self-start" data-submit>
       {submitLabel}
     </button>
-    <p data-status role="status" aria-live="polite" class="hidden text-sm"></p>
+    <p data-status role="status" aria-live="polite" class="min-h-5 text-sm"></p>
   </div>
 </form>
 
@@ -182,7 +198,7 @@ const inputClass =
     function setStatus(kind: 'success' | 'error' | 'busy', msg: string) {
       if (!statusEl) return;
       statusEl.textContent = msg;
-      statusEl.classList.remove('hidden', 'text-interactive', 'text-accent', 'text-text-muted');
+      statusEl.classList.remove('text-interactive', 'text-accent', 'text-text-muted');
       statusEl.classList.add(
         kind === 'success'
           ? 'text-interactive'

@@ -15,7 +15,7 @@ The console runs on the same machine as your worker and is accessible only
 from your network. It loads no third-party scripts and makes no outbound network requests.
 
 <img
-  src="/images/console-2.0-dashboard.png"
+  src="/images/console-savings.png"
   alt="mod_pagespeed web console dashboard showing total bandwidth saved, cache hit counters, and live throughput and health charts"
   width="1440"
   height="900"

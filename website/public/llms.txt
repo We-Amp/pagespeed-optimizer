@@ -91,7 +91,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Insert image dimensions (insert_image_dimensions)](https://modpagespeed.com/docs/filters/insert_image_dimensions/): Adds width and height attributes to <img> tags.
 - [Insert speculation rules (insert_speculation_rules)](https://modpagespeed.com/docs/filters/insert_speculation_rules/): Injects a same-origin prefetch speculation-rules script.
 - [Lazy-load images (lazyload_images)](https://modpagespeed.com/docs/filters/lazyload_images/): Defers offscreen image loading.
-- [Local storage cache (local_storage_cache)](https://modpagespeed.com/docs/filters/local_storage_cache/): Caches inlined resources in localStorage.
+- [Local storage cache (local_storage_cache)](https://modpagespeed.com/docs/filters/local_storage_cache/): Retired from 2.7.0: accepted and ignored, with a warning.
 - [Move CSS above scripts (move_css_above_scripts)](https://modpagespeed.com/docs/filters/move_css_above_scripts/): Moves CSS <link> above <script> tags.
 - [Move CSS to head (move_css_to_head)](https://modpagespeed.com/docs/filters/move_css_to_head/): Moves CSS <link> into <head>.
 - [Outline CSS (outline_css)](https://modpagespeed.com/docs/filters/outline_css/): Externalizes large inline CSS blocks.

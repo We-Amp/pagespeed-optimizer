@@ -197,8 +197,9 @@ whether the bytes it sees on disk came from a build step or a CDN.)
 
 ## Limitations
 
-- **Preview status.** WeAmp.PageSpeed.AspNetCore is pre-release. API
-  surface may change between versions.
+- **Versioning.** WeAmp.PageSpeed.AspNetCore is a stable NuGet package;
+  install it without the `--prerelease` flag and read the release notes
+  before moving to a new minor version.
 - **HTML processing is async.** The first request for a new page gets
   the unprocessed HTML; the second request gets the rewritten version.
   For pre-generated static content, hit the URLs once during deploy to
