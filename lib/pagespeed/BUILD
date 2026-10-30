@@ -26,6 +26,7 @@ cc_library(
     }),
     visibility = ["//visibility:public"],
     deps = [
+        "//lib/base:message_handler",
         "//lib/base:string_writer",
         "//lib/html:compat",
         "//lib/cache:cache_control_header",

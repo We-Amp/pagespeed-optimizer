@@ -3490,6 +3490,60 @@ TEST(PageSpeedCApi, CacheOpenInvalidPath) {
   EXPECT_STRNE(ps_last_error_message(), "");
 }
 
+// The open failure carries the cache library's own reason, not just a generic
+// "Failed to create cache", so clients can log why the cache would not open.
+TEST(PageSpeedCApi, CacheOpenFailureReportsReason) {
+  ps_cache_config_t config;
+  ps_cache_config_init(&config);
+  config.volume_path = "/nonexistent/deep/path/cache.vol";
+  config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  ps_cache_t* c = nullptr;
+  ASSERT_NE(ps_cache_open(&config, &c), PS_OK);
+  EXPECT_EQ(c, nullptr);
+
+  const std::string msg = ps_last_error_message();
+  const std::string prefix = "Failed to create cache: ";
+  ASSERT_EQ(msg.compare(0, prefix.size(), prefix), 0) << msg;
+  EXPECT_GT(msg.size(), prefix.size()) << "no reason after the prefix";
+}
+
+// A volume the cache refuses to use (here: a second hard link to the same
+// bytes) reports what was wrong with it, which the cache logs while opening.
+TEST(PageSpeedCApi, CacheOpenRefusedVolumeReportsLoggedReason) {
+  const std::string dir = pagespeed::test::MakeTempDir();
+  const std::string path = dir + "/cache.vol";
+
+  ps_cache_config_t config;
+  ps_cache_config_init(&config);
+  config.volume_path = path.c_str();
+  config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  ps_cache_t* first = nullptr;
+  ASSERT_EQ(ps_cache_open(&config, &first), PS_OK);
+  ps_cache_close(first);
+
+  // Hard-link every regular file the first open created, so the volume file
+  // has a second name.
+  std::vector<std::filesystem::path> created;
+  for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+    if (entry.is_regular_file()) created.push_back(entry.path());
+  }
+  ASSERT_FALSE(created.empty());
+  for (const auto& file : created) {
+    std::filesystem::create_hard_link(file, file.string() + ".link");
+  }
+
+  ps_cache_t* second = nullptr;
+  EXPECT_NE(ps_cache_open(&config, &second), PS_OK);
+  EXPECT_EQ(second, nullptr);
+  EXPECT_NE(std::string(ps_last_error_message()).find("lone regular file"),
+            std::string::npos)
+      << ps_last_error_message();
+
+  std::filesystem::remove_all(dir);
+}
+
 // ================================================================
 // Read early hints from non-existent key (NOT_FOUND via MapError)
 // ================================================================
