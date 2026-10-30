@@ -1176,7 +1176,6 @@ std::string StripImportantDeclarations(std::string_view body) {
   return absl::StrCat("{", out, "}");
 }
 
-bool AtRuleKeywordIs(std::string_view selector, std::string_view keyword);
 std::string ExtractLayerName(std::string_view selector);
 
 // A block of rules (`body`, braces included, e.g. an @media

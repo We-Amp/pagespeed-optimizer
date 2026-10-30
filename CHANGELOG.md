@@ -4,7 +4,7 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
-Fixed: critical CSS now keeps the above-the-fold rules of minified `@supports(...)` and `@layer(...)` blocks written with no space before the parenthesis; previously those blocks were not recognized and could be left out.
+Fixed: critical CSS now keeps the above-the-fold rules of minified `@supports(...)` blocks written with no space before the parenthesis; previously those blocks were left out.
 
 ## 2.6.0 - 2026-10-28
 
