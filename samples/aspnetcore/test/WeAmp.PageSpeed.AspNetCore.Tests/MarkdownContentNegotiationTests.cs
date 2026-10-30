@@ -223,7 +223,7 @@ public sealed class MarkdownContentNegotiationTests
         public uint Mask { get; init; }
         public PageSpeedContentType ContentType { get; init; }
         public string? OriginContentType { get; init; }
-        public byte Flags { get; init; }
+        public byte Flags { get; init; } = CacheFlags.HeadersClassified;
         public bool NeedsRevalidation => false;
         public ushort OriginCcFlags => 0;
         public bool RevalidationRequired => false;

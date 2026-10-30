@@ -96,6 +96,18 @@ public interface IPageSpeedCache : IDisposable
     CacheStats GetStats();
 
     /// <summary>
+    /// Offers an origin response's complete header set (one entry per received
+    /// header line) to the stored header block for this URL. The native gate
+    /// decides what is carried; the caller does not curate. A response the
+    /// gate refuses must not be cached. The default implementation refuses
+    /// everything, so a cache that does not store headers never caches.
+    /// </summary>
+    HeadersSidecarWriteResult WriteHeadersSidecar(
+        string url, string hostname, string scheme,
+        IReadOnlyList<KeyValuePair<string, string>> headers)
+        => new(HeadersSidecarVerdict.FallThrough, false);
+
+    /// <summary>
     /// Record one worker-processed serve HIT into the shared
     /// <c>.pagespeed-serve-stats</c> mmap, mirroring the nginx front-end.
     /// The caller is responsible for the gate

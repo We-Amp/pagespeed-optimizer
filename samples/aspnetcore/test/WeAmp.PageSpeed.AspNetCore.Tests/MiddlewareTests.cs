@@ -2203,7 +2203,14 @@ public class MiddlewareTests
         public uint Mask { get; init; }
         public PageSpeedContentType ContentType { get; init; }
         public string? OriginContentType { get; init; }
-        public byte Flags { get; init; }
+        // Entries these tests describe were written with their response
+        // headers checked (nothing to carry), as the middleware writes them.
+        private readonly byte _flags;
+        public byte Flags
+        {
+            get => (byte)(_flags | CacheFlags.HeadersClassified);
+            init => _flags = value;
+        }
         public ushort OriginCcFlags { get; init; }
 
         // Mirrors ReadResult.NeedsRevalidation: derive from Flags so

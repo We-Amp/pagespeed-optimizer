@@ -10,6 +10,18 @@ Fixed: over HTTP/3 the nginx module looked up cached pages under an empty host n
 
 Fixed: critical CSS now keeps the above-the-fold rules of minified `@supports(...)` blocks written with no space before the parenthesis; previously those blocks were left out.
 
+Security: with the ASP.NET Core package, headers the application sets (such as
+`Content-Security-Policy`, `Access-Control-Allow-Origin` and
+`X-Content-Type-Options`) could be missing from responses served from the
+cache. Cached responses now carry them, and a response with a header that
+cannot be replayed from the cache is no longer cached. Update recommended.
+Entries cached by an earlier version are fetched again from the origin.
+
+Changed: the ASP.NET Core package and the optimizer worker must be upgraded
+together. A worker older than 2.6.0 does not carry the new cache entry
+information across the variants it writes, so the package fetches those
+variants again from the origin instead of serving them from the cache.
+
 ## 2.6.0 - 2026-10-28
 
 Fixed: pages from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left the page, stylesheet or script unchanged, so clients could not revalidate them and always downloaded the full page. These resources carry an `ETag` again and answer a matching `If-None-Match` with `304 Not Modified`.

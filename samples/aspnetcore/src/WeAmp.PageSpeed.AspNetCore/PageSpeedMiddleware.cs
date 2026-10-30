@@ -225,12 +225,20 @@ public sealed class PageSpeedMiddleware
                         agentEntitled == 1 &&
                         (cached.Mask & 0xFF) == SentinelId.AgentMarkdown;
 
-                    if (ServeCacheHit(context, cached, url, hostname, scheme, mask,
-                                      opts, servedAgentMarkdown))
+                    // The response headers the application set when the entry was
+                    // stored ride along with it. An entry that cannot be served
+                    // with them is treated as a miss and refetched.
+                    var stored = ResolveStoredHeaders(
+                        cached, url, hostname, scheme, servedAgentMarkdown);
+                    if (stored.Usable)
                     {
-                        await WriteBorrowedContentAsync(context, cached);
+                        if (ServeCacheHit(context, cached, url, hostname, scheme, mask,
+                                          opts, servedAgentMarkdown, stored.Fields))
+                        {
+                            await WriteBorrowedContentAsync(context, cached);
+                        }
+                        return;
                     }
-                    return;
                 }
             }
             catch (Exception ex)
@@ -246,7 +254,22 @@ public sealed class PageSpeedMiddleware
         // headers now so they ship with the response start. This lets
         // browsers begin fetching critical sub-resources during origin
         // processing.
+        // The header lines on the response when this middleware is entered
+        // belong to middleware ahead of it, not to the origin response: they
+        // are not stored with the entry.
+        var capture = new MissCapture(context.Response);
+        var hintLinksBefore = context.Response.Headers.Link.ToArray();
         AddEarlyHintLinkHeaders(context, url, hostname, scheme);
+        capture.OwnLinks.AddRange(SubtractLines(
+            context.Response.Headers.Link.ToArray(), hintLinksBefore));
+
+        // Headers an application adds in OnStarting callbacks only exist once
+        // the response starts. Callbacks run last-registered first, so this
+        // one (registered before the application runs) runs after all of
+        // theirs and sees the final header set.
+        context.Response.OnStarting(
+            static state => { ((MissCapture)state).Capture(); return Task.CompletedTask; },
+            capture);
 
         // ── CACHE MISS — proxy to origin ─────────────────────────
         var originalBody = context.Response.Body;
@@ -298,7 +321,7 @@ public sealed class PageSpeedMiddleware
                 await HandleHtmlMiss(
                     context, originalBody, buffer, opts,
                     url, hostname, scheme, mask, cacheability,
-                    cacheControl);
+                    cacheControl, capture);
                 break;
 
             case PageSpeedContentType.Image:
@@ -308,7 +331,7 @@ public sealed class PageSpeedMiddleware
                     context, originalBody, buffer, opts,
                     url, hostname, scheme, mask,
                     psContentType, responseContentType,
-                    cacheability, cacheControl);
+                    cacheability, cacheControl, capture);
                 break;
 
             default:
@@ -394,7 +417,8 @@ public sealed class PageSpeedMiddleware
     private bool ServeCacheHit(
         HttpContext context, IReadResult cached,
         string url, string hostname, string scheme, uint mask,
-        PageSpeedOptions opts, bool servedAgentMarkdown = false)
+        PageSpeedOptions opts, bool servedAgentMarkdown = false,
+        IReadOnlyList<KeyValuePair<string, string>>? storedHeaders = null)
     {
         var cachedMask = cached.Mask;
         var cachedType = cached.ContentType;
@@ -423,6 +447,12 @@ public sealed class PageSpeedMiddleware
         }
 
         context.Response.StatusCode = 200;
+
+        // The application's own response headers first, so the 200 and the
+        // 304 below both carry them. Headers this method builds itself follow.
+        if (storedHeaders != null)
+            ReplayStoredHeaders(context.Response.Headers, storedHeaders);
+
         context.Response.ContentType = ct;
         context.Response.ContentLength = content.Length;
         context.Response.Headers["X-PageSpeed"] = "HIT";
@@ -614,21 +644,286 @@ public sealed class PageSpeedMiddleware
     /// Sets Vary headers appropriate for the content type.
     /// </summary>
     private static void SetVaryHeaders(
-        HttpContext context, PageSpeedContentType type)
+        HttpContext context, PageSpeedContentType type,
+        MissCapture? capture = null)
     {
-        switch (type)
+        // Merged with any Vary already on the response (the application's own,
+        // or one replayed from the stored headers): the tokens of both apply.
+        string? ours = type switch
         {
-            case PageSpeedContentType.Image:
-                context.Response.Headers.Vary = "Accept, Save-Data, User-Agent";
-                break;
-            case PageSpeedContentType.Html:
-                context.Response.Headers.Vary = "Accept-Encoding, User-Agent";
-                break;
-            case PageSpeedContentType.Css:
-            case PageSpeedContentType.Js:
-                context.Response.Headers.Vary = "Accept-Encoding";
-                break;
+            PageSpeedContentType.Image => "Accept, Save-Data, User-Agent",
+            PageSpeedContentType.Html => "Accept-Encoding, User-Agent",
+            PageSpeedContentType.Css or PageSpeedContentType.Js => "Accept-Encoding",
+            _ => null,
+        };
+        if (ours == null) return;
+        var added = MergeVary(context.Response.Headers, ours);
+        capture?.OwnVaryTokens.AddRange(added);
+    }
+
+    /// <summary>
+    /// Sets <c>Vary</c> to the union of the tokens already on the response and
+    /// those in <paramref name="additions"/> (case-insensitive, existing order
+    /// first). A <c>*</c> anywhere makes the whole value <c>*</c>.
+    /// </summary>
+    internal static List<string> MergeVary(IHeaderDictionary headers, string additions)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var merged = new List<string>();
+        var added = new List<string>();
+        bool star = false;
+
+        void Collect(string? list, bool isAddition)
+        {
+            if (string.IsNullOrEmpty(list)) return;
+            foreach (var raw in list.Split(','))
+            {
+                var token = raw.Trim();
+                if (token.Length == 0) continue;
+                if (token == "*") star = true;
+                if (seen.Add(token))
+                {
+                    merged.Add(token);
+                    if (isAddition) added.Add(token);
+                }
+            }
         }
+
+        foreach (var line in headers.Vary) Collect(line, false);
+        Collect(additions, true);
+
+        if (merged.Count == 0) return added;
+        headers.Vary = star ? "*" : string.Join(", ", merged);
+        return added;
+    }
+
+    // Header names the serve path builds itself, or that belong to one
+    // connection or one client. The stored block never holds them; a block
+    // that does is not trusted.
+    private static readonly HashSet<string> ServeBuiltHeaders =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Cache-Control", "Content-Type", "Content-Length", "Content-Encoding",
+            "Content-Range", "ETag", "Last-Modified", "Expires", "Date", "Age",
+            "Server", "Accept-Ranges", "X-PageSpeed",
+            "Set-Cookie", "Set-Cookie2", "Authorization", "WWW-Authenticate",
+            "Proxy-Authenticate", "Proxy-Authorization",
+            "Connection", "Keep-Alive", "Transfer-Encoding", "TE", "Trailer",
+            "Upgrade",
+        };
+
+    private readonly record struct StoredHeaders(
+        bool Usable, IReadOnlyList<KeyValuePair<string, string>>? Fields);
+
+    /// <summary>
+    /// Decides how a cache entry is served with respect to the origin's
+    /// response headers: with a stored block to replay, with nothing to
+    /// replay, or not at all (treated as a miss).
+    /// </summary>
+    private StoredHeaders ResolveStoredHeaders(
+        IReadResult cached, string url, string hostname, string scheme,
+        bool servedAgentMarkdown)
+    {
+        // The markdown rendering is built from fresh metadata; it carries
+        // none of the origin's headers.
+        if (servedAgentMarkdown) return new(true, null);
+
+        var flags = cached.Flags;
+        if ((flags & CacheFlags.HeadersClassified) == 0)
+        {
+            // Recorded before the origin's headers were kept with the entry.
+            _logger.LogDebug(
+                "Cache entry for {Url} has no stored response headers; refetching",
+                url);
+            return new(false, null);
+        }
+        if ((flags & CacheFlags.HeadersSidecarRequired) == 0)
+            return new(true, null);
+
+        try
+        {
+            using var block = _cache.ReadAlternate(
+                url, hostname, scheme, SentinelId.HeadersSidecar);
+            if (block == null ||
+                !HeadersSidecar.TryParse(block.ContentMemory.Span, out var fields) ||
+                fields.Count == 0)
+            {
+                _logger.LogDebug(
+                    "Stored response headers for {Url} are missing; refetching", url);
+                return new(false, null);
+            }
+            foreach (var field in fields)
+            {
+                if (ServeBuiltHeaders.Contains(field.Key))
+                {
+                    _logger.LogWarning(
+                        "Stored response headers for {Url} hold {Name}; refetching",
+                        url, field.Key);
+                    return new(false, null);
+                }
+            }
+            return new(true, fields);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Reading stored response headers failed for {Url}; refetching", url);
+            return new(false, null);
+        }
+    }
+
+    /// <summary>
+    /// Adds the stored headers to the response. A line already present with
+    /// the same value (set by middleware ahead of this one) is not repeated;
+    /// <c>Vary</c> is merged with what the response already has.
+    /// </summary>
+    private static void ReplayStoredHeaders(
+        IHeaderDictionary headers,
+        IReadOnlyList<KeyValuePair<string, string>> stored)
+    {
+        foreach (var group in stored.GroupBy(f => f.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var f in group) MergeVary(headers, f.Value);
+                continue;
+            }
+            // The stored lines replace whatever the response already has under
+            // the name: the response then carries exactly the stored value.
+            headers[group.Key] = group.Select(f => f.Value).ToArray();
+        }
+    }
+
+    /// <summary>
+    /// What the origin response carries for one cache miss: the header lines
+    /// present when the middleware was entered, the lines it adds itself, and
+    /// the final header set once the response starts.
+    /// </summary>
+    private sealed class MissCapture
+    {
+        private readonly HttpResponse _response;
+        private readonly List<KeyValuePair<string, string>> _entry = new();
+        private readonly HashSet<string> _entryVary = new(StringComparer.OrdinalIgnoreCase);
+
+        public MissCapture(HttpResponse response)
+        {
+            _response = response;
+            foreach (var h in response.Headers)
+                foreach (var v in h.Value)
+                {
+                    if (v == null) continue;
+                    if (h.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase))
+                        foreach (var t in v.Split(','))
+                        {
+                            if (t.Trim().Length > 0) _entryVary.Add(t.Trim());
+                        }
+                    else
+                        _entry.Add(new(h.Key, v));
+                }
+        }
+
+        /// <summary>Link lines this middleware added (early hints, preloads).</summary>
+        public List<string> OwnLinks { get; } = new();
+
+        /// <summary>Vary tokens this middleware added.</summary>
+        public List<string> OwnVaryTokens { get; } = new();
+
+        private List<KeyValuePair<string, string>>? _captured;
+        private bool _uncacheable;
+
+        /// <summary>The origin's header lines (null until captured).</summary>
+        public IReadOnlyList<KeyValuePair<string, string>> Headers
+        {
+            get { Capture(); return _captured!; }
+        }
+
+        /// <summary>True when the final headers make the response uncacheable.</summary>
+        public bool Uncacheable
+        {
+            get { Capture(); return _uncacheable; }
+        }
+
+        /// <summary>
+        /// The cacheability of the response as it is now. Called after the body
+        /// was written, when every OnStarting callback, including those of
+        /// middleware ahead of this one, has run.
+        /// </summary>
+        public bool UncacheableNow =>
+            ClassifyCacheability(_response) == ResponseCacheability.Uncacheable;
+
+        public void Capture()
+        {
+            if (_captured != null) return;
+            var entry = new List<KeyValuePair<string, string>>(_entry);
+            var links = new List<string>(OwnLinks);
+            var varyTokens = new List<string>();
+            var captured = new List<KeyValuePair<string, string>>();
+            foreach (var header in _response.Headers)
+            {
+                bool isVary = header.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase);
+                bool isLink = header.Key.Equals("Link", StringComparison.OrdinalIgnoreCase);
+                if (header.Key.Equals("X-PageSpeed", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                foreach (var value in header.Value)
+                {
+                    if (value == null) continue;
+                    if (isVary)
+                    {
+                        foreach (var raw in value.Split(','))
+                        {
+                            var t = raw.Trim();
+                            if (t.Length == 0 || _entryVary.Contains(t)) continue;
+                            if (OwnVaryTokens.Contains(t, StringComparer.OrdinalIgnoreCase)) continue;
+                            if (!varyTokens.Contains(t, StringComparer.OrdinalIgnoreCase))
+                                varyTokens.Add(t);
+                        }
+                        continue;
+                    }
+                    int e = entry.FindIndex(x =>
+                        x.Key.Equals(header.Key, StringComparison.OrdinalIgnoreCase) &&
+                        string.Equals(x.Value, value, StringComparison.Ordinal));
+                    if (e >= 0) { entry.RemoveAt(e); continue; }
+                    if (isLink)
+                    {
+                        int l = links.IndexOf(value);
+                        if (l >= 0) { links.RemoveAt(l); continue; }
+                    }
+                    captured.Add(new(header.Key, value));
+                }
+            }
+            if (varyTokens.Count > 0)
+                captured.Add(new("Vary", string.Join(", ", varyTokens)));
+            _uncacheable = ClassifyCacheability(_response) == ResponseCacheability.Uncacheable;
+            _captured = captured;
+        }
+    }
+
+    /// <summary>True when the response's own Vary names Accept.</summary>
+    private static bool VariesOnAccept(IReadOnlyList<KeyValuePair<string, string>> headers)
+    {
+        foreach (var h in headers)
+        {
+            if (!h.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase)) continue;
+            foreach (var token in h.Value.Split(','))
+                if (token.Trim().Equals("Accept", StringComparison.OrdinalIgnoreCase))
+                    return true;
+        }
+        return false;
+    }
+
+    /// <summary>Lines in <paramref name="after"/> that are not in <paramref name="before"/> (multiset difference).</summary>
+    private static List<string> SubtractLines(string?[] after, string?[] before)
+    {
+        var remaining = new List<string?>(before);
+        var added = new List<string>();
+        foreach (var line in after)
+        {
+            if (line == null) continue;
+            int i = remaining.IndexOf(line);
+            if (i >= 0) remaining.RemoveAt(i);
+            else added.Add(line);
+        }
+        return added;
     }
 
     /// <summary>
@@ -640,7 +935,8 @@ public sealed class PageSpeedMiddleware
         RecyclableMemoryStream buffer, PageSpeedOptions opts,
         string url, string hostname, string scheme, uint mask,
         ResponseCacheability cacheability,
-        string? cacheControl)
+        string? cacheControl,
+        MissCapture capture)
     {
         // Size gate for HTML processing.
         if (buffer.Length > opts.MaxResponseBufferBytes ||
@@ -664,27 +960,32 @@ public sealed class PageSpeedMiddleware
 
             if (result.Modified)
             {
+                var linksBefore = context.Response.Headers.Link.ToArray();
                 AddPreloadHeaders(context, result);
+                capture.OwnLinks.AddRange(SubtractLines(
+                    context.Response.Headers.Link.ToArray(), linksBefore));
                 context.Response.Headers["X-PageSpeed"] = "MISS";
-                SetVaryHeaders(context, PageSpeedContentType.Html);
+                SetVaryHeaders(context, PageSpeedContentType.Html, capture);
 
                 var output = result.OutputMemory;
                 context.Response.ContentLength = output.Length;
                 await originalBody.WriteAsync(
                     output, context.RequestAborted);
 
-                TryWriteToCache(
+                var cacheable = TryWriteToCache(
                     url, hostname, scheme, output,
                     PageSpeedContentType.Html,
                     context.Response.ContentType,
                     result.NeedsRevalidation,
+                    capture,
                     cacheControl);
 
-                TryWriteEarlyHints(
-                    url, hostname, scheme, result.EarlyHintsMemory);
+                if (cacheable)
+                    TryWriteEarlyHints(
+                        url, hostname, scheme, result.EarlyHintsMemory);
 
                 // [Critical #2] Skip worker notification if no-transform.
-                if (cacheability != ResponseCacheability.NoTransform)
+                if (cacheable && cacheability != ResponseCacheability.NoTransform)
                 {
                     if (!_notifier.TryNotify(
                         url, hostname, scheme, PageSpeedContentType.Html, mask,
@@ -732,13 +1033,14 @@ public sealed class PageSpeedMiddleware
         PageSpeedContentType psContentType,
         string? responseContentType,
         ResponseCacheability cacheability,
-        string? cacheControl)
+        string? cacheControl,
+        MissCapture capture)
     {
         // Pass through the original response to the client.
         buffer.Seek(0, SeekOrigin.Begin);
         context.Response.ContentLength = buffer.Length;
         context.Response.Headers["X-PageSpeed"] = "MISS";
-        SetVaryHeaders(context, psContentType);
+        SetVaryHeaders(context, psContentType, capture);
         await buffer.CopyToAsync(originalBody, context.RequestAborted);
 
         // [High #4] Size gate: skip caching for oversized assets.
@@ -755,31 +1057,73 @@ public sealed class PageSpeedMiddleware
         var data = new ReadOnlyMemory<byte>(
             underlying, 0, (int)buffer.Length);
 
-        TryWriteToCache(
+        var cacheable = TryWriteToCache(
             url, hostname, scheme, data,
             psContentType, responseContentType,
             needsRevalidation: false,
+            capture: capture,
             cacheControl: context.Response.Headers.CacheControl.ToString());
 
         // [Critical #2] Skip worker notification if no-transform.
-        if (cacheability != ResponseCacheability.NoTransform)
+        if (cacheable && cacheability != ResponseCacheability.NoTransform)
         {
             if (!_notifier.TryNotify(url, hostname, scheme, psContentType, mask))
                 _logger.LogDebug("TryNotify failed for {Type}: {Url}", psContentType, url);
         }
     }
 
-    private void TryWriteToCache(
+    /// <summary>
+    /// Stores the response. Returns false when the response is not cached
+    /// because its headers cannot be reproduced on a hit (or could not be
+    /// stored); true otherwise, including when the entry write itself fails.
+    /// </summary>
+    private bool TryWriteToCache(
         string url, string hostname, string scheme,
         ReadOnlyMemory<byte> output,
         PageSpeedContentType contentType,
         string? responseContentType,
         bool needsRevalidation,
+        MissCapture capture,
         string? cacheControl = null)
     {
+        // The request-independent headers the application set are stored first
+        // and replayed on every hit; the native gate decides which headers
+        // those are. A response with a header it cannot reproduce is served
+        // from the origin each time instead of from the cache.
+        byte flags = 0;
         try
         {
-            byte flags = 0;
+            // The final headers can make the response uncacheable after the
+            // fact (a cookie added when the response starts).
+            if (capture.Uncacheable || capture.UncacheableNow)
+            {
+                _logger.LogDebug(
+                    "Response for {Url} is not cacheable; not caching", url);
+                return false;
+            }
+            var originHeaders = capture.Headers;
+            var sidecar = _cache.WriteHeadersSidecar(
+                url, hostname, scheme, originHeaders);
+            if (sidecar.Verdict != HeadersSidecarVerdict.SwapEligible)
+            {
+                _logger.LogDebug(
+                    "Response for {Url} has headers that cannot be replayed from the cache; not caching",
+                    url);
+                return false;
+            }
+            flags |= CacheFlags.HeadersClassified;
+            if (sidecar.Stored) flags |= CacheFlags.HeadersSidecarRequired;
+            if (VariesOnAccept(originHeaders)) flags |= CacheFlags.OriginVariesAccept;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Storing response headers failed for {Url}; not caching", url);
+            return false;
+        }
+
+        try
+        {
             if (needsRevalidation) flags |= CacheFlags.NeedsRevalidation;
 
             // Parse origin Cache-Control to derive origin_cc_flags.
@@ -825,6 +1169,7 @@ public sealed class PageSpeedMiddleware
             _logger.LogWarning(ex,
                 "Cache write failed for {Url}", url);
         }
+        return true;
     }
 
     private void TryWriteEarlyHints(

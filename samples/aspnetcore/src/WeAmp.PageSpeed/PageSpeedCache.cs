@@ -312,6 +312,82 @@ public sealed class PageSpeedCache : IPageSpeedCache
         }
     }
 
+    /// <summary>
+    /// Offers a response's complete header set to the stored header block for
+    /// this URL. The native gate decides what is carried and whether the
+    /// response may be cached. Header text must be Latin-1 (what the server
+    /// writes); anything else is refused as a fall-through.
+    /// </summary>
+    public HeadersSidecarWriteResult WriteHeadersSidecar(
+        string url, string hostname, string scheme,
+        IReadOnlyList<KeyValuePair<string, string>> headers)
+    {
+        ObjectDisposedException.ThrowIf(_disposed != 0, this);
+        int count = headers.Count;
+
+        // One NUL-terminated Latin-1 string per name and per value, laid out
+        // back to back; the pointer tables index into the pinned block.
+        int total = 0;
+        foreach (var h in headers)
+        {
+            if (!IsLatin1(h.Key) || !IsLatin1(h.Value))
+                return new(HeadersSidecarVerdict.FallThrough, false);
+            total += h.Key.Length + h.Value.Length + 2;
+        }
+        var blob = new byte[Math.Max(total, 1)];
+        var nameOffsets = new int[count];
+        var valueOffsets = new int[count];
+        int pos = 0;
+        for (int i = 0; i < count; i++)
+        {
+            nameOffsets[i] = pos;
+            pos += Encoding.Latin1.GetBytes(headers[i].Key, 0, headers[i].Key.Length, blob, pos);
+            blob[pos++] = 0;
+            valueOffsets[i] = pos;
+            pos += Encoding.Latin1.GetBytes(headers[i].Value, 0, headers[i].Value.Length, blob, pos);
+            blob[pos++] = 0;
+        }
+
+        var names = new IntPtr[Math.Max(count, 1)];
+        var values = new IntPtr[Math.Max(count, 1)];
+        var blobHandle = GCHandle.Alloc(blob, GCHandleType.Pinned);
+        GCHandle namesHandle = default, valuesHandle = default;
+        bool added = false;
+        _handle.DangerousAddRef(ref added);
+        try
+        {
+            var baseAddr = blobHandle.AddrOfPinnedObject();
+            for (int i = 0; i < count; i++)
+            {
+                names[i] = baseAddr + nameOffsets[i];
+                values[i] = baseAddr + valueOffsets[i];
+            }
+            namesHandle = GCHandle.Alloc(names, GCHandleType.Pinned);
+            valuesHandle = GCHandle.Alloc(values, GCHandleType.Pinned);
+            int err = NativePageSpeed.CacheWriteHeadersSidecar(
+                _handle, url, hostname, scheme,
+                namesHandle.AddrOfPinnedObject(), valuesHandle.AddrOfPinnedObject(),
+                (nuint)count, out int verdict, out int stored);
+            NativeCheck.ThrowOnError(err);
+            return new((HeadersSidecarVerdict)verdict, stored != 0);
+        }
+        finally
+        {
+            if (added) _handle.DangerousRelease();
+            if (valuesHandle.IsAllocated) valuesHandle.Free();
+            if (namesHandle.IsAllocated) namesHandle.Free();
+            blobHandle.Free();
+        }
+    }
+
+    private static bool IsLatin1(string s)
+    {
+        // Latin-1 text with no line break or NUL (a header line cannot carry them).
+        foreach (var c in s)
+            if (c > 0xFF || c == '\r' || c == '\n' || c == '\0') return false;
+        return true;
+    }
+
     /// <summary>Get aggregate cache statistics.</summary>
     public CacheStats GetStats()
     {

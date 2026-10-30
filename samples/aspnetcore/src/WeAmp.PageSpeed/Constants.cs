@@ -16,6 +16,13 @@ public static class SentinelId
     public const byte BrowserProfile = 0x5C;
 
     /// <summary>
+    /// The stored block of request-independent response headers for a URL
+    /// (PS_SENTINEL_HEADERS_SIDECAR). Read it by exact id; write it only
+    /// through <see cref="IPageSpeedCache.WriteHeadersSidecar"/>.
+    /// </summary>
+    public const byte HeadersSidecar = 0x6C;
+
+    /// <summary>
     /// The agent_optimize rendered-DOM markdown variant
     /// (lib/classify/alternate_id.h kAgentMarkdown). A served variant whose
     /// <c>(Mask &amp; 0xFF)</c> equals this is the markdown body — never written
@@ -28,6 +35,27 @@ public static class SentinelId
 public static class CacheFlags
 {
     public const byte NeedsRevalidation = 0x01;
+
+    /// <summary>
+    /// The origin negotiates the representation on <c>Accept</c> itself
+    /// (PS_FLAG_ORIGIN_VARIES_ACCEPT). The optimizer does not derive variants
+    /// from such an entry.
+    /// </summary>
+    public const byte OriginVariesAccept = 0x04;
+
+    /// <summary>
+    /// The entry was written after its origin response headers were checked
+    /// (lib/classify/alternate_metadata.h kFlagHeadersClassified). An entry
+    /// without this bit predates the check and is not served from the cache.
+    /// </summary>
+    public const byte HeadersClassified = 0x10;
+
+    /// <summary>
+    /// A header block is stored for the entry's URL and must be replayed on
+    /// every hit (kFlagHeadersSidecarRequired). Meaningful together with
+    /// <see cref="HeadersClassified"/>.
+    /// </summary>
+    public const byte HeadersSidecarRequired = 0x20;
 
     // NOTE (#454): bit 0x02 is C++ kFlagWorkerProcessed (worker dedup) — NOT an
     // origin-revalidation signal. The real signal is now exposed via OriginCcFlags

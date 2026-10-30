@@ -364,6 +364,15 @@ internal sealed class GenerationAwarePageSpeedCache : IPageSpeedCache
         finally { slot.Release(); }
     }
 
+    public HeadersSidecarWriteResult WriteHeadersSidecar(
+        string url, string hostname, string scheme,
+        IReadOnlyList<KeyValuePair<string, string>> headers)
+    {
+        var slot = Acquire();
+        try { return slot.Cache.WriteHeadersSidecar(url, hostname, scheme, headers); }
+        finally { slot.Release(); }
+    }
+
     public CacheStats GetStats()
     {
         var slot = Acquire();
