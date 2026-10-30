@@ -12,6 +12,8 @@ Fixed: over HTTP/3 the nginx module looked up cached pages under an empty host n
 
 Fixed: critical CSS now keeps the above-the-fold rules of minified `@supports(...)` blocks written with no space before the parenthesis; previously those blocks were left out.
 
+Fixed: JavaScript minification now keeps licence comments (`/*! ... */`, `@license` and `@preserve`) in the output instead of dropping them, so the licence notices of bundled libraries survive.
+
 Fixed: the EXIF orientation reader for JPEG images tightens its bounds handling of malformed metadata.
 
 Fixed: with the ASP.NET Core package, the ETag on a response served from the cache is now derived from the response body. Previously it was built from the insertion time and the length, so two different bodies of the same length cached in the same second shared an ETag and a client could keep stale content. Identical content keeps the same ETag, so conditional requests still get `304 Not Modified`. Clients revalidate once after upgrading.

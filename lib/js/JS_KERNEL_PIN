@@ -16,5 +16,5 @@
 # the floor at the last MERGED pin — the unmerged SHA is orphaned by the
 # 1.15 squash-merge and must never become the floor; move the floor at
 # reconciliation. See lib/js/CLAUDE.md.
-685fae62abb5eeb3723faa77f3e3185ce4d57391  mod_pagespeed master: JS tokenizer hardening (public repository)
-floor 685fae62abb5eeb3723faa77f3e3185ce4d57391
+6c7fa763fca24583c0c4cbee7f5776ca7b3c8a1f  mod_pagespeed master: JS tokenizer hardening (public repository)
+floor 6c7fa763fca24583c0c4cbee7f5776ca7b3c8a1f
