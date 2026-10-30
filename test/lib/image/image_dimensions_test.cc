@@ -246,5 +246,29 @@ TEST(ImageDimensionsTest, WebpLosslessDimensions) {
   EXPECT_EQ(dims.height, 32);
 }
 
+// Orientation-6 PNG and WebP fixtures are stored 16x32 and displayed 32x16;
+// the probe reports display dimensions, as it does for JPEG.
+TEST(ImageDimensionsTest, PngExifOrientationReportsDisplayDimensions) {
+  auto data =
+      ReadTestFile("test/lib/image/testdata/exif/exif_orientation_6.png");
+  ASSERT_FALSE(data.empty());
+  ImageDimensions dims =
+      ReadImageDimensions(std::span<const uint8_t>(data.data(), data.size()));
+  EXPECT_TRUE(dims.valid);
+  EXPECT_EQ(dims.width, 32);
+  EXPECT_EQ(dims.height, 16);
+}
+
+TEST(ImageDimensionsTest, WebpExifOrientationReportsDisplayDimensions) {
+  auto data =
+      ReadTestFile("test/lib/image/testdata/exif/exif_orientation_6.webp");
+  ASSERT_FALSE(data.empty());
+  ImageDimensions dims =
+      ReadImageDimensions(std::span<const uint8_t>(data.data(), data.size()));
+  EXPECT_TRUE(dims.valid);
+  EXPECT_EQ(dims.width, 32);
+  EXPECT_EQ(dims.height, 16);
+}
+
 }  // namespace
 }  // namespace pagespeed

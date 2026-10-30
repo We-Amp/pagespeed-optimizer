@@ -229,6 +229,7 @@ cc_library(
         "//lib/classify:capability_mask",
         "//lib/image:bilateral_filter",
         "//lib/image:content_analyzer",
+        "//lib/image:exif_orientation",
         "//lib/image:gif",
         "//lib/image:image_converter",
         "//lib/image:image_resizer",

@@ -131,6 +131,22 @@ image_codec_test(
 )
 
 image_codec_test(
+    name = "exif_orientation_containers_test",
+    data_globs = [
+        "testdata/exif/*",
+        "testdata/alpha_32x32.png",
+        "testdata/alpha_32x32.webp",
+    ],
+    deps = [
+        "//lib/base:message_handler",
+        "//lib/image:exif_orientation",
+        "//lib/image:image_util",
+        "//lib/image:read_image",
+        "//lib/image:scanline_interface",
+    ],
+)
+
+image_codec_test(
     name = "jpeg_utils_test",
     data_globs = ["testdata/jpeg/*"],
     deps = [

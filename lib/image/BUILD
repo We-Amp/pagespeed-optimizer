@@ -319,6 +319,7 @@ cc_library(
     hdrs = ["image_analysis.h"],
     visibility = ["//:internal"],
     deps = [
+        ":exif_orientation",
         ":gif",
         ":image_frame_interface",
         ":image_util",

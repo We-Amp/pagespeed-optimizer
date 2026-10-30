@@ -79,6 +79,23 @@ constexpr bool ExifOrientationSwapsDimensions(uint8_t orientation) {
   return orientation >= 5 && orientation <= 8;
 }
 
+// Scans a WebP (RIFF) stream for the EXIF chunk and returns its Orientation
+// tag value (1-8), or 1 when there is none. The chunk is honoured only when
+// the VP8X header's EXIF flag is set, as the container specification
+// requires; a chunk without the flag is ignored. Same contract as
+// ReadJpegExifOrientation: never decodes pixels, every access bounds-checked,
+// anything malformed yields 1.
+uint8_t ReadWebpExifOrientation(const void* data, size_t length);
+
+// Scans a PNG stream for an "eXIf" chunk and returns its Orientation tag
+// value (1-8), or 1 when there is none. Same contract as above. The legacy
+// "Raw profile type exif" text-chunk form is not read.
+uint8_t ReadPngExifOrientation(const void* data, size_t length);
+
+// Detects the container from its signature (JPEG, WebP or PNG) and calls the
+// matching reader above; returns 1 for any other input.
+uint8_t ReadExifOrientation(const void* data, size_t length);
+
 // Fills |out| (kExifOrientationApp1Size bytes) with a minimal APP1 marker
 // payload -- "Exif\0\0" + little-endian TIFF header + a single-entry IFD0
 // holding only the Orientation tag -- suitable for jpeg_write_marker().
@@ -109,8 +126,8 @@ bool ApplyExifOrientationToRaster(uint8_t orientation, const uint8_t* src,
                                   size_t components, uint8_t* dst);
 
 // ScanlineReaderInterface decorator that bakes the EXIF orientation of a
-// JPEG stream into the pixels it serves. For orientation 1 (or no tag) it is
-// a pure passthrough with no buffering. For orientations 2-8 it reports
+// JPEG, WebP or PNG stream into the pixels it serves. For orientation 1 (or
+// no tag) it is a pure passthrough with no buffering. For orientations 2-8 it reports
 // display dimensions from Initialize() onward, then buffers the full decoded
 // raster at the first ReadNextScanline() call and serves transformed rows --
 // one full-raster buffer plus one row buffer, the minimum a rotation needs.
