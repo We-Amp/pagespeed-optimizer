@@ -217,8 +217,8 @@ These bind every customer-facing string: pages, docs, blog, templates, metadata.
   first-response targets and the checkout links live in `SUPPORT_TIERS`; the hosting-partner
   rate stays unpublished. No "free trial" and no license keys anywhere on the site. Commercial mail goes to `COMMERCIAL_EMAIL`;
   `security@modpagespeed.com` is for vulnerability reports only.
-- Dark mode: the critical-CSS inlining carries the `dark:` variant rules, but it extracts
-  token values without the `.dark` class, so the `html.dark` token block in the
+- Dark mode: critical CSS is computed per page and carries the `dark:` variant rules, but it is
+  not guaranteed to carry the `.dark` token rule, so the `html.dark` token block in the
   `<style is:inline>` of `BaseLayout.astro` stays (kept in sync with `global.css` by a test).
   Do not add per-element `!important` dark overrides there.
 
