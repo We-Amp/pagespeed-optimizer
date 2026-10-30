@@ -274,6 +274,13 @@ middleware's `BuildLinkHeader`) in the same release, with consumers deployed
 no later than the emitting worker — and rollback across a sentinel-format
 change requires a cache purge.
 
+## Cache Key Scheme
+
+The key scheme comes from the connection's TLS state for every protocol
+(`ngx_http_pagespeed_scheme`), after a trusted `X-Forwarded-Proto`; the
+request line and `:scheme` are never used. Manual system test (not run in CI):
+`tools/test-scheme-cache-key.sh`, next to `tools/test-early-hints-protocols.sh`.
+
 ## Shared Config (`pagespeed-shared.conf`)
 
 The nginx module reads `pagespeed-shared.conf` from `parent_of(cache_path)`

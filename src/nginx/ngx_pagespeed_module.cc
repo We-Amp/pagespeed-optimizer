@@ -2439,7 +2439,7 @@ static std::string ngx_http_pagespeed_cache_hostname(ngx_http_request_t* r) {
 // Extract the request scheme ("http" or "https").
 // When pagespeed_trust_x_forwarded_proto is on, the X-Forwarded-Proto
 // header is checked first (for reverse-proxy / TLS-termination setups).
-// Falls back to the connection-level SSL state.
+// Otherwise the scheme is taken from the connection's TLS state (see below).
 static std::string_view ngx_http_pagespeed_scheme(
     ngx_http_request_t* r, ngx_http_pagespeed_loc_conf_t* lcf) {
   // Check X-Forwarded-Proto if trusted.
@@ -2469,13 +2469,22 @@ static std::string_view ngx_http_pagespeed_scheme(
       // Invalid value — fall through to connection-level check.
     }
   }
-  // Use nginx's schema field which is set based on the listening socket,
-  // not the per-stream connection. This works correctly with HTTP/2 on
-  // nginx 1.25.1+ where r->connection->ssl is NULL for stream connections.
-  if (r->schema.len == 5 &&
-      ngx_strncasecmp(r->schema.data, (u_char*)"https", 5) == 0) {
+  // Without a trusted X-Forwarded-Proto, the scheme comes from the connection
+  // for every protocol: TLS present means "https", otherwise "http".
+  //  - HTTP/1.x: r->schema is set only for an absolute-form request line and
+  //    is whatever the client wrote, so it is not used.
+  //  - HTTP/2 and HTTP/3: r->schema comes from the client's :scheme and is not
+  //    used either; the per-stream connection carries the TLS state of the
+  //    connection it belongs to.
+  // This matches nginx's own $scheme, and one page has one cache key whatever
+  // protocol fetched it.
+  // The guard is the condition under which nginx declares the field (a module
+  // built with --with-compat has no NGX_HTTP_SSL).
+#if (NGX_SSL || NGX_COMPAT)
+  if (r->connection->ssl != NULL) {
     return "https";
   }
+#endif
   return "http";
 }
 
