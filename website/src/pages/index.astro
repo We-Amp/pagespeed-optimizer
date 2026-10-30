@@ -58,10 +58,9 @@ const headerPanelLines: TermLine[] = [
 // Section 04 quick-start panels: the install transcripts, one TermPanel per
 // platform (moved from the signal-path section). Each transcript ends with
 // the verify command and the header its module emits — X-Page-Speed for the
-// nginx module, X-Mod-Pagespeed for the Apache module — with the version of
-// the currently published module packages (MODULE_PACKAGE_VERSION in
-// src/data/product-facts.mjs, checked against the package index), not the
-// version production happens to run.
+// nginx module, X-Mod-Pagespeed for the Apache module — with the generic
+// default value `on` (the module no longer discloses its version unless the
+// server-wide ExposeVersionInHeaders option is set).
 const qsNginxLines: TermLine[] = [
   { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
   {
@@ -72,7 +71,7 @@ const qsNginxLines: TermLine[] = [
   { text: '# Add to nginx.conf: pagespeed on;', tone: 'dim' },
   { text: '$ sudo nginx -t && sudo systemctl reload nginx', tone: 'strong' },
   { text: '$ curl -I http://localhost/ | grep X-Page-Speed', tone: 'strong' },
-  { text: `X-Page-Speed: ${MODULE_PACKAGE_VERSION}`, tone: 'ok' },
+  { text: 'X-Page-Speed: on', tone: 'ok' },
 ];
 const qsApacheLines: TermLine[] = [
   { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
@@ -83,7 +82,7 @@ const qsApacheLines: TermLine[] = [
   { text: '$ sudo apt install mod-pagespeed', tone: 'strong' },
   { text: '$ sudo systemctl restart apache2', tone: 'strong' },
   { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
-  { text: `X-Mod-Pagespeed: ${MODULE_PACKAGE_VERSION}`, tone: 'ok' },
+  { text: 'X-Mod-Pagespeed: on', tone: 'ok' },
 ];
 
 // Section 06 heritage stats: 231,341 live sites per BuiltWith, rendered as a

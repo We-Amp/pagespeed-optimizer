@@ -54,7 +54,7 @@ ends in a short report for the operator.
 4. **Verify.** Request the site's own page and check one response header:
    `X-Page-Speed` (nginx, IIS), `X-Mod-Pagespeed` (Apache) or `X-PageSpeed`
    (ASP.NET Core, Docker, Helm). The install is complete only when that header
-   is present.
+   is present (its value is generic by default, so do not expect a version).
 5. **Roll back.** If verification fails after one pass through the
    troubleshooting link, the rollback section is written to undo only what the
    run created and to leave anything that existed before in place.

@@ -7,7 +7,7 @@ lastUpdated: 2026-10-22
 datePublished: 2026-10-08
 faq:
   - q: 'Which response header tells me mod_pagespeed is active?'
-    a: 'It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying the module version. The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.'
+    a: 'It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying `on` by default (the version only when you set `ExposeVersionInHeaders`). The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.'
   - q: 'Why is the first request a MISS and the second a HIT?'
     a: 'Optimization happens off the request path. The first request serves the original bytes, stores them in the cache and notifies the worker; the worker writes the optimized variant; the next request for the same URL and client class is served from the cache.'
   - q: 'How do I see a page without optimization for one request?'
@@ -29,9 +29,9 @@ so repeating a HEAD there never turns into a HIT.
 
 | Integration                  | Header            | Value                                              | Means                                                       |
 | ---------------------------- | ----------------- | -------------------------------------------------- | ----------------------------------------------------------- |
-| Apache module                | `X-Mod-Pagespeed` | the module version (`XHeaderValue` changes it)     | the module handled the response                             |
-| nginx module (native)        | `X-Page-Speed`    | the module version                                 | the module handled the response                             |
-| IIS module                   | `X-Page-Speed`    | the module version                                 | the module handled the response                             |
+| Apache module                | `X-Mod-Pagespeed` | `on` (the version with `ExposeVersionInHeaders`)   | the module handled the response                             |
+| nginx module (native)        | `X-Page-Speed`    | `on` (the version with `ExposeVersionInHeaders`)   | the module handled the response                             |
+| IIS module                   | `X-Page-Speed`    | `on` (the version with `ExposeVersionInHeaders`)   | the module handled the response                             |
 | Docker / nginx reverse proxy | `X-PageSpeed`     | `MISS`                                             | proxied to the origin, stored, the worker notified          |
 |                              |                   | `HIT`                                              | served from the cache                                       |
 |                              |                   | `STALE`, with `X-PageSpeed-Stale: if-error`        | the origin failed; a stale cached entry was served instead  |
@@ -43,6 +43,14 @@ On the Apache, nginx and IIS modules the header appears on every response the
 module handles, whether or not anything on that page was rewritten. Its
 presence confirms the module is loaded and `pagespeed on` applies to that
 site; the [admin console](#the-admin-console) tells you what it did.
+
+The value is `on` by default: the header confirms the module is active and does
+not disclose which version runs. To send the version instead, set the
+server-wide `ExposeVersionInHeaders` option (Apache:
+`ModPagespeedExposeVersionInHeaders on`; nginx: `pagespeed ExposeVersionInHeaders on;`).
+A custom [`XHeaderValue`](/docs/configuration/#xheadervalue) takes precedence
+over both. The Docker reverse proxy and the ASP.NET Core middleware never send a
+version in `X-PageSpeed`; they report only the cache outcome.
 
 ## First MISS, then HIT
 

@@ -3,7 +3,6 @@ import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
-import { moduleHeaderVersion } from '../lib/docs-markdown.mjs';
 
 // Reference page for the runtime "markers" people see when debugging a live
 // mod_pagespeed install: HTML attributes, query parameters,
@@ -139,10 +138,10 @@ const markers: Marker[] = [
     name: 'X-Page-Speed / X-Mod-Pagespeed',
     kind: 'Response header',
     summary:
-      'Identifies the module and its version on every response it touches. nginx and IIS emit X-Page-Speed; Apache emits X-Mod-Pagespeed.',
-    seen: 'You see it in response headers when the module is active. Use it to confirm an optimizer is in the request path and which version is running. The header text is configurable via the XHeaderValue directive.',
-    // The version production sends, as on the homepage quick-start.
-    example: `X-Page-Speed: ${moduleHeaderVersion()}`,
+      'Shows the module handled the response; the value is the generic `on` unless the server-wide ExposeVersionInHeaders option sends the version. nginx and IIS emit X-Page-Speed; Apache emits X-Mod-Pagespeed.',
+    seen: 'You see it in response headers when the module is active. Use it to confirm an optimizer is in the request path; it does not disclose which version is running unless ExposeVersionInHeaders is set. The header text is configurable via the XHeaderValue directive.',
+    // The default value, as on the homepage quick-start.
+    example: 'X-Page-Speed: on',
     exampleLang: 'http',
   },
 ];

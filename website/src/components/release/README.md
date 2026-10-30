@@ -22,7 +22,8 @@ literal in `src/content/`, `src/pages/`, `src/components/`, or
 | `<ImageTag />`          | Docker / Helm image tag for 2.0 (`2.0.7` etc.).                             |
 
 `<XPageSpeedExample />` takes `surface="middleware"` for the ASP.NET Core
-middleware's `X-PageSpeed: WeAmp.PageSpeed/<version>` form on any line.
+middleware's `X-PageSpeed: MISS` form on any line. No form shows a version: the
+modules send `on` by default.
 
 ## Usage in MDX
 
@@ -38,7 +39,7 @@ Verify the response header:
 
 <pre>
   <code>
-    <XPageSpeedExample surface="nginx"  <!-- version from the production capture (src/data/telemetry-capture.json) --> />
+    <XPageSpeedExample surface="nginx"  />
   </code>
 </pre>
 ```

@@ -805,8 +805,11 @@ Key used for signing .pagespeed resource URLs.
 Set the value for the X-Mod-Pagespeed HTTP header
 
 Sets the value of the `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx, IIS)
-[response header](/pagespeed-markers/#x-page-speed). The default is the module
-version string.
+[response header](/pagespeed-markers/#x-page-speed). The default is the generic
+value `on`, which does not disclose the installed version. A value set here
+takes precedence over the default and over
+[`ExposeVersionInHeaders`](#expose-version-in-headers), the server-wide option that
+restores the module version string.
 
 ### In-place resource optimization {#area-in-place-resource-optimization}
 
@@ -3385,6 +3388,32 @@ pagespeed MaxSegmentLength 250
 This directive applies only to the URLs mod_pagespeed generates (for example,
 when combining CSS or JavaScript). It does not limit which inbound request
 URLs the module will rewrite.
+
+## Version in response headers {#expose-version-in-headers}
+
+By default the module's response header (`X-Mod-Pagespeed` on Apache,
+`X-Page-Speed` on nginx and IIS) carries the generic value `on`. It confirms
+that the module handled the response and does not disclose which version is
+installed. Detection by header presence is unchanged.
+
+To send the module version instead, set `ExposeVersionInHeaders` once for the
+whole server. It is a server-wide boolean (default off) and is rejected inside a
+virtual host or location.
+
+```apache
+# Apache, global server configuration
+ModPagespeedExposeVersionInHeaders on
+```
+
+```nginx
+# nginx, http block
+pagespeed ExposeVersionInHeaders on;
+```
+
+Precedence for the header value: a custom [`XHeaderValue`](#xheadervalue) wins,
+then `ExposeVersionInHeaders`, then `on`. The Docker reverse proxy and the ASP.NET
+Core middleware use `X-PageSpeed` for the cache outcome (`HIT`, `MISS`) and never
+send a version.
 
 ## Behind a reverse proxy
 

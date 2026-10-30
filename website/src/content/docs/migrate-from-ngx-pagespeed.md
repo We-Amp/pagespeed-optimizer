@@ -27,7 +27,7 @@ Record what you run, and keep a copy of the old module to roll back to:
 ```bash
 nginx -V 2>&1 | grep -o 'ngx_pagespeed[^ ]*'                   # compiled in, or
 ls /usr/lib/nginx/modules/ngx_pagespeed*.so                     # a dynamic module
-curl -I http://localhost/ | grep X-Page-Speed                   # the version in service
+curl -I http://localhost/ | grep X-Page-Speed                   # present when the module is active
 sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so{,.bak}   # if dynamic
 ```
 
@@ -62,7 +62,9 @@ decide whether to move nginx back to the distribution package too; otherwise
    shows exactly one line, the package's.
 4. **Test and restart:** `sudo nginx -t && sudo systemctl restart nginx`.
 5. **Verify:** `curl -I http://localhost/ | grep X-Page-Speed`. The header
-   carries the new module version. [Is it working?](/docs/is-it-working/) has
+   is present and reads `on` by default; set the server-wide
+   [`ExposeVersionInHeaders`](/docs/configuration/#expose-version-in-headers) option
+   if you want it to carry the module version. [Is it working?](/docs/is-it-working/) has
    the other checks.
 
 To add the optimizer worker, install `pagespeed-optimizer` from the same

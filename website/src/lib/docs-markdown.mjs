@@ -82,22 +82,6 @@ export function loadManifests(root = websiteRoot()) {
 }
 
 /**
- * The version the module stamps in its response header, as production sends
- * it: the homepage capture in src/data/telemetry-capture.json, the same source
- * as the homepage quick-start and src/components/release/XPageSpeedExample.astro.
- * @param {string} [root]
- * @returns {string}
- */
-export function moduleHeaderVersion(root = websiteRoot()) {
-  const capture = JSON.parse(
-    readFileSync(resolve(root, 'src/data/telemetry-capture.json'), 'utf8'),
-  );
-  const version = capture.paths?.['/']?.headers?.['x-mod-pagespeed'];
-  if (!version) throw new Error('telemetry-capture.json: no x-mod-pagespeed header for /');
-  return version;
-}
-
-/**
  * %V → release.semver, %R → release.revision ?? 0, %T → release.tag.
  * @param {string} tmpl
  * @param {Release} rel
@@ -248,13 +232,13 @@ function componentText(name, attrs, m) {
     case 'NugetCmd':
       return nugetCommand(m);
     case 'XPageSpeedExample': {
-      const rel = manifest(attrs.line);
+      manifest(attrs.line);
       const surface = attrs.surface ?? 'nginx';
       if (surface === 'middleware' || attrs.line === '2.0') {
-        return `X-PageSpeed: WeAmp.PageSpeed/${rel.display.header_version}`;
+        return 'X-PageSpeed: MISS';
       }
-      if (surface === 'apache') return `X-Mod-Pagespeed: ${moduleHeaderVersion()}`;
-      return `X-Page-Speed: ${moduleHeaderVersion()}`;
+      if (surface === 'apache') return 'X-Mod-Pagespeed: on';
+      return 'X-Page-Speed: on';
     }
     case 'VersionMap':
       // The version map renders the same rows as a Markdown table.

@@ -447,9 +447,11 @@ curl -s -o /dev/null -D - http://localhost/
 Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
 so a HEAD never turns into a HIT there.
 
-- **Apache module:** `X-Mod-Pagespeed: <version>` on both responses. nginx and
-  IIS module: `X-Page-Speed: <version>`. The header's presence means the module
-  is loaded and active for that site.
+- **Apache module:** `X-Mod-Pagespeed: on` on both responses. nginx and
+  IIS module: `X-Page-Speed: on`. The header's presence means the module
+  is loaded and active for that site. The value is generic by default; set the
+  server-wide [`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers)
+  option to send the version instead.
 - **Docker reverse proxy and ASP.NET Core middleware:** `X-PageSpeed: MISS` on
   the first response, `X-PageSpeed: HIT` on the second. Optimization is
   asynchronous: the first request serves the original bytes and notifies the
@@ -514,7 +516,7 @@ The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise L
 
 **How do I verify mod_pagespeed is working?**
 
-Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.
+Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles, with the generic value `on` by default. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.
 
 **Does the native nginx module need the optimizer worker?**
 
@@ -551,9 +553,9 @@ so repeating a HEAD there never turns into a HIT.
 
 | Integration                  | Header            | Value                                              | Means                                                       |
 | ---------------------------- | ----------------- | -------------------------------------------------- | ----------------------------------------------------------- |
-| Apache module                | `X-Mod-Pagespeed` | the module version (`XHeaderValue` changes it)     | the module handled the response                             |
-| nginx module (native)        | `X-Page-Speed`    | the module version                                 | the module handled the response                             |
-| IIS module                   | `X-Page-Speed`    | the module version                                 | the module handled the response                             |
+| Apache module                | `X-Mod-Pagespeed` | `on` (the version with `ExposeVersionInHeaders`)   | the module handled the response                             |
+| nginx module (native)        | `X-Page-Speed`    | `on` (the version with `ExposeVersionInHeaders`)   | the module handled the response                             |
+| IIS module                   | `X-Page-Speed`    | `on` (the version with `ExposeVersionInHeaders`)   | the module handled the response                             |
 | Docker / nginx reverse proxy | `X-PageSpeed`     | `MISS`                                             | proxied to the origin, stored, the worker notified          |
 |                              |                   | `HIT`                                              | served from the cache                                       |
 |                              |                   | `STALE`, with `X-PageSpeed-Stale: if-error`        | the origin failed; a stale cached entry was served instead  |
@@ -565,6 +567,14 @@ On the Apache, nginx and IIS modules the header appears on every response the
 module handles, whether or not anything on that page was rewritten. Its
 presence confirms the module is loaded and `pagespeed on` applies to that
 site; the [admin console](https://modpagespeed.com/docs/is-it-working/#the-admin-console) tells you what it did.
+
+The value is `on` by default: the header confirms the module is active and does
+not disclose which version runs. To send the version instead, set the
+server-wide `ExposeVersionInHeaders` option (Apache:
+`ModPagespeedExposeVersionInHeaders on`; nginx: `pagespeed ExposeVersionInHeaders on;`).
+A custom [`XHeaderValue`](https://modpagespeed.com/docs/configuration/#xheadervalue) takes precedence
+over both. The Docker reverse proxy and the ASP.NET Core middleware never send a
+version in `X-PageSpeed`; they report only the cache outcome.
 
 ## First MISS, then HIT
 
@@ -665,7 +675,7 @@ a page's source are explained on [PageSpeed markers](https://modpagespeed.com/pa
 
 **Which response header tells me mod_pagespeed is active?**
 
-It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying the module version. The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.
+It depends on the integration. The Apache module adds `X-Mod-Pagespeed`, the nginx and IIS modules add `X-Page-Speed`, each carrying `on` by default (the version only when you set `ExposeVersionInHeaders`). The Docker reverse proxy and the ASP.NET Core middleware add `X-PageSpeed` with the cache outcome: `MISS` on the first request, `HIT` once the worker has written the optimized variant.
 
 **Why is the first request a MISS and the second a HIT?**
 
@@ -881,8 +891,10 @@ module's own filters also work without the worker: leave out step 2 and the
    curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: <your-domain>' http://127.0.0.1/pagespeed_global_admin/
    ```
 
-   Run them on the server. The first prints `X-Page-Speed: <version>`, the
-   second `200`. The same admin URL requested from another machine answers
+   Run them on the server. The first prints `X-Page-Speed: on` (the generic
+   default; the version appears only with the server-wide
+   [`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers)
+   option), the second `200`. The same admin URL requested from another machine answers
    `403`. To open the console from your workstation, tunnel to the server
    (`ssh -L 8080:127.0.0.1:80 <you>@<server>`), point `<your-domain>` at
    `127.0.0.1` in the workstation's hosts file for the session, and browse to
@@ -2224,9 +2236,11 @@ bearer token and an allowed source address.
 curl -I http://localhost:8080/
 ```
 
-The response carries the version header the shared rewriting path adds,
-`X-Page-Speed: <version>`; a build made without the workspace-status script
-shows a placeholder instead of a version. The health endpoint answers at
+The response carries the header the shared rewriting path adds,
+`X-Page-Speed: on`. The value is generic by default; set the server-wide
+[`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers) option
+to send the version instead (a build made without the workspace-status script
+then shows a placeholder). The health endpoint answers at
 `/pagespeed/health`, and Prometheus metrics are on Envoy's admin port at
 `/stats/prometheus`: `pagespeed.requests_total`,
 `pagespeed.html_rewrites_total`, `pagespeed.ipro_cache_hits` and
@@ -2679,10 +2693,10 @@ survive shutdown and keep holding its loopback port.
 ### Verify the sidecar is working
 
 ```bash
-curl -sI http://localhost:8080/ | grep -i x-page-speed
+curl -sI http://localhost:8080/ | grep -i x-pagespeed
 ```
 
-A present `X-Page-Speed` header confirms the optimizer is in the path. For per-filter rewrite counts, check `/pagespeed_statistics` (loopback-only by
+A present `X-PageSpeed` header confirms the optimizer is in the path. For per-filter rewrite counts, check `/pagespeed_statistics` (loopback-only by
 default; the middleware returns 404 for the `/pagespeed_*` admin paths from the public front door
 unless `Sidecar.AllowPublicAdmin` is enabled).
 
@@ -2759,7 +2773,7 @@ ends in a short report for the operator.
 4. **Verify.** Request the site's own page and check one response header:
    `X-Page-Speed` (nginx, IIS), `X-Mod-Pagespeed` (Apache) or `X-PageSpeed`
    (ASP.NET Core, Docker, Helm). The install is complete only when that header
-   is present.
+   is present (its value is generic by default, so do not expect a version).
 5. **Roll back.** If verification fails after one pass through the
    troubleshooting link, the rollback section is written to undo only what the
    run created and to leave anything that existed before in place.
@@ -3316,7 +3330,7 @@ Record what you run, and keep a copy of the old module to roll back to:
 ```bash
 nginx -V 2>&1 | grep -o 'ngx_pagespeed[^ ]*'                   # compiled in, or
 ls /usr/lib/nginx/modules/ngx_pagespeed*.so                     # a dynamic module
-curl -I http://localhost/ | grep X-Page-Speed                   # the version in service
+curl -I http://localhost/ | grep X-Page-Speed                   # present when the module is active
 sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so{,.bak}   # if dynamic
 ```
 
@@ -3351,7 +3365,9 @@ decide whether to move nginx back to the distribution package too; otherwise
    shows exactly one line, the package's.
 4. **Test and restart:** `sudo nginx -t && sudo systemctl restart nginx`.
 5. **Verify:** `curl -I http://localhost/ | grep X-Page-Speed`. The header
-   carries the new module version. [Is it working?](https://modpagespeed.com/docs/is-it-working/) has
+   is present and reads `on` by default; set the server-wide
+   [`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers) option
+   if you want it to carry the module version. [Is it working?](https://modpagespeed.com/docs/is-it-working/) has
    the other checks.
 
 To add the optimizer worker, install `pagespeed-optimizer` from the same
@@ -4571,8 +4587,11 @@ Key used for signing .pagespeed resource URLs.
 Set the value for the X-Mod-Pagespeed HTTP header
 
 Sets the value of the `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx, IIS)
-[response header](https://modpagespeed.com/pagespeed-markers/#x-page-speed). The default is the module
-version string.
+[response header](https://modpagespeed.com/pagespeed-markers/#x-page-speed). The default is the generic
+value `on`, which does not disclose the installed version. A value set here
+takes precedence over the default and over
+[`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers), the server-wide option that
+restores the module version string.
 
 ### In-place resource optimization
 
@@ -7135,6 +7154,32 @@ pagespeed MaxSegmentLength 250
 This directive applies only to the URLs mod_pagespeed generates (for example,
 when combining CSS or JavaScript). It does not limit which inbound request
 URLs the module will rewrite.
+
+## Version in response headers
+
+By default the module's response header (`X-Mod-Pagespeed` on Apache,
+`X-Page-Speed` on nginx and IIS) carries the generic value `on`. It confirms
+that the module handled the response and does not disclose which version is
+installed. Detection by header presence is unchanged.
+
+To send the module version instead, set `ExposeVersionInHeaders` once for the
+whole server. It is a server-wide boolean (default off) and is rejected inside a
+virtual host or location.
+
+```apache
+# Apache, global server configuration
+ModPagespeedExposeVersionInHeaders on
+```
+
+```nginx
+# nginx, http block
+pagespeed ExposeVersionInHeaders on;
+```
+
+Precedence for the header value: a custom [`XHeaderValue`](https://modpagespeed.com/docs/configuration/#xheadervalue) wins,
+then `ExposeVersionInHeaders`, then `on`. The Docker reverse proxy and the ASP.NET
+Core middleware use `X-PageSpeed` for the cache outcome (`HIT`, `MISS`) and never
+send a version.
 
 ## Behind a reverse proxy
 
@@ -15908,7 +15953,7 @@ After deploy, confirm the middleware is active:
 
 ```bash
 curl -I https://<your-domain>/
-# X-PageSpeed: WeAmp.PageSpeed/2.6.0
+# X-PageSpeed: MISS
 
 curl -s https://<your-domain>/healthz
 # Healthy

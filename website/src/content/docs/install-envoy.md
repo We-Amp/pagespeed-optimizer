@@ -56,9 +56,11 @@ bearer token and an allowed source address.
 curl -I http://localhost:8080/
 ```
 
-The response carries the version header the shared rewriting path adds,
-`X-Page-Speed: <version>`; a build made without the workspace-status script
-shows a placeholder instead of a version. The health endpoint answers at
+The response carries the header the shared rewriting path adds,
+`X-Page-Speed: on`. The value is generic by default; set the server-wide
+[`ExposeVersionInHeaders`](/docs/configuration/#expose-version-in-headers) option
+to send the version instead (a build made without the workspace-status script
+then shows a placeholder). The health endpoint answers at
 `/pagespeed/health`, and Prometheus metrics are on Envoy's admin port at
 `/stats/prometheus`: `pagespeed.requests_total`,
 `pagespeed.html_rewrites_total`, `pagespeed.ipro_cache_hits` and
