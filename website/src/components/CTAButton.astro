@@ -35,14 +35,14 @@ const {
   showSubtext = false,
 } = Astro.props;
 
-// `inverse` = white pill on a dark/blue band (used in bottom CTA sections).
+// `inverse` = dark pill on a cyan band (used in bottom CTA sections).
 // Keeps the same canonical text + analytics contract as primary.
 const variantClass =
   variant === 'primary'
     ? 'btn-primary'
     : variant === 'secondary'
       ? 'btn-secondary'
-      : 'inline-flex items-center justify-center gap-2 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-interactive hover:bg-interactive/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white transition-colors';
+      : 'inline-flex items-center justify-center gap-2 rounded-lg bg-bg-elevated px-6 py-3 text-sm font-semibold text-interactive hover:bg-bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white transition-colors';
 ---
 
 <a href={href} data-umami-event={event} class:list={[variantClass, extraClass]}>

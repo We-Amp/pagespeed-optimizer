@@ -661,43 +661,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         --color-disabled-border: #2f343a;
         --color-focus-ring: #5eb1c9;
       }
-      /* Override critical CSS that includes bg-white but not dark:bg-stone-950.
-         mod_pagespeed's critical CSS extractor does not capture dark-variant
-         rules, so without !important the white background wins during the
-         critical-CSS-only rendering phase. */
-      html.dark,
-      html.dark body,
-      html.dark header {
-        background-color: #0b0c0e !important;
-        color: #e8eaed !important;
-      }
-      html.dark header {
-        border-color: #2a2e34 !important;
-      }
-      /* Dropdown panel: prevent white flash before dark variant loads */
-      html.dark .group .nav-panel-box {
-        background-color: #191c20 !important;
-        border-color: #2a2e34 !important;
-      }
-      /* Card backgrounds: bg-white is captured in critical CSS but dark:bg-stone-900 is not,
-         so every bg-bg-elevated card flashes white until async CSS loads. */
-      html.dark .bg-white {
-        background-color: #191c20 !important;
-      }
-      /* Header logo dark-mode swap: the two <img> tags use `dark:hidden` and
-         `hidden dark:block` to switch between light/dark wordmarks. The base
-         `hidden` rule (display: none) IS captured in critical CSS but the
-         `dark:block` override is NOT, so on second-load (after PageSpeed has
-         inlined critical CSS) the dark logo stays display:none until async
-         CSS arrives and the user briefly sees no logo at all. Force the
-         correct visibility inline using the literal class-attribute
-         substrings — selector specificity (0,2,1) beats any later utility. */
-      html.dark img[class*='dark:hidden'] {
-        display: none !important;
-      }
-      html.dark img[class*='dark:block'] {
-        display: block !important;
-      }
       /* Telemetry strip layout guard: the strip's scoped rules ship in the
          deferred sheet, but its box must be exact at first paint or the page
          shifts when that sheet lands. Keep the row at its fixed 32px, clipped,
