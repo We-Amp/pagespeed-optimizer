@@ -486,7 +486,7 @@ jobs:
               echo "Stopping dotnet pid=$PID"
               kill "$PID" 2>/dev/null
               sleep 2
-              kill -9 "$PID" 2>/dev/null
+              kill -9 "$PID" 2>/dev/null || true
             fi
           fi
           # Best-effort, PORT-SCOPED: this job's Kestrel (5050) + worker
@@ -1197,9 +1197,10 @@ jobs:
               echo "Stopping dotnet pid=$PID"
               kill "$PID" 2>/dev/null
               sleep 3
-              kill -9 "$PID" 2>/dev/null
+              kill -9 "$PID" 2>/dev/null || true
             fi
           fi
+          exit 0
 
       - name: Upload failure artifacts
         if: failure()
