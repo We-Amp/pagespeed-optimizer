@@ -577,12 +577,20 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 #    harness. No new source files, link flags or defines, so
 #    //third_party:cyclone.BUILD is unchanged.
 #
+# Bumped again to cyclone 03c5e8a (4 commits past b081e22).  On Windows,
+# cache volume files are now opened with wide-character paths and cache
+# paths are converted as UTF-8 end to end, so a cache directory whose path
+# holds non-ASCII characters works.  The rest is tests and CI only.  One new
+# header (src/io/win_path.hpp) is picked up by the src/**/*.hpp glob in
+# //third_party:cyclone.BUILD; no new source file, define or link flag.
+# POSIX builds are unaffected.
+#
 # mod_pagespeed 1.1 vendors its own copy of Cyclone and must move to the
 # same commit in lockstep wherever it shares a cache with this build.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",
-    commit = "b081e22a4b8e5accf541e856ae908424901a2df1",
+    commit = "03c5e8af8bec3f6b4c7088516829294f52864103",
     remote = "https://github.com/We-Amp/cyclone-cache.git",
 )
 
