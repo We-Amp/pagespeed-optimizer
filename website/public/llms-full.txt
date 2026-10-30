@@ -7065,20 +7065,32 @@ children on a many-core machine gets proportionally more.
 
 **nginx**
 
-nginx does not yet report a process count to the module, so it resolves to
-**one thread per pool** and logs that it fell back. It never assumes a larger
-divisor: guessing high would silently oversubscribe the machine, which is worse
-than being conservative.
+In 2.7.0 and later, nginx reports `worker_processes`, so the divisor is the
+number of workers the master forks (one with `master_process off`). One worker
+on a 16-core machine resolves to eight threads per pool; four workers on the
+same machine resolve to two each. With `worker_processes auto` nginx starts one
+worker per online CPU, so a server resolves to **one thread per pool**.
 
-This is unchanged from earlier releases. If you have set `NumRewriteThreads` or
-`NumExpensiveRewriteThreads` explicitly, your values continue to apply exactly
-as before.
+With `worker_cpu_affinity` set, each worker is pinned to its own CPUs only after
+the counts are resolved, so the module cannot see how many CPUs a worker has.
+Such a server keeps **one thread per pool** and logs that it fell back; set
+`NumRewriteThreads` and `NumExpensiveRewriteThreads` to size the pools yourself.
+
+Servers with fewer workers than half the CPUs they may use run more
+optimization threads than releases before 2.7.0, which ran one thread per pool
+on nginx. To keep that, set both directives to `1`.
 
 **IIS**
 
-The IIS module sizes its own pools and does not yet consult these directives.
-Its behaviour is unchanged in this release. See
-[IIS tuning](https://modpagespeed.com/docs/iis-configuration/#iis-tuning).
+The IIS module does not divide by a process count. Each site's pools default to
+half the CPUs, and at least four threads, in each worker process. An
+application pool that hosts several sites runs that many for each of them.
+`NumRewriteThreads` and `NumExpensiveRewriteThreads` set the counts, from the
+machine-wide `pagespeed.config` or, for one site, from that site's own file.
+See [IIS tuning](https://modpagespeed.com/docs/iis-configuration/#iis-tuning).
+
+The Envoy filter does not report a process count and resolves to one thread per
+pool.
 
 ### Setting the counts explicitly
 
