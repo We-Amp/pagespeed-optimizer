@@ -423,15 +423,16 @@ struct ScriptCoverageAnalyzer::Session
 
           // Join coverage only to scripts the browser actually received;
           // a script that was never served has no coverage data. The
-          // element's fragment is not part of the request URL.
-          std::string join_url = info.url.substr(0, info.url.find('#'));
-          const bool received = served_urls.contains(join_url);
+          // request URL carries no fragment, so the element's is dropped
+          // for this check only.
+          const bool received = self->served_urls.contains(
+              info.url.substr(0, info.url.find('#')));
 
           // Look up FCP coverage.  A join with total_bytes > 0 is the only
           // execution evidence — V8 reports every COMPILED script (including
           // ones with zero executed ranges), so absence means the browser
           // never got the script's content.
-          auto fcp_it = received ? fcp_cov.find(join_url) : fcp_cov.end();
+          auto fcp_it = received ? fcp_cov.find(info.url) : fcp_cov.end();
           if (fcp_it != fcp_cov.end() && fcp_it->second.total_bytes > 0) {
             info.has_coverage_data = true;
             info.coverage_at_fcp =
@@ -443,7 +444,7 @@ struct ScriptCoverageAnalyzer::Session
 
           // Look up cumulative load coverage (FCP + post-FCP).
           auto load_it =
-              received ? merged_load_cov.find(join_url) : merged_load_cov.end();
+              received ? merged_load_cov.find(info.url) : merged_load_cov.end();
           if (load_it != merged_load_cov.end() &&
               load_it->second.total_bytes > 0) {
             info.has_coverage_data = true;

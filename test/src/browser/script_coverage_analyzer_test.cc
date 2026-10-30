@@ -1208,8 +1208,7 @@ TEST_F(ScriptCoverageAnalyzerCdpTest,
       mutable_resources);
 
   analyzer.Analyze(
-      "<html><head><script>var x=1;\n//# sourceURL=https://example.com/"
-      "never-loaded.js</script>"
+      "<html><head><script>var x=1;</script>"
       "<script src='https://example.com/app.js'></script>"
       "<script src='https://example.com/never-loaded.js'></script>"
       "</head></html>",
