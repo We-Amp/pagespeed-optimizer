@@ -216,12 +216,18 @@ try:
 except Exception:
     print("")' "$1" 2>/dev/null || true
 }
-# Retry decision for a failed render: ONLY a navigation timeout (a deadline
-# really expired) earns one retry.  Any other failure, including a fast 504
-# from a failed CDP step, is the signal the browser leg exists for and stays
-# a FAIL.  Prints 1 to retry, 0 not to.
-should_retry_render() { # http-code message
-  if [[ "$1" == "504" && "$2" == *"navigation timeout"* ]]; then echo 1; else echo 0; fi
+# Retry decision for a failed render.  Two cases earn exactly one retry:
+#   - a navigation timeout (a deadline really expired);
+#   - a fast 504 (a failed CDP step) when the kill detector is readable and
+#     saw no Chrome kill since the cycle began and no 'Chrome exited' line was
+#     logged: a transient browser-start race, with no sign of a sandbox kill.
+# Anything else stays a FAIL: a non-504, a 504 with a kill record or a Chrome
+# exit, and a fast 504 where the kill detector is unavailable (that failure
+# could be an unseen kill).  Prints "retry" or "no".
+should_retry_render() { # http-code message detector kill_delta exited
+  if [[ "$1" == "504" && "$2" == *"navigation timeout"* ]]; then echo retry
+  elif [[ "$1" == "504" && "${3:-0}" == "1" && "${4:-1}" == "0" && "${5:-1}" == "0" ]]; then echo retry
+  else echo no; fi
 }
 
 # Turn the API on for the legs that read /v1/health.  Written as its own
@@ -239,6 +245,25 @@ wait_for_api() {
     sleep 0.5
   done
   return 1
+}
+# After a restart the API answers before Chrome is up.  Wait (bounded, 30 s)
+# until /v1/health reports the browser running with no consecutive failures,
+# so the first render does not race the browser start.  Always returns 0 so
+# the checks that follow report the real state.
+wait_for_browser() {
+  local up
+  for _ in $(seq 1 60); do
+    up="$(api_get /v1/health | python3 -c '
+import json,sys
+try:
+    b=json.load(sys.stdin).get("browser",{})
+    print(1 if b.get("chrome_running") and not b.get("chrome_consecutive_failures") else 0)
+except Exception:
+    print(0)' 2>/dev/null || true)"
+    [[ "$up" == 1 ]] && return 0
+    sleep 0.5
+  done
+  return 0
 }
 
 echo "=== $(. /etc/os-release && echo "$PRETTY_NAME") -- booted systemd $(systemctl --version | head -1) ==="
@@ -1007,6 +1032,7 @@ EOF
   browser_half() { # label -> sets B_HEALTH B_RENDER B_EXITED B_SIGSYS B_KILLS
     restart_and_wait || true
     wait_for_api || true
+    wait_for_browser
     local t0; t0="$(date '+%Y-%m-%d %H:%M:%S')"
     local k0; k0="$(chrome_kills)"
     check "$1: service is active" "active" "$(systemctl is-active "$PKG.service")"
@@ -1027,12 +1053,18 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
     B_RENDER=""; B_RETRIED=0; B_ERRS=""
     # Self-test of the retry decision against canned failures, so the branch
     # runs on every rig run without a real timeout.
-    check "$1: retry decision: navigation timeout is retried" "1" \
-      "$(should_retry_render 504 'navigation timeout')"
-    check "$1: retry decision: fast CDP failure is not retried" "0" \
-      "$(should_retry_render 504 'createTarget failed')"
-    check "$1: retry decision: non-504 is not retried" "0" \
-      "$(should_retry_render 500 'navigation timeout')"
+    check "$1: retry decision: navigation timeout is retried" "retry" \
+      "$(should_retry_render 504 'navigation timeout' 1 0 0)"
+    check "$1: retry decision: fast 504 with no kill and no exit is retried" "retry" \
+      "$(should_retry_render 504 'captureScreenshot failed' 1 0 0)"
+    check "$1: retry decision: fast 504 with a kill record is not retried" "no" \
+      "$(should_retry_render 504 'captureScreenshot failed' 1 1 0)"
+    check "$1: retry decision: fast 504 with a Chrome exit is not retried" "no" \
+      "$(should_retry_render 504 'captureScreenshot failed' 1 0 1)"
+    check "$1: retry decision: fast 504 without a kill detector is not retried" "no" \
+      "$(should_retry_render 504 'captureScreenshot failed' 0 0 0)"
+    check "$1: retry decision: non-504 is not retried" "no" \
+      "$(should_retry_render 500 'navigation timeout' 1 0 0)"
     local n code code2 msg msg2 label t_a t_b ms
     for n in 1 2 3; do
       render_once() { # outfile -> prints http code
@@ -1053,12 +1085,20 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
         echo "diag: $1: render $n -> $code after ${ms} ms: ${msg:-<no error message>}"
         journalctl -u "$PKG.service" --no-pager --since "$t0" -o cat 2>/dev/null \
           | tail -40 | sed 's/^/diag:   /' || true
-        if [[ "$(should_retry_render "$code" "$msg")" == "1" ]]; then
+        sleep 1
+        kd=$(( $(chrome_kills) - k0 ))
+        ex="$(journalctl -u "$PKG.service" --no-pager --since "$t0" -o cat 2>/dev/null | grep -c 'Chrome exited' || true)"
+        decision="$(should_retry_render "$code" "$msg" "$KILL_DETECTOR" "$kd" "${ex:-0}")"
+        if [[ "$decision" == "retry" ]]; then
           code2="$(render_once "$WORK/h6-shot-$n-retry.json")"
           cp "$WORK/h6-shot-$n-retry.json" "$WORK/h6-shot.json" 2>/dev/null || true
           msg2="$(error_message "$WORK/h6-shot-$n-retry.json")"
-          echo "diag: $1: render $n retried once after a navigation timeout -> $code2${msg2:+: $msg2}"
-          label="${code}(navigation timeout)->${code2}"
+          echo "diag: $1: render $n retried once -> $code2${msg2:+: $msg2}"
+          if [[ "$msg" == *"navigation timeout"* ]]; then
+            label="${code}(navigation timeout)->${code2}"
+          else
+            label="${code}(fast, no kill)->${code2}"
+          fi
           B_RETRIED=1
           code="$code2"; [[ "$code" != "200" ]] && msg="$msg2"
         fi
@@ -1074,6 +1114,7 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
         systemctl reload-or-restart "$PKG.service" 2>/dev/null || true
         restart_and_wait || true
         wait_for_api || true
+        wait_for_browser
         sleep 5
       fi
     done

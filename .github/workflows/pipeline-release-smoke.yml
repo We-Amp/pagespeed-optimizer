@@ -955,7 +955,7 @@ jobs:
   smoke-sidecar-linux-x64:
     permissions: {}
     name: smoke / sidecar / ${{ matrix.rid }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       matrix:
@@ -1100,6 +1100,26 @@ jobs:
           stat -c "%A %s %n" "$NATIVE/nginx" "$NATIVE/ngx_pagespeed_module.so"
           if [ ! -x "$NATIVE/nginx" ]; then
             echo "::error::$NATIVE/nginx is not executable" >&2
+            exit 1
+          fi
+
+      # The bundled nginx links PCRE (libpcre.so.3), which a consumer host
+      # provides and the hosted images no longer ship; install it only when
+      # the published nginx has an unresolved library (same step as the
+      # NuGet lane's test job).
+      - name: Install the PCRE runtime the bundled nginx needs
+        shell: bash
+        run: |
+          set -euo pipefail
+          PUB="$SMOKE_ROOT/publish"
+          NGINX="$PUB/nginx"
+          [ -f "$NGINX" ] || NGINX="$PUB/runtimes/${{ matrix.rid }}/native/nginx"
+          if ldd "$NGINX" | grep -q 'not found'; then
+            sudo apt-get -o DPkg::Lock::Timeout=120 update -qq
+            sudo apt-get -o DPkg::Lock::Timeout=120 install -y -qq --no-install-recommends libpcre3 >/dev/null
+          fi
+          if ldd "$NGINX" | grep 'not found'; then
+            echo "::error::the bundled nginx has unresolved libraries on this runner" >&2
             exit 1
           fi
 
