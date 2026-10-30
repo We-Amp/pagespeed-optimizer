@@ -36,6 +36,8 @@ Fixed: the script-coverage analysis now takes coverage only for scripts the anal
 
 Fixed: with the nginx module, when the cache volume failed to open because another process (such as the optimizer worker) was holding it, the module deleted the volume and created a new one. The other process kept writing to the deleted file, so the two sides stopped sharing cached entries until that process restarted. The module now deletes and recreates the volume only when it is damaged. In any other case it leaves the volume in place, logs the reason and serves without the cache until the next successful open.
 
+Fixed: the ASP.NET Core package's worker host now logs when the optimizer worker it started exits on its own. A non-zero exit is logged as an error with the exit code, how long the worker ran, and the last lines of its error output; a clean exit is logged as a warning. Before this, a worker that failed at startup (for example because its API port was already in use) left nothing in the application log.
+
 ## 2.6.0 - 2026-10-28
 
 Fixed: pages from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left the page, stylesheet or script unchanged, so clients could not revalidate them and always downloaded the full page. These resources carry an `ETag` again and answer a matching `If-None-Match` with `304 Not Modified`.
