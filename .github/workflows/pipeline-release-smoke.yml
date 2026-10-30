@@ -951,7 +951,7 @@ jobs:
   # logic and the indexing wait mirror the AspNetCore legs above.
   smoke-sidecar-linux-x64:
     name: smoke / sidecar / ${{ matrix.rid }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       matrix:
@@ -1111,8 +1111,8 @@ jobs:
           NGINX="$PUB/nginx"
           [ -f "$NGINX" ] || NGINX="$PUB/runtimes/${{ matrix.rid }}/native/nginx"
           if ldd "$NGINX" | grep -q 'not found'; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq --no-install-recommends libpcre3 >/dev/null
+            sudo apt-get -o DPkg::Lock::Timeout=120 update -qq
+            sudo apt-get -o DPkg::Lock::Timeout=120 install -y -qq --no-install-recommends libpcre3 >/dev/null
           fi
           if ldd "$NGINX" | grep 'not found'; then
             echo "::error::the bundled nginx has unresolved libraries on this runner" >&2

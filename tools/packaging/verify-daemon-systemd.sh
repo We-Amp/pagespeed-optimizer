@@ -216,12 +216,18 @@ try:
 except Exception:
     print("")' "$1" 2>/dev/null || true
 }
-# Retry decision for a failed render: ONLY a navigation timeout (a deadline
-# really expired) earns one retry.  Any other failure, including a fast 504
-# from a failed CDP step, is the signal the browser leg exists for and stays
-# a FAIL.  Prints 1 to retry, 0 not to.
-should_retry_render() { # http-code message
-  if [[ "$1" == "504" && "$2" == *"navigation timeout"* ]]; then echo 1; else echo 0; fi
+# Retry decision for a failed render.  Two cases earn exactly one retry:
+#   - a navigation timeout (a deadline really expired);
+#   - a fast 504 (a failed CDP step) when the kill detector is readable and
+#     saw no Chrome kill since the cycle began and no 'Chrome exited' line was
+#     logged: a transient browser-start race, with no sign of a sandbox kill.
+# Anything else stays a FAIL: a non-504, a 504 with a kill record or a Chrome
+# exit, and a fast 504 where the kill detector is unavailable (that failure
+# could be an unseen kill).  Prints "retry" or "no".
+should_retry_render() { # http-code message detector kill_delta exited
+  if [[ "$1" == "504" && "$2" == *"navigation timeout"* ]]; then echo retry
+  elif [[ "$1" == "504" && "${3:-0}" == "1" && "${4:-1}" == "0" && "${5:-1}" == "0" ]]; then echo retry
+  else echo no; fi
 }
 
 # Turn the API on for the legs that read /v1/health.  Written as its own
@@ -1047,12 +1053,18 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
     B_RENDER=""; B_RETRIED=0; B_ERRS=""
     # Self-test of the retry decision against canned failures, so the branch
     # runs on every rig run without a real timeout.
-    check "$1: retry decision: navigation timeout is retried" "1" \
-      "$(should_retry_render 504 'navigation timeout')"
-    check "$1: retry decision: fast CDP failure is not retried" "0" \
-      "$(should_retry_render 504 'createTarget failed')"
-    check "$1: retry decision: non-504 is not retried" "0" \
-      "$(should_retry_render 500 'navigation timeout')"
+    check "$1: retry decision: navigation timeout is retried" "retry" \
+      "$(should_retry_render 504 'navigation timeout' 1 0 0)"
+    check "$1: retry decision: fast 504 with no kill and no exit is retried" "retry" \
+      "$(should_retry_render 504 'captureScreenshot failed' 1 0 0)"
+    check "$1: retry decision: fast 504 with a kill record is not retried" "no" \
+      "$(should_retry_render 504 'captureScreenshot failed' 1 1 0)"
+    check "$1: retry decision: fast 504 with a Chrome exit is not retried" "no" \
+      "$(should_retry_render 504 'captureScreenshot failed' 1 0 1)"
+    check "$1: retry decision: fast 504 without a kill detector is not retried" "no" \
+      "$(should_retry_render 504 'captureScreenshot failed' 0 0 0)"
+    check "$1: retry decision: non-504 is not retried" "no" \
+      "$(should_retry_render 500 'navigation timeout' 1 0 0)"
     local n code code2 msg msg2 label t_a t_b ms
     for n in 1 2 3; do
       render_once() { # outfile -> prints http code
@@ -1073,12 +1085,20 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
         echo "diag: $1: render $n -> $code after ${ms} ms: ${msg:-<no error message>}"
         journalctl -u "$PKG.service" --no-pager --since "$t0" -o cat 2>/dev/null \
           | tail -40 | sed 's/^/diag:   /' || true
-        if [[ "$(should_retry_render "$code" "$msg")" == "1" ]]; then
+        sleep 1
+        kd=$(( $(chrome_kills) - k0 ))
+        ex="$(journalctl -u "$PKG.service" --no-pager --since "$t0" -o cat 2>/dev/null | grep -c 'Chrome exited' || true)"
+        decision="$(should_retry_render "$code" "$msg" "$KILL_DETECTOR" "$kd" "${ex:-0}")"
+        if [[ "$decision" == "retry" ]]; then
           code2="$(render_once "$WORK/h6-shot-$n-retry.json")"
           cp "$WORK/h6-shot-$n-retry.json" "$WORK/h6-shot.json" 2>/dev/null || true
           msg2="$(error_message "$WORK/h6-shot-$n-retry.json")"
-          echo "diag: $1: render $n retried once after a navigation timeout -> $code2${msg2:+: $msg2}"
-          label="${code}(navigation timeout)->${code2}"
+          echo "diag: $1: render $n retried once -> $code2${msg2:+: $msg2}"
+          if [[ "$msg" == *"navigation timeout"* ]]; then
+            label="${code}(navigation timeout)->${code2}"
+          else
+            label="${code}(fast, no kill)->${code2}"
+          fi
           B_RETRIED=1
           code="$code2"; [[ "$code" != "200" ]] && msg="$msg2"
         fi
