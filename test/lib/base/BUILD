@@ -17,6 +17,7 @@ gtest_test(
     tags = ["no_tsan"],
     deps = [
         "//lib/base:atomic_file_writer",
+        "//lib/base:posix_compat",
     ],
 )
 
