@@ -152,18 +152,6 @@ const jsonLd = await productJsonLd({
     <p class="lede mt-6 max-w-2xl mx-auto">
       {LICENSE_CLAUSE_CAP} — free to install and run, in development and in production.
     </p>
-    <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
-      After install, open the admin console at{' '}
-      <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code> on the
-      server itself. The Apache package serves it to localhost out of the box; on nginx,{' '}
-      <a
-        href="/docs/installation-module/#native-nginx-module"
-        class="text-interactive hover:text-interactive-hover underline"
-      >
-        turn it on first
-      </a>
-      .
-    </p>
   </section>
 
   <!-- One merged "pick your integration" section: native servers + Docker/Helm + ASP.NET Core -->
@@ -218,6 +206,18 @@ const jsonLd = await productJsonLd({
         </a>
       ))}
     </div>
+    <p class="mt-6 text-sm text-text-muted">
+      After install, open the admin console at{' '}
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code> on the
+      server itself. The Apache package serves it to localhost out of the box; on nginx,{' '}
+      <a
+        href="/docs/installation-module/#native-nginx-module"
+        class="text-interactive hover:text-interactive-hover underline"
+      >
+        turn it on first
+      </a>
+      .
+    </p>
     <p class="mt-6 text-sm text-text-muted">
       Also available: the{' '}
       <a href="/docs/install-envoy/" class="text-interactive underline">
