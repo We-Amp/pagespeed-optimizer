@@ -1847,7 +1847,10 @@ TEST_F(PageSpeedCacheTest, RecreatingRecoveryDeletesNothingOnARefusedOpen) {
   // A volume path that cannot be opened (its parent is a regular file) is
   // not damage: nothing may be removed and the error is returned.
   const std::string blocker = temp_dir_ + "/blocker";
-  { std::ofstream(blocker) << "x"; }
+  {
+    std::ofstream out(blocker);
+    out << "x";
+  }
   PageSpeedCacheConfig config;
   config.volume_path = blocker + "/cache.vol";
   config.volume_size = 0;
