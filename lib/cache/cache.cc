@@ -31,6 +31,7 @@ inline int chmod(const char*, int) { return 0; }
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
+#include <sstream>
 #include <thread>
 #include <vector>
 
@@ -1875,10 +1876,29 @@ bool PageSpeedCache::RemoveVolumeFiles(const std::string& volume_path,
 }
 
 uint64_t PageSpeedCache::ReadGenerationFile(const std::string& path) {
+#ifdef _WIN32
+  // Share delete access, so a concurrent replace of the file is not blocked.
+  HANDLE h =
+      CreateFileA(path.c_str(), GENERIC_READ,
+                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                  nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) {
+    return 0;
+  }
+  char buf[32] = {};
+  DWORD got = 0;
+  const BOOL read_ok = ::ReadFile(h, buf, sizeof(buf) - 1, &got, nullptr);
+  CloseHandle(h);
+  if (!read_ok) {
+    return 0;
+  }
+  std::istringstream f(std::string(buf, got));
+#else
   std::ifstream f(path);
   if (!f.is_open()) {
     return 0;
   }
+#endif
   uint64_t gen = 0;
   f >> gen;
   return f.fail() ? 0 : gen;

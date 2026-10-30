@@ -12,6 +12,8 @@ Changed: the worker now logs a warning when the deprecated `quality_cap_margin` 
 
 Fixed: on Windows, publishing a new cache generation no longer fails while another process, such as the web server module checking the cache, has the generation file open at that moment. The file is now replaced the way it is on Linux and macOS, so other processes notice a cache reset without delay.
 
+Fixed: on Windows, a cache reset no longer fails when the web server module or the ASP.NET Core package is reading the cache's generation file at that moment.
+
 Fixed: on Windows the cache now works when the cache directory path contains non-ASCII characters (the Cyclone cache library was updated).
 
 Fixed: Early Hints (`103`) are now sent over HTTP/2 and HTTP/3, not only HTTP/1.1, when the module is built against nginx 1.29.0 or newer, so browsers on typical TLS deployments can start preloading stylesheets while the page is still being prepared. Early Hints are also sent for clean URLs without a file extension (such as `/about`) when the client asks for HTML; previously only URLs ending in `.html` or `/` got them.

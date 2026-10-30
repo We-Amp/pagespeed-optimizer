@@ -91,9 +91,12 @@ inline bool PosixSemanticsRename(const char* src, const char* dst) {
   if (!ToWidePath(dst, &wdst)) return false;
   std::wstring wsrc;
   if (!ToWidePath(src, &wsrc)) return false;
+  // Open the link itself, not its target, as MoveFileExA does.
   HANDLE h = CreateFileW(wsrc.c_str(), DELETE | SYNCHRONIZE,
                          FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+                         nullptr, OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+                         nullptr);
   if (h == INVALID_HANDLE_VALUE) return false;
   const size_t name_bytes = wdst.size() * sizeof(WCHAR);
   std::string buf(sizeof(RenameInfoEx) + name_bytes, '\0');
