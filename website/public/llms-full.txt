@@ -572,8 +572,9 @@ From 2.7.0 the value is `on` by default: the header confirms the module is
 active and does not disclose which version runs (2.6.0 and earlier send the
 version). To send the version instead, set the server-wide
 [`ExposeVersionInHeaders`](https://modpagespeed.com/docs/configuration/#expose-version-in-headers) option
-(Apache: `ModPagespeedExposeVersionInHeaders on`; nginx and IIS:
-`pagespeed ExposeVersionInHeaders on`). Add it in the same step as the upgrade,
+(Apache: `ModPagespeedExposeVersionInHeaders on`; nginx:
+`pagespeed ExposeVersionInHeaders on;`; IIS: `pagespeed ExposeVersionInHeaders on`,
+without the semicolon, in the server-wide `pagespeed.config`). Add it in the same step as the upgrade,
 never before: older releases reject the directive.
 A custom [`XHeaderValue`](https://modpagespeed.com/docs/configuration/#xheadervalue) takes precedence
 over both. The Docker reverse proxy and the ASP.NET Core middleware never send a
