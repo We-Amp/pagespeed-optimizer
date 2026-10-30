@@ -184,15 +184,9 @@ export const SURFACES = [
       },
       {
         path: '/alternatives/',
-        title: 'Alternatives',
+        title: 'Alternatives and comparisons',
         description:
-          'Structured comparisons for readers coming from mod_pagespeed, ngx_pagespeed, the Google PageSpeed module and IISpeed.',
-      },
-      {
-        path: '/vs/',
-        title: 'Comparisons',
-        description:
-          'Side-by-side comparisons with Cloudflare APO, Cloudinary, imgix, imgproxy, NitroPack, ShortPixel, Thumbor and WP Rocket.',
+          'Structured comparisons for readers coming from mod_pagespeed, ngx_pagespeed, the Google PageSpeed module and IISpeed, and side-by-side comparisons with Cloudflare APO, Cloudinary, imgix, imgproxy, NitroPack, ShortPixel, Thumbor and WP Rocket.',
       },
       { path: '/terms/', title: 'Terms', description: 'Terms of service.' },
       {

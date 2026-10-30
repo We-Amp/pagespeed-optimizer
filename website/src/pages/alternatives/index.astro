@@ -29,6 +29,65 @@ const cards = [
   },
 ];
 
+const comparisons = [
+  {
+    slug: 'imgproxy',
+    title: 'mod_pagespeed vs imgproxy',
+    summary:
+      'Both self-hosted. imgproxy is image-only; mod_pagespeed is a full HTML pipeline that includes image work.',
+    kind: 'Self-hosted, image-focused',
+  },
+  {
+    slug: 'thumbor',
+    title: 'mod_pagespeed vs Thumbor',
+    summary:
+      'Thumbor is a Python image server with face-aware smart cropping. mod_pagespeed handles images plus CSS, JS, and HTML.',
+    kind: 'Self-hosted, image-focused',
+  },
+  {
+    slug: 'cloudflare-apo',
+    title: 'mod_pagespeed vs Cloudflare APO',
+    summary:
+      'APO caches WordPress HTML at the edge; mod_pagespeed optimizes at the origin and works on any stack.',
+    kind: 'Managed edge / WordPress',
+  },
+  {
+    slug: 'nitropack',
+    title: 'mod_pagespeed vs NitroPack',
+    summary:
+      'NitroPack is managed SaaS for WordPress; mod_pagespeed runs on your server and is free under the Apache License 2.0, with no traffic tiers.',
+    kind: 'Managed SaaS / WordPress',
+  },
+  {
+    slug: 'wp-rocket',
+    title: 'mod_pagespeed vs WP Rocket',
+    summary:
+      'WP Rocket is the established WordPress optimization plugin. mod_pagespeed runs at the server layer and is CMS-independent.',
+    kind: 'Self-hosted plugin / WordPress',
+  },
+  {
+    slug: 'cloudinary',
+    title: 'mod_pagespeed vs Cloudinary',
+    summary:
+      'Cloudinary is a managed media CDN with video. mod_pagespeed is self-hosted image optimization inside a broader HTML pipeline.',
+    kind: 'Managed SaaS / media',
+  },
+  {
+    slug: 'shortpixel',
+    title: 'mod_pagespeed vs ShortPixel',
+    summary:
+      'ShortPixel optimizes WordPress images via a plugin and its Adaptive Images CDN. mod_pagespeed is self-hosted and optimizes images plus CSS, JS, and HTML at your origin.',
+    kind: 'WordPress plugin / image CDN',
+  },
+  {
+    slug: 'imgix',
+    title: 'mod_pagespeed vs imgix',
+    summary:
+      'imgix is a managed real-time image CDN; your images egress to its edge. mod_pagespeed is a self-hosted full HTML pipeline — images never leave your origin.',
+    kind: 'Managed SaaS / image CDN',
+  },
+];
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',
@@ -36,12 +95,20 @@ const jsonLd = {
   description:
     "The active continuation for Google's deprecated PageSpeed Module family — mod_pagespeed 2 — plus path-by-path migration guidance for nginx, Apache, IIS, and ASP.NET Core.",
   url: 'https://modpagespeed.com/alternatives/',
-  hasPart: cards.map((card) => ({
-    '@type': 'WebPage',
-    name: card.title,
-    description: card.summary,
-    url: `https://modpagespeed.com${card.href}`,
-  })),
+  hasPart: [
+    ...cards.map((card) => ({
+      '@type': 'WebPage',
+      name: card.title,
+      description: card.summary,
+      url: `https://modpagespeed.com${card.href}`,
+    })),
+    ...comparisons.map((c) => ({
+      '@type': 'WebPage',
+      name: c.title,
+      description: c.summary,
+      url: `https://modpagespeed.com/alternatives/${c.slug}/`,
+    })),
+  ],
 };
 ---
 
@@ -86,6 +153,149 @@ const jsonLd = {
         </a>
       ))}
     </div>
+
+    <section class="mt-16" aria-labelledby="compared-with-other-tools">
+      <h2 id="compared-with-other-tools" class="h2-section text-text-body">
+        mod_pagespeed vs the alternatives
+      </h2>
+      <p class="mt-3 text-text-muted">
+        {comparisons.length} side-by-side write-ups: where mod_pagespeed overlaps with adjacent
+        tools, and where it doesn't. A self-hosted nginx pipeline behaves nothing like a SaaS CDN or
+        a WordPress plugin, so each write-up says where mod_pagespeed wins and where the other tool
+        does.
+      </p>
+      <ul class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {comparisons.map((c) => (
+          <li>
+            <a
+              href={`/alternatives/${c.slug}/`}
+              class="block h-full rounded-lg border border-border bg-bg-elevated p-5 hover:border-interactive/40 transition-colors"
+            >
+              <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
+                {c.kind}
+              </p>
+              <h3 class="mt-2 text-lg font-semibold text-text-body">{c.title}</h3>
+              <p class="mt-2 text-sm text-text-muted">{c.summary}</p>
+              <p class="mt-3 text-sm font-medium text-interactive">Read the comparison &rarr;</p>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <section class="mt-16">
+      <h2 id="where-each-tool-fits" class="h2-section text-text-body">
+        Where each tool fits
+      </h2>
+      <p class="mt-3 text-text-muted">
+        mod_pagespeed optimizes at your origin: one self-hosted pipeline for images, CSS, JS, and
+        HTML. The tools below each solve part of that, or solve it somewhere else &mdash; at the
+        edge, in a SaaS dashboard, or inside WordPress.
+      </p>
+      <div
+        class="mt-6 overflow-x-auto rounded-xl border border-border"
+        tabindex="0"
+        role="region"
+        aria-labelledby="where-each-tool-fits"
+      >
+        <table class="w-full border-collapse text-left text-sm">
+          <thead>
+            <tr class="bg-bg-elevated/80">
+              <th
+                scope="col"
+                class="sticky top-0 z-10 bg-bg-elevated py-3 pl-4 pr-4 font-semibold text-text-body"
+              >
+                Tool
+              </th>
+              <th
+                scope="col"
+                class="sticky top-0 z-10 bg-bg-elevated py-3 pr-4 font-semibold text-text-body"
+              >
+                Type
+              </th>
+              <th
+                scope="col"
+                class="sticky top-0 z-10 bg-bg-elevated py-3 pr-4 font-semibold text-text-body"
+              >
+                Best at
+              </th>
+              <th
+                scope="col"
+                class="sticky top-0 z-10 border-l-2 border-interactive/40 bg-interactive/10 py-3 px-4 font-semibold text-text-body"
+              >
+                Where mod_pagespeed fits
+              </th>
+            </tr>
+          </thead>
+          <tbody class="text-text-muted">
+            {[
+              {
+                tool: 'imgproxy',
+                type: 'Self-hosted image proxy',
+                best: 'On-demand image transforms by URL',
+                fits: 'Images plus CSS, JS, and HTML in one pipeline',
+              },
+              {
+                tool: 'Thumbor',
+                type: 'Self-hosted Python image server',
+                best: 'Face-aware smart cropping',
+                fits: 'Images plus CSS, JS, and HTML',
+              },
+              {
+                tool: 'Cloudflare APO',
+                type: 'Managed edge cache',
+                best: 'Edge HTML caching for WordPress',
+                fits: 'Origin-side optimization on any stack',
+              },
+              {
+                tool: 'NitroPack',
+                type: 'Managed SaaS (WordPress)',
+                best: 'Turnkey, hosted setup',
+                fits: 'Runs on your server, free under Apache-2.0, no traffic tiers',
+              },
+              {
+                tool: 'WP Rocket',
+                type: 'WordPress plugin',
+                best: 'Deep WordPress integration',
+                fits: 'Server-layer, CMS-independent',
+              },
+              {
+                tool: 'Cloudinary',
+                type: 'Managed media CDN',
+                best: 'Video and digital-asset management',
+                fits: 'Self-hosted image optimization in a broader pipeline',
+              },
+              {
+                tool: 'ShortPixel',
+                type: 'WordPress plugin / image CDN',
+                best: 'WordPress image compression + CDN delivery',
+                fits: 'Full origin pipeline (images, CSS, JS, HTML), any CMS',
+              },
+              {
+                tool: 'imgix',
+                type: 'Managed image CDN',
+                best: 'Real-time image transforms by URL',
+                fits: 'Self-hosted; images stay at your origin, plus CSS/JS/HTML',
+              },
+            ].map((r) => (
+              <tr class="border-t border-border">
+                <th
+                  scope="row"
+                  class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body"
+                >
+                  {r.tool}
+                </th>
+                <td class="py-3 pr-4 align-top">{r.type}</td>
+                <td class="py-3 pr-4 align-top">{r.best}</td>
+                <td class="border-l-2 border-interactive/40 bg-interactive/10 py-3 px-4 align-top">
+                  {r.fits}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <section class="mt-16">
       <h2 class="h2-section text-text-body">Background reading</h2>
@@ -188,11 +398,17 @@ const jsonLd = {
       </p>
     </section>
 
-    <p class="mt-16 text-xs text-text-annotation">
-      mod_pagespeed, ngx_pagespeed, IISpeed, and other product names are trademarks of their
-      respective owners. Comparisons reflect publicly available information as of 2026 and are
-      provided for evaluation; We-Amp B.V. is not affiliated with or endorsed by Google or the
-      Apache Software Foundation.
+    <p class="mt-16 text-sm text-text-muted">
+      Written by We-Amp, which develops mod_pagespeed, so the framing isn't neutral. Where a
+      competitor is the better fit for your stack, the comparison says so.
+    </p>
+
+    <p class="mt-4 text-xs text-text-annotation">
+      mod_pagespeed, ngx_pagespeed, IISpeed, imgproxy, Thumbor, Cloudflare, NitroPack, WP Rocket,
+      Cloudinary, ShortPixel, imgix, and other product names are trademarks of their respective
+      owners. Comparisons reflect publicly available information as of 2026 and are provided for
+      evaluation; We-Amp B.V. is not affiliated with or endorsed by Google or the Apache Software
+      Foundation.
     </p>
   </section>
 </BaseLayout>

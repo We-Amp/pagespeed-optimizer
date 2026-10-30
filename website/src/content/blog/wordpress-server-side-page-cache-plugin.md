@@ -20,7 +20,7 @@ The plugin is pure PHP, and it does not cache anything itself. It is a control p
 
 That split is deliberate, and it is the same architecture LiteSpeed Cache uses on its own server: the WordPress plugin is a bridge, and the server does the actual storage. We-Amp took LiteSpeed Cache as a benchmark precisely because the model is proven. The difference is the layer underneath. LiteSpeed Cache drives LiteSpeed Web Server. WeAmp Cache Control drives mod_pagespeed, which runs on Apache, nginx and IIS. LiteSpeed Cache is a strong plugin with millions of installs; the difference is simply where the cache lives.
 
-It is also a different layer from the PHP-resident caches like W3 Total Cache and [WP Rocket](/vs/wp-rocket/). Those generate cached HTML inside PHP and serve it back through PHP (or via a generated nginx/Apache rule set). They work, and on shared hosting where you cannot install a server module, they are often the only option. WeAmp Cache Control assumes you control your server stack, because mod_pagespeed has to be installed there. That assumption narrows the audience to VPS and dedicated operators, and it is the cost of putting the cache in the server instead of in PHP.
+It is also a different layer from the PHP-resident caches like W3 Total Cache and [WP Rocket](/alternatives/wp-rocket/). Those generate cached HTML inside PHP and serve it back through PHP (or via a generated nginx/Apache rule set). They work, and on shared hosting where you cannot install a server module, they are often the only option. WeAmp Cache Control assumes you control your server stack, because mod_pagespeed has to be installed there. That assumption narrows the audience to VPS and dedicated operators, and it is the cost of putting the cache in the server instead of in PHP.
 
 So the plugin has two responsibilities, and they map directly onto the two halves of any cache: writing and invalidating.
 
@@ -54,7 +54,7 @@ The plugin auto-detects which one of the two is running and adjusts. The same se
 - [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [Fixing CLS on WordPress](/blog/fix-cls-wordpress-2026/) — the layout-shift fixes that pair with a cacheable anonymous page
 - [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
-- [mod_pagespeed vs WP Rocket](/vs/wp-rocket/) — where the cache lives, PHP layer versus server module
+- [mod_pagespeed vs WP Rocket](/alternatives/wp-rocket/) — where the cache lives, PHP layer versus server module
 - [Running mod_pagespeed with Docker Compose](/blog/run-with-docker-compose/) — standing up the optimizer worker the plugin talks to
 - [Cache-Control and purging](/docs/cache-control/) — how full-page caching and invalidation work in the module
 - [The WordPress plugin landing page](/wordpress/) — install steps, the 1.15-vs-2.0 difference, and the FAQ

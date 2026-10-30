@@ -2864,7 +2864,7 @@ describe('exclusivity rules are anchored to a machine-checked fact', () => {
 });
 
 // ---------------------------------------------------------------------------
-// COMPUTED CLAIMS: the /vs/* pages build cells with editionClause(...) inside
+// COMPUTED CLAIMS: the comparison pages build cells with editionClause(...) inside
 // template literals, so a source scan sees the expression, not the sentence a
 // reader gets. Evaluate the helper, render the sentence, run the rules on it.
 // ---------------------------------------------------------------------------
@@ -2900,13 +2900,16 @@ function renderEditionClauseTemplates(src: string, page: string): RenderedClaim[
   return out;
 }
 
-describe('computed claims: editionClause() cells on the /vs/* pages', () => {
-  const VS_DIR = path.join(WEBSITE_ROOT, 'src/pages/vs');
+describe('computed claims: editionClause() cells on the comparison pages', () => {
+  const VS_DIR = path.join(WEBSITE_ROOT, 'src/pages/alternatives');
   const vsPages = readdirSync(VS_DIR)
     .filter((n) => n.endsWith('.astro'))
     .sort();
   const claims = vsPages.flatMap((n) =>
-    renderEditionClauseTemplates(readFileSync(path.join(VS_DIR, n), 'utf8'), `src/pages/vs/${n}`),
+    renderEditionClauseTemplates(
+      readFileSync(path.join(VS_DIR, n), 'utf8'),
+      `src/pages/alternatives/${n}`,
+    ),
   );
 
   it('finds the computed cells on every vs page that uses the helper', () => {
@@ -2916,7 +2919,7 @@ describe('computed claims: editionClause() cells on the /vs/* pages', () => {
     expect(usingHelper.length).toBeGreaterThanOrEqual(8);
     for (const n of usingHelper) {
       expect(
-        claims.some((c) => c.page === `src/pages/vs/${n}`),
+        claims.some((c) => c.page === `src/pages/alternatives/${n}`),
         `${n} calls editionClause() but no template literal was evaluated`,
       ).toBe(true);
     }
