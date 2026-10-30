@@ -47,7 +47,7 @@ for (const path of ['/analyze/', '/ai-readability/']) {
       const calls = await trackBackends(page);
       await open(page, path);
       const input = page.locator('form[data-scan-box] input[name="url"]');
-      for (const bad of ['foo', 'https://a_b.example.com', 'https://1.2.3.4']) {
+      for (const bad of ['foo', 'https://a_b.example.com', 'https://-bad.example.com']) {
         await input.fill(bad);
         await input.press('Enter');
         await expect(page.locator('form[data-scan-box] [role="alert"]')).toContainText(
@@ -80,6 +80,24 @@ for (const path of ['/analyze/', '/ai-readability/']) {
       await expect(page.locator('form[data-scan-box] [role="alert"]')).toHaveText(
         'Enter a URL to check.',
       );
+    });
+
+    test('the hint keeps its height busy and idle at 390 px', async ({ page }) => {
+      await trackBackends(page);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await open(page, path);
+      await page.locator('form[data-scan-box] input[name="url"]').fill('example.com');
+      await page.locator('form[data-scan-box] button[type="submit"]').click();
+      const hint = page.locator('[data-scan-hint]');
+      await expect(hint).toContainText('20 to 40 seconds');
+      const busy = (await hint.boundingBox())!.height;
+      const tiles = page.locator('[data-scan-tiles]');
+      const gap = async () => (await tiles.boundingBox())!.y - (await hint.boundingBox())!.y;
+      const busyGap = await gap();
+      await expect(hint).toHaveText('');
+      const idle = (await hint.boundingBox())!.height;
+      expect(idle).toBe(busy);
+      expect(await gap()).toBe(busyGap);
     });
 
     test('a valid run writes ?url= and shows the progress hint while it runs', async ({ page }) => {

@@ -147,8 +147,8 @@ export function rerun(pillar: Pillar) {
 }
 
 // A host the backends can resolve: dotted DNS labels (letters, digits, hyphens;
-// punycode is already applied by URL), a final label that is not all digits, so
-// IP literals and "1.2"-style numeric hosts are out. A trailing dot is allowed.
+// punycode is already applied by URL), and a final label that contains a letter,
+// so IP literals and "1.2"-style numeric hosts are out. A trailing dot is allowed.
 export function isPublicDnsName(hostname: string): boolean {
   const host = hostname.replace(/\.$/, '');
   if (host.length > 253) return false;
@@ -177,6 +177,12 @@ export function normalizeUrl(
   }
   if (!parsed.hostname || parsed.hostname === 'localhost') {
     return { ok: false, reason: 'We need a publicly reachable hostname. Localhost won’t work.' };
+  }
+  if (parsed.username || parsed.password) {
+    return { ok: false, reason: 'Leave out the username and password; enter just the page URL.' };
+  }
+  if (/^\[|^[0-9.]+$/.test(parsed.hostname)) {
+    return { ok: false, reason: 'Enter the site’s domain name, not an IP address.' };
   }
   if (!isPublicDnsName(parsed.hostname)) {
     return {
@@ -485,9 +491,7 @@ export function init() {
     // The line keeps its height (CSS min-height) so its text coming and going
     // never moves what is below it.
     if (hintEl) {
-      hintEl.textContent = busy
-        ? 'This usually takes 20 to 40 seconds. PageSpeed Insights is the slow part.'
-        : '';
+      hintEl.textContent = busy ? 'Usually takes 20 to 40 seconds.' : '';
     }
   }
 
