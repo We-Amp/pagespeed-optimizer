@@ -40,9 +40,9 @@ On Enterprise Linux, installing the archived rpm directly prints:
 warning: mod-pagespeed-stable_current_x86_64.rpm: Header V4 DSA/SHA1 Signature, key ID 7fac5991: NOKEY
 ```
 
-Do not re-import Google's key and do not mark the repository as trusted: that keeps the archived package installable. Move to the maintained package instead. On Debian and Ubuntu, step 1 of [the block below](#apache-on-debian-and-ubuntu) disables the source file the archived package created, `/etc/apt/sources.list.d/mod-pagespeed.list`, and the `apt-get update` error stops once that file is out of the way. The signed repository that `install.sh` script from packages.modpagespeed.com adds replaces it, for both Debian-family and Enterprise Linux systems.
+Do not re-import Google's key and do not mark the repository as trusted: that keeps the archived package installable. Move to the maintained package instead. On Debian and Ubuntu, step 1 of [the block below](#apache-on-debian-and-ubuntu) disables the source file the archived package created, `/etc/apt/sources.list.d/mod-pagespeed.list`, and the `apt-get update` error stops once that file is out of the way. The signed repository that the `install.sh` script from packages.modpagespeed.com adds replaces it, for both Debian-family and Enterprise Linux systems.
 
-**Is it still maintained?** The Google and Apache releases are archived. mod_pagespeed continues it with regular releases and security fixes, and the [release notes](/docs/release-notes/) list each one.
+**Is it still maintained?** The Google and Apache releases are archived. mod_pagespeed continues the codebase with regular releases and security fixes, and the [release notes](/docs/release-notes/) list each one.
 
 ## Before you start
 
