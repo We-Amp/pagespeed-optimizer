@@ -1,7 +1,7 @@
 ---
 title: 'ASP.NET Core settings'
 description: 'Configuration reference for the mod_pagespeed ASP.NET Core middleware: appsettings.json PageSpeed options, cache and worker settings, and hot reload.'
-order: 27
+order: 28
 group: 'Configure'
 lastUpdated: 2026-10-22
 ---

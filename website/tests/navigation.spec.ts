@@ -397,6 +397,83 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/docs/');
   });
 
+  test('the open mobile menu is modal: page behind is inert, scroll is locked, Tab stays inside', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+    const btn = page.locator('#mobile-menu-btn');
+    await btn.click();
+    await expect(page.locator('#mobile-menu')).toBeVisible();
+
+    await expect(page.locator('main')).toHaveAttribute('inert', '');
+    await expect(page.locator('footer[data-site-footer]')).toHaveAttribute('inert', '');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe(
+      'hidden',
+    );
+
+    // Tab forwards and backwards: focus never leaves the header.
+    for (const key of [...Array<string>(30).fill('Tab'), ...Array<string>(30).fill('Shift+Tab')]) {
+      await page.keyboard.press(key);
+      const inHeader = await page.evaluate(
+        () => !!document.activeElement && !!document.activeElement.closest('header'),
+      );
+      expect(inHeader, `focus left the header after ${key}`).toBe(true);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('main')).not.toHaveAttribute('inert', '');
+    await expect(page.locator('footer[data-site-footer]')).not.toHaveAttribute('inert', '');
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe(
+      'hidden',
+    );
+    await expect(btn).toBeFocused();
+  });
+
+  test('Tab works inside the search dialog opened while the mobile menu is open', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.goto('/');
+    await page.locator('#mobile-menu-btn').click();
+    await page.keyboard.press('Control+k');
+    const dialog = page.locator('dialog[open]');
+    await expect(dialog).toBeVisible();
+    // The menu's Tab trap must stand aside while the dialog is open: Tab moves on
+    // normally (it used to be swallowed) and never jumps to the header behind it.
+    const before = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80));
+    await page.keyboard.press('Tab');
+    const after = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80));
+    expect(after, 'Tab did not move focus inside the dialog').not.toBe(before);
+    expect(await page.evaluate(() => !!document.activeElement?.closest('body > header'))).toBe(
+      false,
+    );
+  });
+
+  test('the sticky CTA is out of the tab order and the accessibility tree while hidden', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+    const cta = page.locator('#sticky-cta');
+    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
+    await expect(cta).toHaveAttribute('inert', '');
+    expect(await cta.evaluate((e) => getComputedStyle(e).visibility)).toBe('hidden');
+    await expect(page.locator('nav[aria-label="Quick actions"] #sticky-cta')).toHaveCount(1);
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 1.5));
+    await expect(cta).toHaveAttribute('data-sticky-cta', 'visible');
+    await expect(cta).not.toHaveAttribute('inert', '');
+    await expect(cta).toBeVisible();
+  });
+
+  test('the header search button advertises its shortcuts', async ({ page }) => {
+    await page.setViewportSize({ width: 1100, height: 700 });
+    await page.goto('/');
+    const search = page.locator('header [data-search-open][title]');
+    await expect(search).toHaveAttribute('title', 'Search (/)');
+    await expect(search).toHaveAttribute('aria-keyshortcuts', '/ Control+K Meta+K');
+  });
+
   test('mobile menu icon toggles between open and close', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/');

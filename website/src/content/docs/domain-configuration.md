@@ -1,7 +1,7 @@
 ---
 title: 'Domain configuration'
 description: 'Domain mapping in mod_pagespeed on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.'
-order: 24
+order: 25
 group: 'Configure'
 lastUpdated: 2026-10-22
 ---

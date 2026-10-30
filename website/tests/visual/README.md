@@ -21,11 +21,11 @@ states are captured on purpose.
 
 ## Output
 
-`test-results/visual/{page}-{NN}-{state}-{viewport}.png`, for example
+`test-output/<run>/visual/{page}-{NN}-{state}-{viewport}.png`, for example
 `analyze-01-landing-mobile.png`. The state number matches the list in
 `scan-ui.visual.spec.ts`; states without a body yet are registered as skipped,
-each with the mock timing it needs. Playwright clears `test-results/` at the
-start of every run, so copy the PNGs out before running another suite.
+each with the mock timing it needs. `<run>` is the port (or `PW_RUN_ID`), so concurrent runs do not
+overwrite each other; the directory is git-ignored.
 
 ## Fixtures
 

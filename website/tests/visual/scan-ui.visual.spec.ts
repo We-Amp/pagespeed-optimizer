@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 // Visual suite for the scanner pages. Opt-in: VISUAL=1 npx playwright test --project=visual
-// Writes test-results/visual/{page}-{NN}-{state}-{viewport}.png for review; it asserts
+// Writes test-output/<run>/visual/{page}-{NN}-{state}-{viewport}.png for review; it asserts
 // nothing about pixels, so it never gates CI.
 
 import { mkdirSync } from 'node:fs';
@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { installMocks, makeDeterministic, settle, type MockOptions, type Mocks } from './mocks';
 
-const OUT_DIR = 'test-results/visual';
+const OUT_DIR = `${process.env.PW_RUN_DIR ?? 'test-output/local'}/visual`;
 
 const PAGES = [
   { name: 'analyze', path: '/analyze/' },
@@ -30,7 +30,7 @@ interface Ctx {
   mocks: Mocks;
   target: PageDef;
   viewport: ViewportDef;
-  /** Writes test-results/visual/{page}-{state}-{viewport}.png. */
+  /** Writes test-output/<run>/visual/{page}-{state}-{viewport}.png. */
   shot: (state: string, options?: { fullPage?: boolean }) => Promise<void>;
 }
 

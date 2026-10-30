@@ -21,7 +21,21 @@ const PORT =
   (process.env.CI
     ? '4321'
     : String(4500 + (createHash('sha1').update(process.cwd()).digest().readUInt16BE(0) % 500)));
-const BASE_URL = `http://localhost:${PORT}`;
+// BASE_URL overrides the whole origin (then also set PORT for the dev server).
+// Before any test, tests/global-setup.ts asserts that the server answering
+// there serves THIS checkout (build-id tag, emitted by the dev server only; for
+// a preview-server run see src/lib/build-id.mjs).
+const BASE_URL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
+
+// Everything a run writes (failure screenshots, traces, the HTML report, the
+// opt-in visual suite) goes under one ignored directory namespaced per run, so
+// two runs from two checkouts, or two agents in one, never overwrite each
+// other and a run never touches a committed file. PW_RUN_ID picks the
+// namespace (default: the port); the visual spec reads PW_RUN_DIR. CI (one
+// checkout per runner) keeps the default test-results/ and playwright-report/
+// locations that the workflow uploads on failure.
+const RUN_DIR = `test-output/${process.env.PW_RUN_ID ?? PORT}`;
+process.env.PW_RUN_DIR = process.env.CI ? 'test-results' : RUN_DIR;
 
 export default defineConfig({
   testDir: './tests',
@@ -29,7 +43,14 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  outputDir: process.env.CI ? 'test-results' : `${RUN_DIR}/results`,
+  reporter: [
+    [
+      'html',
+      { outputFolder: process.env.CI ? 'playwright-report' : `${RUN_DIR}/report`, open: 'never' },
+    ],
+  ],
+  globalSetup: './tests/global-setup.ts',
   use: {
     baseURL: BASE_URL,
     screenshot: 'only-on-failure',

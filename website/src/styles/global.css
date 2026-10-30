@@ -962,6 +962,16 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   html[data-dialog-open] .share-fab-root {
     display: none;
   }
+  /* While the site footer is on screen the launchers step aside at every width,
+     so they never sit on top of the footer text. */
+  html[data-footer-in-view] .qm-root:not([data-state='open']),
+  html[data-footer-in-view] .share-fab-root:not([data-state='open']) {
+    display: none;
+  }
+  /* The open mobile menu is modal: the page behind it does not scroll. */
+  html[data-menu-open] {
+    overflow: hidden;
+  }
   @media (max-width: 639px) {
     html:not([data-fab-reveal]) .qm-root:not([data-state='open']),
     html:not([data-fab-reveal]) .share-fab-root:not([data-state='open']) {

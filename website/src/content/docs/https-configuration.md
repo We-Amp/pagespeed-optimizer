@@ -1,7 +1,7 @@
 ---
 title: 'HTTPS configuration'
 description: 'Fetch HTTPS resources on nginx, Apache and IIS with mod_pagespeed: FetchHttps with certificate checks, MapOriginDomain to HTTP, or LoadFromFile.'
-order: 25
+order: 26
 group: 'Configure'
 lastUpdated: 2026-10-22
 ---
