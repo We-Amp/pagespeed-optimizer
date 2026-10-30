@@ -30,6 +30,7 @@
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
+#include "src/nginx/etag_util.h"
 #include "src/proto/worker_ipc.h"
 #include "src/worker/browser_analysis_manager.h"
 #include "src/worker/critical_css_extractor.h"
@@ -1773,6 +1774,196 @@ TEST_F(WorkerTest, ImageSvgCandidacyEvaluatesJpegFormat) {
   // SVG candidacy should have been evaluated for the JPEG.
   EXPECT_GE(worker.stats().svg_candidates_evaluated.load(), 1u)
       << "SVG candidacy should be evaluated for JPEG images";
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+// ---------------------------------------------------------------------------
+// Content identity for images the worker leaves as-is.  An origin that sends
+// no validators gets its ETag from the stamp on the identity entry, so every
+// path that writes no optimized original-format variant must stamp it.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// Reads the identity entry (desktop, 1x, identity encoding) of `url`.
+std::optional<ReadResult> ReadIdentityEntry(PageSpeedCache* cache,
+                                            const std::string& url) {
+  const AlternateId id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  auto rr = cache->ReadAlternate(WorkerTest::StripSchemeAuthority(url), "",
+                                 "https", id);
+  if (!rr.has_value()) return std::nullopt;
+  return std::move(*rr);
+}
+
+}  // namespace
+
+TEST_F(WorkerTest, KeptAsIsImageIdentityEntryGetsContentIdentity) {
+  // An already-optimal JPEG: the original-format re-encode is not smaller,
+  // so no optimized original is written and the identity entry keeps the
+  // front end's own bytes.  It must carry the hash of those bytes, which is
+  // what gives an origin without validators an ETag and a 304.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.proactive_image_variants = false;
+  config.proactive_viewport_variants = false;
+  config.proactive_savedata_variants = false;
+  config.proactive_density_variants = false;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/already-optimal.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/already_optimized.jpg");
+  ASSERT_FALSE(jpeg.empty()) << "Test JPEG not found";
+  AlternateMetadata meta;
+  meta.content_type = ContentType::kOther;
+  meta.origin_content_type = "image/jpeg";
+  CacheOriginalWithMeta(worker.cache(), url, jpeg, meta);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kImage;
+  n.capability_mask = CapabilityMask().Encode();
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  // Whether the encoder keeps this fixture as-is depends on the platform's
+  // codec build; the identity must carry the origin's hash either way (a
+  // re-encoded entry inherits the stamp).
+  const bool kept_as_is = worker.stats().image_no_savings_skipped.load() >= 1u;
+  auto raw = ReadIdentityEntry(worker.cache(), url);
+  ASSERT_TRUE(raw.has_value());
+  EXPECT_EQ(raw->metadata.origin_html_hash, Sha256Of(jpeg));
+  EXPECT_TRUE(pagespeed::ContentIdentity64(raw->metadata).has_value())
+      << "no content identity: the front end would emit no ETag";
+  if (kept_as_is) {
+    // The path under test: the identity entry stays the origin's own bytes.
+    EXPECT_EQ(raw->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0)
+        << "the identity entry must stay the origin's own bytes";
+    auto body = raw->content();
+    EXPECT_EQ(
+        std::string(reinterpret_cast<const char*>(body.data()), body.size()),
+        jpeg);
+  }
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+TEST_F(WorkerTest, KeptAsIsPngIdentityEntryGetsContentIdentity) {
+  // Same rule for PNG: a small palette image the optimizer cannot shrink.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.proactive_image_variants = false;
+  config.proactive_viewport_variants = false;
+  config.proactive_savedata_variants = false;
+  config.proactive_density_variants = false;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/already-optimal.png";
+  const std::string png = ReadTestFile("png/pagespeed-33x34.png");
+  ASSERT_FALSE(png.empty()) << "Test PNG not found";
+  AlternateMetadata meta;
+  meta.content_type = ContentType::kOther;
+  meta.origin_content_type = "image/png";
+  CacheOriginalWithMeta(worker.cache(), url, png, meta);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kImage;
+  n.capability_mask = CapabilityMask().Encode();
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  auto entry = ReadIdentityEntry(worker.cache(), url);
+  ASSERT_TRUE(entry.has_value());
+  ASSERT_GE(worker.stats().image_no_savings_skipped.load(), 1u)
+      << "the fixture was optimized after all; pick an already-optimal image";
+  EXPECT_EQ(entry->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0)
+      << "the identity entry must stay the origin's own bytes";
+  EXPECT_EQ(entry->metadata.origin_html_hash, Sha256Of(png));
+  EXPECT_TRUE(pagespeed::ContentIdentity64(entry->metadata).has_value());
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+TEST_F(WorkerTest, PassthroughImageWithCompressedCopiesKeepsIdentity) {
+  // An unsupported image type whose gzip and brotli copies already exist (for
+  // example written before the identity stamp existed): the early return for
+  // stored copies must not skip the identity stamp.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/favicon.ico";
+  const std::string ico = "fake ico content for testing purposes";
+  AlternateMetadata meta;
+  meta.content_type = ContentType::kOther;
+  meta.origin_content_type = "image/x-icon";
+  CacheOriginalWithMeta(worker.cache(), url, ico, meta);
+
+  // Pre-existing compressed copies, written without a stamp.
+  for (auto enc : {CapabilityMask::TransferEncoding::kGzip,
+                   CapabilityMask::TransferEncoding::kBrotli}) {
+    CapabilityMask mask;
+    mask.set_transfer_encoding(enc);
+    AlternateMetadata copy_meta;
+    copy_meta.full_mask = mask.Encode();
+    copy_meta.content_type = ContentType::kImage;
+    copy_meta.origin_content_type = "image/x-icon";
+    copy_meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+    const AlternateId cid =
+        MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+    auto wh = worker.cache()->WriteAlternate(
+        StripSchemeAuthority(url), "", "https", cid, ico.size(), copy_meta);
+    ASSERT_TRUE(wh.has_value());
+    ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span(ico.data(), ico.size())))
+                    .has_value());
+    ASSERT_TRUE(wh->close_sync().has_value());
+  }
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kImage;
+  n.capability_mask = CapabilityMask().Encode();
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  auto raw = ReadIdentityEntry(worker.cache(), url);
+  ASSERT_TRUE(raw.has_value());
+  EXPECT_EQ(raw->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0);
+  EXPECT_EQ(raw->metadata.origin_html_hash, Sha256Of(ico));
+  EXPECT_TRUE(pagespeed::ContentIdentity64(raw->metadata).has_value());
+  EXPECT_EQ(worker.stats().alternate_write_failures.load(), 0u);
 
   worker.Shutdown();
   worker_thread.join();

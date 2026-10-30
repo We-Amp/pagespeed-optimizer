@@ -479,6 +479,7 @@ gtest_test(
         # stylesheet produces parses to rel=preload; as=style, which is the
         # contract the 103 emitters consume. Pure C++, no nginx headers.
         "//src/nginx:early_hints_util",
+        "//src/nginx:etag_util",
         "//src/proto:worker_ipc",
         "//src/worker:browser_analysis_manager",
         "//src/worker:cascade_layer_order",
