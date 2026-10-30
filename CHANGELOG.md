@@ -4,6 +4,8 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: on Windows the cache now works when the cache directory path contains non-ASCII characters (the Cyclone cache library was updated).
+
 Fixed: Early Hints (`103`) are now sent over HTTP/2 and HTTP/3, not only HTTP/1.1, when the module is built against nginx 1.29.0 or newer, so browsers on typical TLS deployments can start preloading stylesheets while the page is still being prepared. Early Hints are also sent for clean URLs without a file extension (such as `/about`) when the client asks for HTML; previously only URLs ending in `.html` or `/` got them.
 
 Fixed: over HTTP/3 the nginx module looked up cached pages under an empty host name, so HTTP/3 requests never found the entries stored for their site. They now use the request's host, as HTTP/1.1 and HTTP/2 do.
