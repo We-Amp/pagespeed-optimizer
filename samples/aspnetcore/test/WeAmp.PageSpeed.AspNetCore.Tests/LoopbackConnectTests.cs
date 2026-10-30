@@ -29,6 +29,15 @@ public class LoopbackConnectTests
     }
 
     [Fact]
+    public void Handler_UsesTheCallbackWithoutProxyOrCookieJar()
+    {
+        using var handler = LoopbackConnect.CreateHandler();
+        Assert.NotNull(handler.ConnectCallback);
+        Assert.False(handler.UseProxy);
+        Assert.False(handler.UseCookies);
+    }
+
+    [Fact]
     public async Task LoopbackHost_ConnectsOverAnIPv4Socket()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);

@@ -79,5 +79,9 @@ internal static class LoopbackConnect
     internal static SocketsHttpHandler CreateHandler() => new()
     {
         ConnectCallback = ConnectAsync,
+        // The only target is the local worker: never through a proxy, and
+        // no shared cookie jar (request cookies are forwarded as headers).
+        UseProxy = false,
+        UseCookies = false,
     };
 }

@@ -16,6 +16,8 @@ Fixed: on Windows, a cache reset no longer fails when the web server module or t
 
 Fixed: with the ASP.NET Core package, the `/console/` admin UI can now reach the optimizer worker from host-network containers on some container runtimes, where it previously failed with a bad gateway error. The console proxy now connects to the local worker over IPv4 explicitly; connections to any other address are unchanged.
 
+Fixed: with the ASP.NET Core package, the `/console/` admin UI can now reach the optimizer worker from host-network containers on some container runtimes, where it previously failed with a bad gateway error.
+
 Fixed: on Windows the cache now works when the cache directory path contains non-ASCII characters (the Cyclone cache library was updated).
 
 Fixed: Early Hints (`103`) are now sent over HTTP/2 and HTTP/3, not only HTTP/1.1, when the module is built against nginx 1.29.0 or newer, so browsers on typical TLS deployments can start preloading stylesheets while the page is still being prepared. Early Hints are also sent for clean URLs without a file extension (such as `/about`) when the client asks for HTML; previously only URLs ending in `.html` or `/` got them.
