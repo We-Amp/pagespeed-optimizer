@@ -540,9 +540,10 @@ public sealed class PageSpeedMiddleware
                                      ShouldRequestAgentRender(context, opts)))
                 _logger.LogDebug("TryNotify failed for revalidation: {Url}", url);
 
-        // ETag based on cache metadata.
-        var contentLength = content.Length;
-        var etag = $"W/\"{cached.CacheInsertedAt:x}-{contentLength:x}\"";
+        // ETag derived from the served bytes, so two different payloads
+        // never share a tag and identical content keeps its tag across
+        // re-insertions.
+        var etag = ComputeContentETag(content.Span);
         context.Response.Headers.ETag = etag;
 
         // ── Conditional request: If-None-Match ──────────────────
@@ -558,8 +559,10 @@ public sealed class PageSpeedMiddleware
         }
 
         // ── Conditional request: If-Modified-Since ──────────────
+        // Ignored when If-None-Match is present (RFC 9110 section 13.1.3).
         var ifModifiedSince = context.Request.Headers.IfModifiedSince.ToString();
-        if (!string.IsNullOrEmpty(ifModifiedSince) &&
+        if (string.IsNullOrEmpty(ifNoneMatch) &&
+            !string.IsNullOrEmpty(ifModifiedSince) &&
             cached.CacheInsertedAt > 0)
         {
             if (DateTimeOffset.TryParse(ifModifiedSince, out var since))
@@ -1307,6 +1310,17 @@ public sealed class PageSpeedMiddleware
             span = comma >= 0 ? span[(comma + 1)..] : [];
         }
         return false;
+    }
+
+    /// <summary>
+    /// Weak ETag derived from the bytes of a cached body: the first 128 bits
+    /// of its SHA-256, in lowercase hex.
+    /// </summary>
+    internal static string ComputeContentETag(ReadOnlySpan<byte> content)
+    {
+        Span<byte> hash = stackalloc byte[32];
+        System.Security.Cryptography.SHA256.HashData(content, hash);
+        return $"W/\"{Convert.ToHexString(hash[..16]).ToLowerInvariant()}\"";
     }
 
     /// <summary>
