@@ -249,6 +249,16 @@ internal static partial class NativePageSpeed
     internal static partial int ParseCacheControl(
         string headerValue, ref NativeCacheControl parsed);
 
+    // ---------- response-header block ----------
+    // names/values: arrays of `count` NUL-terminated strings (const char* const*).
+    // out verdict: ps_sidecar_verdict_t as int; out stored: 0 or 1.
+    [LibraryImport(Lib, EntryPoint = "ps_cache_write_headers_sidecar",
+        StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial int CacheWriteHeadersSidecar(
+        SafeCacheHandle cache, string url, string hostname, string scheme,
+        IntPtr names, IntPtr values, nuint count,
+        out int verdict, out int stored);
+
     // ---------- cache management ----------
 
     [LibraryImport(Lib, EntryPoint = "ps_cache_alternate_exists",
