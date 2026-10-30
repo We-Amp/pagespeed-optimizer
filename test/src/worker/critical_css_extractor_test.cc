@@ -2685,6 +2685,68 @@ TEST(CriticalCssExtractorTest, StandaloneSupportsBlock) {
   EXPECT_EQ(result.critical_css.find("unknown-class"), std::string::npos);
 }
 
+TEST(CriticalCssExtractorTest, MinifiedSupportsBoundaryKeepsAboveFoldRules) {
+  CriticalCssExtractor extractor;
+  std::vector<CollectedElement> elements;
+  elements.push_back(MakeElement("div", 0, 0));
+
+  const std::string css =
+      "@supports(display:grid){div{display:grid}.unknown-class{color:blue}}";
+
+  auto result = extractor.Extract(elements, css);
+  EXPECT_TRUE(result.success);
+  EXPECT_NE(result.critical_css.find("@supports(display:grid)"),
+            std::string::npos);
+  EXPECT_NE(result.critical_css.find("display:grid"), std::string::npos);
+  EXPECT_EQ(result.critical_css.find("unknown-class"), std::string::npos);
+}
+
+TEST(CriticalCssExtractorTest, MinifiedLayerBoundaryKeepsAboveFoldRules) {
+  CriticalCssExtractor extractor;
+  std::vector<CollectedElement> elements;
+  elements.push_back(MakeElement("div", 0, 0));
+
+  const std::string css = "@layer(x){div{margin:0}.unknown-class{color:blue}}";
+
+  auto result = extractor.Extract(elements, css);
+  EXPECT_TRUE(result.success);
+  EXPECT_NE(result.critical_css.find("@layer(x)"), std::string::npos);
+  EXPECT_NE(result.critical_css.find("margin:0"), std::string::npos);
+  EXPECT_EQ(result.critical_css.find("unknown-class"), std::string::npos);
+}
+
+TEST(CriticalCssExtractorTest, SpacedSupportsFormUnchanged) {
+  CriticalCssExtractor extractor;
+  std::vector<CollectedElement> elements;
+  elements.push_back(MakeElement("div", 0, 0));
+
+  // Spaced form still filters its inner rules.
+  auto spaced = extractor.Extract(
+      elements,
+      "@supports (display:grid){div{display:grid}.unused{color:red}}");
+  EXPECT_TRUE(spaced.success);
+  EXPECT_NE(spaced.critical_css.find("display:grid"), std::string::npos);
+  EXPECT_EQ(spaced.critical_css.find("unused"), std::string::npos);
+}
+
+TEST(CriticalCssExtractorTest, MinifiedSupportsNestedInLayerAndMedia) {
+  CriticalCssExtractor extractor;
+  std::vector<CollectedElement> elements;
+  elements.push_back(MakeElement("div", 0, 0));
+
+  const std::string css =
+      "@layer a,b;@layer a{@supports(display:flex){div{probe-a:1}"
+      ".nope{probe-b:2}}}@media(min-width:0){@supports(display:grid){"
+      "div{probe-c:3}.nope{probe-d:4}}}";
+
+  auto result = extractor.Extract(elements, css);
+  EXPECT_TRUE(result.success);
+  EXPECT_NE(result.critical_css.find("@layer a,b;"), std::string::npos);
+  EXPECT_NE(result.critical_css.find("probe-a"), std::string::npos);
+  EXPECT_EQ(result.critical_css.find("probe-b"), std::string::npos);
+  EXPECT_NE(result.critical_css.find("probe-c"), std::string::npos);
+}
+
 TEST(CriticalCssExtractorTest, AnonymousLayerBlock) {
   CriticalCssExtractor extractor;
   std::vector<CollectedElement> elements;

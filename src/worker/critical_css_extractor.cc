@@ -1018,17 +1018,14 @@ bool MediaKnownToApplyForViewport(std::string_view media_rule,
 
 // Check if a selector represents a container at-rule whose inner rules
 // should be recursed into (@layer, @supports).
+bool AtRuleKeywordIs(std::string_view selector, std::string_view keyword);
+
 bool IsContainerAtRule(std::string_view selector) {
-  // Check for @layer or @supports with a word boundary (space, '{', or
-  // end-of-string) to avoid matching e.g. "@layerX".
-  auto check = [&](std::string_view prefix) -> bool {
-    if (!absl::StartsWithIgnoreCase(selector, prefix)) return false;
-    if (selector.size() == prefix.size()) return true;
-    char next = selector[prefix.size()];
-    return next == ' ' || next == '\t' || next == '\n' || next == '\r' ||
-           next == '{' || next == '/';  // `@layer/**/{`
-  };
-  return check("@layer") || check("@supports");
+  // Same name-boundary set as every other at-rule check: whitespace, '{', '/'
+  // (`@layer/**/{`) or '(' (a minifier emits `@supports(display:grid){`), and
+  // end-of-string, so "@layerX" does not match.
+  return AtRuleKeywordIs(selector, "@layer") ||
+         AtRuleKeywordIs(selector, "@supports");
 }
 
 using net_instaweb::HexDigitValue;
@@ -1179,7 +1176,6 @@ std::string StripImportantDeclarations(std::string_view body) {
   return absl::StrCat("{", out, "}");
 }
 
-bool AtRuleKeywordIs(std::string_view selector, std::string_view keyword);
 std::string ExtractLayerName(std::string_view selector);
 
 // A block of rules (`body`, braces included, e.g. an @media
