@@ -10,6 +10,8 @@ Fixed: over HTTP/3 the nginx module looked up cached pages under an empty host n
 
 Fixed: critical CSS now keeps the above-the-fold rules of minified `@supports(...)` blocks written with no space before the parenthesis; previously those blocks were left out.
 
+Fixed: the EXIF orientation reader for JPEG images tightens its bounds handling of malformed metadata.
+
 Security: with the ASP.NET Core package, headers the application sets (such as
 `Content-Security-Policy`, `Access-Control-Allow-Origin` and
 `X-Content-Type-Options`) could be missing from responses served from the

@@ -14,12 +14,14 @@
 
 #include "lib/image/exif_orientation.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
@@ -161,6 +163,179 @@ TEST(ReadJpegExifOrientationTest, MinimalApp1RoundTrip) {
     jpeg.push_back(static_cast<char>(0xD9));
     EXPECT_EQ(ReadJpegExifOrientation(jpeg.data(), jpeg.size()), orientation);
   }
+}
+
+// ============================================================
+// Structure bounds: every read stays inside the buffer
+// ============================================================
+
+namespace {
+
+void Put16(std::vector<uint8_t>* v, uint16_t x, bool big_endian) {
+  if (big_endian) {
+    v->push_back(static_cast<uint8_t>(x >> 8));
+    v->push_back(static_cast<uint8_t>(x & 0xFF));
+  } else {
+    v->push_back(static_cast<uint8_t>(x & 0xFF));
+    v->push_back(static_cast<uint8_t>(x >> 8));
+  }
+}
+
+void Put32(std::vector<uint8_t>* v, uint32_t x, bool big_endian) {
+  if (big_endian) {
+    Put16(v, static_cast<uint16_t>(x >> 16), true);
+    Put16(v, static_cast<uint16_t>(x & 0xFFFF), true);
+  } else {
+    Put16(v, static_cast<uint16_t>(x & 0xFFFF), false);
+    Put16(v, static_cast<uint16_t>(x >> 16), false);
+  }
+}
+
+// Builds a TIFF block with one IFD holding |num_declared| as the entry count
+// and |tags| real entries. Each entry is (tag, orientation-style SHORT).
+std::vector<uint8_t> BuildTiff(bool big_endian, uint32_t ifd_offset,
+                               uint16_t num_declared,
+                               const std::vector<uint16_t>& tags,
+                               uint16_t orientation) {
+  std::vector<uint8_t> t;
+  t.push_back(big_endian ? 'M' : 'I');
+  t.push_back(big_endian ? 'M' : 'I');
+  Put16(&t, 42, big_endian);
+  Put32(&t, ifd_offset, big_endian);
+  Put16(&t, num_declared, big_endian);
+  for (uint16_t tag : tags) {
+    Put16(&t, tag, big_endian);
+    Put16(&t, 3, big_endian);  // SHORT.
+    Put32(&t, 1, big_endian);
+    Put16(&t, tag == 0x0112 ? orientation : 0, big_endian);
+    Put16(&t, 0, big_endian);
+  }
+  return t;
+}
+
+// Wraps |tiff| in a minimal JPEG whose APP1 segment ends exactly at the end
+// of an exactly-sized heap allocation (no EOI), so a read past the end of the
+// structure is visible to the sanitizers. |segment_length| of 0 means "match
+// the payload".
+class ExactJpeg {
+ public:
+  ExactJpeg(const std::vector<uint8_t>& tiff, size_t segment_length = 0) {
+    std::vector<uint8_t> v = {0xFF, 0xD8, 0xFF, 0xE1};
+    const size_t seg = segment_length != 0 ? segment_length : tiff.size() + 8;
+    v.push_back(static_cast<uint8_t>(seg >> 8));
+    v.push_back(static_cast<uint8_t>(seg & 0xFF));
+    const char kExif[] = {'E', 'x', 'i', 'f', 0, 0};
+    v.insert(v.end(), kExif, kExif + 6);
+    v.insert(v.end(), tiff.begin(), tiff.end());
+    size_ = v.size();
+    data_.reset(new uint8_t[size_]);
+    std::copy(v.begin(), v.end(), data_.get());
+  }
+  int Orientation() const {
+    return ReadJpegExifOrientation(data_.get(), size_);
+  }
+
+ private:
+  std::unique_ptr<uint8_t[]> data_;
+  size_t size_ = 0;
+};
+
+}  // namespace
+
+TEST(ReadJpegExifOrientationBoundsTest, ValidFileYieldsOrientation) {
+  for (bool big_endian : {false, true}) {
+    for (uint16_t o = 1; o <= 8; ++o) {
+      ExactJpeg jpeg(BuildTiff(big_endian, 8, 1, {0x0112}, o));
+      EXPECT_EQ(jpeg.Orientation(), o) << big_endian << " " << o;
+    }
+    // Orientation is the last of several entries and ends the buffer exactly.
+    ExactJpeg last(BuildTiff(big_endian, 8, 3, {0x010F, 0x0110, 0x0112}, 6));
+    EXPECT_EQ(last.Orientation(), 6);
+  }
+}
+
+TEST(ReadJpegExifOrientationBoundsTest, StopsAtTruncatedIfd) {
+  // Truncate at every byte of the TIFF header, the entry count and the entry
+  // (including the position just short of the last value byte).
+  for (bool big_endian : {false, true}) {
+    const std::vector<uint8_t> full = BuildTiff(big_endian, 8, 1, {0x0112}, 6);
+    ASSERT_EQ(full.size(), 22u);
+    for (size_t len = 0; len < full.size(); ++len) {
+      std::vector<uint8_t> cut(full.begin(), full.begin() + len);
+      ExactJpeg jpeg(cut);
+      EXPECT_EQ(jpeg.Orientation(), 1)
+          << "endian " << big_endian << " len " << len;
+    }
+    ExactJpeg whole(full);
+    EXPECT_EQ(whole.Orientation(), 6);
+  }
+}
+
+TEST(ReadJpegExifOrientationBoundsTest, StopsAtTruncatedEntryAfterOthers) {
+  for (bool big_endian : {false, true}) {
+    const std::vector<uint8_t> full =
+        BuildTiff(big_endian, 8, 3, {0x010F, 0x0110, 0x0112}, 3);
+    for (size_t len = 0; len < full.size(); ++len) {
+      std::vector<uint8_t> cut(full.begin(), full.begin() + len);
+      ExactJpeg jpeg(cut);
+      EXPECT_EQ(jpeg.Orientation(), 1) << "len " << len;
+    }
+  }
+}
+
+TEST(ReadJpegExifOrientationBoundsTest, StopsAtEntryCountLargerThanBuffer) {
+  for (bool big_endian : {false, true}) {
+    // The orientation entry is present and fits: it is still found even
+    // though the declared count runs past the end of the buffer.
+    for (uint16_t declared : {2, 3, 100, 0xFFFF}) {
+      ExactJpeg jpeg(BuildTiff(big_endian, 8, declared, {0x0112}, 6));
+      EXPECT_EQ(jpeg.Orientation(), 6) << declared;
+    }
+    // The orientation entry would lie past the end of the buffer.
+    for (uint16_t declared : {2, 3, 100, 0xFFFF}) {
+      ExactJpeg jpeg(BuildTiff(big_endian, 8, declared, {0x010F}, 6));
+      EXPECT_EQ(jpeg.Orientation(), 1) << declared;
+    }
+    // The orientation entry is cut short by one byte.
+    std::vector<uint8_t> cut =
+        BuildTiff(big_endian, 8, 100, {0x010F, 0x0112}, 6);
+    cut.pop_back();
+    EXPECT_EQ(ExactJpeg(cut).Orientation(), 1);
+    // Count zero is a valid, empty IFD.
+    ExactJpeg empty(BuildTiff(big_endian, 8, 0, {}, 0));
+    EXPECT_EQ(empty.Orientation(), 1);
+  }
+}
+
+TEST(ReadJpegExifOrientationBoundsTest, StopsAtOffsetPastEnd) {
+  for (bool big_endian : {false, true}) {
+    const std::vector<uint8_t> base = BuildTiff(big_endian, 8, 1, {0x0112}, 6);
+    const uint32_t len = static_cast<uint32_t>(base.size());
+    for (uint32_t offset :
+         {len - 2, len - 1, len, len + 1, len + 12, 0x7FFFFFFFu, 0xFFFFFFF9u,
+          0xFFFFFFFEu, 0xFFFFFFFFu}) {
+      std::vector<uint8_t> t = base;
+      std::vector<uint8_t> patched;
+      Put32(&patched, offset, big_endian);
+      std::copy(patched.begin(), patched.end(), t.begin() + 4);
+      ExactJpeg jpeg(t);
+      EXPECT_EQ(jpeg.Orientation(), 1) << "offset " << offset;
+    }
+    // An IFD offset that leaves room for the count but not for the entry.
+    std::vector<uint8_t> t = BuildTiff(big_endian, 8, 1, {0x0112}, 6);
+    t.resize(t.size() - 1);
+    EXPECT_EQ(ExactJpeg(t).Orientation(), 1);
+  }
+}
+
+TEST(ReadJpegExifOrientationBoundsTest, StopsAtSegmentLongerThanBuffer) {
+  const std::vector<uint8_t> tiff = BuildTiff(false, 8, 1, {0x0112}, 6);
+  // Declared APP1 length reaches past the end of the data.
+  EXPECT_EQ(ExactJpeg(tiff, tiff.size() + 9).Orientation(), 1);
+  EXPECT_EQ(ExactJpeg(tiff, 0xFFFF).Orientation(), 1);
+  // Declared length too short to hold an EXIF header and TIFF header.
+  EXPECT_EQ(ExactJpeg(tiff, 2).Orientation(), 1);
+  EXPECT_EQ(ExactJpeg(tiff, 15).Orientation(), 1);
 }
 
 // ============================================================
