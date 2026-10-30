@@ -368,7 +368,9 @@ const siteData = sites.map((site) => {
         We separate what we directly measure from what we model. The byte sizes below are measured
         from the actual optimization pipeline running against the demo sites above — real pipeline
         output, not marketing math. The load-time and Lighthouse figures are projections we derive
-        from those measured savings, and we say so explicitly.
+        from those measured savings, and we say so explicitly. The percentages on this page compare
+        file sizes before and after optimization. The admin console's savings figures are a different
+        measure: measured in transfer bytes, includes compression.
       </p>
       <p class="mt-4 text-sm font-semibold text-text-body">Directly measured</p>
       <ul class="mt-2 space-y-2 text-sm text-text-muted list-disc list-inside">
@@ -414,23 +416,23 @@ const siteData = sites.map((site) => {
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-text-body text-center">See the live consoles</h2>
       <p class="mt-4 text-text-muted text-center max-w-2xl mx-auto">
-        Both parts ship a console: the module's admin console and the optimizer worker's web
-        console. These are real, publicly reachable instances running on our own infrastructure —
-        open them and click around.
+        Both are the module's admin console, the same one you get with a mod_pagespeed install. They
+        are real, publicly reachable instances running on our own infrastructure, so open them and
+        click around.
       </p>
       <div class="mt-10 grid gap-8 lg:grid-cols-2">
         <div>
           <a
-            href="https://we-amp.com/console/"
+            href="https://we-amp.com/pagespeed_global_admin/#/savings"
             data-umami-event="live_2_0_console_demo"
             class="block group"
           >
             <picture>
-              <source srcset="/images/console-2.0-dashboard.avif" type="image/avif" />
-              <source srcset="/images/console-2.0-dashboard.webp" type="image/webp" />
+              <source srcset="/images/console-savings.avif" type="image/avif" />
+              <source srcset="/images/console-savings.webp" type="image/webp" />
               <img
-                src="/images/console-2.0-dashboard.png"
-                alt="Web console Savings page with bytes saved by module rewrites and by optimizer cache serves, a breakdown by file type, and a table of savings per hosted site"
+                src="/images/console-savings.png"
+                alt="Admin console Savings page with bytes saved by module rewrites and by optimizer cache serves, a breakdown by file type, and a table of savings per hosted site"
                 width="1440"
                 height="900"
                 loading="lazy"
@@ -438,29 +440,30 @@ const siteData = sites.map((site) => {
               />
             </picture>
           </a>
-          <p class="mt-3 text-sm font-medium text-text-body">The optimizer worker's web console</p>
+          <p class="mt-3 text-sm font-medium text-text-body">The admin console on our production sites</p>
           <p class="mt-1 text-sm text-text-muted">
-            A read-only console with live savings from this site's own production deployment: bytes
-            saved by the module and the optimizer worker, by file type and by hosted site.{' '}
+            Live savings from our own production deployment: bytes saved by the module and the
+            optimizer worker, by file type and by hosted site, measured in transfer bytes and
+            including compression. The console is read-only here.{' '}
             <a
-              href="https://we-amp.com/console/"
+              href="https://we-amp.com/pagespeed_global_admin/#/savings"
               class="text-interactive underline underline-offset-2"
             >
-              Open the live web console →
+              Open the live admin console →
             </a>
           </p>
         </div>
         <div>
           <a
-            href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console"
+            href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics"
             data-umami-event="live_1_1_console_demo"
             class="block group"
           >
             <picture>
-              <source srcset="/images/console-1.1-admin.avif" type="image/avif" />
-              <source srcset="/images/console-1.1-admin.webp" type="image/webp" />
+              <source srcset="/images/console-statistics.avif" type="image/avif" />
+              <source srcset="/images/console-statistics.webp" type="image/webp" />
               <img
-                src="/images/console-1.1-admin.png"
+                src="/images/console-statistics.png"
                 alt="The module's admin console Statistics table on the Apache demo, listing cache counters with a description, a value column and a delta-since-open column"
                 width="1440"
                 height="900"
@@ -469,13 +472,13 @@ const siteData = sites.map((site) => {
               />
             </picture>
           </a>
-          <p class="mt-3 text-sm font-medium text-text-body">The module's admin console</p>
+          <p class="mt-3 text-sm font-medium text-text-body">The admin console on the Apache demo</p>
           <p class="mt-1 text-sm text-text-muted">
-            The admin console built into the native module, running on our public Apache demo. Live
-            statistics, caches, histograms, and message history, served in-process with no separate
+            The same console, built into the native module and running on our public Apache demo:
+            live statistics, caches, histograms and logs, served in-process with no separate
             worker.{' '}
             <a
-              href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console"
+              href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics"
               class="text-interactive underline underline-offset-2"
             >
               Open the live admin console →
