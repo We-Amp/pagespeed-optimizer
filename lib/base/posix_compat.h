@@ -26,6 +26,8 @@
 #include <windows.h>
 
 #include <cerrno>
+#include <cstring>
+#include <string>
 
 typedef SSIZE_T ssize_t;
 typedef int pid_t;
@@ -51,9 +53,72 @@ inline int fsync(int fd) {
   return 0;
 }
 
-// rename() on Windows fails if destination exists; this wrapper uses
-// MoveFileExA(MOVEFILE_REPLACE_EXISTING) to match POSIX semantics.
+namespace ps_compat_detail {
+
+// Mirrors FILE_RENAME_INFO_EX and its flags (Windows 10 1607 and later) so the
+// code builds against older SDK targets; the enum value is FileRenameInfoEx.
+struct RenameInfoEx {
+  DWORD flags;
+  HANDLE root_directory;
+  DWORD file_name_length;  // bytes, without the terminator
+  WCHAR file_name[1];
+};
+constexpr DWORD kRenameReplaceIfExists = 0x1;
+constexpr DWORD kRenamePosixSemantics = 0x2;
+constexpr int kFileRenameInfoEx = 22;
+
+inline bool ToWidePath(const char* in, std::wstring* out) {
+  const int n = MultiByteToWideChar(CP_ACP, 0, in, -1, nullptr, 0);
+  if (n <= 0) return false;
+  std::wstring w(static_cast<size_t>(n), L'\0');
+  if (MultiByteToWideChar(CP_ACP, 0, in, -1, &w[0], n) <= 0) return false;
+  w.resize(static_cast<size_t>(n) - 1);
+  const DWORD full = GetFullPathNameW(w.c_str(), 0, nullptr, nullptr);
+  if (full == 0) return false;
+  out->assign(full, L'\0');
+  const DWORD got = GetFullPathNameW(w.c_str(), full, &(*out)[0], nullptr);
+  if (got == 0 || got >= full) return false;
+  out->resize(got);
+  return true;
+}
+
+// Renames src over dst with rename(2) semantics: an existing dst that other
+// processes hold open is superseded instead of failing with access denied.
+// Returns false when the call is unavailable or fails, so the caller can fall
+// back; the caller must not assume anything about the files in that case.
+inline bool PosixSemanticsRename(const char* src, const char* dst) {
+  std::wstring wdst;
+  if (!ToWidePath(dst, &wdst)) return false;
+  std::wstring wsrc;
+  if (!ToWidePath(src, &wsrc)) return false;
+  HANDLE h = CreateFileW(wsrc.c_str(), DELETE | SYNCHRONIZE,
+                         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                         nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) return false;
+  const size_t name_bytes = wdst.size() * sizeof(WCHAR);
+  std::string buf(sizeof(RenameInfoEx) + name_bytes, '\0');
+  auto* info = reinterpret_cast<RenameInfoEx*>(&buf[0]);
+  info->flags = kRenameReplaceIfExists | kRenamePosixSemantics;
+  info->root_directory = nullptr;
+  info->file_name_length = static_cast<DWORD>(name_bytes);
+  std::memcpy(info->file_name, wdst.data(), name_bytes);
+  const BOOL ok = SetFileInformationByHandle(
+      h, static_cast<FILE_INFO_BY_HANDLE_CLASS>(kFileRenameInfoEx), info,
+      static_cast<DWORD>(buf.size()));
+  CloseHandle(h);
+  return ok != FALSE;
+}
+
+}  // namespace ps_compat_detail
+
+// rename() on Windows fails if destination exists. This wrapper replaces the
+// destination the way POSIX rename() does: first through a rename with POSIX
+// semantics (Windows 10 1607 / Server 2016 and later), which succeeds even
+// while another process holds the destination open, then, where that is not
+// supported by the system or the file system, through
+// MoveFileExA(MOVEFILE_REPLACE_EXISTING).
 inline int ps_rename(const char* src, const char* dst) {
+  if (ps_compat_detail::PosixSemanticsRename(src, dst)) return 0;
   if (MoveFileExA(src, dst, MOVEFILE_REPLACE_EXISTING)) return 0;
   // Report the real cause through errno, as the POSIX rename() does.
   const DWORD err = GetLastError();

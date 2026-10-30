@@ -17,7 +17,9 @@
 
 #ifdef _WIN32
 #include <process.h>
+#include <windows.h>
 #else
+#include <fcntl.h>
 #include <signal.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
@@ -141,6 +143,36 @@ TEST_F(AtomicFileWriterTest, ReplacesExistingFile) {
   ASSERT_TRUE(AtomicWriteFile(path, "old", 0644));
   ASSERT_TRUE(AtomicWriteFile(path, "new-content", 0644));
   EXPECT_EQ(ReadFile(path), "new-content");
+}
+
+// A reader that holds the destination open (the way the web server module
+// holds the generation file for a moment on each check) must not block the
+// replace, and must keep seeing the old content through its open handle.
+TEST_F(AtomicFileWriterTest, ReplacesFileWhileReaderHoldsItOpen) {
+  std::string path = (tmp_dir_ / "held.gen").string();
+  ASSERT_TRUE(AtomicWriteFile(path, "1\n", 0644));
+
+#ifdef _WIN32
+  HANDLE reader = CreateFileA(
+      path.c_str(), GENERIC_READ,
+      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  ASSERT_NE(reader, INVALID_HANDLE_VALUE);
+#else
+  int reader = ::open(path.c_str(), O_RDONLY);
+  ASSERT_GE(reader, 0);
+#endif
+
+  EXPECT_TRUE(AtomicWriteFile(path, "2\n", 0644));
+  EXPECT_TRUE(AtomicWriteFile(path, "3\n", 0644));
+  EXPECT_EQ(ReadFile(path), "3\n");
+  EXPECT_FALSE(std::filesystem::exists(path + ".tmp"));
+
+#ifdef _WIN32
+  CloseHandle(reader);
+#else
+  ::close(reader);
+#endif
 }
 
 // Open leg: creating the temp file in a nonexistent directory fails, and
