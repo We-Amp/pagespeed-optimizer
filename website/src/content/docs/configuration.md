@@ -3281,20 +3281,20 @@ children on a many-core machine gets proportionally more.
 
 <div data-platform="nginx" data-platform-label="nginx">
 
-nginx reports `worker_processes`, so the divisor is the number of workers the
-master forks (one with `master_process off`). One worker on a 16-core machine
-resolves to eight threads per pool; four workers on the same machine resolve to
-two each. With `worker_processes auto` nginx starts one worker per online CPU,
-so a server resolves to **one thread per pool**.
+In 2.7.0 and later, nginx reports `worker_processes`, so the divisor is the
+number of workers the master forks (one with `master_process off`). One worker
+on a 16-core machine resolves to eight threads per pool; four workers on the
+same machine resolve to two each. With `worker_processes auto` nginx starts one
+worker per online CPU, so a server resolves to **one thread per pool**.
 
 With `worker_cpu_affinity` set, each worker is pinned to its own CPUs only after
 the counts are resolved, so the module cannot see how many CPUs a worker has.
 Such a server keeps **one thread per pool** and logs that it fell back; set
 `NumRewriteThreads` and `NumExpensiveRewriteThreads` to size the pools yourself.
 
-Servers with fewer workers than half their cores run more optimization threads
-than in earlier releases, which ran one thread per pool on nginx. To keep that,
-set both directives to `1`.
+Servers with fewer workers than half the CPUs they may use run more
+optimization threads than releases before 2.7.0, which ran one thread per pool
+on nginx. To keep that, set both directives to `1`.
 
 </div>
 
