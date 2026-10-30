@@ -38,6 +38,10 @@ export async function analyzeFiles(
       error: null,
     };
     let unparsed = 0;
+    // Blank lines are skipped and never counted as junk, but a run of them as
+    // long as the give-up window means the file is not a log (a file of
+    // newlines would otherwise be read to its end for nothing).
+    let blankRun = 0;
     const noteUnparsed = (text: string): void => {
       agg.addUnparsed(text);
       unparsed += 1;
@@ -62,7 +66,15 @@ export async function analyzeFiles(
           noteUnparsed(chunk.text);
         } else {
           const text = chunk.text;
-          if (text.trim() === '') continue;
+          if (text.trim() === '') {
+            blankRun += 1;
+            if (blankRun >= GIVE_UP_WINDOW) {
+              report.givenUp = true;
+              break;
+            }
+            continue;
+          }
+          blankRun = 0;
           if (!detected) {
             detected = true;
             const f: Format = detectFormat(text);

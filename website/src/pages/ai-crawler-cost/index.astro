@@ -130,11 +130,18 @@ const next = [
       </div>
       <p class="mt-3 text-xs text-text-annotation">
         0.09 USD per GB and 0.40 USD per million requests are the defaults BotCost.dev's author
-        described at its launch (Hacker News, May 2026); its page shows no rate today. For
-        comparison, Hetzner lists 1 EUR per TB for dedicated-server traffic beyond the included
-        amount (read 2026-10-14). The per-request rate starts at 0: a self-hosted origin typically
-        pays for bytes rather than requests, and a CDN customer can enter their own request price.
-        Every cost on this page is an estimate at the rate you set.
+        described at its launch (
+        <a
+          href="https://news.ycombinator.com/item?id=48096045"
+          class="text-interactive hover:text-interactive-hover"
+        >
+          Hacker News, May 2026
+        </a>
+        ); its page showed no rate when read on 2026-10-14. For comparison, Hetzner lists 1 EUR per
+        TB for dedicated-server traffic beyond the included amount (read 2026-10-14). The
+        per-request rate starts at 0: a self-hosted origin typically pays for bytes rather than
+        requests, and a CDN customer can enter their own request price. Every cost on this page is
+        an estimate at the rate you set.
       </p>
     </fieldset>
   </section>
@@ -233,11 +240,12 @@ const next = [
     </ol>
     <p class="mt-4 text-text-muted">
       Once the page has loaded, the only requests it makes are for the site's analytics and for this
-      site's own files (a font, or the search index if you open site search). The analytics script
-      loads from umami.we-amp.com, and its events are posted to this site's own /api/send, which
-      forwards them: a page view, one event when an analysis finishes, and a count when you click a
-      link or a share button on this page. None of these carries anything from your log: no counts,
-      no hosts, no paths. The parsing code is published at
+      site's own files (a font, or the search index if you open site search), plus any form on the
+      page you fill in yourself. The analytics script loads from umami.we-amp.com, and its events
+      are posted to this site's own /api/send, which forwards them: a page view, one event when an
+      analysis finishes, and a count when you click a link or a share button on this page. None of
+      these carries anything from your log: no counts, no hosts, no paths. The parsing code is
+      published at
       <a href={sourceUrl} class="text-interactive hover:text-interactive-hover">
         {sourceUrl}
       </a>

@@ -177,6 +177,22 @@ describe('analyzeFiles goldens', () => {
     const last = seen[seen.length - 1];
     expect(last[0]).toBe(last[1]);
   });
+  it('gives up on a file made only of blank lines', async () => {
+    const a = await analyzeFiles([src('blank.txt', '\n'.repeat(GIVE_UP_WINDOW * 5))]);
+    expect(a.files[0]).toMatchObject({ givenUp: true, lines: 0 });
+  });
+  it('a long run of blank lines gives up even after real lines', async () => {
+    const log = fixture('cc-nginx-combined.log').toString('utf8');
+    const a = await analyzeFiles([src('access.log', log + '\n'.repeat(GIVE_UP_WINDOW * 5))]);
+    expect(a.files[0]).toMatchObject({ givenUp: true });
+    expect(a.requests).toBe(8);
+  });
+  it('blank lines inside a real log do not trigger the give-up', async () => {
+    const log = fixture('cc-nginx-combined.log').toString('utf8');
+    const a = await analyzeFiles([src('access.log', '\n'.repeat(50) + log)]);
+    expect(a.files[0]).toMatchObject({ givenUp: false });
+    expect(a.requests).toBe(8);
+  });
   it('gives up at the end of a short file that is mostly junk', async () => {
     const junk = Array.from({ length: 150 }, (_, i) => `junk line ${i}`).join('\n') + '\n';
     const a = await analyzeFiles([src('junk.txt', junk)]);

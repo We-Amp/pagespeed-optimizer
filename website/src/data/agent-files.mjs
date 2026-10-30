@@ -94,6 +94,12 @@ export const SURFACES = [
           'Paste a URL and see what an AI agent reads on your page: the readable content with and without JavaScript, markup bloat, and how well the page is described for machines. No signup.',
       },
       {
+        path: '/ai-crawler-cost/',
+        title: 'AI crawler cost meter',
+        description:
+          'Drop an access log and see requests, bytes and an estimated cost per AI crawler, and the visits AI assistants send back. Runs in your browser; nothing from the log is uploaded.',
+      },
+      {
         path: '/calculator/',
         title: 'Savings calculator',
         description:

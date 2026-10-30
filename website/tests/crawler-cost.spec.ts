@@ -33,6 +33,7 @@ test.describe('AI crawler cost meter', () => {
 
   test('the nginx fixture gives the golden numbers', async ({ page }) => {
     await page.goto('/ai-crawler-cost/');
+    await expect(page.locator('#cc-drop[data-ready="1"]')).toBeAttached();
     await page.setInputFiles('#cc-file', fixture('cc-nginx-combined.log'));
     await expect(page.locator('#cc-ratio')).toHaveText(
       '1.5 crawler page requests per visit an AI assistant sent back',
