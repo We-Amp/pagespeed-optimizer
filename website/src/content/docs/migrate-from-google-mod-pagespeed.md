@@ -3,7 +3,7 @@ title: 'Migrate from the archived Google module'
 description: 'Move from the archived mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2: package swap, what maps to what, cache, rollback.'
 order: 15
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-30
 datePublished: 2026-10-08
 faq:
   - q: 'Is mod_pagespeed 2 a drop-in replacement for the archived module?'
@@ -20,6 +20,29 @@ developed by We-Amp B.V. and not affiliated with or endorsed by Google,
 continues that codebase: same
 directives, same filter names, built against current Apache and nginx, with
 ongoing security fixes. The move is a package swap and a restart.
+
+## If apt or rpm already reports an error {#package-errors}
+
+These messages come from the archived Google repository, which stopped being maintained and signed. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu:
+
+```text
+E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is no longer signed.
+N: Updating from such a repository can't be done securely, and is therefore disabled by default.
+```
+
+```text
+W: GPG error: http://dl.google.com/linux/mod-pagespeed/deb stable Release: The following signatures were invalid: EXPKEYSIG 78BD65473CB3BD13 Google Inc. (Linux Packages Signing Authority) <linux-packages-keymaster@google.com>
+```
+
+On Enterprise Linux, installing the archived rpm directly prints:
+
+```text
+warning: mod-pagespeed-stable_current_x86_64.rpm: Header V4 DSA/SHA1 Signature, key ID 7fac5991: NOKEY
+```
+
+Do not re-import Google's key and do not mark the repository as trusted: that keeps the archived package installable. Move to the maintained package instead. On Debian and Ubuntu, step 1 of [the block below](#apache-on-debian-and-ubuntu) disables the source file the archived package created, `/etc/apt/sources.list.d/mod-pagespeed.list`, and the `apt-get update` error stops once that file is out of the way. The signed repository that `install.sh` script from packages.modpagespeed.com adds replaces it, for both Debian-family and Enterprise Linux systems.
+
+**Is it still maintained?** The Google and Apache releases are archived. mod_pagespeed continues it with regular releases and security fixes, and the [release notes](/docs/release-notes/) list each one.
 
 ## Before you start
 
