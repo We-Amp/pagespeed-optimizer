@@ -36,11 +36,11 @@ on:
         type: string
         default: ''
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   smoke-linux-x64:
+    permissions: {}
     name: smoke / ${{ matrix.rid }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -513,6 +513,7 @@ jobs:
             ${{ env.SMOKE_ROOT }}/pw/test-results/
 
   smoke-linux-arm64:
+    permissions: {}
     name: smoke / ${{ matrix.rid }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
@@ -526,6 +527,7 @@ jobs:
     steps: *smoke-steps-unix
 
   smoke-osx-arm64:
+    permissions: {}
     name: smoke / ${{ matrix.rid }}
     runs-on: macos-15
     timeout-minutes: 45
@@ -539,6 +541,7 @@ jobs:
     steps: *smoke-steps-unix
 
   smoke-win-x64:
+    permissions: {}
     name: smoke / ${{ matrix.rid }}
     runs-on: windows-2022
     timeout-minutes: 45
@@ -950,6 +953,7 @@ jobs:
   # publish. Linux only (the sidecar package is Linux-only). The version
   # logic and the indexing wait mirror the AspNetCore legs above.
   smoke-sidecar-linux-x64:
+    permissions: {}
     name: smoke / sidecar / ${{ matrix.rid }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1189,6 +1193,7 @@ jobs:
             ${{ env.SMOKE_ROOT }}/response.html
 
   smoke-sidecar-linux-arm64:
+    permissions: {}
     name: smoke / sidecar / ${{ matrix.rid }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30

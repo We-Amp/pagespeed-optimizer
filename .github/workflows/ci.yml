@@ -31,8 +31,7 @@ concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'run' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   pr:
@@ -123,6 +122,7 @@ jobs:
   # (it runs on a push only) and full (off unless its trigger matches) are
   # accepted as skipped; failure and cancelled still fail the gate.
   gate:
+    permissions: {}
     name: CI gate
     needs: [pr, full-scope, full]
     if: always()

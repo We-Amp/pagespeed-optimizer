@@ -59,8 +59,7 @@ on:
         type: boolean
         default: false
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   event-guard:
@@ -105,6 +104,8 @@ jobs:
   # organization.
   # ---------------------------------------------------------------------
   macos-build:
+    permissions:
+      contents: read
     name: macOS Build
     runs-on: macos-15
     timeout-minutes: 30
@@ -193,6 +194,8 @@ jobs:
           include-hidden-files: true
 
   macos-unit-tests:
+    permissions:
+      contents: read
     name: macOS Unit Tests
     runs-on: macos-15
     timeout-minutes: 90
@@ -260,6 +263,8 @@ jobs:
           key: optimizer-bazel-disk-macos-test-${{ steps.week.outputs.week }}${{ job.status != 'success' && format('-partial-{0}-{1}', github.run_id, github.run_attempt) || '' }}
 
   macos-pkg-smoke:
+    permissions:
+      contents: read
     name: macOS Pkg Smoke
     needs: macos-build
     runs-on: macos-15
@@ -342,6 +347,8 @@ jobs:
   # legs run on hosted arm64 runners.
   # ---------------------------------------------------------------------
   periodic-vendor:
+    permissions:
+      contents: read
     name: Vendor Dependencies (nightly)
     needs: event-guard
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -527,6 +534,8 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
   periodic-build-x64:
+    permissions:
+      contents: read
     name: Build (x64)
     needs: periodic-vendor
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -650,6 +659,8 @@ jobs:
           include-hidden-files: true
 
   periodic-build-arm64:
+    permissions:
+      contents: read
     name: Build (arm64)
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
@@ -760,6 +771,8 @@ jobs:
   # ports and the container socket they use belong to that job alone.
   # ---------------------------------------------------------------------
   stress:
+    permissions:
+      contents: read
     name: Stress Tests
     needs: periodic-build-arm64
     runs-on: ubuntu-24.04-arm
@@ -863,6 +876,8 @@ jobs:
           rm -rf tools/stress/testdata/generated
 
   production-tests:
+    permissions:
+      contents: read
     name: Production Readiness
     needs: periodic-build-arm64
     runs-on: ubuntu-24.04-arm
@@ -952,6 +967,8 @@ jobs:
             down --remove-orphans -v 2>/dev/null || true
 
   realworld-tests:
+    permissions:
+      contents: read
     name: Real-World Proxy
     needs: periodic-build-arm64
     runs-on: ubuntu-24.04-arm
@@ -1032,6 +1049,8 @@ jobs:
             down --remove-orphans -v 2>/dev/null || true
 
   e2e-tests:
+    permissions:
+      contents: read
     name: E2E Tests
     needs: periodic-build-arm64
     runs-on: ubuntu-24.04-arm
@@ -1172,6 +1191,8 @@ jobs:
   # credentials are needed), the worker and nginx from this run's arm64
   # bundle. Hosted arm64: nothing here needs the container socket.
   workbench-playwright:
+    permissions:
+      contents: read
     name: Workbench Playwright
     needs: periodic-build-arm64
     runs-on: ubuntu-24.04-arm
@@ -1329,6 +1350,8 @@ jobs:
   # containers). A failure here does not block the other lanes.
   # ---------------------------------------------------------------------
   stress-x64:
+    permissions:
+      contents: read
     name: Stress Tests (x64)
     needs: periodic-build-x64
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1433,6 +1456,8 @@ jobs:
           rm -rf tools/stress/testdata/generated
 
   production-tests-x64:
+    permissions:
+      contents: read
     name: Production Readiness (x64)
     needs: periodic-build-x64
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1523,6 +1548,8 @@ jobs:
             down --remove-orphans -v 2>/dev/null || true
 
   realworld-tests-x64:
+    permissions:
+      contents: read
     name: Real-World Proxy (x64)
     needs: periodic-build-x64
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1604,6 +1631,8 @@ jobs:
             down --remove-orphans -v 2>/dev/null || true
 
   e2e-tests-x64:
+    permissions:
+      contents: read
     name: E2E Tests (x64)
     needs: periodic-build-x64
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1747,6 +1776,8 @@ jobs:
   # nightly cadence. One distro: the question is the profile, not the systemd
   # matrix.
   daemon-rig-soak-x64:
+    permissions:
+      contents: read
     name: Daemon Privilege Rig Soak (debian12, x64)
     needs: periodic-build-x64
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1825,6 +1856,8 @@ jobs:
   # hosted report job below touches the issue.
   # ---------------------------------------------------------------------
   async-css-probe-rendered:
+    permissions:
+      contents: read
     name: Async-CSS rendered probe (advisory)
     needs: periodic-build-x64
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-light' }}
@@ -2081,6 +2114,8 @@ jobs:
   # css-fuzz-finding) is the signal. `shadow` is a manual lane.
   # ---------------------------------------------------------------------
   css-fuzz-nightly:
+    permissions:
+      contents: read
     name: CSS fuzz nightly (libFuzzer + corpus + findings)
     needs: event-guard
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -2328,6 +2363,7 @@ jobs:
   # work, no fleet slot) only on a dispatch that sets the input, and the
   # shadow lane needs it, so it is skipped on every other run.
   css-fuzz-shadow-gate:
+    permissions: {}
     name: CSS oracle shadow switch
     needs: event-guard
     runs-on: ubuntu-latest
@@ -2426,6 +2462,8 @@ jobs:
   # dependency scan belong to the PR tier.
   # ---------------------------------------------------------------------
   dep-scan-images:
+    permissions:
+      contents: read
     name: Dependency Scan (nightly, images)
     needs: periodic-build-x64
     runs-on: ubuntu-latest
@@ -2604,6 +2642,8 @@ jobs:
   # always). Its own tracking issue, separate from the nightly image scan.
   # ---------------------------------------------------------------------
   dep-scan-published:
+    permissions:
+      contents: read
     name: Dependency Scan (nightly, published images)
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -2749,6 +2789,7 @@ jobs:
   # skipped. This job only says so, in an annotation and the job summary, so
   # a skipped check is never a silent one.
   fleet-off-notice:
+    permissions: {}
     name: Shared build runners are switched off
     if: ${{ vars.FLEET_ENABLED == 'false' }}
     runs-on: ubuntu-latest

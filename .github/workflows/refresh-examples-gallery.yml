@@ -22,9 +22,7 @@ name: Refresh examples gallery data
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  issues: write
+permissions: {}
 
 concurrency:
   group: refresh-examples-gallery
@@ -38,6 +36,9 @@ env:
 
 jobs:
   refresh:
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

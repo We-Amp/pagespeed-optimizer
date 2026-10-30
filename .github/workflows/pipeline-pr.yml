@@ -34,14 +34,15 @@ name: pipeline-pr
 on:
   workflow_call:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   # ---------------------------------------------------------------------
   # Hosted legs (always GitHub-hosted; the PR signal every event gets).
   # ---------------------------------------------------------------------
   build-and-test:
+    permissions:
+      contents: read
     name: Build daemon & unit-test slice (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -151,6 +152,8 @@ jobs:
           key: ${{ steps.bazel-cache.outputs.cache-primary-key }}
 
   rat:
+    permissions:
+      contents: read
     name: License audit (Apache RAT)
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -390,6 +393,8 @@ jobs:
           output-format: table
 
   public-hygiene:
+    permissions:
+      contents: read
     name: Public-tree hygiene gate
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -609,6 +614,8 @@ jobs:
   # reviewed change. The report-only scan below uses the live database to
   # surface fresh advisories promptly.
   blocking-dep-scan:
+    permissions:
+      contents: read
     name: Blocking Dep Scan (npm + cargo)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -741,6 +748,8 @@ jobs:
   # half of the pin lives in test/lib/pagespeed/abi_layout_test.cc and rides
   # the normal unit-test legs.
   abi-compat:
+    permissions:
+      contents: read
     name: ABI Compatibility (lib/pagespeed C API)
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -792,6 +801,8 @@ jobs:
           fi
 
   js-unit-tests:
+    permissions:
+      contents: read
     name: JS/TS Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -828,6 +839,8 @@ jobs:
             bash -c "node --test tools/async-css-loader/*.test.mjs"
 
   release-packaging-container:
+    permissions:
+      contents: read
     name: Release Packaging Container
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -868,6 +881,8 @@ jobs:
   # 'false' (see the header).
   # ---------------------------------------------------------------------
   vendor:
+    permissions:
+      contents: read
     name: Vendor Dependencies
     needs: changes
     if: ${{ needs.changes.outputs.fleet == 'true' }}
@@ -1054,6 +1069,8 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
   linux-build:
+    permissions:
+      contents: read
     name: Linux Build
     needs: [changes, vendor]
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1284,6 +1301,8 @@ jobs:
           include-hidden-files: true
 
   linux-unit-tests:
+    permissions:
+      contents: read
     name: Linux Unit Tests
     needs: [changes, vendor, linux-build]
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1375,6 +1394,8 @@ jobs:
   # skipped on a push to main, where the diff is not computed. The full rig
   # stays in the nightly.
   production-readiness-etag:
+    permissions:
+      contents: read
     name: Production readiness (ETag subset)
     needs: [changes, linux-build]
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1473,6 +1494,8 @@ jobs:
             down --remove-orphans -v --rmi local 2>/dev/null || true
 
   lint:
+    permissions:
+      contents: read
     name: Lint (clang-tidy + clang-format)
     needs: [changes, vendor]
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1807,6 +1830,8 @@ jobs:
   # JS kernel differential: the vendored JS kernel under lib/js/ is checked against the shared goldens
   # manifest by building the probe and running gen_goldens.py --check.
   js-kernel-differential:
+    permissions:
+      contents: read
     # TODO(follow-up): compare the kernel pin by content (tree id) against the
     # public repository instead of by commit id, so a floor move can resolve.
     name: JS Kernel Differential (vendored goldens)
@@ -1919,6 +1944,8 @@ jobs:
 
   # HTML parse differential: the vendored HTML kernel is checked against the shared goldens manifest.
   html-kernel-differential:
+    permissions:
+      contents: read
     # TODO(follow-up): compare the kernel pin by content (tree id) against the
     # public repository instead of by commit id, so a floor move can resolve.
     name: HTML Parse Differential (vendored goldens)
@@ -2038,6 +2065,8 @@ jobs:
   # release lane's flags (opt, hardening, CET, stamping and the package-identity defines)
   # and executes nothing: the Linux Unit Tests job already runs the suite.
   release-compile-smoke:
+    permissions:
+      contents: read
     name: Release-config test compile
     needs: [changes, vendor]
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -2122,6 +2151,8 @@ jobs:
   # CSS minifier fuzz smoke, on pull requests that touch lib/css/ (see the changes job). The
   # nightly coverage-guided lane belongs to the nightly tier.
   css-fuzz-smoke:
+    permissions:
+      contents: read
     name: CSS fuzz smoke (deterministic oracle replay)
     needs: changes
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -2206,6 +2237,8 @@ jobs:
   # nightly JS fuzz lane here: the canonical kernel repository runs the coverage-guided one
   # against the same sources.
   js-fuzz-smoke:
+    permissions:
+      contents: read
     name: JS fuzz smoke (deterministic oracle replay)
     needs: changes
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -2280,6 +2313,8 @@ jobs:
   # directly and builds without a cache. The hosted build time is not measured; the timeout is
   # generous on purpose.
   windows-build:
+    permissions:
+      contents: read
     name: Windows Build
     needs: [changes, vendor]
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
@@ -2551,6 +2586,8 @@ jobs:
   # Windows unit tests (native MSVC). A job gets a fresh checkout, so a runner without a warm
   # disk cache or a remote cache compiles the tree again here.
   windows-unit-tests:
+    permissions:
+      contents: read
     name: Windows Unit Tests
     needs: [changes, vendor, windows-build]
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
@@ -2768,6 +2805,7 @@ jobs:
   # skipped. This job only says so, in an annotation and the job summary, so
   # a skipped check is never a silent one.
   fleet-off-notice:
+    permissions: {}
     name: Shared build runners are switched off
     if: ${{ vars.FLEET_ENABLED == 'false' }}
     runs-on: ubuntu-latest

@@ -44,8 +44,7 @@ name: pipeline-full
 on:
   workflow_call:
 
-permissions:
-  contents: read
+permissions: {}
 
 jobs:
   event-guard:
@@ -79,6 +78,8 @@ jobs:
   # Shared inputs: the vendored tree and the Linux x64 build bundle.
   # ---------------------------------------------------------------------
   vendor:
+    permissions:
+      contents: read
     name: Vendor Dependencies
     needs: event-guard
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -264,6 +265,8 @@ jobs:
         run: echo "short_sha=${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
   linux-build:
+    permissions:
+      contents: read
     name: Linux Build
     needs: vendor
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -475,6 +478,8 @@ jobs:
   # Sanitizers.
   # ---------------------------------------------------------------------
   linux-asan:
+    permissions:
+      contents: read
     name: Linux ASan + UBSan
     needs: vendor
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -559,6 +564,8 @@ jobs:
             '
 
   linux-tsan:
+    permissions:
+      contents: read
     name: Linux TSan
     needs: vendor
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -645,6 +652,8 @@ jobs:
   # request, say) can still overlap on a host that serves several runners.
   # ---------------------------------------------------------------------
   daemon-privilege-rig:
+    permissions:
+      contents: read
     name: Daemon Privilege Rig (${{ matrix.distro }})
     needs: linux-build
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -729,6 +738,8 @@ jobs:
   # run's native binaries and run the sample host against them.
   # ---------------------------------------------------------------------
   linux-pkg-smoke:
+    permissions:
+      contents: read
     name: Linux Pkg Smoke
     needs: linux-build
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-light' }}
@@ -826,6 +837,8 @@ jobs:
   # a test container, so they need a real Linux host and are fleet only.
   # ---------------------------------------------------------------------
   http-compliance:
+    permissions:
+      contents: read
     name: HTTP Compliance
     needs: linux-build
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-light' }}
@@ -948,6 +961,8 @@ jobs:
   # (tools/async-css-probe/conftest.py): the gate refusing, the gate refusing
   # with the diagnostic switch overriding it, and stock flags.
   async-css-probe-markup:
+    permissions:
+      contents: read
     name: Async-CSS Probe
     needs: linux-build
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-light' }}
@@ -1109,6 +1124,8 @@ jobs:
   # home, which a Yama-enabled real Linux kernel does and a desktop VM
   # kernel does not, so the job is fleet only and checks the proxy first.
   container-cache-sharing:
+    permissions:
+      contents: read
     name: Container Cache Sharing
     needs: linux-build
     # Hosted on purpose: the job asserts a Yama-enabled kernel for the section 4b
@@ -1192,6 +1209,8 @@ jobs:
   # dependencies and builds cold.
   # ---------------------------------------------------------------------
   windows-build:
+    permissions:
+      contents: read
     name: Windows Build
     needs: event-guard
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
@@ -1356,6 +1375,8 @@ jobs:
           include-hidden-files: true
 
   windows-pkg-smoke:
+    permissions:
+      contents: read
     name: Windows Pkg Smoke
     needs: windows-build
     runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'windows-2022' || 'fleet-windows' }}
@@ -1458,6 +1479,8 @@ jobs:
   # repository past its cache quota.
   # ---------------------------------------------------------------------
   linux-arm64-build:
+    permissions:
+      contents: read
     name: Linux arm64 Build
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
@@ -1556,6 +1579,8 @@ jobs:
           include-hidden-files: true
 
   linux-arm64-unit-tests:
+    permissions:
+      contents: read
     name: Linux arm64 Unit Tests
     needs: linux-arm64-build
     runs-on: ubuntu-24.04-arm
@@ -1616,6 +1641,8 @@ jobs:
         run: bash tools/ci/prune-bazel-disk-cache.sh "${HOME}/.cache/optimizer-bazel-disk-arm64" 7d 1G || true
 
   linux-arm64-pkg-smoke:
+    permissions:
+      contents: read
     name: Linux arm64 Pkg Smoke
     needs: linux-arm64-build
     runs-on: ubuntu-24.04-arm
@@ -1702,6 +1729,8 @@ jobs:
   # whether a hosted arm64 runner allows that has not been confirmed yet, so
   # the job is non-blocking until its first runs show it works.
   daemon-privilege-rig-arm64:
+    permissions:
+      contents: read
     name: Daemon Privilege Rig (arm64)
     needs: linux-arm64-build
     runs-on: ubuntu-24.04-arm
@@ -1793,6 +1822,8 @@ jobs:
   # nightly (nightly.yml's `full` call, and its full_tier dispatch), not on a
   # push to main.
   lint-full:
+    permissions:
+      contents: read
     name: Lint (whole tree)
     if: ${{ github.event_name != 'push' }}
     needs: vendor
@@ -2040,6 +2071,7 @@ jobs:
   # skipped. This job only says so, in an annotation and the job summary, so
   # a skipped check is never a silent one.
   fleet-off-notice:
+    permissions: {}
     name: Shared build runners are switched off
     if: ${{ vars.FLEET_ENABLED == 'false' }}
     runs-on: ubuntu-latest
