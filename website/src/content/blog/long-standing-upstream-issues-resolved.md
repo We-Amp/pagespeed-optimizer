@@ -7,18 +7,19 @@ draft: false
 ---
 
 The Apache Incubator trackers for mod_pagespeed and ngx_pagespeed are archived.
-They still hold several hundred open issues, and an archived tracker cannot
-close any of them, so they stay open even after the problem is gone. We went
-through them and checked each against the current code and the
-CHANGELOG. Of those, 42 are resolved in current mod_pagespeed, each tied
-to a specific change and release. The full list, with links, is on the new docs page
+Between them they still hold nearly 900 open issues (524 and 353 in October
+2026), and an archived tracker cannot close any of them, so they stay open
+even after the problem is gone. We read every one of them, and for those that
+looked fixed we checked the current code and the CHANGELOG. 42 issues are
+resolved in current mod_pagespeed, each tied to a specific change and
+release. The full list, with links, is on the new docs page
 [Long-standing upstream issues resolved](/docs/upstream-issues-resolved/).
 
 Some of them, briefly:
 
-- **Building ngx_pagespeed against a current nginx.** This was the most
-  reported trouble in the nginx tracker: issues from 2016 to 2022 about compile
-  failures with newer nginx, newer glibc, or as a dynamic module. Resolved in
+- **Building ngx_pagespeed against a current nginx.** Issues from 2016 to
+  2022 report compile failures with newer nginx, newer glibc, or as a dynamic
+  module. Resolved in
   mod_pagespeed 1.1.0, which ships a prebuilt, signed module for each
   supported distribution's stock nginx, so there is nothing to compile.
 - **ARM64.** Reported in 2016 against ngx_pagespeed ("Supporting pagespeed on
