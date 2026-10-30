@@ -21,7 +21,8 @@ Some of them, briefly:
   2022 report compile failures with newer nginx, newer glibc, or as a dynamic
   module. Resolved in mod_pagespeed 1.1.0: the stock nginx of each supported
   distribution gets a prebuilt, signed module, so there is nothing to compile,
-  and the released source builds against other nginx versions.
+  and the released source builds against the nginx versions we support, listed
+  on the [worker page](/docs/worker-configuration/#which-nginx-version).
 - **ARM64.** Reported in 2016 against ngx_pagespeed ("Supporting pagespeed on
   ARM devices?"); resolved in 1.1.0 with arm64/aarch64 builds for Apache and
   nginx on Linux.
