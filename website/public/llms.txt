@@ -52,6 +52,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/): Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2 nginx module: what carries over.
 - [Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/): Move an IISpeed install to the mod_pagespeed IIS module: save the configuration, uninstall IISpeed, run the MSI, keep the cache, verify, roll back.
 - [Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/): Move from the archived mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2: package swap, what maps to what, cache, rollback.
+- [Long-standing upstream issues resolved](https://modpagespeed.com/docs/upstream-issues-resolved/): Open issues in the archived mod_pagespeed and ngx_pagespeed trackers that current mod_pagespeed resolves, with each fix and the release that shipped it.
 
 ## Configure
 
@@ -197,6 +198,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Long-standing upstream issues, resolved](https://modpagespeed.com/blog/long-standing-upstream-issues-resolved/): 2026-10-30. Dozens of open issues in the archived mod_pagespeed and ngx_pagespeed trackers are resolved in current mod_pagespeed. Each is listed with its fix.
 - [Our seccomp soak passed. Then Chrome called mincore](https://modpagespeed.com/blog/our-seccomp-soak-passed-then-chrome-called-mincore/): 2026-10-20. A log-only systemd soak cannot see calls your filter subtracts, or a call that fires less often than the soak runs. Headless Chrome hit both.
 - [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
 - [55 of 150 AI crawler operators publish Web Bot Auth keys](https://modpagespeed.com/blog/which-ai-crawlers-sign-their-requests/): 2026-10-19. We asked 150 AI crawler operators for their Web Bot Auth key directory on 19 October 2026. 55 served one. The script, the data, and what to do with it.
