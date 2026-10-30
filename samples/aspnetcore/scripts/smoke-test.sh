@@ -236,12 +236,29 @@ string nativeApi = "?", nativeCommit = "?", nativeProduct = "?";
 int undisposedHosts = 0;
 
 // ---------- Test helpers ----------
-void Assert(bool condition, string name)
+// Every assertion must pass. The only exception is an explicit, named, opt-in
+// skip for a check that depends on the environment: a failing assertion that
+// carries a skip id is reported as [SKIP] (and listed in the summary) only when
+// that id is listed in SMOKE_ALLOW_SKIP (comma-separated). Known ids:
+//   e2e-image-webp  the end-to-end PNG -> WebP check, which needs a worker that
+//                   can finish a conversion inside 30 s (slow or loaded hosts).
+// Nothing is skipped unless the caller asks for it by name.
+var allowedSkips = new HashSet<string>(
+    (Environment.GetEnvironmentVariable("SMOKE_ALLOW_SKIP") ?? "")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+    StringComparer.Ordinal);
+var skipped = new List<string>();
+void Assert(bool condition, string name, string? skipId = null)
 {
     if (condition)
     {
         Console.WriteLine($"[PASS] {name}");
         passed++;
+    }
+    else if (skipId != null && allowedSkips.Contains(skipId))
+    {
+        Console.WriteLine($"[SKIP] {name} (skip id '{skipId}' allowed by SMOKE_ALLOW_SKIP)");
+        skipped.Add($"{skipId}: {name}");
     }
     else
     {
@@ -1432,7 +1449,7 @@ try
                     {
                         Console.WriteLine($"[DIAG] Failed to query worker: {diagEx.Message}");
                     }
-                    Assert(false, "E2E image optimization: expected WebP but still PNG after 30s");
+                    Assert(false, "E2E image optimization: expected WebP but still PNG after 30s", "e2e-image-webp");
                 }
             }
 
@@ -1483,38 +1500,32 @@ Console.WriteLine();
 Console.WriteLine("════════════════════════════════════════════");
 Console.WriteLine($"Total: {passed + failures} tests — {passed} passed, {failures} failed");
 
-// Platform-specific minimum: Windows worker tests fail (Unix sockets behave
-// differently), and E2E image optimization (T3.7) may time out on CI debug
-// builds. Core P/Invoke, middleware, and caching tests are what matter for
-// smoke testing. The floors are the counts every run is guaranteed to reach
-// with T3.7's contribution left as slack (it can flake on slow runners), so a
-// timed-out T3.7 reports as a non-critical failure rather than tripping the
-// floor. The floor still catches a catastrophically broken smoke that ran
-// almost nothing.
-// (Three T2.10 teardown-ordering assertions were added; both floors moved by
-// the same three so the slack is unchanged.)
-int MIN_EXPECTED_PASS = rid.StartsWith("win") ? 77 : 84;
-if (passed < MIN_EXPECTED_PASS)
+// All assertions must pass: there is no minimum pass count. (Windows runs
+// fewer assertions than Unix because the worker-socket check is Unix-only, which
+// is a different count, not a failure.) Skips are explicit and listed by name.
+if (skipped.Count > 0)
 {
-    Console.WriteLine($"[FAIL] Only {passed} tests passed (minimum {MIN_EXPECTED_PASS} required)");
+    Console.WriteLine($"Skipped {skipped.Count} check(s) by request (SMOKE_ALLOW_SKIP):");
+    foreach (var sk in skipped) Console.WriteLine($"  [SKIP] {sk}");
+}
+if (passed == 0)
+{
+    Console.WriteLine("[FAIL] No assertion passed");
     failures++;
 }
 
 int exitCode;
-if (passed >= MIN_EXPECTED_PASS && failures == 0)
+if (failures == 0)
 {
-    Console.WriteLine("=== ALL TESTS PASSED ===");
-    exitCode = 0;
-}
-else if (passed >= MIN_EXPECTED_PASS)
-{
-    Console.WriteLine($"=== PASSED ({passed}/{passed + failures}) — {failures} non-critical failure(s) ===");
+    Console.WriteLine(skipped.Count == 0
+        ? "=== ALL TESTS PASSED ==="
+        : $"=== ALL TESTS PASSED ({skipped.Count} skipped by request) ===");
     exitCode = 0;
 }
 else
 {
-    Console.WriteLine($"=== {failures} TEST(S) FAILED (only {passed} passed, need {MIN_EXPECTED_PASS}) ===");
-    exitCode = failures;
+    Console.WriteLine($"=== {failures} TEST(S) FAILED ({passed} passed) ===");
+    exitCode = 1;
 }
 
 // The second observed crash was a segfault ~90 ms after "=== ALL TESTS PASSED
