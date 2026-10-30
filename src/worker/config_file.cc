@@ -6,6 +6,7 @@
 #include "src/worker/config_file.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cmath>
 #include <cstddef>
@@ -160,6 +161,20 @@ bool IsRetiredLicensingKey(std::string_view key) {
 const char* const kRetiredLicensingKeyReason =
     "removed in 2.1; the setting is ignored and can be deleted from your "
     "configuration";
+
+const char* const kQualityCapMarginDeprecatedWarning =
+    "quality_cap_margin is deprecated and ignored: it no longer changes the "
+    "quality cap; use no_quality_cap to turn the cap off";
+
+static std::atomic<bool> g_quality_cap_margin_warned{false};
+
+bool ClaimQualityCapMarginWarning() {
+  return !g_quality_cap_margin_warned.exchange(true);
+}
+
+void ResetQualityCapMarginWarningForTest() {
+  g_quality_cap_margin_warned.store(false);
+}
 
 ConfigApplyResult ApplyConfigJson(const json& body, WorkerConfig* config) {
   json applied = json::object();
@@ -506,6 +521,9 @@ ConfigApplyResult ApplyConfigJson(const json& body, WorkerConfig* config) {
     else if (key == "quality_cap_margin" && value.is_number_integer()) {
       int v = clamp_with_warning(key, value.get<int>(), 0, 50);
       config->quality_cap_margin = v;
+      if (ClaimQualityCapMarginWarning()) {
+        warnings.push_back(kQualityCapMarginDeprecatedWarning);
+      }
       applied[key] = v;
     } else if (key == "no_quality_cap" && value.is_boolean()) {
       config->no_quality_cap = value.get<bool>();

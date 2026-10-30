@@ -44,6 +44,19 @@ nlohmann::json ConfigToJsonPersistable(const WorkerConfig& config);
 bool IsRetiredLicensingKey(std::string_view key);
 extern const char* const kRetiredLicensingKeyReason;
 
+// quality_cap_margin no longer changes the same-format quality cap.  Setting
+// it (command line, config file or config PATCH) is reported with this warning
+// once per process; use no_quality_cap to turn the cap off.
+extern const char* const kQualityCapMarginDeprecatedWarning;
+
+// True the first time it is called in this process, false afterwards.  Gates
+// the deprecation warning so it is reported once however many times the
+// setting arrives.
+bool ClaimQualityCapMarginWarning();
+
+// Re-arms ClaimQualityCapMarginWarning(); for tests.
+void ResetQualityCapMarginWarningForTest();
+
 // Validates and applies JSON fields to a WorkerConfig.
 // Non-reloadable fields and retired licensing fields are rejected with a
 // reason.  Returns applied/rejected/warnings summary.

@@ -597,6 +597,44 @@ TEST_F(ConfigFileTest, ClampWarningOnHighQualityCapMargin) {
   EXPECT_TRUE(found);
 }
 
+static bool HasDeprecationWarning(const ConfigApplyResult& r) {
+  for (const auto& w : r.warnings) {
+    if (w.get<std::string>() == kQualityCapMarginDeprecatedWarning) return true;
+  }
+  return false;
+}
+
+TEST_F(ConfigFileTest, QualityCapMarginWarnsOncePerProcess) {
+  ResetQualityCapMarginWarningForTest();
+  WorkerConfig config;
+  // Config file / PATCH route: ApplyConfigJson reports it the first time.
+  EXPECT_TRUE(HasDeprecationWarning(
+      ApplyConfigJson(json{{"quality_cap_margin", 10}}, &config)));
+  // A later PATCH, or the command line, does not repeat it.
+  EXPECT_FALSE(HasDeprecationWarning(
+      ApplyConfigJson(json{{"quality_cap_margin", 20}}, &config)));
+  EXPECT_FALSE(ClaimQualityCapMarginWarning());
+}
+
+TEST_F(ConfigFileTest, QualityCapMarginCommandLineClaimsTheWarning) {
+  ResetQualityCapMarginWarningForTest();
+  // The command-line parser claims the warning before the config is applied.
+  EXPECT_TRUE(ClaimQualityCapMarginWarning());
+  WorkerConfig config;
+  EXPECT_FALSE(HasDeprecationWarning(
+      ApplyConfigJson(json{{"quality_cap_margin", 10}}, &config)));
+}
+
+TEST_F(ConfigFileTest, NoQualityCapMarginNoDeprecationWarning) {
+  ResetQualityCapMarginWarningForTest();
+  WorkerConfig config;
+  EXPECT_FALSE(HasDeprecationWarning(
+      ApplyConfigJson(json{{"jpeg_quality", 80}, {"no_quality_cap", true}},
+                      &config)));
+  // The warning is still unclaimed.
+  EXPECT_TRUE(ClaimQualityCapMarginWarning());
+}
+
 TEST_F(ConfigFileTest, NoClampWarningOnInRangeValues) {
   // In-range values for every clamp site should not emit a clamp warning
   // (low-quality warnings for jpeg/webp/avif_quality <30 are orthogonal and
