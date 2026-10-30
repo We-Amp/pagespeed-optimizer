@@ -95,8 +95,9 @@ public class WorkerExitLoggingTests
             await WaitFor(() => log.Entries.Any(e => e.Message.Contains("started")));
             await host.StopAsync(CancellationToken.None);
 
-            Assert.DoesNotContain(log.Entries,
-                e => e.Level >= LogLevel.Warning && e.Message.Contains("exited"));
+            Assert.DoesNotContain(log.Entries, e => e.Level >= LogLevel.Warning);
+            Assert.Contains(log.Entries,
+                e => e.Level == LogLevel.Information && e.Message.Contains("stopping with the host"));
         }
         finally
         {
@@ -109,6 +110,7 @@ public class WorkerExitLoggingTests
     {
         var options = new PageSpeedOptions();
         options.Worker.SocketPath = Path.Combine(Path.GetTempPath(), "wx-unused.sock");
+        options.Cache.VolumePath = Path.Combine(Path.GetTempPath(), "wx-unused-cache.vol");
         return new WorkerProcessHost(
             Options.Create(options), new InternalWorkerEndpoint(), log)
         {

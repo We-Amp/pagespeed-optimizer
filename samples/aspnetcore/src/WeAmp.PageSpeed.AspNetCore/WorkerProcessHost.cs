@@ -187,6 +187,7 @@ public sealed class WorkerProcessHost : BackgroundService
                 return;
             }
 
+            var pid = _process.Id;
             var startedAt = Stopwatch.StartNew();
             var stderrTail = new Queue<string>(StderrTailLines);
 
@@ -228,6 +229,28 @@ public sealed class WorkerProcessHost : BackgroundService
             catch (OperationCanceledException)
             {
                 // Shutdown requested.
+                _logger.LogInformation(
+                    "factory_worker (PID {Pid}) stopping with the host", pid);
+                return;
+            }
+
+            // Read everything we need from the Process now: Dispose() can
+            // kill and dispose it while this method is still running.
+            var exitCode = _process.ExitCode;
+            var runtime = startedAt.Elapsed;
+
+            // The worker shares the host's process group, so Ctrl+C or a
+            // service stop can reach it before the host's stop token fires.
+            // Give the token a moment: an exit during shutdown is normal.
+            try
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(500), stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation(
+                    "factory_worker (PID {Pid}) exited during host shutdown (code {ExitCode})",
+                    pid, exitCode);
                 return;
             }
 
@@ -237,8 +260,7 @@ public sealed class WorkerProcessHost : BackgroundService
             string tail;
             lock (stderrTail)
                 tail = string.Join(Environment.NewLine, stderrTail);
-            LogWorkerExit(
-                _logger, _process.Id, _process.ExitCode, startedAt.Elapsed, tail);
+            LogWorkerExit(_logger, pid, exitCode, runtime, tail);
         }
         catch (Exception ex)
         {
@@ -256,8 +278,9 @@ public sealed class WorkerProcessHost : BackgroundService
         ILogger logger, int pid, int exitCode, TimeSpan runtime, string stderrTail)
     {
         // On Unix a process killed by signal N reports 128 + N.
-        var signalNote = exitCode > 128 && !RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-            ? $" (killed by signal {exitCode - 128})"
+        var signalNote = exitCode is > 128 and <= 192
+                         && !RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? $" (likely signal {exitCode - 128})"
             : string.Empty;
         var earlyNote = runtime < TimeSpan.FromSeconds(10)
             ? " It exited within seconds of starting; check its stderr output "
