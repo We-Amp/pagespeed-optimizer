@@ -273,6 +273,9 @@ export default defineConfig({
   ],
   vite: {
     plugins: [legacyDocsRewrite(), tailwindcss()],
-    define: { 'import.meta.env.SITE_BUILD_ID': JSON.stringify(BUILD_ID) },
+    define: {
+      'import.meta.env.SITE_BUILD_ID': JSON.stringify(BUILD_ID),
+      'import.meta.env.SITE_BUILD_ID_SET': JSON.stringify(Boolean(process.env.SITE_BUILD_ID)),
+    },
   },
 });

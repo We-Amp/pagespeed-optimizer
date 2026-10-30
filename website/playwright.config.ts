@@ -21,6 +21,10 @@ const PORT =
   (process.env.CI
     ? '4321'
     : String(4500 + (createHash('sha1').update(process.cwd()).digest().readUInt16BE(0) % 500)));
+// BASE_URL overrides the whole origin (then also set PORT for the dev server).
+// Before any test, tests/global-setup.ts asserts that the server answering
+// there serves THIS checkout (build-id tag, emitted by the dev server only; for
+// a preview-server run see src/lib/build-id.mjs).
 const BASE_URL = process.env.BASE_URL ?? `http://localhost:${PORT}`;
 
 // Everything a run writes (failure screenshots, traces, the HTML report, the

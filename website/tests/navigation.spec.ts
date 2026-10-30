@@ -430,6 +430,26 @@ test.describe('Navigation', () => {
     await expect(btn).toBeFocused();
   });
 
+  test('Tab works inside the search dialog opened while the mobile menu is open', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.goto('/');
+    await page.locator('#mobile-menu-btn').click();
+    await page.keyboard.press('Control+k');
+    const dialog = page.locator('dialog[open]');
+    await expect(dialog).toBeVisible();
+    // The menu's Tab trap must stand aside while the dialog is open: Tab moves on
+    // normally (it used to be swallowed) and never jumps to the header behind it.
+    const before = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80));
+    await page.keyboard.press('Tab');
+    const after = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80));
+    expect(after, 'Tab did not move focus inside the dialog').not.toBe(before);
+    expect(await page.evaluate(() => !!document.activeElement?.closest('body > header'))).toBe(
+      false,
+    );
+  });
+
   test('the sticky CTA is out of the tab order and the accessibility tree while hidden', async ({
     page,
   }) => {

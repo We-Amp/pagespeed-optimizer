@@ -21,7 +21,12 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 
-const WIDTHS = [320, 360, 375, 390, 414, 640, 767, 768, 800, 928, 1023, 1024, 1279, 1280, 1440];
+const ALL_WIDTHS = [320, 360, 375, 390, 414, 640, 767, 768, 800, 928, 1023, 1024, 1279, 1280, 1440];
+// GEOMETRY_WIDTHS=375 (comma separated) narrows the sweep; the pull-request CI
+// job uses it, the nightly run measures every width.
+const WIDTHS = process.env.GEOMETRY_WIDTHS
+  ? process.env.GEOMETRY_WIDTHS.split(',').map(Number)
+  : ALL_WIDTHS;
 const HEIGHT = 800;
 const MIN_LOGO_WIDTH = 100;
 
@@ -277,6 +282,12 @@ test.describe('Geometry oracle', () => {
             await page.evaluate(() => window.scrollTo(0, 0));
             found.push(...(await checkMobileMenuDisclosures(page, '375px')));
           }
+        }
+        // The desktop dropdown check always runs, even when the sweep is narrowed.
+        if (!WIDTHS.includes(1280)) {
+          await page.setViewportSize({ width: 1280, height: HEIGHT });
+          await page.evaluate(() => window.scrollTo(0, 0));
+          found.push(...(await checkDisclosures(page, '1280px')));
         }
         return found;
       };

@@ -53,6 +53,10 @@ on:
       - 'src/worker/main.cc'
       - 'src/nginx/ngx_pagespeed_module.cc'
       - 'docker/nginx-version.txt'
+  # Nightly full-width geometry sweep (website-playwright only; the other
+  # jobs skip on a schedule). Pull requests run the 375px column.
+  schedule:
+    - cron: '30 2 * * *'
 
 concurrency:
   group: website-${{ github.ref }}
@@ -64,6 +68,7 @@ permissions:
 jobs:
   website-build:
     name: Website unit tests & build (ubuntu)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -242,6 +247,7 @@ jobs:
   # Node scripts without dependencies, so no npm install is needed.
   website-reference-drift:
     name: Reference data matches the pinned module source (ubuntu)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -292,7 +298,7 @@ jobs:
   website-playwright:
     name: Website browser suite (Playwright, ubuntu)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ github.event_name == 'schedule' && 75 || 30 }}
     defaults:
       run:
         working-directory: website
@@ -320,6 +326,9 @@ jobs:
         env:
           CI: "true"
           PRICING_ALLOW_STALE: "1"
+          # Pull requests measure the 375px column of the geometry oracle; the
+          # nightly run (empty value) sweeps every width.
+          GEOMETRY_WIDTHS: ${{ github.event_name == 'schedule' && '' || '375' }}
         run: npx playwright test
 
       # Traces, screenshots and the HTML report of a failed run, for
@@ -357,6 +366,7 @@ jobs:
   # pin (12.6.1) cannot audit current Chrome builds.
   website-lighthouse:
     name: Website Lighthouse budgets (ubuntu)
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:

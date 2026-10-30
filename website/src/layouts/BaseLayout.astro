@@ -590,7 +590,15 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="build-id" content={import.meta.env.SITE_BUILD_ID} />
+    {
+      /* Test fingerprint (tests/global-setup.ts): only in the dev server, or in a
+         build made with SITE_BUILD_ID set. Production builds do not carry it. */
+    }
+    {
+      (import.meta.env.DEV || import.meta.env.SITE_BUILD_ID_SET) && (
+        <meta name="build-id" content={import.meta.env.SITE_BUILD_ID} />
+      )
+    }
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex,follow" />}
     <!-- Unscoped fallback first: browsers that ignore the media attribute still
@@ -1555,7 +1563,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       // Escape closes the menu and returns focus to the toggle. (WCAG 2.1.2)
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeMobileMenu(true);
-        if (e.key === 'Tab' && menuOpen()) {
+        if (e.key === 'Tab' && menuOpen() && !document.querySelector('dialog[open]')) {
           const items = headerFocusables();
           if (!items.length) return;
           const first = items[0];
