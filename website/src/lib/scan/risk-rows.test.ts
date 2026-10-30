@@ -237,6 +237,34 @@ describe('riskRows edge cases', () => {
     );
     expect(sentence('unknown')).not.toContain('mod_pagespeed ');
   });
+  it('counts a single-number version tell such as PHP/8', () => {
+    const row = riskRows(
+      rx({
+        verdict: 'clean',
+        leaks: [],
+        tells: [{ product: 'php', source: 'x-powered-by', version: '8' }],
+        endOfLife: [],
+        headers: { missing: [] },
+      }),
+    )[0];
+    expect(row.sentence).toContain('1 version tell');
+  });
+  it('treats the generic header value "on" as active with no version disclosed', () => {
+    for (const version of ['on', null]) {
+      const row = riskRows(
+        rx({
+          verdict: 'clean',
+          leaks: [],
+          tells: [{ product: 'mod_pagespeed', source: 'x-page-speed', version }],
+          endOfLife: [],
+          headers: { missing: [] },
+        }),
+      )[0];
+      expect(row.sentence).toBe(
+        '0 error-output patterns · 0 version tells · end of life: none seen · missing: none. One page only; not a security assessment.',
+      );
+    }
+  });
   it('does not fire the response link for a hostile blocked fixture', () => {
     const row = riskRows({
       responseExposure: {

@@ -3,7 +3,7 @@ title: 'Migrate from ngx_pagespeed'
 description: 'Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2 nginx module: what carries over.'
 order: 13
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 datePublished: 2026-10-08
 faq:
   - q: 'Do my pagespeed directives carry over from ngx_pagespeed?'
@@ -27,7 +27,7 @@ Record what you run, and keep a copy of the old module to roll back to:
 ```bash
 nginx -V 2>&1 | grep -o 'ngx_pagespeed[^ ]*'                   # compiled in, or
 ls /usr/lib/nginx/modules/ngx_pagespeed*.so                     # a dynamic module
-curl -I http://localhost/ | grep X-Page-Speed                   # the version in service
+curl -I http://localhost/ | grep X-Page-Speed                   # present when the module is active
 sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so{,.bak}   # if dynamic
 ```
 
@@ -62,7 +62,9 @@ decide whether to move nginx back to the distribution package too; otherwise
    shows exactly one line, the package's.
 4. **Test and restart:** `sudo nginx -t && sudo systemctl restart nginx`.
 5. **Verify:** `curl -I http://localhost/ | grep X-Page-Speed`. The header
-   carries the new module version. [Is it working?](/docs/is-it-working/) has
+   is present and reads `on` by default; set the server-wide
+   [`ExposeVersionInHeaders`](/docs/configuration/#expose-version-in-headers) option
+   if you want it to carry the module version. [Is it working?](/docs/is-it-working/) has
    the other checks.
 
 To add the optimizer worker, install `pagespeed-optimizer` from the same

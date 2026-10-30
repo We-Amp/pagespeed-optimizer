@@ -3,7 +3,7 @@ title: 'Install ASP.NET Core middleware'
 description: 'Install the mod_pagespeed ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.'
 order: 9
 group: 'Install'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 ---
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
@@ -425,10 +425,10 @@ survive shutdown and keep holding its loopback port.
 ### Verify the sidecar is working
 
 ```bash
-curl -sI http://localhost:8080/ | grep -i x-page-speed
+curl -sI http://localhost:8080/ | grep -i x-pagespeed
 ```
 
-A present `X-Page-Speed` header confirms the optimizer is in the path. For per-filter rewrite counts, check `/pagespeed_statistics` (loopback-only by
+A present `X-PageSpeed` header confirms the optimizer is in the path. For per-filter rewrite counts, check `/pagespeed_statistics` (loopback-only by
 default; the middleware returns 404 for the `/pagespeed_*` admin paths from the public front door
 unless `Sidecar.AllowPublicAdmin` is enabled).
 

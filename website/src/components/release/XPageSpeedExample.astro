@@ -3,27 +3,21 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // Renders an X-Page-Speed / X-Mod-Pagespeed / X-PageSpeed response-header
-// example. Used by docs pages with "verify it works" sections that previously
-// hard-coded the version string. The module's headers carry the version
-// production sends, from the capture in src/data/telemetry-capture.json (the
-// homepage quick-start's source); the middleware and 2.0 forms come from the
-// release manifest.
+// example for docs pages with "verify it works" sections. None of them shows
+// a version: the modules send the generic value `on` by default (the version
+// only with the server-wide ExposeVersionInHeaders option), and the ASP.NET
+// Core middleware and the reverse proxy send the cache outcome, never a
+// version.
 //
 // Examples in MDX:
 //   <XPageSpeedExample line="2.1" surface="nginx" />
-//     → X-Page-Speed: 1.17.0
+//     → X-Page-Speed: on
 //   <XPageSpeedExample line="2.1" surface="apache" />
-//     → X-Mod-Pagespeed: 1.17.0
-//   <XPageSpeedExample line="2.0" />
-//     → X-PageSpeed: WeAmp.PageSpeed/2.0.7
+//     → X-Mod-Pagespeed: on
 //   <XPageSpeedExample line="2.1" surface="middleware" />
-//     → X-PageSpeed: WeAmp.PageSpeed/2.1.0
+//     → X-PageSpeed: MISS   (HIT on the next request)
 //
-// `surface="middleware"` asks for the ASP.NET Core middleware's header form
-// on any line; without it, `line="2.1"` renders the module's header.
-
-import { getRelease } from '../../lib/release';
-import { moduleHeaderVersion } from '../../lib/docs-markdown.mjs';
+// `surface="middleware"` (and `line="2.0"`) render the cache-outcome form.
 
 interface Props {
   line: '1.1' | '2.0' | '2.1';
@@ -31,17 +25,14 @@ interface Props {
 }
 
 const { line, surface = 'nginx' } = Astro.props;
-const rel = await getRelease(line);
-// Fails the build instead of rendering "undefined" when the capture lacks it.
-const moduleVersion = moduleHeaderVersion();
 
 let header: string;
 if (surface === 'middleware' || line === '2.0') {
-  header = `X-PageSpeed: WeAmp.PageSpeed/${rel.display.header_version}`;
+  header = 'X-PageSpeed: MISS';
 } else if (surface === 'apache') {
-  header = `X-Mod-Pagespeed: ${moduleVersion}`;
+  header = 'X-Mod-Pagespeed: on';
 } else {
-  header = `X-Page-Speed: ${moduleVersion}`;
+  header = 'X-Page-Speed: on';
 }
 ---
 

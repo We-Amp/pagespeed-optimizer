@@ -4,7 +4,7 @@ seoTitle: 'Install mod_pagespeed on Apache and nginx: signed packages'
 description: 'Install the native mod_pagespeed module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
 order: 3
 group: 'Install'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 faq:
   - q: 'Is there a native nginx module for mod_pagespeed?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
@@ -210,8 +210,10 @@ module's own filters also work without the worker: leave out step 2 and the
    curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: <your-domain>' http://127.0.0.1/pagespeed_global_admin/
    ```
 
-   Run them on the server. The first prints `X-Page-Speed: <version>`, the
-   second `200`. The same admin URL requested from another machine answers
+   Run them on the server. The first prints `X-Page-Speed: on` (the generic
+   default; the version appears only with the server-wide
+   [`ExposeVersionInHeaders`](/docs/configuration/#expose-version-in-headers)
+   option), the second `200`. The same admin URL requested from another machine answers
    `403`. To open the console from your workstation, tunnel to the server
    (`ssh -L 8080:127.0.0.1:80 <you>@<server>`), point `<your-domain>` at
    `127.0.0.1` in the workstation's hosts file for the session, and browse to

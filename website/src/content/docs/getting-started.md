@@ -5,12 +5,12 @@ seoTitle: 'Install mod_pagespeed: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-10-30
 faq:
   - q: 'Which mod_pagespeed integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
   - q: 'How do I verify mod_pagespeed is working?'
-    a: 'Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.'
+    a: 'Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles, with the generic value `on` by default. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.'
   - q: 'Does the native nginx module need the optimizer worker?'
     a: 'It runs without it, on its own filters only; the install path installs the worker too. Install the `pagespeed-optimizer` package first, then `nginx-module-pagespeed`, and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block so the module hands in-place optimization to the worker. The Apache packages install that wiring for you.'
   - q: 'What are the prerequisites?'
@@ -171,9 +171,11 @@ curl -s -o /dev/null -D - http://localhost/
 Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
 so a HEAD never turns into a HIT there.
 
-- **Apache module:** `X-Mod-Pagespeed: <version>` on both responses. nginx and
-  IIS module: `X-Page-Speed: <version>`. The header's presence means the module
-  is loaded and active for that site.
+- **Apache module:** `X-Mod-Pagespeed: on` on both responses (from 2.7.0; 2.6.0 and earlier print the
+  version). nginx and IIS module: `X-Page-Speed: on`. The header's presence means the module
+  is loaded and active for that site. The value is generic by default; set the
+  server-wide [`ExposeVersionInHeaders`](/docs/configuration/#expose-version-in-headers)
+  option to send the version instead.
 - **Docker reverse proxy and ASP.NET Core middleware:** `X-PageSpeed: MISS` on
   the first response, `X-PageSpeed: HIT` on the second. Optimization is
   asynchronous: the first request serves the original bytes and notifies the

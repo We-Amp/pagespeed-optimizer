@@ -216,8 +216,10 @@ function rxVerdict(rx: Lens): string {
     return 'We could not read enough of this response to say.' + notChecked;
   }
   const leaks = Array.isArray(rx.leaks) ? rx.leaks.length : 0;
+  // Only a version the scan can read counts: the generic header value `on` means
+  // "active, version not disclosed" and is never reported as a version.
   const tells = (Array.isArray(rx.tells) ? rx.tells : []).filter(
-    (t: Lens) => t && t.version,
+    (t: Lens) => t && typeof t.version === 'string' && /^\d+(\.\d+)*$/.test(t.version),
   ).length;
   const list: Lens[] = Array.isArray(rx.endOfLife) ? rx.endOfLife : [];
   const lifecycle = mpsVersions(rx)
