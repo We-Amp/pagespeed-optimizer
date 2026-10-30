@@ -236,12 +236,32 @@ string nativeApi = "?", nativeCommit = "?", nativeProduct = "?";
 int undisposedHosts = 0;
 
 // ---------- Test helpers ----------
-void Assert(bool condition, string name)
+// Every assertion must pass. The only exception is an explicit, named, opt-in
+// skip for a check that depends on the environment: a failing assertion that
+// carries a skip id is reported as [SKIP] (and listed in the summary) only when
+// that id is listed in SMOKE_ALLOW_SKIP (comma-separated). Known ids:
+//   worker-port-reuse  T3.6 and T3.7, where the 2nd and 3rd factory_worker of the
+//                      run never answer their API port while the 1st worker
+//                      is still running. Seen only in the Linux x64 container
+//                      job (macOS, Linux arm64 and Windows pass); the cause is
+//                      not found yet, so only that job sets this id.
+// Nothing is skipped unless the caller asks for it by name.
+var allowedSkips = new HashSet<string>(
+    (Environment.GetEnvironmentVariable("SMOKE_ALLOW_SKIP") ?? "")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+    StringComparer.Ordinal);
+var skipped = new List<string>();
+void Assert(bool condition, string name, string? skipId = null)
 {
     if (condition)
     {
         Console.WriteLine($"[PASS] {name}");
         passed++;
+    }
+    else if (skipId != null && allowedSkips.Contains(skipId))
+    {
+        Console.WriteLine($"[SKIP] {name} (skip id '{skipId}' allowed by SMOKE_ALLOW_SKIP)");
+        skipped.Add($"{skipId}: {name}");
     }
     else
     {
@@ -1237,7 +1257,7 @@ try
             }
             else
             {
-                Assert(false, $"T3.6: Worker API port {freePort} not reachable (factory_worker may not have started)");
+                Assert(false, $"T3.6: Worker API port {freePort} not reachable (factory_worker may not have started)", "worker-port-reuse");
             }
 
             Phase("T3.6: StopAsync() worker-API app (not disposed: native cache stays open)");
@@ -1289,11 +1309,13 @@ try
 
             var e2eApp = e2eBuilder.Build();
 
-            // Generate a 100x100 solid-red PNG programmatically.
-            // A 1x1 PNG is too small for WebP savings; the worker would skip it.
+            // Generate a 256x256 RGB gradient with deterministic noise. The
+            // worker only keeps a WebP/AVIF variant that is smaller than the
+            // original, so the fixture must be an image WebP clearly beats: a
+            // flat-colour PNG is already tiny and is refused as "not smaller".
             byte[] testPng;
             {
-                int pw = 100, ph = 100;
+                int pw = 256, ph = 256;
                 using var pms = new MemoryStream();
                 // PNG signature
                 pms.Write(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 });
@@ -1326,10 +1348,14 @@ try
 
                 // IDAT chunk: raw pixel data compressed with zlib
                 using var rawMs = new MemoryStream();
+                var rng = new Random(12345); // fixed seed: same bytes every run
+                byte Clamp(int v) => (byte)Math.Clamp(v, 0, 255);
                 for (int y = 0; y < ph; y++) {
                     rawMs.WriteByte(0); // filter: none
                     for (int x = 0; x < pw; x++) {
-                        rawMs.WriteByte(255); rawMs.WriteByte(0); rawMs.WriteByte(0); // red
+                        rawMs.WriteByte(Clamp(x + rng.Next(-6, 7)));
+                        rawMs.WriteByte(Clamp(y + rng.Next(-6, 7)));
+                        rawMs.WriteByte(Clamp((x + y) / 2 + rng.Next(-6, 7)));
                     }
                 }
                 var rawPixels = rawMs.ToArray();
@@ -1377,7 +1403,7 @@ try
 
             if (!workerReady)
             {
-                Assert(false, "T3.7: E2E worker did not start within 10s");
+                Assert(false, "T3.7: E2E worker did not start within 10s", "worker-port-reuse");
             }
             else
             {
@@ -1432,7 +1458,25 @@ try
                     {
                         Console.WriteLine($"[DIAG] Failed to query worker: {diagEx.Message}");
                     }
-                    Assert(false, "E2E image optimization: expected WebP but still PNG after 30s");
+                    string reason = "";
+                    try
+                    {
+                        using var stats = await e2eStatsClient.GetAsync(
+                            $"http://localhost:{e2ePort}/v1/stats");
+                        using var doc = System.Text.Json.JsonDocument.Parse(
+                            await stats.Content.ReadAsStringAsync());
+                        var root = doc.RootElement;
+                        var refused = root.TryGetProperty("image_size_refused", out var r)
+                            ? r.ToString() : "?";
+                        var noSavings = root.TryGetProperty("image_no_savings_skipped", out var n)
+                            ? n.ToString() : "?";
+                        reason = $" (image_size_refused={refused}, image_no_savings_skipped={noSavings})";
+                    }
+                    catch (Exception statsEx)
+                    {
+                        reason = $" (worker stats unavailable: {statsEx.Message})";
+                    }
+                    Assert(false, "E2E image optimization: expected WebP but still PNG after 30s" + reason);
                 }
             }
 
@@ -1483,38 +1527,32 @@ Console.WriteLine();
 Console.WriteLine("════════════════════════════════════════════");
 Console.WriteLine($"Total: {passed + failures} tests — {passed} passed, {failures} failed");
 
-// Platform-specific minimum: Windows worker tests fail (Unix sockets behave
-// differently), and E2E image optimization (T3.7) may time out on CI debug
-// builds. Core P/Invoke, middleware, and caching tests are what matter for
-// smoke testing. The floors are the counts every run is guaranteed to reach
-// with T3.7's contribution left as slack (it can flake on slow runners), so a
-// timed-out T3.7 reports as a non-critical failure rather than tripping the
-// floor. The floor still catches a catastrophically broken smoke that ran
-// almost nothing.
-// (Three T2.10 teardown-ordering assertions were added; both floors moved by
-// the same three so the slack is unchanged.)
-int MIN_EXPECTED_PASS = rid.StartsWith("win") ? 77 : 84;
-if (passed < MIN_EXPECTED_PASS)
+// All assertions must pass: there is no minimum pass count. (Windows runs
+// fewer assertions than Unix because the worker-socket check is Unix-only, which
+// is a different count, not a failure.) Skips are explicit and listed by name.
+if (skipped.Count > 0)
 {
-    Console.WriteLine($"[FAIL] Only {passed} tests passed (minimum {MIN_EXPECTED_PASS} required)");
+    Console.WriteLine($"Skipped {skipped.Count} check(s) by request (SMOKE_ALLOW_SKIP):");
+    foreach (var sk in skipped) Console.WriteLine($"  [SKIP] {sk}");
+}
+if (passed == 0)
+{
+    Console.WriteLine("[FAIL] No assertion passed");
     failures++;
 }
 
 int exitCode;
-if (passed >= MIN_EXPECTED_PASS && failures == 0)
+if (failures == 0)
 {
-    Console.WriteLine("=== ALL TESTS PASSED ===");
-    exitCode = 0;
-}
-else if (passed >= MIN_EXPECTED_PASS)
-{
-    Console.WriteLine($"=== PASSED ({passed}/{passed + failures}) — {failures} non-critical failure(s) ===");
+    Console.WriteLine(skipped.Count == 0
+        ? "=== ALL TESTS PASSED ==="
+        : $"=== ALL TESTS PASSED ({skipped.Count} skipped by request) ===");
     exitCode = 0;
 }
 else
 {
-    Console.WriteLine($"=== {failures} TEST(S) FAILED (only {passed} passed, need {MIN_EXPECTED_PASS}) ===");
-    exitCode = failures;
+    Console.WriteLine($"=== {failures} TEST(S) FAILED ({passed} passed) ===");
+    exitCode = 1;
 }
 
 // The second observed crash was a segfault ~90 ms after "=== ALL TESTS PASSED
