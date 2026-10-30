@@ -447,7 +447,7 @@ TEST(CssTokenStreamTest, CustomLookalikeInsidePreludeBracketIsNotCustom) {
   // (";c" -> "c") is a sanctioned edit, not a custom-value change.
   ExpectEquivalent("[;--a:b]{;c}", "[;--a:b]{c}");
   ExpectEquivalent(":is(a;--y:t){m:0;}", ":is(a;--y:t){m:0}");
-  ExpectMinifiedEquivalent("2[/ro;--y:t){;m0}");  // OPT#543 artifact
+  ExpectMinifiedEquivalent("2[/ro;--y:t){;m0}");  // #543 artifact
   // Real custom-property damage still flags.
   ExpectFlags("a{b:fn(x);--y:{;}}", "a{b:fn(x);--y:{}}");
 }
