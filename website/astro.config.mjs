@@ -177,6 +177,19 @@ export default defineConfig({
     // and a leader-names-challenger comparison page only lent the competitor
     // visibility. Forward the evaluation intent to the no-competitor-named page.
     '/vs/getpagespeed/': '/alternatives/ngx-pagespeed/',
+    // /vs/ merged into /alternatives/ (one comparison hub): every comparison
+    // page moved 1:1 by slug, the hub index folded into /alternatives/. Production
+    // gets the same 301s from the server's redirect map; these keep dev and
+    // preview in step. One hop each: no target is itself a redirect.
+    '/vs/': '/alternatives/',
+    '/vs/cloudflare-apo/': '/alternatives/cloudflare-apo/',
+    '/vs/cloudinary/': '/alternatives/cloudinary/',
+    '/vs/imgix/': '/alternatives/imgix/',
+    '/vs/imgproxy/': '/alternatives/imgproxy/',
+    '/vs/nitropack/': '/alternatives/nitropack/',
+    '/vs/shortpixel/': '/alternatives/shortpixel/',
+    '/vs/thumbor/': '/alternatives/thumbor/',
+    '/vs/wp-rocket/': '/alternatives/wp-rocket/',
     // The activation guide became the software-license page when the product
     // stopped needing activation; keep inbound links and bookmarks working.
     '/docs/license-activation/': '/docs/license/',

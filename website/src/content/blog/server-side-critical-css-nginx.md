@@ -318,7 +318,7 @@ right choice if you have nginx in front of anything and you want a
 single optimization layer that handles critical CSS plus image variants
 plus minification plus the rest, server-side, for any backend.
 
-See [mod_pagespeed vs WP Rocket](/vs/wp-rocket/) for the full
+See [mod_pagespeed vs WP Rocket](/alternatives/wp-rocket/) for the full
 side-by-side comparison.
 
 ## Installing it
@@ -355,7 +355,7 @@ to run in development and in production — see the [license](/license/).
 - [From beacon to headless to heuristic](/blog/critical-css-beacon-to-headless-history/) — why the static scan replaced the old browser-round-trip approach
 - [How CSS parsing works](/how-it-works/css-parsing/) — the syntax-tree layer beneath critical-CSS extraction
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/) — full nginx + worker container setup
-- [mod_pagespeed vs WP Rocket](/vs/wp-rocket/) — side-by-side comparison
+- [mod_pagespeed vs WP Rocket](/alternatives/wp-rocket/) — side-by-side comparison
 - [ASP.NET Core image optimization](/blog/aspnet-core-image-optimization-c-sharp/) — same pipeline applied to image content negotiation
 - [ngx_pagespeed alternative](/alternatives/ngx-pagespeed/): the maintained nginx module, for the nginx audience specifically
 - [mod_pagespeed alternatives](/alternatives/mod-pagespeed/) — background on why mod_pagespeed needs a successor in 2026

@@ -1,5 +1,5 @@
 ---
-// Reusable comparison table for the /vs/* pages.
+// Reusable comparison table for the /alternatives/<competitor>/ pages.
 //
 // Renders a scannable, accessible "mod_pagespeed vs <competitor>" table:
 //  - shaded, sticky header row
@@ -175,7 +175,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
     ))}
   </ul>
 
-  <!-- Compact CTA: shared across every /vs/ and /alternatives/ page, so keep it
+  <!-- Compact CTA: shared across every /alternatives/ page, so keep it
        generic (no per-product param). -->
   <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-bg-secondary/60 px-4 py-3 text-sm">
     <span class="font-medium text-text-body">See for yourself:</span>

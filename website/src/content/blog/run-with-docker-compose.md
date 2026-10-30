@@ -248,5 +248,5 @@ Before pointing real traffic at this:
   for how the worker decides which CSS to inline.
 - [mod_pagespeed alternatives](/alternatives/mod-pagespeed/) — short form
   on what changed between 1.x and 2.0.
-- [vs imgproxy](/vs/imgproxy/) — comparison if you're evaluating image
+- [vs imgproxy](/alternatives/imgproxy/) — comparison if you're evaluating image
   pipelines.
