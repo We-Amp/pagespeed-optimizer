@@ -441,4 +441,15 @@ TEST(CssTokenStreamTest, RedGarbageInputIsNotAStringChannelWaiver) {
                  output));
 }
 
+TEST(CssTokenStreamTest, CustomLookalikeInsidePreludeBracketIsNotCustom) {
+  // A "--a:" after a ';' inside an unclosed '[' or '(' in a selector is
+  // not a declaration, so the rule block's empty-declaration trim
+  // (";c" -> "c") is a sanctioned edit, not a custom-value change.
+  ExpectEquivalent("[;--a:b]{;c}", "[;--a:b]{c}");
+  ExpectEquivalent(":is(a;--y:t){m:0;}", ":is(a;--y:t){m:0}");
+  ExpectMinifiedEquivalent("2[/ro;--y:t){;m0}");  // #543 artifact
+  // Real custom-property damage still flags.
+  ExpectFlags("a{b:fn(x);--y:{;}}", "a{b:fn(x);--y:{}}");
+}
+
 }  // namespace

@@ -166,6 +166,10 @@ const char* const kValidCssSeeds[] = {
     // parens must not close the paren).
     "a{--x:[a}e{c:d;;}",
     "a{--x:(a{b)c;;d}e)}",
+    // A "--a:" after a ';' inside a selector bracket is not a custom
+    // property; the rule block's empty-declaration trim is sanctioned.
+    "2[/ro;--y:t){;m0}",
+    "[;--a:b]{;c}",
 };
 
 // Normalize-invariant diagnostic (glue-normalization cutover): the

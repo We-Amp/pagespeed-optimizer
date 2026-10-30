@@ -409,6 +409,12 @@ std::string Normalize(std::string_view input) {
 // AtCustomPropertyColon boundary rule, "'--' occurring mid-value
 // never triggers"; on normalized text the custom name is already a
 // single glued ident, so no glue rules are needed here either).
+// One deliberate departure from that rule: a ';' inside an open '(',
+// '[' or function bracket outside a custom region is NOT a boundary
+// (nesting resets at '{' and '}').  A "--a:" inside a selector bracket
+// ("[;--a:b]{;c}") is therefore not a custom property, so it cannot
+// swallow the rule block's ';' and make Phase 5's sanctioned
+// empty-declaration trim look like a custom-value change.
 Channels ExtractGlued(std::string_view input) {
   Channels out;
   Tokenizer tz(input);
@@ -418,6 +424,7 @@ Channels ExtractGlued(std::string_view input) {
   bool at_boundary = true;  // Start of input counts as a boundary.
   bool in_region = false;
   int depth = 0;
+  int outer_nest = 0;  // Open '(' '[' fn( outside custom regions.
   // Number-channel one-token delay: a kNumber is held until the next
   // token decides whether it carries a unit — an immediately adjacent
   // ident (dimension) or '%' delim (percentage), adjacency by text
@@ -454,6 +461,18 @@ Channels ExtractGlued(std::string_view input) {
         }
       }
     }
+    if (!in_region) {
+      if (t.kind == Kind::kFunction ||
+          (t.kind == Kind::kBrace && (t.text[0] == '(' || t.text[0] == '['))) {
+        ++outer_nest;
+      } else if (t.kind == Kind::kBrace &&
+                 (t.text[0] == ')' || t.text[0] == ']')) {
+        if (outer_nest > 0) --outer_nest;
+      } else if (t.kind == Kind::kBrace &&
+                 (t.text[0] == '{' || t.text[0] == '}')) {
+        outer_nest = 0;
+      }
+    }
     if (t.kind == Kind::kUrl) out.urls.push_back(NormalizeUrl(t.text));
     if (t.kind == Kind::kString) out.strings.push_back(t.text);
     if (t.kind == Kind::kNumber && !in_region) {
@@ -477,7 +496,7 @@ Channels ExtractGlued(std::string_view input) {
                            t.text[0] == '-' && t.text[1] == '-';
     pending_at_boundary = at_boundary;
     at_boundary =
-        t.kind == Kind::kSemicolon ||
+        (t.kind == Kind::kSemicolon && outer_nest == 0) ||
         (t.kind == Kind::kBrace && (t.text[0] == '{' || t.text[0] == '}'));
   }
   if (have_pending_number) {
