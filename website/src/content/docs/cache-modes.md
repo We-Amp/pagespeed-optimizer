@@ -1,7 +1,7 @@
 ---
 title: 'Choose a cache mode: safe vs aggressive'
 description: 'Safe or aggressive Cache-Control for optimized responses in mod_pagespeed, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.'
-order: 22
+order: 23
 group: 'Configure'
 lastUpdated: 2026-10-22
 ---

@@ -1,7 +1,7 @@
 ---
 title: 'Migrate from ModPageSpeed 2.0'
 description: 'Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed: unprivileged worker, loopback-bound API, configuration carries over.'
-order: 10
+order: 11
 group: 'Upgrade and migrate'
 lastUpdated: 2026-10-22
 faq:

@@ -1,7 +1,7 @@
 ---
 title: 'Integrate with a CDN'
 description: 'Run mod_pagespeed behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.'
-order: 23
+order: 24
 group: 'Configure'
 lastUpdated: 2026-10-22
 ---

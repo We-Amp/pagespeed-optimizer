@@ -35,10 +35,13 @@
 //   deterministic for a given font set and script, so a build on a current
 //   tree leaves the directory clean.
 //
-// Determinism / incrementality:
-//   - Each PNG is regenerated only when its source markdown's mtime is
-//     newer than the PNG (or the PNG is missing). Re-running the script
-//     in a clean tree is a no-op modulo stdout chatter.
+// Determinism:
+//   - Every card is rendered on every run and written only when the bytes
+//     differ from the committed file. The output is deterministic for a given
+//     font set and script, so a build on a current tree (including a fresh
+//     clone, where file mtimes are meaningless) leaves `git status` clean.
+//     When a post's title or date changes, the build rewrites its card and
+//     the new PNG is committed with the post.
 //   - Output is committed-friendly via `public/og-cards/` (already part of
 //     Astro's static `public` tree — gets copied into `dist/` verbatim).
 //
@@ -322,13 +325,6 @@ async function main() {
     { name: 'IBM Plex Mono', data: plexMono500, weight: 500, style: 'normal' },
   ];
 
-  async function renderCard(tree, outPath, label) {
-    const svg = await satori(tree, { width: WIDTH, height: HEIGHT, fonts });
-    const png = new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } }).render().asPng();
-    fs.writeFileSync(outPath, png);
-    console.log(`generated: ${label}`);
-  }
-
   // Render, then write only when the bytes differ (page cards: no source
   // mtime to compare against). Returns true when the file changed.
   async function renderCardIfChanged(tree, outPath, label) {
@@ -343,10 +339,6 @@ async function main() {
     return true;
   }
 
-  const scriptMtime = fs.statSync(__filename).mtimeMs;
-  const stale = (outPath, depMtimes) =>
-    !fs.existsSync(outPath) || fs.statSync(outPath).mtimeMs <= Math.max(scriptMtime, ...depMtimes);
-
   fs.mkdirSync(outDir, { recursive: true });
 
   let generated = 0;
@@ -357,24 +349,18 @@ async function main() {
   // over the home page's title tagline (src/pages/index.astro).
   // The eyebrow is the product-name constant, so a name change in either
   // facts file re-renders the card.
-  const factsMtimes = [
-    path.join(__dirname, '../src/data/product-facts.mjs'),
-    path.join(__dirname, '../../shared/product-facts.mjs'),
-  ].map((file) => fs.statSync(file).mtimeMs);
-  if (stale(defaultCardPath, factsMtimes)) {
-    await renderCard(
+  if (
+    await renderCardIfChanged(
       buildTree({
         eyebrow: PRODUCT_DISPLAY_NAME,
         title: 'PageSpeed module for nginx and Apache',
       }),
       defaultCardPath,
       'og-default.png',
-    );
+    )
+  )
     generated++;
-  } else {
-    console.log('skipped (cached): og-default.png');
-    skipped++;
-  }
+  else skipped++;
 
   for (const card of PAGE_CARDS) {
     const outPath = path.join(outDir, `${card.slug}.png`);
@@ -404,22 +390,13 @@ async function main() {
       continue;
     }
 
-    // mtime-based incremental: skip if PNG exists AND is newer than the
-    // markdown AND newer than this script itself (so editing the template
-    // forces regeneration).
-    if (!stale(outPath, [fs.statSync(srcPath).mtimeMs])) {
-      console.log(`skipped (cached): og-cards/${slug}.png`);
-      skipped++;
-      continue;
-    }
-
     const tree = buildTree({
       title: fm.title || slug,
       eyebrow: ['blog', formatMonthYear(fm.date)].filter(Boolean).join(' · '),
     });
 
-    await renderCard(tree, outPath, `og-cards/${slug}.png`);
-    generated++;
+    if (await renderCardIfChanged(tree, outPath, `og-cards/${slug}.png`)) generated++;
+    else skipped++;
   }
 
   console.log(
