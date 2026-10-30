@@ -741,13 +741,13 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         }
       })();
     </script>
-    <noscript
-      ><style>
+    <noscript>
+      <style>
         html:not([data-active-platform]) [data-platform] {
           display: block !important;
         }
-      </style></noscript
-    >
+      </style>
+    </noscript>
     <style is:inline>
       [data-banner-dismissed='1'] #coming-soon-banner {
         display: none;
@@ -760,16 +760,12 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:type" content={ogType} />
-    {
-      ogType === 'article' && articlePublished && (
-        <meta property="article:published_time" content={articlePublished.toISOString()} />
-      )
-    }
-    {
-      ogType === 'article' && articleModified && (
-        <meta property="article:modified_time" content={articleModified.toISOString()} />
-      )
-    }
+    {ogType === 'article' && articlePublished && (
+      <meta property="article:published_time" content={articlePublished.toISOString()} />
+    )}
+    {ogType === 'article' && articleModified && (
+      <meta property="article:modified_time" content={articleModified.toISOString()} />
+    )}
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content={PRODUCT_DISPLAY_NAME} />
     <meta name="twitter:card" content="summary_large_image" />
@@ -797,13 +793,12 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       defer
       src="https://umami.we-amp.com/script.js"
       data-website-id="d32585a5-6610-4a11-8e5b-ef093fabbd20"
-      data-host-url="https://modpagespeed.com"></script>
+      data-host-url="https://modpagespeed.com"
+    ></script>
     <title>{title}</title>
-    {
-      jsonLdScripts.map((script) => (
-        <script is:inline type="application/ld+json" set:html={safeJsonLd(script)} />
-      ))
-    }
+    {jsonLdScripts.map((script) => (
+      <script is:inline type="application/ld+json" set:html={safeJsonLd(script)} />
+    ))}
     <style is:global>
       @import '../styles/global.css';
     </style>
@@ -816,41 +811,42 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       Skip to main content
     </a>
     {!telemetryExcluded && <TelemetryStrip path={rawPath} />}
-    {
-      bannerText && (
-        <div
-          id="coming-soon-banner"
-          class="bg-bg-secondary text-text-body text-sm text-center py-2 px-4 relative border-b border-border"
-        >
-          <span
-            aria-hidden="true"
-            class="inline-block w-2 h-2 rounded-[1px] bg-interactive mr-2 align-middle"
-          />
-          {bannerHref ? (
-            <a
-              href={bannerHref}
-              class="underline underline-offset-2 hover:text-interactive transition-colors"
-            >
-              {bannerText} <span aria-hidden="true">→</span>
-            </a>
-          ) : (
-            <span>{bannerText}</span>
-          )}
-          <button
-            id="dismiss-banner"
-            type="button"
-            class="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 text-text-muted hover:text-text-body transition-colors"
-            aria-label="Dismiss banner"
-            aria-controls="coming-soon-banner"
-            title="Dismiss banner"
+    {bannerText && (
+      <div
+        id="coming-soon-banner"
+        class="bg-bg-secondary text-text-body text-sm text-center py-2 px-4 relative border-b border-border"
+      >
+        <span
+          aria-hidden="true"
+          class="inline-block w-2 h-2 rounded-[1px] bg-interactive mr-2 align-middle"
+        />
+        {bannerHref ? (
+          <a
+            href={bannerHref}
+            class="underline underline-offset-2 hover:text-interactive transition-colors"
           >
-            <Icon name="x" class="h-4 w-4" />
-          </button>
-        </div>
-      )
-    }
+            {bannerText} <span aria-hidden="true">→</span>
+          </a>
+        ) : (
+          <span>{bannerText}</span>
+        )}
+        <button
+          id="dismiss-banner"
+          type="button"
+          class="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 text-text-muted hover:text-text-body transition-colors"
+          aria-label="Dismiss banner"
+          aria-controls="coming-soon-banner"
+          title="Dismiss banner"
+        >
+          <Icon name="x" class="h-4 w-4" />
+        </button>
+      </div>
+    )}
     <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
-      <nav class="relative mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+      <nav
+        class="relative mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8"
+        aria-label="Main navigation"
+      >
         <div class="flex h-16 items-center justify-between">
           <a href="/" class="flex shrink-0 items-center" aria-label={`${currentLabel} — Home`}>
             <img
@@ -871,163 +867,166 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
 
           {/* Desktop nav */}
           <div class="hidden lg:flex items-center gap-4">
-            {
-              navLinks.map((link, index) =>
-                link.docsMenu ? (
-                  <div class="group nav-dropdown-group">
-                    <button
-                      type="button"
-                      class:list={[
-                        'nav-dropdown-btn text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
-                        isDocsActive
-                          ? 'text-interactive nav-item-active'
-                          : 'text-text-muted hover:text-text-body',
-                      ]}
-                      aria-controls={`nav-panel-${index}`}
-                      aria-expanded="false"
-                    >
-                      {link.label}
-                      <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
-                    </button>
-                    <div
-                      id={`nav-panel-${index}`}
-                      class="nav-dropdown-panel absolute left-4 right-4 sm:left-6 sm:right-6 lg:left-8 lg:right-auto xl:right-8 pt-4 hidden z-50"
-                    >
-                      <div class="nav-panel-box w-[34rem] xl:w-auto max-w-full max-h-[calc(100dvh-7rem)] overflow-auto rounded-[var(--radius-card)] border border-border bg-bg-elevated p-4">
-                        <a
-                          href={docsHome.href}
-                          data-umami-event={docsHome.umamiEvent}
-                          aria-current={isExact(docsHome.href) ? 'page' : undefined}
-                          class="block rounded-md px-3 py-2 hover:bg-bg-secondary transition-colors"
-                        >
-                          <span class="text-sm font-medium text-text-body">{docsHome.label}</span>
-                          <span class="block text-xs text-text-annotation">{docsHome.subtitle}</span>
-                        </a>
-                        <div class="mt-3 grid grid-cols-2 xl:grid-cols-[repeat(4,max-content)] xl:justify-between gap-x-4 gap-y-5 border-t border-border pt-4">
-                          {docsSections.map((section, si) => (
-                            <div>
-                              <p id={`docs-menu-h-${si}`} class="eyebrow px-3 pb-1 xl:whitespace-nowrap">
-                                {section.title}
-                              </p>
-                              <ul aria-labelledby={`docs-menu-h-${si}`}>
-                                {section.links.map((item) => (
-                                  <li>
-                                    <a
-                                      href={item.href}
-                                      data-umami-event={item.umamiEvent ?? 'nav-docs-menu'}
-                                      {...umamiAttrs({ position: section.position })}
-                                      aria-current={isExact(item.href) ? 'page' : undefined}
-                                      class:list={[
-                                        'block rounded-md px-3 py-1.5 text-sm hover:bg-bg-secondary transition-colors',
-                                        isExact(item.href)
-                                          ? 'text-interactive font-medium'
-                                          : 'text-text-body',
-                                      ]}
-                                    >
-                                      {item.label}
-                                    </a>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : link.children ? (
-                  <div class="relative group nav-dropdown-group">
-                    <button
-                      type="button"
-                      class:list={[
-                        'nav-dropdown-btn text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
-                        link.children.some((c) => currentPath.startsWith(c.href))
-                          ? 'text-interactive nav-item-active'
-                          : 'text-text-muted hover:text-text-body',
-                      ]}
-                      aria-controls={`nav-panel-${index}`}
-                      aria-expanded="false"
-                    >
-                      {link.label}
-                      <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
-                    </button>
-                    <div
-                      id={`nav-panel-${index}`}
-                      class="nav-dropdown-panel absolute left-0 pt-4 hidden z-50"
-                    >
-                      <div class="nav-panel-box w-64 rounded-[var(--radius-card)] border border-border bg-bg-elevated py-2">
-                        {link.children.map((child) => (
-                          <a
-                            href={child.href}
-                            data-umami-event={child.umamiEvent}
-                            {...umamiAttrs(child.umamiProps)}
-                            rel={child.external ? 'noopener' : undefined}
-                            class:list={[
-                              'block px-4 py-3 hover:bg-bg-secondary transition-colors',
-                              currentPath.startsWith(child.href) ? 'bg-bg-secondary' : '',
-                            ]}
-                          >
-                            <span class="flex items-center gap-1.5">
-                              <span
-                                class:list={[
-                                  'text-sm font-medium',
-                                  currentPath.startsWith(child.href)
-                                    ? 'text-interactive'
-                                    : 'text-text-body',
-                                ]}
-                              >
-                                {child.label}
-                              </span>
-                              {child.badge && (
-                                <span class="badge-interactive">
-                                  {child.badge}
-                                </span>
-                              )}
-                            </span>
-                            <span class="block text-xs text-text-annotation mt-0.5">
-                              {child.subtitle}
-                            </span>
-                          </a>
+            {navLinks.map((link, index) =>
+              link.docsMenu ? (
+                <div class="group nav-dropdown-group">
+                  <button
+                    type="button"
+                    class:list={[
+                      'nav-dropdown-btn group/dd text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
+                      isDocsActive
+                        ? 'text-interactive nav-item-active'
+                        : 'text-text-muted hover:text-text-body',
+                    ]}
+                    aria-controls={`nav-panel-${index}`}
+                    aria-expanded="false"
+                  >
+                    {link.label}
+                    <Icon
+                      name="chevron-down"
+                      class="h-4 w-4 opacity-50 transition-transform group-aria-expanded/dd:rotate-180"
+                    />
+                  </button>
+                  <div
+                    id={`nav-panel-${index}`}
+                    class="nav-dropdown-panel absolute left-4 right-4 sm:left-6 sm:right-6 lg:left-8 lg:right-auto xl:right-8 pt-4 hidden z-50"
+                  >
+                    <div class="nav-panel-box w-[34rem] xl:w-auto max-w-full max-h-[calc(100dvh-7rem)] overflow-auto rounded-[var(--radius-card)] border border-border bg-bg-elevated p-4">
+                      <a
+                        href={docsHome.href}
+                        data-umami-event={docsHome.umamiEvent}
+                        aria-current={isExact(docsHome.href) ? 'page' : undefined}
+                        class="block rounded-md px-3 py-2 hover:bg-bg-secondary transition-colors"
+                      >
+                        <span class="text-sm font-medium text-text-body">{docsHome.label}</span>
+                        <span class="block text-xs text-text-annotation">{docsHome.subtitle}</span>
+                      </a>
+                      <div class="mt-3 grid grid-cols-2 xl:grid-cols-[repeat(4,max-content)] xl:justify-between gap-x-4 gap-y-5 border-t border-border pt-4">
+                        {docsSections.map((section, si) => (
+                          <div>
+                            <p
+                              id={`docs-menu-h-${si}`}
+                              class="eyebrow px-3 pb-1 xl:whitespace-nowrap"
+                            >
+                              {section.title}
+                            </p>
+                            <ul aria-labelledby={`docs-menu-h-${si}`}>
+                              {section.links.map((item) => (
+                                <li>
+                                  <a
+                                    href={item.href}
+                                    data-umami-event={item.umamiEvent ?? 'nav-docs-menu'}
+                                    {...umamiAttrs({ position: section.position })}
+                                    aria-current={isExact(item.href) ? 'page' : undefined}
+                                    class:list={[
+                                      'block rounded-md px-3 py-1.5 text-sm hover:bg-bg-secondary transition-colors',
+                                      isExact(item.href)
+                                        ? 'text-interactive font-medium'
+                                        : 'text-text-body',
+                                    ]}
+                                  >
+                                    {item.label}
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         ))}
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <a
-                    href={link.href}
-                    data-umami-event={link.umamiEvent}
-                    aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
+                </div>
+              ) : link.children ? (
+                <div class="relative group nav-dropdown-group">
+                  <button
+                    type="button"
                     class:list={[
-                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5 xl:whitespace-nowrap inline-flex',
-                      currentPath.startsWith(link.href!)
+                      'nav-dropdown-btn group/dd text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
+                      link.children.some((c) => currentPath.startsWith(c.href))
                         ? 'text-interactive nav-item-active'
                         : 'text-text-muted hover:text-text-body',
                     ]}
+                    aria-controls={`nav-panel-${index}`}
+                    aria-expanded="false"
                   >
                     {link.label}
-                    {link.badge && (
-                      <span class="badge-interactive">
-                        {link.badge}
-                      </span>
-                    )}
-                  </a>
-                ),
-              )
-            }
+                    <Icon
+                      name="chevron-down"
+                      class="h-4 w-4 opacity-50 transition-transform group-aria-expanded/dd:rotate-180"
+                    />
+                  </button>
+                  <div
+                    id={`nav-panel-${index}`}
+                    class="nav-dropdown-panel absolute left-0 pt-4 hidden z-50"
+                  >
+                    <div class="nav-panel-box w-64 rounded-[var(--radius-card)] border border-border bg-bg-elevated py-2">
+                      {link.children.map((child) => (
+                        <a
+                          href={child.href}
+                          data-umami-event={child.umamiEvent}
+                          {...umamiAttrs(child.umamiProps)}
+                          rel={child.external ? 'noopener' : undefined}
+                          class:list={[
+                            'block px-4 py-3 hover:bg-bg-secondary transition-colors',
+                            currentPath.startsWith(child.href) ? 'bg-bg-secondary' : '',
+                          ]}
+                        >
+                          <span class="flex items-center gap-1.5">
+                            <span
+                              class:list={[
+                                'text-sm font-medium',
+                                currentPath.startsWith(child.href)
+                                  ? 'text-interactive'
+                                  : 'text-text-body',
+                              ]}
+                            >
+                              {child.label}
+                            </span>
+                            {child.badge && <span class="badge-interactive">{child.badge}</span>}
+                          </span>
+                          <span class="block text-xs text-text-annotation mt-0.5">
+                            {child.subtitle}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <a
+                  href={link.href}
+                  data-umami-event={link.umamiEvent}
+                  aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
+                  class:list={[
+                    'text-sm font-medium tracking-wide transition-colors items-center gap-1.5 xl:whitespace-nowrap inline-flex',
+                    currentPath.startsWith(link.href!)
+                      ? 'text-interactive nav-item-active'
+                      : 'text-text-muted hover:text-text-body',
+                  ]}
+                >
+                  {link.label}
+                  {link.badge && <span class="badge-interactive">{link.badge}</span>}
+                </a>
+              ),
+            )}
             <button
               type="button"
               data-search-open
               data-umami-event="search_open"
               aria-haspopup="dialog"
               aria-controls="site-search"
+              aria-keyshortcuts="/ Control+K Meta+K"
+              title="Search (/)"
               class="text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5 text-text-muted hover:text-interactive"
             >
               <Icon name="search" class="h-4 w-4" />
               <span class="sr-only xl:not-sr-only">Search</span>
               <kbd
                 class="hidden xl:inline-block rounded border border-border px-1 font-mono text-[10px] leading-4 text-text-annotation"
-                aria-hidden="true">/</kbd
+                aria-hidden="true"
               >
+                /
+              </kbd>
             </button>
             <a
               href="https://github.com/sponsors/We-Amp"
@@ -1064,10 +1063,8 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             </a>
           </div>
 
-          {
-            /* Dark-only identity — theme toggle removed; the site is
-              rendered exclusively on the instrument-black canvas. */
-          }
+          {/* Dark-only identity — theme toggle removed; the site is
+              rendered exclusively on the instrument-black canvas. */}
 
           {/* Mobile: search + menu buttons */}
           <div class="flex items-center lg:hidden">
@@ -1078,6 +1075,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
               aria-label="Search"
               aria-haspopup="dialog"
               aria-controls="site-search"
+              aria-keyshortcuts="/ Control+K Meta+K"
               class="p-2 text-text-muted hover:text-text-body"
             >
               <Icon name="search" class="h-6 w-6" />
@@ -1101,14 +1099,16 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M4 6h16M4 12h16M4 18h16"></path>
+                  d="M4 6h16M4 12h16M4 18h16"
+                ></path>
                 <path
                   id="menu-icon-close"
                   class="hidden"
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"></path>
+                  d="M6 18L18 6M6 6l12 12"
+                ></path>
               </svg>
             </button>
           </div>
@@ -1119,114 +1119,106 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           id="mobile-menu"
           class="hidden lg:hidden pb-4 max-h-[calc(100dvh-121px)] overflow-y-auto"
         >
-          {
-            navLinks.map((link) =>
-              link.docsMenu ? (
-                <div>
-                  <p class="eyebrow py-2">{link.label}</p>
-                  <a
-                    href={docsHome.href}
-                    data-umami-event={`${docsHome.umamiEvent}-mobile`}
-                    aria-current={isExact(docsHome.href) ? 'page' : undefined}
-                    class:list={[
-                      'flex items-center gap-2 py-3 text-sm font-medium',
-                      isExact(docsHome.href) ? 'text-interactive' : 'text-text-muted hover:text-text-body',
-                    ]}
-                  >
-                    <span>{docsHome.label}</span>
-                  </a>
-                  {docsSections.map((section) => (
-                    <details
-                      class="group mobile-docs-section"
-                      open={section.links.some((l) => isExact(l.href))}
-                    >
-                      <summary class="flex min-h-12 cursor-pointer items-center justify-between py-3 pl-4 text-sm font-medium text-text-muted hover:text-text-body">
-                        {section.title}
-                        <Icon name="chevron-down" class="h-4 w-4 opacity-50 group-open:rotate-180" />
-                      </summary>
-                      <ul>
-                        {section.links.map((item) => (
-                          <li>
-                            <a
-                              href={item.href}
-                              data-umami-event={item.umamiEvent ? `${item.umamiEvent}-mobile` : 'nav-docs-menu'}
-                              {...umamiAttrs({ position: section.position }, '_mobile')}
-                              aria-current={isExact(item.href) ? 'page' : undefined}
-                              class:list={[
-                                'block py-3 pl-8 text-sm font-medium',
-                                isExact(item.href)
-                                  ? 'text-interactive'
-                                  : 'text-text-muted hover:text-text-body',
-                              ]}
-                            >
-                              {item.label}
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  ))}
-                </div>
-              ) : link.children ? (
-                <div>
-                  <p class="eyebrow py-2">
-                    {link.label}
-                  </p>
-                  {link.children.map((child) => (
-                    <a
-                      href={child.href}
-                      data-umami-event={
-                        child.umamiProps
-                          ? child.umamiEvent
-                          : child.umamiEvent
-                            ? `${child.umamiEvent}-mobile`
-                            : undefined
-                      }
-                      {...umamiAttrs(child.umamiProps, '_mobile')}
-                      rel={child.external ? 'noopener' : undefined}
-                      class:list={[
-                        'block py-3 pl-4 text-sm font-medium',
-                        currentPath.startsWith(child.href)
-                          ? 'text-interactive'
-                          : 'text-text-muted hover:text-text-body',
-                      ]}
-                    >
-                      <span class="inline-flex items-center gap-1.5">
-                        {child.label}
-                        {child.badge && (
-                          <span class="badge-interactive">
-                            {child.badge}
-                          </span>
-                        )}
-                      </span>
-                      <span class="block text-xs text-text-annotation font-normal">
-                        {child.subtitle}
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              ) : (
+          {navLinks.map((link) =>
+            link.docsMenu ? (
+              <div>
+                <p class="eyebrow py-2">{link.label}</p>
                 <a
-                  href={link.href}
-                  data-umami-event={link.umamiEvent ? `${link.umamiEvent}-mobile` : undefined}
-                  aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
+                  href={docsHome.href}
+                  data-umami-event={`${docsHome.umamiEvent}-mobile`}
+                  aria-current={isExact(docsHome.href) ? 'page' : undefined}
                   class:list={[
                     'flex items-center gap-2 py-3 text-sm font-medium',
-                    currentPath.startsWith(link.href!)
+                    isExact(docsHome.href)
                       ? 'text-interactive'
                       : 'text-text-muted hover:text-text-body',
                   ]}
                 >
-                  <span>{link.label}</span>
-                  {link.badge && (
-                    <span class="badge-interactive">
-                      {link.badge}
-                    </span>
-                  )}
+                  <span>{docsHome.label}</span>
                 </a>
-              ),
-            )
-          }
+                {docsSections.map((section) => (
+                  <details
+                    class="group mobile-docs-section"
+                    open={section.links.some((l) => isExact(l.href))}
+                  >
+                    <summary class="flex min-h-12 cursor-pointer items-center justify-between py-3 pl-4 text-sm font-medium text-text-muted hover:text-text-body">
+                      {section.title}
+                      <Icon name="chevron-down" class="h-4 w-4 opacity-50 group-open:rotate-180" />
+                    </summary>
+                    <ul>
+                      {section.links.map((item) => (
+                        <li>
+                          <a
+                            href={item.href}
+                            data-umami-event={
+                              item.umamiEvent ? `${item.umamiEvent}-mobile` : 'nav-docs-menu'
+                            }
+                            {...umamiAttrs({ position: section.position }, '_mobile')}
+                            aria-current={isExact(item.href) ? 'page' : undefined}
+                            class:list={[
+                              'block py-3 pl-8 text-sm font-medium',
+                              isExact(item.href)
+                                ? 'text-interactive'
+                                : 'text-text-muted hover:text-text-body',
+                            ]}
+                          >
+                            {item.label}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ))}
+              </div>
+            ) : link.children ? (
+              <div>
+                <p class="eyebrow py-2">{link.label}</p>
+                {link.children.map((child) => (
+                  <a
+                    href={child.href}
+                    data-umami-event={
+                      child.umamiProps
+                        ? child.umamiEvent
+                        : child.umamiEvent
+                          ? `${child.umamiEvent}-mobile`
+                          : undefined
+                    }
+                    {...umamiAttrs(child.umamiProps, '_mobile')}
+                    rel={child.external ? 'noopener' : undefined}
+                    class:list={[
+                      'block py-3 pl-4 text-sm font-medium',
+                      currentPath.startsWith(child.href)
+                        ? 'text-interactive'
+                        : 'text-text-muted hover:text-text-body',
+                    ]}
+                  >
+                    <span class="inline-flex items-center gap-1.5">
+                      {child.label}
+                      {child.badge && <span class="badge-interactive">{child.badge}</span>}
+                    </span>
+                    <span class="block text-xs text-text-annotation font-normal">
+                      {child.subtitle}
+                    </span>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <a
+                href={link.href}
+                data-umami-event={link.umamiEvent ? `${link.umamiEvent}-mobile` : undefined}
+                aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
+                class:list={[
+                  'flex items-center gap-2 py-3 text-sm font-medium',
+                  currentPath.startsWith(link.href!)
+                    ? 'text-interactive'
+                    : 'text-text-muted hover:text-text-body',
+                ]}
+              >
+                <span>{link.label}</span>
+                {link.badge && <span class="badge-interactive">{link.badge}</span>}
+              </a>
+            ),
+          )}
           <a
             href="https://github.com/sponsors/We-Amp"
             rel="noopener"
@@ -1308,9 +1300,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                 class="text-text-annotation hover:text-text-body transition-colors"
               >
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path
-                    d="M6.18 15.64a2.18 2.18 0 110 4.36 2.18 2.18 0 010-4.36zM4 4.44A15.56 15.56 0 0119.56 20h-2.83A12.73 12.73 0 004 7.27V4.44zm0 5.66a9.9 9.9 0 019.9 9.9h-2.83A7.07 7.07 0 004 12.93V10.1z"
-                  ></path>
+                  <path d="M6.18 15.64a2.18 2.18 0 110 4.36 2.18 2.18 0 010-4.36zM4 4.44A15.56 15.56 0 0119.56 20h-2.83A12.73 12.73 0 004 7.27V4.44zm0 5.66a9.9 9.9 0 019.9 9.9h-2.83A7.07 7.07 0 004 12.93V10.1z"></path>
                 </svg>
               </a>
             </div>
@@ -1326,37 +1316,33 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             </a>
           </div>
 
-          {
-            footerGroups.map((group) => (
-              <div>
-                <p class="eyebrow uppercase text-text-annotation tracking-[0.08em] sm:whitespace-nowrap [&::before]:hidden">
-                  {group.title}
-                </p>
-                <ul class="mt-3 space-y-2">
-                  {group.links.map((item) => (
-                    <li>
-                      <a
-                        href={item.href}
-                        data-umami-event={item.umamiEvent}
-                        {...umamiAttrs(item.umamiProps)}
-                        rel={item.external ? 'noopener noreferrer' : undefined}
-                        class="text-sm text-text-muted hover:text-text-body"
-                      >
-                        {item.label}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          }
+          {footerGroups.map((group) => (
+            <div>
+              <p class="eyebrow uppercase text-text-annotation tracking-[0.08em] sm:whitespace-nowrap [&::before]:hidden">
+                {group.title}
+              </p>
+              <ul class="mt-3 space-y-2">
+                {group.links.map((item) => (
+                  <li>
+                    <a
+                      href={item.href}
+                      data-umami-event={item.umamiEvent}
+                      {...umamiAttrs(item.umamiProps)}
+                      rel={item.external ? 'noopener noreferrer' : undefined}
+                      class="text-sm text-text-muted hover:text-text-body"
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
-        {
-          /* Newsletter signup (compact, full-width row under the link grid).
+        {/* Newsletter signup (compact, full-width row under the link grid).
             Shared component; captures into the contact pipeline until
-            Buttondown is live — see src/components/NewsletterSignup.astro. */
-        }
+            Buttondown is live — see src/components/NewsletterSignup.astro. */}
         <div class="mt-10 border-t border-border pt-8">
           <div class="max-w-md">
             <NewsletterSignup variant="footer" />
@@ -1364,63 +1350,58 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         </div>
 
         <div class="mt-8 border-t border-border pt-8">
-          {
-            /* Consolidated legal-identification block (LEGAL-8): legal name,
+          {/* Consolidated legal-identification block (LEGAL-8): legal name,
               registered address, company registration, VAT number, and contact
               in one easy-to-find place.
               TODO(LEGAL-8): confirm the registered street address — the exact
               street/number is not in the repo, so only the registered city is
-              shown. Fill in the full street address when available. */
-          }
+              shown. Fill in the full street address when available. */}
           <address class="not-italic text-xs leading-relaxed text-text-annotation">
             <a
               href="https://we-amp.com/"
               class="font-medium text-text-annotation hover:text-text-body transition-colors"
-              >We-Amp B.V.</a
             >
-            &middot; Castricum, The Netherlands &middot; KvK 57898138 &middot; BTW NL852784429B01 &middot;
+              We-Amp B.V.
+            </a>
+            &middot; Castricum, The Netherlands &middot; KvK 57898138 &middot; BTW NL852784429B01
+            &middot;
             <a
               href="mailto:info@we-amp.com"
               class="underline underline-offset-2 hover:text-text-muted transition-colors"
-              >info@we-amp.com</a
             >
+              info@we-amp.com
+            </a>
           </address>
           <p class="mt-3 text-xs text-text-annotation">
             &copy; {new Date().getFullYear()} We-Amp B.V.
           </p>
           <p class="mt-1 text-xs text-text-annotation">
-            mod_pagespeed is an open-source project originally developed at Google. {currentLabel} is
-            developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+            mod_pagespeed is an open-source project originally developed at Google. {currentLabel}{' '}
+            is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
           </p>
         </div>
       </div>
     </footer>
 
-    {
-      /* Site-wide low-friction "quick message" widget — fixed bottom-right
+    {/* Site-wide low-friction "quick message" widget — fixed bottom-right
         launcher; sends a one-way message (optional reply email) to the
-        maintainer via the existing contact -> email pipeline. */
-    }
+        maintainer via the existing contact -> email pipeline. */}
     <QuickMessage />
 
-    {
-      /* Site search modal (Pagefind). Costs one small inline script per page;
-         the search bundle loads from /pagefind/ on first open. */
-    }
+    {/* Site search modal (Pagefind). Costs one small inline script per page;
+         the search bundle loads from /pagefind/ on first open. */}
     <SearchDialog />
 
-    {
-      /* Site-wide floating "Share this page" widget — stacked above the Message
-        launcher; popup on desktop, native share sheet on mobile. */
-    }
+    {/* Site-wide floating "Share this page" widget — stacked above the Message
+        launcher; popup on desktop, native share sheet on mobile. */}
     <ShareFloat title={title} />
 
-    {
-      /* Handset widths: the fixed share/message launchers would sit on top of
+    {/* Handset widths: the fixed share/message launchers would sit on top of
         the hero, so they stay hidden until the first viewport has been
-        scrolled past (same trigger as the sticky CTA below). Toggles a data
-        attribute; the hide/show itself is pure CSS in global.css. */
-    }
+        scrolled past (same trigger as the sticky CTA below). While the footer
+        is on screen, at any width, the launchers hide so they never sit on top
+        of the footer text. Toggles data attributes; the hide/show itself is
+        pure CSS in global.css. */}
     <script is:inline>
       (function () {
         function update() {
@@ -1430,13 +1411,21 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         update();
         window.addEventListener('scroll', update, { passive: true });
         window.addEventListener('resize', update, { passive: true });
+        var footer = document.querySelector('[data-site-footer]');
+        if (footer && 'IntersectionObserver' in window) {
+          new IntersectionObserver(function (entries) {
+            document.documentElement.toggleAttribute(
+              'data-footer-in-view',
+              entries[entries.length - 1].isIntersecting,
+            );
+          }).observe(footer);
+        }
       })();
     </script>
-
-    {
-      /* Mobile-only sticky conversion CTA. Fixed overlay (never pushes content,
+    {/* Mobile-only sticky conversion CTA. Fixed overlay (never pushes content,
          so no CLS), anchored above the iOS home-indicator via the safe-area
-         inset. Starts hidden (opacity-0 + pointer-events-none) and the inline
+         inset. Starts hidden (visibility:hidden + inert, so it is neither focusable nor
+         announced while invisible, plus opacity for the fade) and the inline
          script below flips data-sticky-cta="visible" — revealed by fading in
          (opacity only) once the user scrolls past ~90% of the first viewport.
          Do NOT animate it in with a downward translate (translate-y): a
@@ -1447,54 +1436,56 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
          -translate-x-1/2 (its extent stays within the viewport, so it's safe).
          The global prefers-reduced-motion reset in global.css caps the
          transition to a single frame. z-40 sits below the sticky header (z-50)
-         and the skip link (z-[100]). */
-    }
-    {
-      showStickyCta && (
+         and the skip link (z-[100]). */}
+    {showStickyCta && (
+      <nav aria-label="Quick actions" class="lg:hidden">
         <a
           id="sticky-cta"
           href="/download/"
           data-umami-event="cta_sticky_mobile"
           data-sticky-cta="hidden"
-          class="btn-primary lg:hidden fixed bottom-0 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full opacity-0 shadow-lg transition-opacity duration-150 ease-out pointer-events-none data-[sticky-cta=visible]:opacity-100 data-[sticky-cta=visible]:pointer-events-auto"
+          inert
+          class="btn-primary fixed bottom-0 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full invisible opacity-0 shadow-lg transition-[opacity,visibility] duration-150 ease-out pointer-events-none data-[sticky-cta=visible]:visible data-[sticky-cta=visible]:opacity-100 data-[sticky-cta=visible]:pointer-events-auto"
           style="margin-bottom: calc(1rem + env(safe-area-inset-bottom));"
         >
           Download &amp; run
         </a>
-      )
-    }
+      </nav>
+    )}
 
-    {
-      showStickyCta && (
-        <script is:inline>
-          /* Reveal the mobile sticky CTA once the user scrolls past the hero
+    {showStickyCta && <script is:inline>
+      /* Reveal the mobile sticky CTA once the user scrolls past the hero
              (~90% of the first viewport). Toggles a data attribute; the fade is
              pure CSS so reduced-motion users still get an instant flip via the
              global motion reset. */
-          (function () {
-            var cta = document.getElementById('sticky-cta');
-            if (!cta) return;
-            var footerInView = false;
-            function update() {
-              var past = window.scrollY > window.innerHeight * 0.9;
-              cta.setAttribute('data-sticky-cta', past && !footerInView ? 'visible' : 'hidden');
-            }
-            /* Hide it while the footer is on screen so it never covers the
+      (function () {
+        var cta = document.getElementById('sticky-cta');
+        if (!cta) return;
+        var footerInView = false;
+        function update() {
+          var past = window.scrollY > window.innerHeight * 0.9;
+          var show = past && !footerInView;
+          cta.setAttribute('data-sticky-cta', show ? 'visible' : 'hidden');
+          cta.toggleAttribute(
+            'inert',
+            !show || document.documentElement.hasAttribute('data-menu-open'),
+          );
+        }
+        /* Hide it while the footer is on screen so it never covers the
                provenance line. */
-            var footer = document.querySelector('[data-site-footer]');
-            if (footer && 'IntersectionObserver' in window) {
-              new IntersectionObserver(function (entries) {
-                footerInView = entries[0].isIntersecting;
-                update();
-              }).observe(footer);
-            }
+        var footer = document.querySelector('[data-site-footer]');
+        if (footer && 'IntersectionObserver' in window) {
+          new IntersectionObserver(function (entries) {
+            footerInView = entries[0].isIntersecting;
             update();
-            window.addEventListener('scroll', update, { passive: true });
-            window.addEventListener('resize', update, { passive: true });
-          })();
-        </script>
-      )
-    }
+          }).observe(footer);
+        }
+        cta.addEventListener('menuclose', update);
+        update();
+        window.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', update, { passive: true });
+      })();
+    </script>}
 
     <!-- Dark class is now set in <head> to prevent FOUC on iOS -->
 
@@ -1504,9 +1495,39 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       const iconOpen = document.getElementById('menu-icon-open');
       const iconClose = document.getElementById('menu-icon-close');
 
+      // While the menu is open it is modal: everything outside the header is
+      // inert (no Tab stops, hidden from assistive tech), the page behind does
+      // not scroll, and Tab wraps inside the header.
+      const header = document.querySelector<HTMLElement>('body > header');
+      const behindMenu = () =>
+        Array.from(
+          document.querySelectorAll<HTMLElement>(
+            'main, footer, a[href="#main-content"], #sticky-cta, .qm-root, .share-fab-root',
+          ),
+        );
+      const menuOpen = () => btn?.getAttribute('aria-expanded') === 'true';
+      function headerFocusables(): HTMLElement[] {
+        if (!header) return [];
+        return Array.from(
+          header.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), summary'),
+        ).filter(
+          (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden',
+        );
+      }
+
       function setMobileMenuOpen(open: boolean) {
         if (!btn || !menu) return;
         btn.setAttribute('aria-expanded', String(open));
+        document.documentElement.toggleAttribute('data-menu-open', open);
+        behindMenu().forEach((el) => {
+          if (el.id === 'sticky-cta') {
+            // The sticky CTA owns its own inert state; only force it on.
+            if (open) el.setAttribute('inert', '');
+            else el.dispatchEvent(new Event('menuclose'));
+          } else {
+            el.toggleAttribute('inert', open);
+          }
+        });
         menu.classList.toggle('hidden', !open);
         iconOpen?.classList.toggle('hidden', open);
         iconClose?.classList.toggle('hidden', !open);
@@ -1534,6 +1555,20 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       // Escape closes the menu and returns focus to the toggle. (WCAG 2.1.2)
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeMobileMenu(true);
+        if (e.key === 'Tab' && menuOpen()) {
+          const items = headerFocusables();
+          if (!items.length) return;
+          const first = items[0];
+          const last = items[items.length - 1];
+          const active = document.activeElement;
+          if (e.shiftKey && (active === first || !header?.contains(active))) {
+            e.preventDefault();
+            last.focus();
+          } else if (!e.shiftKey && (active === last || !header?.contains(active))) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       });
 
       // Crossing into the desktop layout (lg, 1024px) hides the mobile menu
@@ -1620,7 +1655,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         });
       }
     </script>
-
     <script is:inline define:vars={{ bannerDismissKey }}>
       /* Banner dismissal is versioned (and section-scoped) so copy changes
          reach previously-dismissed users. The key is passed in from BaseLayout
@@ -1653,7 +1687,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         }
       })();
     </script>
-
     <script is:inline>
       /* Copy-to-clipboard buttons on every <pre><code>...</code></pre>.
          Initialization gate: only flip <html data-clip-ready> if the
@@ -1742,7 +1775,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         }
       })();
     </script>
-
     <style>
       /* Active top-level nav item: the interactive color plus a 2px inset rule
          under the link or dropdown button, so state never rides on color
