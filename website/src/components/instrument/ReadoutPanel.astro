@@ -16,7 +16,7 @@ const { id, title, source, href, hrefLabel } = Astro.props;
 if (href && !hrefLabel) throw new Error('ReadoutPanel: hrefLabel is required when href is set');
 ---
 
-<figure class="readout-plate p-5" data-ui="readout-panel" role="group" aria-labelledby={id}>
+<figure class="readout-plate p-5" data-ui="readout-panel" aria-labelledby={id}>
   <div class="flex items-center justify-between gap-4">
     <p id={id} class="eyebrow">
       {title}

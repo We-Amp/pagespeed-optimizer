@@ -369,8 +369,8 @@ const siteData = sites.map((site) => {
         from the actual optimization pipeline running against the demo sites above — real pipeline
         output, not marketing math. The load-time and Lighthouse figures are projections we derive
         from those measured savings, and we say so explicitly. The percentages on this page compare
-        file sizes before and after optimization. The admin console's savings figures are a different
-        measure: measured in transfer bytes, includes compression.
+        file sizes before and after optimization. The admin console's savings figures are a
+        different measure: measured in transfer bytes, includes compression.
       </p>
       <p class="mt-4 text-sm font-semibold text-text-body">Directly measured</p>
       <ul class="mt-2 space-y-2 text-sm text-text-muted list-disc list-inside">
@@ -440,7 +440,9 @@ const siteData = sites.map((site) => {
               />
             </picture>
           </a>
-          <p class="mt-3 text-sm font-medium text-text-body">The admin console on our production sites</p>
+          <p class="mt-3 text-sm font-medium text-text-body">
+            The admin console on our production sites
+          </p>
           <p class="mt-1 text-sm text-text-muted">
             Live savings from our own production deployment: bytes saved by the module and the
             optimizer worker, by file type and by hosted site, measured in transfer bytes and
@@ -472,11 +474,12 @@ const siteData = sites.map((site) => {
               />
             </picture>
           </a>
-          <p class="mt-3 text-sm font-medium text-text-body">The admin console on the Apache demo</p>
+          <p class="mt-3 text-sm font-medium text-text-body">
+            The admin console on the Apache demo
+          </p>
           <p class="mt-1 text-sm text-text-muted">
             The same console, built into the native module and running on our public Apache demo:
-            live statistics, caches, histograms and logs, served in-process with no separate
-            worker.{' '}
+            live statistics, caches, histograms and logs, served in-process with no separate worker.{' '}
             <a
               href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/statistics"
               class="text-interactive underline underline-offset-2"
