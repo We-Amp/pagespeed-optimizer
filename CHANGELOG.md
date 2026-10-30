@@ -30,6 +30,8 @@ Fixed: when the C library could not open the cache (`ps_cache_open`), `ps_last_e
 
 Fixed: images from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left them as they were, either because they were already optimal (common for PNG and JPEG) or because their type is not optimized, so clients could not revalidate them and always downloaded the full image. These images now carry an `ETag` and answer a matching `If-None-Match` with `304 Not Modified`.
 
+Fixed: images from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left them as they were, because they were already optimal (common for PNG and JPEG), or because their type is not optimized and its compressed copies were already stored, so clients could not revalidate them and always downloaded the full image. These images now carry an `ETag` and answer a matching `If-None-Match` with `304 Not Modified`.
+
 ## 2.6.0 - 2026-10-28
 
 Fixed: pages from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left the page, stylesheet or script unchanged, so clients could not revalidate them and always downloaded the full page. These resources carry an `ETag` again and answer a matching `If-None-Match` with `304 Not Modified`.

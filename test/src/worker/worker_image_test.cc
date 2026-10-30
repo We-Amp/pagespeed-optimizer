@@ -1792,7 +1792,8 @@ std::optional<ReadResult> ReadIdentityEntry(PageSpeedCache* cache,
                                             const std::string& url) {
   const AlternateId id =
       MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
-  auto rr = cache->ReadAlternate(StripSchemeAuthority(url), "", "https", id);
+  auto rr = cache->ReadAlternate(WorkerTest::StripSchemeAuthority(url), "",
+                                 "https", id);
   if (!rr.has_value()) return std::nullopt;
   return std::move(*rr);
 }
@@ -1890,8 +1891,10 @@ TEST_F(WorkerTest, KeptAsIsPngIdentityEntryGetsContentIdentity) {
 
   auto entry = ReadIdentityEntry(worker.cache(), url);
   ASSERT_TRUE(entry.has_value());
-  // Whether the optimizer kept the bytes or replaced the entry with its own
-  // encode, the entry must carry the hash of the origin's bytes.
+  ASSERT_GE(worker.stats().image_no_savings_skipped.load(), 1u)
+      << "the fixture was optimized after all; pick an already-optimal image";
+  EXPECT_EQ(entry->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0)
+      << "the identity entry must stay the origin's own bytes";
   EXPECT_EQ(entry->metadata.origin_html_hash, Sha256Of(png));
   EXPECT_TRUE(pagespeed::ContentIdentity64(entry->metadata).has_value());
 

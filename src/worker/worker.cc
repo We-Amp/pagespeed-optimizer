@@ -1058,6 +1058,12 @@ StampResult StampRawIdentityEntry(PageSpeedCache* cache, const std::string& url,
     rr->release();
     return StampResult::kSkipped;
   }
+  // StampRawEntry rewrites the slot named by the entry's own mask; only the
+  // identity slot is stamped here.
+  if (MaskToId(CapabilityMask::Decode(rr->metadata.full_mask)) != identity) {
+    rr->release();
+    return StampResult::kSkipped;
+  }
   const AlternateMetadata read_meta = rr->metadata;
   auto span = rr->content();
   const std::string bytes(reinterpret_cast<const char*>(span.data()),
