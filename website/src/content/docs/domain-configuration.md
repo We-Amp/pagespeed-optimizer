@@ -229,6 +229,8 @@ Windows-style backslash paths are converted to forward slashes internally.
 
 The first argument is the URL prefix. The second is the filesystem path that corresponds to it. Resources loaded from files bypass the HTTP cache entirely. mod_pagespeed watches the filesystem for changes and re-optimizes when files are modified.
 
+**Access control.** Files served through a `LoadFromFile` mapping are read by mod_pagespeed directly from disk, so the web server's own access rules for those paths (Apache `<Directory>`, `<Files>` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use the mapping's own rules: `LoadFromFileRule Disallow` for a filename prefix, or `LoadFromFileRuleMatch Disallow` for a filename pattern. A disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
+
 ## See also
 
 - [Configuration](/docs/configuration/) — general configuration reference

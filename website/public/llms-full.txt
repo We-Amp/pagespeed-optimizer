@@ -4790,7 +4790,7 @@ Disable the rewriting of Javascript URLs.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP.
+Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP. Access control: files served through a mapping are read directly from disk, so the web server's own access rules for those paths (Apache `&lt;Directory&gt;`, `&lt;Files&gt;` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use `LoadFromFileRule Disallow` for a filename prefix or `LoadFromFileRuleMatch Disallow` for a filename pattern; a disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
 
 #### LoadFromFileCacheTtlMs
 
@@ -11260,6 +11260,8 @@ Windows-style backslash paths are converted to forward slashes internally.
 
 The first argument is the URL prefix. The second is the filesystem path that corresponds to it. Resources loaded from files bypass the HTTP cache entirely. mod_pagespeed watches the filesystem for changes and re-optimizes when files are modified.
 
+**Access control.** Files served through a `LoadFromFile` mapping are read by mod_pagespeed directly from disk, so the web server's own access rules for those paths (Apache `<Directory>`, `<Files>` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use the mapping's own rules: `LoadFromFileRule Disallow` for a filename prefix, or `LoadFromFileRuleMatch Disallow` for a filename pattern. A disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
+
 ## See also
 
 - [Configuration](https://modpagespeed.com/docs/configuration/) — general configuration reference
@@ -11393,6 +11395,8 @@ pagespeed LoadFromFile "https://www.example.com/static/" "C:\inetpub\wwwroot\sta
 Note the Windows-style path. The module converts backslashes to forward slashes internally.
 
 No network fetch occurs. mod_pagespeed reads the files from disk. This is the fastest option for static assets that are available on the local filesystem.
+
+**Access control.** Files served through a `LoadFromFile` mapping are read by mod_pagespeed directly from disk, so the web server's own access rules for those paths (Apache `<Directory>`, `<Files>` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use the mapping's own rules: `LoadFromFileRule Disallow` for a filename prefix, or `LoadFromFileRuleMatch Disallow` for a filename pattern. A disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
 
 ## Mixed content
 

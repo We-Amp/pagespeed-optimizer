@@ -8,7 +8,7 @@
     "MapRewriteDomain": "Rewrites optimized resource URLs from the listed domains onto another domain (for example a CDN hostname).",
     "ShardDomain": "Spreads optimized resource URLs for a domain across the listed shard domains.",
     "CreateSharedMemoryMetadataCache": "Creates a named shared-memory metadata cache of the given size for the virtual hosts whose FileCachePath is that name.",
-    "LoadFromFile": "Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP.",
+    "LoadFromFile": "Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP. Access control: files served through a mapping are read directly from disk, so the web server's own access rules for those paths (Apache `<Directory>`, `<Files>` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use `LoadFromFileRule Disallow` for a filename prefix or `LoadFromFileRuleMatch Disallow` for a filename pattern; a disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.",
     "LoadFromFileMatch": "LoadFromFile with a regular expression on the URL and a replacement filename prefix.",
     "LoadFromFileRule": "Allows or disallows loading from file for a filename prefix after a LoadFromFile mapping.",
     "LoadFromFileRuleMatch": "LoadFromFileRule with a regular expression on the filename.",
