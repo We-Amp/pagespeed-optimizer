@@ -1128,7 +1128,9 @@ jobs:
         run: |
           set -euo pipefail
           cd "$SMOKE_ROOT/publish"
-          mkdir -p "$SMOKE_ROOT/cache" "$SMOKE_ROOT/nginx-conf" "$SMOKE_ROOT/logs/nginx"
+          # The generated nginx.conf keeps the default error/access log paths, which
+          # resolve under the config directory (<conf>/logs); nginx will not create it.
+          mkdir -p "$SMOKE_ROOT/cache" "$SMOKE_ROOT/nginx-conf/logs" "$SMOKE_ROOT/logs/nginx"
           ASPNETCORE_URLS="" \
           PageSpeed__Sidecar__ListenPort="$SIDECAR_PORT" \
           PageSpeed__Sidecar__ConfigDirectory="$SMOKE_ROOT/nginx-conf" \
