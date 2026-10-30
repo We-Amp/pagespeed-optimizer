@@ -790,6 +790,11 @@ jobs:
           CI_ARTIFACTS_PLATFORM: linux-arm64-periodic
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
 
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-stress-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
       - name: Build Docker images (prebuilt)
         run: |
           docker compose -f tools/stress/docker-compose.yml \
@@ -843,6 +848,7 @@ jobs:
             -v "$PWD":/repo -w /repo/tools/stress \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q -r requirements.txt && python3 -m pytest . -v --tb=short"
@@ -893,6 +899,11 @@ jobs:
           CI_ARTIFACTS_PLATFORM: linux-arm64-periodic
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
 
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-production-tests-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
       - name: Build Docker images (prebuilt)
         run: |
           docker compose -f tools/production-tests/docker-compose.yml \
@@ -933,6 +944,7 @@ jobs:
             -v "$PWD":/repo -w /repo/tools/production-tests \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest==9.1.1 requests==2.34.2 && pytest tests/ -v --tb=short -p no:cacheprovider"
@@ -981,6 +993,11 @@ jobs:
         env:
           CI_ARTIFACTS_PLATFORM: linux-arm64-periodic
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
+
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-realworld-tests-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Build Docker images (prebuilt)
         run: |
@@ -1064,6 +1081,11 @@ jobs:
 
       - name: Generate test fixtures
         run: tools/generate-test-fixtures.sh
+
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-e2e-tests-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Build Docker images (prebuilt)
         run: |
@@ -1149,6 +1171,7 @@ jobs:
             -v "$PWD":/repo -w /repo/tools/e2e \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e E2E_NO_LIFECYCLE=1 \
             -e "NGINX_URL=http://localhost:${E2E_NGINX_PORT:-8083}" \
@@ -1201,6 +1224,11 @@ jobs:
         env:
           CI_ARTIFACTS_PLATFORM: linux-arm64-periodic
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
+
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-workbench-playwright-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Build Docker images (prebuilt)
         run: |
@@ -1360,6 +1388,11 @@ jobs:
           CI_ARTIFACTS_PLATFORM: linux-x64-periodic
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
 
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-stress-x64-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
       - name: Build Docker images (prebuilt)
         run: |
           docker compose -f tools/stress/docker-compose.yml \
@@ -1413,6 +1446,7 @@ jobs:
             -v "$PWD":/repo -w /repo/tools/stress \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q -r requirements.txt && python3 -m pytest . -v --tb=short"
@@ -1464,6 +1498,11 @@ jobs:
           CI_ARTIFACTS_PLATFORM: linux-x64-periodic
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
 
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-production-tests-x64-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
       - name: Build Docker images (prebuilt)
         run: |
           docker compose -f tools/production-tests/docker-compose.yml \
@@ -1504,6 +1543,7 @@ jobs:
             -v "$PWD":/repo -w /repo/tools/production-tests \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest==9.1.1 requests==2.34.2 && pytest tests/ -v --tb=short -p no:cacheprovider"
@@ -1553,6 +1593,11 @@ jobs:
         env:
           CI_ARTIFACTS_PLATFORM: linux-x64-periodic
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
+
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-realworld-tests-x64-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
 
       - name: Build Docker images (prebuilt)
         run: |
@@ -1638,6 +1683,11 @@ jobs:
       - name: Generate test fixtures
         run: tools/generate-test-fixtures.sh
 
+      # Two runs on one Docker host (a nightly and a push run) would share the
+      # directory-derived default project name and remove each other's stack.
+      - name: Run-unique compose project
+        run: echo "COMPOSE_PROJECT_NAME=nightly-e2e-tests-x64-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_ENV"
+
       - name: Build Docker images (prebuilt)
         run: |
           docker compose -f tools/e2e/docker-compose.yml \
@@ -1722,6 +1772,7 @@ jobs:
             -v "$PWD":/repo -w /repo/tools/e2e \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
+            -e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}" \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e E2E_NO_LIFECYCLE=1 \
             -e "NGINX_URL=http://localhost:${E2E_NGINX_PORT:-8083}" \
