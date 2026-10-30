@@ -590,6 +590,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="build-id" content={import.meta.env.SITE_BUILD_ID} />
     <meta name="description" content={description} />
     {noindex && <meta name="robots" content="noindex,follow" />}
     <!-- Unscoped fallback first: browsers that ignore the media attribute still

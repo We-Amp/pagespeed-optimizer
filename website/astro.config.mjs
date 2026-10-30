@@ -11,6 +11,7 @@ import remarkCustomHeadingId from 'remark-custom-heading-id';
 import remarkDirective from 'remark-directive';
 import remarkCallouts from './src/lib/remark-callouts.mjs';
 import { gitLastModified } from './src/lib/git-date';
+import { BUILD_ID } from './src/lib/build-id.mjs';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -272,5 +273,6 @@ export default defineConfig({
   ],
   vite: {
     plugins: [legacyDocsRewrite(), tailwindcss()],
+    define: { 'import.meta.env.SITE_BUILD_ID': JSON.stringify(BUILD_ID) },
   },
 });
