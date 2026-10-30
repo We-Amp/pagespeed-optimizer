@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// escaped-href-gate.test.ts — no link may start with a quote. A JSON-style
+// escaped-href-gate.test.ts: no link may start with a quote. A JSON-style
 // escape inside a single-quoted TypeScript string (href=\\"/x/\\") renders as
 // href="\"/x/\"", which resolves to a path that does not exist. Two layers:
 //
