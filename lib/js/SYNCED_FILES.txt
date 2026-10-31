@@ -33,6 +33,7 @@ lib/js/corpus/findings/repros/n6-arrow-try-catch.js
 lib/js/corpus/findings/repros/n6-arrow-while.js
 lib/js/corpus/findings/repros/n7-generator-method-member-comma.js
 lib/js/corpus/findings/repros/n8-object-spread-call.js
+lib/js/corpus/findings/repros/p544-for-let-destructuring.mjs
 lib/js/corpus/gen_goldens.py
 lib/js/corpus/generate_synthetic.py
 lib/js/corpus/goldens/manifest.json
