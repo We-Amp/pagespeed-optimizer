@@ -6,15 +6,9 @@ All notable changes to mod_pagespeed are documented in this file.
 
 Fixed: in the nginx module, HTTP/1.1 requests over TLS were cached under the `http` scheme, so they shared entries with plain-HTTP requests for the same host and URL and did not share them with HTTP/2 and HTTP/3 requests. The scheme now comes from the connection's TLS state for every protocol, so requests over TLS use `https` and plain HTTP uses `http`. Entries cached by an earlier version for HTTP/1.1 over TLS are fetched again from the origin. `pagespeed_trust_x_forwarded_proto` behaves as before.
 
-Changed: the worker now logs a one-time warning when the deprecated `quality_cap_margin` setting is set (`--quality-cap-margin`, the config file or a config update); the setting has no effect, and `--quality-cap-margin` is now accepted on the command line as the release notes say. Use `no_quality_cap` to turn the quality cap off.
-
 Changed: the worker now logs a warning when the deprecated `quality_cap_margin` setting is set in the configuration file or through a configuration update; the setting has no effect. Use `no_quality_cap` to turn the quality cap off.
 
-Fixed: on Windows, publishing a new cache generation no longer fails while another process, such as the web server module checking the cache, has the generation file open at that moment. The file is now replaced the way it is on Linux and macOS, so other processes notice a cache reset without delay.
-
 Fixed: on Windows, a cache reset no longer fails when the web server module or the ASP.NET Core package is reading the cache's generation file at that moment.
-
-Fixed: with the ASP.NET Core package, the `/console/` admin UI can now reach the optimizer worker from host-network containers on some container runtimes, where it previously failed with a bad gateway error. The console proxy now connects to the local worker over IPv4 explicitly; connections to any other address are unchanged.
 
 Fixed: with the ASP.NET Core package, the `/console/` admin UI can now reach the optimizer worker from host-network containers on some container runtimes, where it previously failed with a bad gateway error.
 
@@ -46,15 +40,11 @@ variants again from the origin instead of serving them from the cache.
 
 Fixed: when the C library could not open the cache (`ps_cache_open`), `ps_last_error_message()` said only "Failed to create cache". It now includes the cache's own reason, for example a refused volume file or a path that cannot be created, so applications and the web server modules can log why the cache did not open. The C interface is unchanged.
 
-Fixed: images from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left them as they were, either because they were already optimal (common for PNG and JPEG) or because their type is not optimized, so clients could not revalidate them and always downloaded the full image. These images now carry an `ETag` and answer a matching `If-None-Match` with `304 Not Modified`.
-
 Fixed: images from an origin that sends neither `ETag` nor `Last-Modified` were served without an `ETag` when the optimizer left them as they were, because they were already optimal (common for PNG and JPEG), or because their type is not optimized and its compressed copies were already stored, so clients could not revalidate them and always downloaded the full image. These images now carry an `ETag` and answer a matching `If-None-Match` with `304 Not Modified`.
 
 Fixed: the script-coverage analysis now takes coverage only for scripts the analysis browser actually received. A script that could not be loaded is reported as having no coverage data, so it no longer gets a coverage figure and a deferral recommendation it did not earn.
 
 Fixed: with the nginx module, when the cache volume failed to open because another process (such as the optimizer worker) was holding it, the module deleted the volume and created a new one. The other process kept writing to the deleted file, so the two sides stopped sharing cached entries until that process restarted. The module now deletes and recreates the volume only when it is damaged. In any other case it leaves the volume in place, logs the reason and serves without the cache until the next successful open.
-
-Fixed: the ASP.NET Core package's worker host now logs when the optimizer worker it started exits on its own. A non-zero exit is logged as an error with the exit code, how long the worker ran, and the last lines of its error output; a clean exit is logged as a warning. Before this, a worker that failed at startup (for example because its API port was already in use) left nothing in the application log.
 
 Fixed: the ASP.NET Core package's worker host now logs when the optimizer worker it started exits on its own. A non-zero exit is logged as an error with the exit code, how long the worker ran, and the last lines of its error output; a clean exit is logged as a warning. A normal shutdown, including a worker that exits just ahead of the host, logs one information line. Before this, a worker that failed at startup (for example because its API port was already in use) left nothing in the application log.
 
