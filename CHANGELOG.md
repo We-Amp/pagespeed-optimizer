@@ -2,7 +2,10 @@
 
 All notable changes to mod_pagespeed are documented in this file.
 
-## Unreleased
+## 2.7.0 - 2026-10-31
+
+Changed: the Helm chart 0.3.13 is published with this release; its default
+image version is 2.7.0.
 
 Fixed: in the nginx module, HTTP/1.1 requests over TLS were cached under the `http` scheme, so they shared entries with plain-HTTP requests for the same host and URL and did not share them with HTTP/2 and HTTP/3 requests. The scheme now comes from the connection's TLS state for every protocol, so requests over TLS use `https` and plain HTTP uses `http`. Entries cached by an earlier version for HTTP/1.1 over TLS are fetched again from the origin. `pagespeed_trust_x_forwarded_proto` behaves as before.
 
