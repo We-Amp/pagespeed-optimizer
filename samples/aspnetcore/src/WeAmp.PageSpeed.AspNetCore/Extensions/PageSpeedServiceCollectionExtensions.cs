@@ -92,7 +92,8 @@ public static class PageSpeedServiceCollectionExtensions
         services.AddHttpClient("PageSpeedConsoleProxy", client =>
         {
             client.Timeout = TimeSpan.FromSeconds(5);
-        });
+        })
+        .ConfigurePrimaryHttpMessageHandler(LoopbackConnect.CreateHandler);
 
         // Health check.
         services.AddHealthChecks()
