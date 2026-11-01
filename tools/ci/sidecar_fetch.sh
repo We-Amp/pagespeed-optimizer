@@ -21,7 +21,8 @@
 #
 # resolve: prints the module tag to use: module-v<X> for the release tag v<X>.
 #         A rehearsal tag v<X>-pre.<N> (dry run only; a real run refuses it)
-#         has no module release of its own and takes the newest published one.
+#         has no module release of its own: it takes module-v<X> when that exists,
+#         else the newest published one.
 #         A real run always gets that tag (fetch then fails if the module
 #         release is not published), and only when the tag is the current
 #         version: <VERSION.txt of main> is then required and must hold <X>,
@@ -293,10 +294,11 @@ cmd_resolve() {
   case "$mode" in real|dry) ;; *) die "mode is real or dry, not '$mode'" ;; esac
   want="module-$rel"
   if [[ "$rel" == *-pre.* ]]; then
-    # A rehearsal tag has no module release of its own: a dry run takes the
-    # newest published one (the workflow labels it), a real run is refused.
+    # A rehearsal tag has no module release of its own: a dry run looks up
+    # the module release of its base version and otherwise takes the newest
+    # published one (never module-v<X>-pre.<N>); a real run is refused.
     [ "$mode" = dry ] || die "a real run cannot release the rehearsal tag $rel"
-    want=""
+    want="module-${rel%%-pre.*}"
   fi
   if [ "$mode" = real ]; then
     [ -s "$vfile" ] || die "a real run needs the VERSION.txt of main to check the tag against"
@@ -308,11 +310,8 @@ cmd_resolve() {
   if [ -n "${GH_READ_TOKEN:-}" ]; then
     auth=(-H "Authorization: Bearer ${GH_READ_TOKEN}")
   fi
-  code=404
-  if [ -n "$want" ]; then
-    code="$(curl -sSL --retry 5 --retry-all-errors -o /dev/null -w '%{http_code}' ${auth[@]+"${auth[@]}"} \
-      "https://api.github.com/repos/${REPO}/releases/tags/${want}")" || die "cannot reach the module release API"
-  fi
+  code="$(curl -sSL --retry 5 --retry-all-errors -o /dev/null -w '%{http_code}' ${auth[@]+"${auth[@]}"} \
+    "https://api.github.com/repos/${REPO}/releases/tags/${want}")" || die "cannot reach the module release API"
   case "$code" in
     200) printf '%s\n' "$want" ;;
     404)
