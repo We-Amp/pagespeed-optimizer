@@ -1244,7 +1244,7 @@ jobs:
               echo "::error::resolved '$PIN_TAG' but $RELEASE_TAG needs '$WANT'"
               exit 1
             fi
-            NOTE="DRY RUN ONLY: there is no ${WANT} yet, so the sidecar packages of this run are labelled ${RELEASE_TAG#v} but contain the native pair and the managed code of ${PIN_TAG}, not of ${WANT}. They are a rehearsal of the pack path, not a release build."
+            NOTE="DRY RUN ONLY: there is no module release for ${RELEASE_TAG} (${WANT}), so the sidecar packages of this run are labelled ${RELEASE_TAG#v} but contain the native pair and the managed code of ${PIN_TAG}, not of ${WANT}. They are a rehearsal of the pack path, not a release build."
             echo "::warning::$NOTE"
             printf '### Sidecar module release mismatch\n\n%s\n\n' "$NOTE" >> "$GITHUB_STEP_SUMMARY"
             mkdir -p "${RUNNER_TEMP}/sidecar-nupkg"

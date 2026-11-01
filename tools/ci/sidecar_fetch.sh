@@ -20,6 +20,8 @@
 #   tools/ci/sidecar_fetch.sh check-packages <dir> <nupkg-dir> <version>
 #
 # resolve: prints the module tag to use: module-v<X> for the release tag v<X>.
+#         A rehearsal tag v<X>-pre.<N> (dry run only; a real run refuses it)
+#         has no module release of its own and takes the newest published one.
 #         A real run always gets that tag (fetch then fails if the module
 #         release is not published), and only when the tag is the current
 #         version: <VERSION.txt of main> is then required and must hold <X>,
@@ -287,9 +289,15 @@ peel_tag() {
 cmd_resolve() {
   [ $# -ge 2 ] && [ $# -le 3 ] || die "usage: $0 resolve <v<X> release tag> <real|dry> [<VERSION.txt of main>]"
   local rel="$1" mode="$2" vfile="${3:-}" want auth=() code latest cur
-  [[ "$rel" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "'$rel' is not a v<version> release tag"
+  [[ "$rel" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-pre\.[0-9]+)?$ ]] || die "'$rel' is not a v<version> or v<version>-pre.<N> release tag"
   case "$mode" in real|dry) ;; *) die "mode is real or dry, not '$mode'" ;; esac
   want="module-$rel"
+  if [[ "$rel" == *-pre.* ]]; then
+    # A rehearsal tag has no module release of its own: a dry run takes the
+    # newest published one (the workflow labels it), a real run is refused.
+    [ "$mode" = dry ] || die "a real run cannot release the rehearsal tag $rel"
+    want=""
+  fi
   if [ "$mode" = real ]; then
     [ -s "$vfile" ] || die "a real run needs the VERSION.txt of main to check the tag against"
     cur="$(tr -d '[:space:]' < "$vfile")"
@@ -300,8 +308,11 @@ cmd_resolve() {
   if [ -n "${GH_READ_TOKEN:-}" ]; then
     auth=(-H "Authorization: Bearer ${GH_READ_TOKEN}")
   fi
-  code="$(curl -sSL --retry 5 --retry-all-errors -o /dev/null -w '%{http_code}' ${auth[@]+"${auth[@]}"} \
-    "https://api.github.com/repos/${REPO}/releases/tags/${want}")" || die "cannot reach the module release API"
+  code=404
+  if [ -n "$want" ]; then
+    code="$(curl -sSL --retry 5 --retry-all-errors -o /dev/null -w '%{http_code}' ${auth[@]+"${auth[@]}"} \
+      "https://api.github.com/repos/${REPO}/releases/tags/${want}")" || die "cannot reach the module release API"
+  fi
   case "$code" in
     200) printf '%s\n' "$want" ;;
     404)

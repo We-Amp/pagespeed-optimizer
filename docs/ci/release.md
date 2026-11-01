@@ -400,8 +400,10 @@ signing script, because the module release of a version is cut after the
 is the version in `VERSION.txt` on `main`: an older tag cannot be released
 again from the lane (re-running a failed release of the current version is
 fine). A
-dry run takes `module-v<X>` when it exists; the module release of a version is
-cut after the dry runs, so it otherwise rehearses with the newest published
+dry run of a rehearsal tag `v<X>-pre.<N>` always takes the newest published
+module release (a real run of such a tag is refused). Any other dry run takes
+`module-v<X>` when it exists; the module release of a version is cut after the
+dry runs, so it otherwise rehearses with the newest published
 module release and says so (see above). Two consequences:
 
 - A real `v<X>` requires a published `module-v<X>`. A version the module

@@ -134,7 +134,9 @@ expect no "resolve: real run, main is at an older version" bash "$FETCH" resolve
 expect no "resolve: real run without VERSION.txt"          bash "$FETCH" resolve v2.8.0 real
 expect no "resolve: real run, empty VERSION.txt"           bash "$FETCH" resolve v2.8.0 real "$W/VERSION.empty"
 expect no "resolve: real run, VERSION.txt missing"         bash "$FETCH" resolve v2.8.0 real "$W/none"
-expect no "resolve: refuses a pre-release tag"             bash "$FETCH" resolve v2.8.0-pre.1 real "$W/VERSION.txt"
+expect no "resolve: real run of a rehearsal tag"           bash "$FETCH" resolve v2.8.0-pre.1 real "$W/VERSION.txt"
+expect no "resolve: refuses a malformed pre-release tag"   bash "$FETCH" resolve v2.8.0-rc.1 dry
+expect no "resolve: refuses a pre-release tag without N"   bash "$FETCH" resolve v2.8.0-pre dry
 expect no "resolve: refuses a module tag"                  bash "$FETCH" resolve module-v2.8.0 real "$W/VERSION.txt"
 expect no "resolve: refuses an unknown mode"               bash "$FETCH" resolve v2.8.0 latest
 if [ -e "$ROOT/tools/ci/sidecar-pin.json" ]; then echo "FAIL tools/ci/sidecar-pin.json still exists"; fail=1; else echo "ok   no pin file"; fi
@@ -225,8 +227,12 @@ expect ok "resolve: dry run, module release exists"        bash -c "[ \"\$(PATH=
 expect ok "resolve: dry run, not cut yet, newest published" bash -c "[ \"\$(PATH='$W/bin':\$PATH bash '$FETCH' resolve v9.9.10 dry)\" = module-v9.9.8 ]"
 printf '{"tag_name":"something-else"}' > "$STUB_DIR/latest.json"
 expect no "resolve: dry run, newest release is not a module tag" dry v9.9.10
+printf '{"tag_name":"module-v9.9.8"}' > "$STUB_DIR/latest.json"
+expect ok "resolve: dry run of a rehearsal tag takes the newest published (even if module-v<X> exists)" \
+  bash -c "[ \"\$(PATH='$W/bin':\$PATH bash '$FETCH' resolve v9.9.9-pre.1 dry)\" = module-v9.9.8 ]"
 rm "$STUB_DIR/latest.json"
 expect no "resolve: dry run, nothing published"            dry v9.9.10
+expect no "resolve: dry run of a rehearsal tag, nothing published" dry v9.9.9-pre.1
 
 if [ -n "${SIDECAR_LIVE_TAG:-}" ]; then
   # The repository's own release key and fingerprint, not the self-test key.
