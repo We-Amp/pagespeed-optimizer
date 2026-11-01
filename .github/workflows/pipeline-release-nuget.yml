@@ -20,8 +20,8 @@
 #     -> macOS arm64 build + tests (hosted)
 #     -> linux arm64 build + tests (hosted)
 #     -> sidecar-pack (hosted): the native pair and the source tarball of
-#        the mod_pagespeed module release named by tools/ci/sidecar-pin.json,
-#        verified against the pinned digests and the release signing key;
+#        the mod_pagespeed module release module-v<version> of the tag,
+#        verified against the release signing key;
 #        the sidecar tests (.NET 8 and 10) and the two sidecar .nupkg
 #     -> package (hosted, `release` environment): the four native sets
 #        from workflow artifacts, five .nupkg plus the two sidecar .nupkg,
@@ -1177,16 +1177,19 @@ jobs:
   # Their native pair (nginx, the module built against it and the launch
   # shim, per RID) is built, tested and signed in the mod_pagespeed module
   # release; their managed code is aspnetcore/ of that release's source
-  # tarball. This job takes both from the release named by
-  # tools/ci/sidecar-pin.json and verifies them (tools/ci/sidecar_fetch.sh):
-  # the pinned sha256 of SHA256SUMS, SHA256SUMS.asc against
-  # RELEASE-SIGNING-KEY.asc, the pinned sha256 of sidecar-pair.json, every
-  # pair tarball and file against it and SHA256SUMS, and the source tarball
-  # against SHA256SUMS. Never "latest", never a branch checkout of the module:
-  # a mismatch fails the job and therefore the release. Then, in the same job
-  # so no verified input crosses a job boundary: the xunit suite under .NET 8
-  # and .NET 10, and the two packages at the version of the v<X> tag. The
-  # pin, the script and the key come from main, never from the tree being
+  # tarball. This job takes both from the module release module-<tag> of the
+  # tag being released (v<X> takes module-v<X>) and verifies them
+  # (tools/ci/sidecar_fetch.sh): SHA256SUMS.asc against RELEASE-SIGNING-KEY.asc,
+  # sidecar-pair.json, every pair tarball and file against it and SHA256SUMS,
+  # and the source tarball against SHA256SUMS; the release must be published
+  # with none of those assets modified after publication, and its tag must
+  # still point at the commit the signed manifest was built from. Never
+  # "latest" in a real run, never a branch checkout of the module: a mismatch
+  # fails the job and therefore the release. The sha256 of SHA256SUMS and of
+  # sidecar-pair.json go to the step summary as release evidence. Then, in the
+  # same job so no verified input crosses a job boundary: the xunit suite
+  # under .NET 8 and .NET 10, and the two packages at the version of the v<X>
+  # tag. The script and the key come from main, never from the tree being
   # released, because the module release is cut after the v<X> commit.
   # Anonymous downloads; the job's read-only token goes to the API only.
   # ---------------------------------------------------------------------
@@ -1204,55 +1207,61 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
     steps:
-      - name: Checkout main (pin, fetch script, published key)
+      - name: Checkout main (fetch script, published key)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           path: trust
           sparse-checkout: |
-            tools/ci/sidecar-pin.json
             tools/ci/sidecar_fetch.sh
             tools/ci/release_checksums_sig.sh
+            VERSION.txt
             RELEASE-SIGNING-KEY.asc
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      # v<X> takes the sidecar of module-v<X>. A dry run may rehearse with
-      # the pin as it is (the module release of a new version is cut after
-      # the v<X> commit); a real run refuses any other tag. Packages built
-      # from another module release say so in the step summary, in their
-      # artifact name and in a README-SIDECAR-PIN.txt next to them, so a
-      # rehearsal is never mistaken for a release build.
-      - name: The pin names this release's module tag
+      # v<X> takes the sidecar of module-v<X>, derived here and nowhere else.
+      # A dry run happens before the module release of the version is cut: it
+      # uses module-v<X> when that exists and otherwise the newest published
+      # module release. Packages built from another module release say so in
+      # the step summary, in their artifact name and in a
+      # README-SIDECAR-PIN.txt next to them, so a rehearsal is never mistaken
+      # for a release build. A real run never falls back.
+      - name: The module release of this tag
         id: pin
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          PIN_TAG="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("tag", ""))' trust/tools/ci/sidecar-pin.json)"
+          MODE=dry
+          if [ "$REAL_RUN" = true ]; then MODE=real; fi
           WANT="module-${RELEASE_TAG}"
+          PIN_TAG="$(bash trust/tools/ci/sidecar_fetch.sh resolve "$RELEASE_TAG" "$MODE" trust/VERSION.txt)"
+          echo "MODULE_TAG=$PIN_TAG" >> "$GITHUB_ENV"
           ARTIFACT="sidecar-nupkg-${SHORT_SHA}"
           if [ "$PIN_TAG" != "$WANT" ]; then
             if [ "$REAL_RUN" = true ]; then
-              echo "::error::tools/ci/sidecar-pin.json on main pins '$PIN_TAG' but $RELEASE_TAG needs '$WANT'"
+              echo "::error::resolved '$PIN_TAG' but $RELEASE_TAG needs '$WANT'"
               exit 1
             fi
-            NOTE="DRY RUN ONLY: the sidecar packages of this run are labelled ${RELEASE_TAG#v} but contain the native pair and the managed code of ${PIN_TAG}, not of ${WANT}. They are a rehearsal of the pack path, not a release build."
+            NOTE="DRY RUN ONLY: there is no module release for ${RELEASE_TAG} (${WANT}), so the sidecar packages of this run are labelled ${RELEASE_TAG#v} but contain the native pair and the managed code of ${PIN_TAG}, not of ${WANT}. They are a rehearsal of the pack path, not a release build."
             echo "::warning::$NOTE"
-            printf '### Sidecar pin mismatch\n\n%s\n\n' "$NOTE" >> "$GITHUB_STEP_SUMMARY"
+            printf '### Sidecar module release mismatch\n\n%s\n\n' "$NOTE" >> "$GITHUB_STEP_SUMMARY"
             mkdir -p "${RUNNER_TEMP}/sidecar-nupkg"
             printf '%s\n' "$NOTE" > "${RUNNER_TEMP}/sidecar-nupkg/README-SIDECAR-PIN.txt"
             ARTIFACT="${ARTIFACT}-contains-${PIN_TAG}"
           fi
           echo "artifact=$ARTIFACT" >> "$GITHUB_OUTPUT"
+          printf '### Sidecar inputs\n\nModule release: %s\n\n' "$PIN_TAG" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Download and verify against the pin, then stage
+      - name: Download and verify, then stage
         env:
           GH_READ_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          PIN=trust/tools/ci/sidecar-pin.json
           KEY=trust/RELEASE-SIGNING-KEY.asc
-          bash trust/tools/ci/sidecar_fetch.sh fetch "$PIN" "${RUNNER_TEMP}/sidecar" "$KEY" | tee -a "$GITHUB_STEP_SUMMARY"
-          bash trust/tools/ci/sidecar_fetch.sh stage "$PIN" "${RUNNER_TEMP}/sidecar" "$KEY" "${RUNNER_TEMP}/sidecar-work"
+          bash trust/tools/ci/sidecar_fetch.sh fetch "$MODULE_TAG" "${RUNNER_TEMP}/sidecar" "$KEY" | tee -a "$GITHUB_STEP_SUMMARY"
+          bash trust/tools/ci/sidecar_fetch.sh stage "$MODULE_TAG" "${RUNNER_TEMP}/sidecar" "$KEY" "${RUNNER_TEMP}/sidecar-work"
 
       # The keyring holds only the public key; removed anyway in case the
       # script's EXIT trap did not run.
@@ -1356,7 +1365,7 @@ jobs:
           rm -f "$OUT"/*.nupkg
           for proj in WeAmp.PageSpeed.Sidecar.NativeAssets.Linux/WeAmp.PageSpeed.Sidecar.NativeAssets.Linux.csproj \
                       WeAmp.PageSpeed.AspNetCore/WeAmp.PageSpeed.AspNetCore.csproj; do
-            # The module source pinned by sidecar-pin.json may predate the
+            # The module source of the module release may predate the
             # sidecar lock files, and locked mode without a lock file fails
             # the restore; enable it only for a project that ships one.
             lock=()
@@ -1364,7 +1373,7 @@ jobs:
               lock=(-p:RestoreLockedMode=true)
               echo "Packing $proj: locked restore (packages.lock.json present)"
             else
-              echo "Packing $proj: unlocked restore (no packages.lock.json in the pinned source)"
+              echo "Packing $proj: unlocked restore (no packages.lock.json in the module source)"
             fi
             dotnet pack "$proj" -c Release -o "$OUT" -p:IncludeNet10=true \
               -p:Version="$VERSION" -p:PackageVersion="$VERSION" ${lock[@]+"${lock[@]}"}
@@ -1572,11 +1581,11 @@ jobs:
           for id in WeAmp.PageSpeed.Sidecar WeAmp.PageSpeed.Sidecar.NativeAssets.Linux; do
             [ -s "${id}.${VERSION}.nupkg" ] || { echo "::error::missing ${id}.${VERSION}.nupkg"; exit 1; }
           done
-          # Only a dry run with a pin of another version carries the note
-          # (a real run refuses that pin); it travels with the packages.
+          # Only a dry run with a module release of another version carries the note
+          # (a real run never resolves to one); it travels with the packages.
           if [ -s README-SIDECAR-PIN.txt ]; then
             [ "$REAL_RUN" != true ] || { echo "::error::README-SIDECAR-PIN.txt in a real run"; exit 1; }
-            { echo "### Sidecar pin mismatch"; echo; cat README-SIDECAR-PIN.txt; echo; } >> "$GITHUB_STEP_SUMMARY"
+            { echo "### Sidecar module release mismatch"; echo; cat README-SIDECAR-PIN.txt; echo; } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       # The ASP.NET Core packages carry the public repository URL and commit
