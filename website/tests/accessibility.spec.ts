@@ -155,22 +155,48 @@ test.describe('Accessibility', () => {
       // mid-fade, depending on timing. Reduced motion removes that fade, so
       // the scan measures the resting state.
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.goto(pagePath);
 
-      const builder = new AxeBuilder({ page }).withTags([
-        'wcag2a',
-        'wcag2aa',
-        'wcag21a',
-        'wcag21aa',
-      ]);
+      // The dev server can reload a page once after its first visit
+      // (dependency optimisation). A reload that lands while axe is running
+      // destroys the execution context it works in (or leaves the scan
+      // waiting on a document that is gone). So load the page, wait until no
+      // further load has happened for a moment, and scan; if the context is
+      // still destroyed, scan again from a fresh load.
+      test.setTimeout(90_000);
+      let loads = 0;
+      page.on('load', () => {
+        loads += 1;
+      });
+      const scan = async () => {
+        await page.goto(pagePath, { waitUntil: 'networkidle' });
+        for (let quiet = 0; quiet < 3; quiet++) {
+          const seen = loads;
+          await page.waitForTimeout(500);
+          if (loads !== seen) quiet = -1;
+        }
 
-      // Demo page embeds third-party demo sites in iframes with intentionally
-      // non-optimized assets. Exclude iframe content and scrollable demo panels.
-      if (pagePath === '/demo/') {
-        builder.exclude('iframe').exclude('[role="tabpanel"]').exclude('pre');
+        const builder = new AxeBuilder({ page }).withTags([
+          'wcag2a',
+          'wcag2aa',
+          'wcag21a',
+          'wcag21aa',
+        ]);
+
+        // Demo page embeds third-party demo sites in iframes with intentionally
+        // non-optimized assets. Exclude iframe content and scrollable demo panels.
+        if (pagePath === '/demo/') {
+          builder.exclude('iframe').exclude('[role="tabpanel"]').exclude('pre');
+        }
+
+        return builder.analyze();
+      };
+      let results: Awaited<ReturnType<typeof scan>>;
+      try {
+        results = await scan();
+      } catch (err) {
+        if (!String(err).includes('Execution context was destroyed')) throw err;
+        results = await scan();
       }
-
-      const results = await builder.analyze();
 
       const violations = results.violations.filter(
         (v) => v.impact === 'critical' || v.impact === 'serious',
