@@ -9,9 +9,9 @@ draft: false
 The Apache Incubator trackers for mod_pagespeed and ngx_pagespeed are archived.
 Between them they still hold nearly 900 open issues (524 and 353 in October
 2026), and an archived tracker cannot close any of them, so they stay open
-even after the problem is gone. We went through every one of them, and for those that
-looked fixed we checked the current code and the CHANGELOG. We tied 61 issues
-to a specific change and release; two of those are marked likely, and one is
+even after the problem is gone. We triaged every one of them from its title and report. For the issues listed
+here, we tied each to a change in the current code, the CHANGELOG or the release
+notes. We tied 61 issues to a specific change and release; two of those are marked likely, and one is
 resolved in part. The full list, with links, is on the new docs page
 [Long-standing upstream issues resolved](/docs/upstream-issues-resolved/).
 
