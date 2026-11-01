@@ -157,11 +157,23 @@ test.describe('Accessibility', () => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
 
       // The dev server can reload a page once after its first visit
-      // (dependency optimisation), which destroys the execution context axe
-      // is running in. Wait for the page to settle, and scan again from a
-      // fresh load if that still happens.
+      // (dependency optimisation). A reload that lands while axe is running
+      // destroys the execution context it works in (or leaves the scan
+      // waiting on a document that is gone). So load the page, wait until no
+      // further load has happened for a moment, and scan; if the context is
+      // still destroyed, scan again from a fresh load.
+      test.setTimeout(90_000);
+      let loads = 0;
+      page.on('load', () => {
+        loads += 1;
+      });
       const scan = async () => {
         await page.goto(pagePath, { waitUntil: 'networkidle' });
+        for (let quiet = 0; quiet < 3; quiet++) {
+          const seen = loads;
+          await page.waitForTimeout(500);
+          if (loads !== seen) quiet = -1;
+        }
 
         const builder = new AxeBuilder({ page }).withTags([
           'wcag2a',
