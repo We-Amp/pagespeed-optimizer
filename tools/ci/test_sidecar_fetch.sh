@@ -75,7 +75,7 @@ for rid in ("linux-x64", "linux-arm64"):
     rids[rid] = {"asset": top + ".tar.gz", "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw),
                  "files": {n: hashlib.sha256(b).hexdigest() for n, b in files.items()}}
 json.dump({"schema": 1, "tag": tag, "version": v, "nginx_version": "0", "glibc_floor": "0",
-           "source_sha": "0" * 40, "rids": rids}, open(os.path.join(d, "sidecar-pair.json"), "w"))
+           "source_sha": "a" * 40, "rids": rids}, open(os.path.join(d, "sidecar-pair.json"), "w"))
 PY
   sums "$d"
 }
@@ -124,12 +124,109 @@ expect no "verify: signed manifest names another tag"      bash "$FETCH" verify 
 copy "$W/good" "$W/t8"; grep -v ' sidecar-pair.json$' "$W/t8/SHA256SUMS" > "$W/t8.sums"; mv "$W/t8.sums" "$W/t8/SHA256SUMS"; sign "$W/k1" "$W/t8/SHA256SUMS" "$W/t8/SHA256SUMS.asc.new"; mv "$W/t8/SHA256SUMS.asc.new" "$W/t8/SHA256SUMS.asc"
 expect no "verify: SHA256SUMS does not list the manifest"  bash "$FETCH" verify module-v9.9.9 "$W/t8" "$PUB"
 
-# The tag is derived, never read from a file.
-expect ok "resolve: real run, v<X> takes module-v<X>"      bash -c "[ \"\$(bash '$FETCH' resolve v2.8.0 real)\" = module-v2.8.0 ]"
-expect no "resolve: refuses a pre-release tag"             bash "$FETCH" resolve v2.8.0-pre.1 real
-expect no "resolve: refuses a module tag"                  bash "$FETCH" resolve module-v2.8.0 real
+# The tag is derived, never read from a file; a real run needs the current version.
+printf '2.8.0\n' > "$W/VERSION.txt"
+printf '2.7.0\n' > "$W/VERSION.old"
+: > "$W/VERSION.empty"
+expect ok "resolve: real run, v<X> takes module-v<X>"      bash -c "[ \"\$(bash '$FETCH' resolve v2.8.0 real '$W/VERSION.txt')\" = module-v2.8.0 ]"
+expect no "resolve: real run of an older tag"              bash "$FETCH" resolve v2.7.0 real "$W/VERSION.txt"
+expect no "resolve: real run, main is at an older version" bash "$FETCH" resolve v2.8.0 real "$W/VERSION.old"
+expect no "resolve: real run without VERSION.txt"          bash "$FETCH" resolve v2.8.0 real
+expect no "resolve: real run, empty VERSION.txt"           bash "$FETCH" resolve v2.8.0 real "$W/VERSION.empty"
+expect no "resolve: real run, VERSION.txt missing"         bash "$FETCH" resolve v2.8.0 real "$W/none"
+expect no "resolve: refuses a pre-release tag"             bash "$FETCH" resolve v2.8.0-pre.1 real "$W/VERSION.txt"
+expect no "resolve: refuses a module tag"                  bash "$FETCH" resolve module-v2.8.0 real "$W/VERSION.txt"
 expect no "resolve: refuses an unknown mode"               bash "$FETCH" resolve v2.8.0 latest
 if [ -e "$ROOT/tools/ci/sidecar-pin.json" ]; then echo "FAIL tools/ci/sidecar-pin.json still exists"; fail=1; else echo "ok   no pin file"; fi
+
+# fetch and resolve against a stubbed GitHub: the fixture release above, with
+# the API answers each case needs.
+mkdir "$W/bin"
+cat > "$W/bin/curl" <<'STUB'
+#!/bin/bash
+# Stand-in for curl: serves $STUB_DIR answers and the fixture release at $STUB_FILES.
+o=""; w=""; url=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) o="$2"; shift 2 ;;
+    -w) w="$2"; shift 2 ;;
+    -H|--retry) shift 2 ;;
+    http*) url="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+case "$url" in
+  */releases/tags/*) f="$STUB_DIR/tag-${url##*/}.json" ;;
+  */releases/latest) f="$STUB_DIR/latest.json" ;;
+  */releases/download/*) f="$STUB_FILES/${url##*/}" ;;
+  */git/ref/tags/*) f="$STUB_DIR/ref.json" ;;
+  */git/tags/*) f="$STUB_DIR/tagobj.json" ;;
+  *) echo "stub curl: unexpected $url" >&2; exit 22 ;;
+esac
+if [ ! -e "$f" ]; then
+  if [ -n "$w" ]; then printf '404'; exit 0; fi
+  exit 22
+fi
+[ -z "$w" ] || printf '200'
+if [ -n "$o" ]; then cp "$f" "$o"; elif [ -z "$w" ]; then cat "$f"; fi
+STUB
+chmod +x "$W/bin/curl"
+export STUB_FILES="$W/good"
+SHA_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+SHA_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+# stub <n> <python statements editing doc>: a fresh API answer set in $STUB_DIR.
+stub() {
+  STUB_DIR="$W/s$1"; rm -rf "$STUB_DIR"; mkdir -p "$STUB_DIR"; export STUB_DIR
+  python3 -I - "$W/good" "$STUB_DIR/tag-module-v9.9.9.json" "$2" <<'PY'
+import json, os, sys
+d, out, edit = sys.argv[1:4]
+base = "https://github.com/We-Amp/mod_pagespeed/releases/download/module-v9.9.9/"
+names = sorted(os.listdir(d))
+doc = {"draft": False, "prerelease": False, "published_at": "2026-01-01T00:00:10Z",
+       "assets": [{"name": n, "updated_at": "2026-01-01T00:00:00Z", "browser_download_url": base + n} for n in names]}
+doc["assets"].append({"name": "unrelated-debug.tar.gz", "updated_at": "2026-01-01T00:00:00Z", "browser_download_url": "https://example.invalid/x"})
+exec(edit)
+json.dump(doc, open(out, "w"))
+PY
+  printf '{"object":{"type":"commit","sha":"%s"}}' "$SHA_A" > "$STUB_DIR/ref.json"
+}
+# shellcheck disable=SC2329 # invoked through expect
+fetch() { rm -rf "$W/o"; PATH="$W/bin:$PATH" bash "$FETCH" fetch module-v9.9.9 "$W/o" "$PUB"; }
+
+stub 1 "pass";                                                         expect ok "fetch: a good release (lightweight tag)" fetch
+stub 2 "doc['draft']=True";                                            expect no "fetch: draft release" fetch
+stub 3 "doc['prerelease']=True";                                       expect no "fetch: pre-release" fetch
+stub 4 "doc['assets'][0]['updated_at']='2026-01-01T00:00:11Z'";        expect no "fetch: an input modified after publication" fetch
+stub 5 "doc['assets'][-1]['updated_at']='2026-02-01T00:00:00Z'";       expect ok "fetch: an unrelated asset modified later is not an input" fetch
+stub 6 "[a.pop('updated_at') for a in doc['assets']]";                 expect no "fetch: updated_at missing (fails closed)" fetch
+stub 7 "doc['published_at']=None";                                     expect no "fetch: published_at null" fetch
+stub 8 "doc.pop('published_at')";                                      expect no "fetch: published_at missing" fetch
+stub 9 "doc['assets'].append(dict(doc['assets'][0]))";                 expect no "fetch: duplicate asset name" fetch
+stub 10 "doc['assets'][0]['browser_download_url']='https://example.invalid/x'"; expect no "fetch: download URL outside the module release" fetch
+stub 11 "pass"; printf '{"object":{"type":"commit","sha":"%s"}}' "$SHA_B" > "$STUB_DIR/ref.json"
+                                                                       expect no "fetch: tag moved (lightweight)" fetch
+stub 12 "pass"; printf '{"object":{"type":"tag","sha":"%s"}}' "$SHA_B" > "$STUB_DIR/ref.json"; printf '{"object":{"type":"commit","sha":"%s"}}' "$SHA_A" > "$STUB_DIR/tagobj.json"
+                                                                       expect ok "fetch: annotated tag, right commit" fetch
+stub 13 "pass"; printf '{"object":{"type":"tag","sha":"%s"}}' "$SHA_A" > "$STUB_DIR/ref.json"; printf '{"object":{"type":"commit","sha":"%s"}}' "$SHA_B" > "$STUB_DIR/tagobj.json"
+                                                                       expect no "fetch: tag moved (annotated)" fetch
+stub 14 "pass"; echo '{}' > "$STUB_DIR/ref.json";                      expect no "fetch: tag ref garbled" fetch
+stub 15 "pass"; echo 'not json' > "$STUB_DIR/ref.json";                expect no "fetch: tag ref not JSON" fetch
+stub 16 "pass"; rm "$STUB_DIR/ref.json";                               expect no "fetch: tag ref unknown" fetch
+stub 17 "pass"; printf '{"object":{"type":"tree","sha":"%s"}}' "$SHA_A" > "$STUB_DIR/ref.json"
+                                                                       expect no "fetch: tag ref is not a commit" fetch
+stub 18 "pass"; rm "$STUB_DIR/tag-module-v9.9.9.json";                 expect no "fetch: no such release" fetch
+
+# resolve, dry run: module-v<X> when it exists, else the newest published release.
+stub 20 "pass"; printf '{"tag_name":"module-v9.9.8"}' > "$STUB_DIR/latest.json"
+# shellcheck disable=SC2329 # invoked through expect
+dry() { PATH="$W/bin:$PATH" bash "$FETCH" resolve "$1" dry; }
+expect ok "resolve: dry run, module release exists"        bash -c "[ \"\$(PATH='$W/bin':\$PATH bash '$FETCH' resolve v9.9.9 dry)\" = module-v9.9.9 ]"
+expect ok "resolve: dry run, not cut yet, newest published" bash -c "[ \"\$(PATH='$W/bin':\$PATH bash '$FETCH' resolve v9.9.10 dry)\" = module-v9.9.8 ]"
+printf '{"tag_name":"something-else"}' > "$STUB_DIR/latest.json"
+expect no "resolve: dry run, newest release is not a module tag" dry v9.9.10
+rm "$STUB_DIR/latest.json"
+expect no "resolve: dry run, nothing published"            dry v9.9.10
 
 if [ -n "${SIDECAR_LIVE_TAG:-}" ]; then
   # The repository's own release key and fingerprint, not the self-test key.

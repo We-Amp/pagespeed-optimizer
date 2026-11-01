@@ -357,7 +357,8 @@ into a file.
 `tools/ci/sidecar_fetch.sh fetch` downloads `SHA256SUMS`, `SHA256SUMS.asc`,
 `sidecar-pair.json`, the two pair tarballs and the source tarball of exactly
 that tag, and refuses unless the release is published (not a draft or a
-pre-release), none of those assets was modified after publication, the tag
+pre-release), none of the six downloaded inputs (each present exactly once,
+with a recorded modification time) was modified after publication, the tag
 still points at the commit the manifest says was built, `SHA256SUMS.asc`
 verifies against `RELEASE-SIGNING-KEY.asc` with
 `release_checksums_sig.sh verify` (which pins the key fingerprint),
@@ -395,7 +396,10 @@ version but contain that module release: the run says so in its step summary, in
 
 The script, the key and the signature check are read from `main`, like the
 signing script, because the module release of a version is cut after the
-`v<X>` commit. A real run of `v<X>` takes `module-v<X>` and nothing else. A
+`v<X>` commit. A real run of `v<X>` takes `module-v<X>` and nothing else, and only when `<X>`
+is the version in `VERSION.txt` on `main`: an older tag cannot be released
+again from the lane (re-running a failed release of the current version is
+fine). A
 dry run takes `module-v<X>` when it exists; the module release of a version is
 cut after the dry runs, so it otherwise rehearses with the newest published
 module release and says so (see above). Two consequences:

@@ -1215,6 +1215,7 @@ jobs:
           sparse-checkout: |
             tools/ci/sidecar_fetch.sh
             tools/ci/release_checksums_sig.sh
+            VERSION.txt
             RELEASE-SIGNING-KEY.asc
           sparse-checkout-cone-mode: false
           persist-credentials: false
@@ -1235,7 +1236,7 @@ jobs:
           MODE=dry
           if [ "$REAL_RUN" = true ]; then MODE=real; fi
           WANT="module-${RELEASE_TAG}"
-          PIN_TAG="$(bash trust/tools/ci/sidecar_fetch.sh resolve "$RELEASE_TAG" "$MODE")"
+          PIN_TAG="$(bash trust/tools/ci/sidecar_fetch.sh resolve "$RELEASE_TAG" "$MODE" trust/VERSION.txt)"
           echo "MODULE_TAG=$PIN_TAG" >> "$GITHUB_ENV"
           ARTIFACT="sidecar-nupkg-${SHORT_SHA}"
           if [ "$PIN_TAG" != "$WANT" ]; then
@@ -1580,8 +1581,8 @@ jobs:
           for id in WeAmp.PageSpeed.Sidecar WeAmp.PageSpeed.Sidecar.NativeAssets.Linux; do
             [ -s "${id}.${VERSION}.nupkg" ] || { echo "::error::missing ${id}.${VERSION}.nupkg"; exit 1; }
           done
-          # Only a dry run with a pin of another version carries the note
-          # (a real run refuses that pin); it travels with the packages.
+          # Only a dry run with a module release of another version carries the note
+          # (a real run never resolves to one); it travels with the packages.
           if [ -s README-SIDECAR-PIN.txt ]; then
             [ "$REAL_RUN" != true ] || { echo "::error::README-SIDECAR-PIN.txt in a real run"; exit 1; }
             { echo "### Sidecar module release mismatch"; echo; cat README-SIDECAR-PIN.txt; echo; } >> "$GITHUB_STEP_SUMMARY"

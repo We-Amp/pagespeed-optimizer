@@ -13,7 +13,7 @@
 # that release's signed source tarball, never from a branch checkout.
 #
 # Usage:
-#   tools/ci/sidecar_fetch.sh resolve <v<X> release tag> <real|dry>
+#   tools/ci/sidecar_fetch.sh resolve <v<X> release tag> <real|dry> [<VERSION.txt of main>]
 #   tools/ci/sidecar_fetch.sh fetch  <module tag> <out-dir> <public key file>
 #   tools/ci/sidecar_fetch.sh verify <module tag> <dir>     <public key file>
 #   tools/ci/sidecar_fetch.sh stage  <module tag> <dir>     <public key file> <work-dir>
@@ -21,7 +21,9 @@
 #
 # resolve: prints the module tag to use: module-v<X> for the release tag v<X>.
 #         A real run always gets that tag (fetch then fails if the module
-#         release is not published). A dry run, which happens before the module
+#         release is not published), and only when the tag is the current
+#         version: <VERSION.txt of main> is then required and must hold <X>,
+#         so an older tag cannot be released again. A dry run, which happens before the module
 #         release of the version is cut, gets module-v<X> when it exists and
 #         otherwise the newest published module release (a rehearsal of the
 #         pack path only; the workflow labels it as such).
@@ -236,15 +238,25 @@ PY
   done
   # No fetched asset may have been touched after the release was published,
   # and the tag must still point at the commit the manifest says was built.
-  python3 -I - "$FETCH_API" <<'PY' || die "the module release $PIN_TAG changed after it was published"
-import json, sys
+  python3 -I - "$FETCH_API" SHA256SUMS SHA256SUMS.asc sidecar-pair.json \
+      "pagespeed-sidecar-native-${PIN_VERSION}-linux-x64.tar.gz" \
+      "pagespeed-sidecar-native-${PIN_VERSION}-linux-arm64.tar.gz" \
+      "mod_pagespeed-${PIN_VERSION}.tar.gz" <<'PY' || die "the module release $PIN_TAG changed after it was published"
+import json, re, sys
 doc = json.load(open(sys.argv[1]))
+STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 pub = doc.get("published_at")
-if not pub:
-    sys.exit("the module release has no published_at")
-late = [a["name"] for a in doc.get("assets", []) if a.get("updated_at", "") > pub]
-if late:
-    sys.exit("assets modified after publication (%s): %s" % (pub, ", ".join(sorted(late))))
+if not isinstance(pub, str) or not STAMP.match(pub):
+    sys.exit("the module release has no usable published_at")
+for name in sys.argv[2:]:
+    found = [a for a in doc.get("assets", []) if a.get("name") == name]
+    if len(found) != 1:
+        sys.exit("the module release has %d assets named %s" % (len(found), name))
+    upd = found[0].get("updated_at")
+    if not isinstance(upd, str) or not STAMP.match(upd):
+        sys.exit("%s has no usable updated_at" % name)
+    if upd > pub:
+        sys.exit("%s was modified after publication (%s > %s)" % (name, upd, pub))
 PY
   rm -f "$FETCH_API"
   cmd_verify "$PIN_TAG" "$out" "$key"
@@ -273,12 +285,15 @@ peel_tag() {
 }
 
 cmd_resolve() {
-  [ $# -eq 2 ] || die "usage: $0 resolve <v<X> release tag> <real|dry>"
-  local rel="$1" mode="$2" want auth=() code latest
+  [ $# -ge 2 ] && [ $# -le 3 ] || die "usage: $0 resolve <v<X> release tag> <real|dry> [<VERSION.txt of main>]"
+  local rel="$1" mode="$2" vfile="${3:-}" want auth=() code latest cur
   [[ "$rel" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "'$rel' is not a v<version> release tag"
   case "$mode" in real|dry) ;; *) die "mode is real or dry, not '$mode'" ;; esac
   want="module-$rel"
   if [ "$mode" = real ]; then
+    [ -s "$vfile" ] || die "a real run needs the VERSION.txt of main to check the tag against"
+    cur="$(tr -d '[:space:]' < "$vfile")"
+    [ "$cur" = "${rel#v}" ] || die "a real run releases the current version ($cur on main), not $rel"
     printf '%s\n' "$want"
     return 0
   fi
