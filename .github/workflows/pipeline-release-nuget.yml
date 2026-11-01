@@ -182,6 +182,13 @@ jobs:
             refs/tags/v*) ;;
             *) echo "::error::the NuGet lane releases a v* tag, not '$REF'"; exit 1 ;;
           esac
+          # A prerelease tag (v<X>-pre.<N>) is for dispatch dry runs only. A
+          # tag push and a dispatch with dry_run false are refused here, before
+          # any other job runs, so no prerelease tag can reach a job in the
+          # `release` environment or nuget.org.
+          case "${REF#refs/tags/}" in
+            *-*) if [ "$REAL" = true ]; then echo "::error::${REF#refs/tags/} is a prerelease tag: it can only be dry-run (workflow_dispatch with dry_run true)"; exit 1; fi ;;
+          esac
           {
             echo "real=$REAL"
             echo "tag=${REF#refs/tags/}"
@@ -225,6 +232,7 @@ jobs:
     env:
       RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
       RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
+      REAL_RUN: ${{ needs.ref-guard.outputs.real }}
       SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
     steps: &vendor-steps
       - name: Unlock stale vendored files
@@ -252,6 +260,14 @@ jobs:
           set -euo pipefail
           EXPECTED="${RELEASE_TAG#v}"
           EXPECTED="${EXPECTED%%+*}"
+          # A dry run may name v<X>-pre.<N>: its base <X> is what VERSION.txt
+          # carries. Only a dry run: the ref guard refuses a real run of any
+          # prerelease tag before this job.
+          if [ "$REAL_RUN" != true ]; then
+            case "$EXPECTED" in
+              [0-9]*.[0-9]*.[0-9]*-pre.[0-9]*) EXPECTED="${EXPECTED%%-pre.*}" ;;
+            esac
+          fi
           ACTUAL="$(tr -d '[:space:]' < VERSION.txt)"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error::VERSION.txt ($ACTUAL) != release tag ($RELEASE_TAG -> $EXPECTED). Bump VERSION.txt on main and tag the bump commit."
@@ -317,6 +333,7 @@ jobs:
     env:
       RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
       RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
+      REAL_RUN: ${{ needs.ref-guard.outputs.real }}
       SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
     steps: *vendor-steps
 

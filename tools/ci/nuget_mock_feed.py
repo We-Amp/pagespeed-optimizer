@@ -65,7 +65,13 @@ class H(http.server.BaseHTTPRequestHandler):
             ver = re.search(r"<version>([^<]+)</version>", text).group(1)
         except Exception as e:  # not a package
             return self._send(400, ("invalid package: %s" % e).encode())
+        # Only plain ids and versions: an id like "x/../../escaped" must not
+        # name a path outside the feed directory.
+        if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", pid) or ".." in pid or not re.fullmatch(r"[0-9A-Za-z.+-]{1,64}", ver):
+            return self._send(400, b"invalid package id or version")
         dest = os.path.join(FEED, "%s.%s.nupkg" % (pid, ver))
+        if os.path.dirname(os.path.realpath(dest)) != os.path.realpath(FEED):
+            return self._send(400, b"invalid package path")
         if os.path.exists(dest):
             return self._send(409, b"package already exists")
         with open(dest, "wb") as f:

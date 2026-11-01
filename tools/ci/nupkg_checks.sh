@@ -12,6 +12,9 @@
 #   expect-seven <dir> <version>   seven .nupkg, both sidecar packages present
 #   metadata <dir>                 no SourceLink; repository url is the public repo
 #   console-spa <dir>              the AspNetCore package embeds the /console/ SPA
+# Environment: EXPECT_SHA (the commit the packages must name), PIN_NOTE_FATAL=1
+# (a README-SIDECAR-PIN.txt fails instead of warning), NUGET_ORG_EXPECT,
+# NUGET_ORG_FIRST_PACKAGES, NUGET_ORG_BASE (read-only endpoint, for the self-test).
 # Checks only the rehearsal adds (nothing here changes what a release does):
 #   identity <dir> <version>       the exact set of seven ids, nuspec id/version
 #                                  match the file name and <version>, internal
@@ -29,7 +32,10 @@
 #                                  dependencies)
 #   nuget-org <dir>                read-only look at nuget.org: which of the
 #                                  id/version pairs already exist; set
-#                                  NUGET_ORG_EXPECT=new to fail when one does
+#                                  NUGET_ORG_EXPECT=new to fail when one does,
+#                                  NUGET_ORG_FIRST_PACKAGES="<id> ..." to accept
+#                                  a 404 for ids a release publishes first (any
+#                                  other 404, empty or malformed answer fails)
 #   offline <dir> <version> <signed|unsigned|report>
 #                                  every check above that needs no network
 #
@@ -103,13 +109,21 @@ import xml.etree.ElementTree as ET
 
 d, version = sys.argv[1], sys.argv[2]
 ids = os.environ["IDS"].split()
+expect_sha = os.environ.get("EXPECT_SHA", "")
+pin_note_fatal = os.environ.get("PIN_NOTE_FATAL", "") == "1"
 errs = []
 def err(m): errs.append(m); print("::error::" + m)
 
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$")
 if not SEMVER.match(version):
     err("version %r is not SemVer 2" % version)
-# README-SIDECAR-PIN.txt travels with the packages in a dry run with another pin.
+# README-SIDECAR-PIN.txt travels with the packages in a dry run whose sidecar
+# came from another module release: packages that are not the candidate's own.
+if os.path.exists(os.path.join(d, "README-SIDECAR-PIN.txt")):
+    if pin_note_fatal:
+        err("README-SIDECAR-PIN.txt is present: the sidecar packages are not built from this version's module release")
+    else:
+        print("::warning::README-SIDECAR-PIN.txt is present: the sidecar packages are from another module release")
 files = sorted(f for f in os.listdir(d) if not f.startswith(".") and f != "README-SIDECAR-PIN.txt")
 want = sorted("%s.%s.nupkg" % (i, version) for i in ids)
 extra = [f for f in files if f not in want]
@@ -117,6 +131,16 @@ missing = [f for f in want if f not in files]
 if extra: err("unexpected files next to the packages: " + ", ".join(extra))
 if missing: err("missing packages: " + ", ".join(missing))
 
+# What each native-assets package must carry (a package with a missing or empty
+# binary installs fine and fails at run time).
+RT = "runtimes/%s/native/"
+NATIVE = {
+    "WeAmp.PageSpeed.NativeAssets.Linux": [RT % r + f for r in ("linux-x64", "linux-arm64") for f in ("libpagespeed.so", "factory_worker", "BUILD_INFO.json")],
+    "WeAmp.PageSpeed.NativeAssets.Windows": [RT % "win-x64" + f for f in ("pagespeed.dll", "factory_worker.exe", "BUILD_INFO.json")],
+    "WeAmp.PageSpeed.NativeAssets.macOS": [RT % "osx-arm64" + f for f in ("libpagespeed.dylib", "factory_worker", "BUILD_INFO.json")],
+    "WeAmp.PageSpeed.Sidecar.NativeAssets.Linux": [RT % r + f for r in ("linux-x64", "linux-arm64") for f in ("nginx", "ngx_pagespeed_module.so", "pagespeed-nginx-launch", "build-info.json")],
+}
+commits = {}
 MAX = 250 * 1024 * 1024  # nuget.org rejects a package over 250 MB
 for f in want:
     p = os.path.join(d, f)
@@ -156,6 +180,21 @@ for f in want:
         if v and v.replace("\\", "/") not in names: err("%s: <%s> %s is not in the package" % (f, tag, v))
     if len(g("description")) > 4000: err("%s: description over nuget.org's 4000 character limit" % f)
     if len(g("id")) + len(version) > 200: err("%s: id/version too long" % f)
+    rep = md.find("{*}repository")
+    if rep is not None and rep.get("commit"):
+        commits[ident] = rep.get("commit")
+        if expect_sha and rep.get("commit") != expect_sha:
+            err("%s: repository commit %s is not the expected %s" % (f, rep.get("commit"), expect_sha))
+    for nf in NATIVE.get(ident, []):
+        if nf not in names: err("%s: missing %s" % (f, nf))
+        elif z.getinfo(nf).file_size == 0: err("%s: %s is empty" % (f, nf))
+        elif nf.endswith("/BUILD_INFO.json"):
+            try:
+                import json
+                bi = json.loads(z.read(nf).decode("utf-8-sig"))
+                if expect_sha and bi.get("git_sha") != expect_sha: err("%s: %s git_sha %s is not the expected %s" % (f, nf, bi.get("git_sha"), expect_sha))
+            except Exception as e:
+                err("%s: %s is not JSON: %s" % (f, nf, e))
     seen = set()
     for dep in md.iterfind(".//{*}dependency"):
         did, dv = dep.get("id", ""), dep.get("version", "")
@@ -167,6 +206,8 @@ for f in want:
         err("%s: no dependency on the sidecar native assets" % f)
     if len(errs) == before:
         print("ok   %-48s id/version/metadata, %d entries, %.1f MB" % (f, len(names), os.path.getsize(p) / 1e6))
+if len(set(commits.values())) > 1:
+    err("the managed packages name different repository commits: %s" % sorted(set(commits.values())))
 if errs:
     sys.exit(1)
 print("OK: seven packages, ids and versions consistent with %s." % version)
@@ -193,9 +234,10 @@ d, want = sys.argv[1], sys.argv[2]
 pkg = glob.glob(d + "/WeAmp.PageSpeed.NativeAssets.Windows.*.nupkg")
 if len(pkg) != 1:
     print("::error::expected one Windows native-assets package"); sys.exit(1)
-z = zipfile.ZipFile(pkg[0]); rc = 0
+z = zipfile.ZipFile(pkg[0]); rc = 0; seen = 0
 for n in z.namelist():
     if not n.lower().endswith((".dll", ".exe")): continue
+    seen += 1
     b = z.read(n)
     if b[:2] != b"MZ": print("::error::%s is not a PE file" % n); rc = 1; continue
     pe = struct.unpack_from("<I", b, 0x3c)[0]
@@ -208,14 +250,18 @@ for n in z.namelist():
     ok = want == "report" or (want == "signed") == signed
     print(("ok   " if ok else "::error::") + "%s: %s" % (n, state))
     rc |= 0 if ok else 1
+if seen == 0:
+    print("::error::the Windows native-assets package carries no .dll or .exe"); rc = 1
 sys.exit(rc)
 PY
   [ "$bad" = 0 ] || exit 1
   echo "OK: signature state is as expected ($want)."
 }
 
+sha256_of() { if command -v sha256sum >/dev/null; then sha256sum < "$1" | cut -d' ' -f1; else shasum -a 256 < "$1" | cut -d' ' -f1; fi; }
+
 check_local_feed() { # <dir> <scratch>
-  local dir scratch feed pkg out port mockpid feed_url
+  local dir scratch feed pkg out port mockpid feed_url first id lid got
   dir="$(cd "$1" && pwd)"; scratch="$2"
   command -v dotnet >/dev/null || { echo "::error::dotnet is required for the local feed check"; exit 1; }
   mkdir -p "$scratch"; scratch="$(cd "$scratch" && pwd)"
@@ -246,22 +292,25 @@ CFG
       if [ "$round" = 1 ]; then
         printf '%s' "$out" | grep -q 'Your package was pushed' || { echo "$out"; echo "::error::round 1 did not push $(basename "$pkg")"; exit 1; }
       else
-        printf '%s' "$out" | grep -qi 'already exists' || { echo "$out"; echo "::error::round 2 did not meet a duplicate for $(basename "$pkg")"; exit 1; }
+        printf '%s' "$out" | grep -q 'Conflict' && printf '%s' "$out" | grep -qi 'already exists' || { echo "$out"; echo "::error::round 2 did not meet a 409 for $(basename "$pkg")"; exit 1; }
       fi
     done
     echo "ok   push round $round: seven packages, exit 0"
   done
-  # Without --skip-duplicate the same duplicate must fail: it proves the 409 is real.
-  if dotnet nuget push "$(find "$dir" -name '*.nupkg' | head -1)" --source "$feed_url" --configfile "$scratch/NuGet.Config" >/dev/null 2>&1; then
+  # Without --skip-duplicate the same duplicate must fail with the 409.
+  first="$(find "$dir" -name '*.nupkg' | head -1)"
+  if out="$(dotnet nuget push "$first" --source "$feed_url" --configfile "$scratch/NuGet.Config" 2>&1)"; then
     echo "::error::a duplicate push without --skip-duplicate succeeded; the rehearsal feed is not answering 409"; exit 1
   fi
-  echo "ok   a duplicate push without --skip-duplicate fails (409), with it exits 0"
-  # A file that is not a package must be refused.
-  head -c 1000 "$(find "$dir" -name '*.nupkg' | head -1)" > "$scratch/truncated.nupkg"
-  if dotnet nuget push "$scratch/truncated.nupkg" --source "$feed_url" --configfile "$scratch/NuGet.Config" --skip-duplicate >/dev/null 2>&1; then
+  printf '%s' "$out" | grep -q '409 (Conflict)' || { echo "$out"; echo "::error::the duplicate push failed, but not with a 409"; exit 1; }
+  echo "ok   a duplicate push without --skip-duplicate fails with 409; with it, exit 0"
+  # A file that is not a package must be refused with a 400.
+  head -c 1000 "$first" > "$scratch/truncated.nupkg"
+  if out="$(dotnet nuget push "$scratch/truncated.nupkg" --source "$feed_url" --configfile "$scratch/NuGet.Config" --skip-duplicate 2>&1)"; then
     echo "::error::a truncated package was accepted"; exit 1
   fi
-  echo "ok   a truncated package is refused"
+  printf '%s' "$out" | grep -q '400 (Bad Request)' || { echo "$out"; echo "::error::the truncated package failed, but not with a 400"; exit 1; }
+  echo "ok   a truncated package is refused with 400"
   [ "$(find "$feed" -name '*.nupkg' | wc -l)" -eq 7 ] || { echo "::error::the local feed does not hold exactly seven packages"; exit 1; }
   kill "$mockpid" 2>/dev/null || true; trap - EXIT
   # Consumer restore: the dependency closure resolves from the feed plus nuget.org.
@@ -285,30 +334,54 @@ CSPROJ
   # is listed first-class, nuget.org supplies the third-party dependencies.
   NUGET_PACKAGES="$scratch/pkgs" dotnet restore "$scratch/consumer/Consumer.csproj" --source "$feed" --source https://api.nuget.org/v3/index.json >"$scratch/restore.log" 2>&1 \
     || { tail -n 30 "$scratch/restore.log"; echo "::error::a consumer restore from the local feed failed"; exit 1; }
-  for id in $IDS; do
+  # What the consumer restored is byte-identical to what was pushed.
+  for pkg in "$dir"/*.nupkg; do
+    id="$(unzip -p "$pkg" '*.nuspec' | sed -n 's/.*<id>\(.*\)<\/id>.*/\1/p' | head -1 | tr -d '\r')"
     lid="$(printf '%s' "$id" | tr 'A-Z' 'a-z')"
-    case "$id" in
-      WeAmp.PageSpeed.Sidecar|WeAmp.PageSpeed.Sidecar.NativeAssets.Linux|WeAmp.PageSpeed.AspNetCore|WeAmp.PageSpeed) [ -d "$scratch/pkgs/$lid/$ver" ] || { echo "::error::$id $ver was not restored"; exit 1; } ;;
-    esac
+    got="$scratch/pkgs/$lid/$ver/$lid.$ver.nupkg"
+    [ -f "$got" ] || { echo "::error::$id $ver was not restored"; exit 1; }
+    [ "$(sha256_of "$got")" = "$(sha256_of "$pkg")" ] \
+      || { echo "::error::the restored $id differs from the pushed file"; exit 1; }
   done
+  echo "ok   all seven restored packages are byte-identical to the pushed files"
   echo "OK: a loopback feed accepts the seven packages, a re-push with --skip-duplicate exits 0, and a consumer restores them."
 }
 
+# What nuget.org says about each id/version. Anything but a well-formed
+# answer is an error: an empty body, HTML or truncated JSON must never read as
+# "the version is new". A 404 is accepted only for an id named in
+# NUGET_ORG_FIRST_PACKAGES (a package published for the very first time).
 check_nuget_org() { # <dir>
-  local dir="$1" nupkg id ver lid code body found=0 bad=0 expect="${NUGET_ORG_EXPECT:-report}"
+  local dir="$1" nupkg id ver lid lver code body found=0 bad=0 expect="${NUGET_ORG_EXPECT:-report}" has
+  local first=" ${NUGET_ORG_FIRST_PACKAGES:-} "
+  command -v jq >/dev/null || { echo "::error::jq is required for the nuget.org check"; exit 1; }
   body="$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/nugetorg.XXXXXX")"
   for nupkg in "$dir"/*.nupkg; do
     ver="$(unzip -p "$nupkg" '*.nuspec' | sed -n 's/.*<version>\(.*\)<\/version>.*/\1/p' | head -1 | tr -d '\r')"
     id="$(unzip -p "$nupkg" '*.nuspec' | sed -n 's/.*<id>\(.*\)<\/id>.*/\1/p' | head -1 | tr -d '\r')"
     [ -n "$id" ] && [ -n "$ver" ] || { echo "::error::cannot read id/version of $nupkg"; exit 1; }
-    lid="$(printf '%s' "$id" | tr 'A-Z' 'a-z')"
-    code="$(curl -sS --max-time 30 --retry 2 -o "$body" -w '%{http_code}' "https://api.nuget.org/v3-flatcontainer/$lid/index.json")" \
+    lid="$(printf '%s' "$id" | tr 'A-Z' 'a-z')"; lver="$(printf '%s' "$ver" | tr 'A-Z' 'a-z')"
+    code="$(curl -sS --max-time 30 --retry 2 -o "$body" -w '%{http_code}' "${NUGET_ORG_BASE:-https://api.nuget.org}/v3-flatcontainer/$lid/index.json")" \
       || { echo "::error::nuget.org is unreachable"; rm -f "$body"; exit 1; }
     case "$code" in
-      404) echo "new  $id: not on nuget.org yet (a first push creates the id; ownership of the prefix is not checkable here)";;
-      200) if grep -q "\"$(printf '%s' "$ver" | tr 'A-Z' 'a-z')\"" "$body"; then
-             echo "dupl $id $ver: already on nuget.org; --skip-duplicate would skip it and nothing from this run would be published"; found=1
-           else echo "ok   $id: id exists, $ver is a new version"; fi;;
+      404)
+        case "$first" in
+          *" $id "*) echo "new  $id: not on nuget.org yet, as announced (a first push creates the id; prefix ownership is not checkable here)";;
+          *) echo "::error::nuget.org answers 404 for $id, which is expected to exist; name it in first_packages only if this release creates it"; bad=1;;
+        esac;;
+      200)
+        # -s -e: an empty or non-JSON body gives a non-zero status (jq 1.6 exits 0 on empty input with -e alone)
+        if ! jq -es 'length == 1 and (.[0] | type == "object") and (.[0].versions | type == "array") and (.[0].versions | all(type == "string"))' "$body" >/dev/null 2>&1; then
+          echo "::error::nuget.org answered 200 for $id without a versions array of strings"; bad=1; continue
+        fi
+        has="$(jq -r --arg v "$lver" '.versions | map(ascii_downcase) | index($v) | if . == null then "no" else "yes" end' "$body")"
+        if [ "$has" = yes ]; then
+          echo "dupl $id $ver: already on nuget.org; --skip-duplicate would skip it and nothing from this run would be published"; found=1
+        elif [ "$has" = no ]; then
+          echo "ok   $id: id exists, $ver is a new version"
+        else
+          echo "::error::cannot read the version list of $id"; bad=1
+        fi;;
       *) echo "::error::unexpected HTTP $code for $id"; bad=1;;
     esac
   done

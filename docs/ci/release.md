@@ -43,8 +43,10 @@ environment, so it needs no approval.
   `nupkg-<sha>`). The Windows binaries in a dry run are unsigned, because
   signing happens only inside the environment. The tag must exist and be
   reachable from `main`: the ref guard is enforced on NuGet dry runs, so the
-  first dry run needs an existing `v*` tag (pushing one starts a real run,
-  which waits at its first environment job for approval).
+  first dry run needs an existing `v*` tag (pushing a release tag starts a
+  real run, which waits at its first environment job for approval; pushing a
+  prerelease tag `v<X>-pre.<N>` starts a run that stops at the ref guard, and
+  the tag then exists for dispatch dry runs).
 
 **Real run.** Requires the tag to exist (the lanes never create tags) and to
 pass the ref guard, then publishes from jobs inside the `release`
@@ -73,7 +75,8 @@ Both lanes hold the tag to `VERSION.txt` of the commit they build, the
 number the worker reports:
 
 - NuGet lane: `v<X>` must equal `VERSION.txt` (inline step in the `vendor`
-  job).
+  job). A dry run of `v<X>-pre.<N>` is held to `<X>`; a prerelease tag is
+  never released (see "Prerelease dry runs").
 - Optimizer lane: from 2.5.0 on, `optimizer-v<X>` must equal `VERSION.txt`
   (`tools/ci/check_optimizer_tag_version.sh`, in the `version` job, run from
   `main`; self-test in `pipeline-pr.yml`). The host packages up to
@@ -420,48 +423,74 @@ tools/ci/sidecar_fetch.sh verify tools/ci/sidecar-pin.json sidecar RELEASE-SIGNI
 
 ## NuGet publish rehearsal
 
-`publish-nuget` is the one irreversible step of the NuGet lane (a pushed
-version can be unlisted, never removed or reused). The rehearsal runs
-everything it does except the push, on the packages a candidate's dry run
-produced. Dispatch the `NuGet rehearsal` workflow with the `run_id` of the
-candidate's Release dry run (or `release_tag` of a published release), the
-`version` the packages must carry, and `windows_binaries: unsigned` for a
-dry run.
+`publish-nuget` is the one step of the NuGet lane that cannot be undone: a
+pushed version can be unlisted, never removed or reused. The `NuGet
+rehearsal` workflow runs everything the push relies on, except the push, on
+the packages a dry run produced.
 
-It checks, with the same script the `package` job uses
-(`tools/ci/nupkg_checks.sh`; the three checks `package` ran inline moved
-there unchanged):
+Dispatch it with the `run_id` of the Release dry run (or `release_tag` of a
+published release), the full `sha` the packages must be built from, the
+`version` they must carry, and `windows_binaries: unsigned` for a dry run.
+It requires the run to have concluded `success`, to have run that `sha`, and
+the artifact to be `nupkg-<first 7 of sha>`.
 
-- seven packages, exactly the seven ids, file names, nuspec id and version,
-  internal dependencies pinned to the version, license, icon and readme
-  present, nuget.org's size limit, the sidecar pair;
+Checks, made by `tools/ci/nupkg_checks.sh`, the script the `package` job
+also uses (the three checks `package` ran inline moved there with the same
+logic):
+
+- seven packages: exactly the seven ids and file names, nuspec id and
+  version, internal dependencies pinned to the version, license, icon and
+  readme present, nuget.org's size limit, the sidecar pair; every native
+  binary present and not empty; `BUILD_INFO.json` and the repository commit
+  equal to `sha`;
 - source-control metadata and the embedded `/console/` SPA;
-- package signatures: a NuGet-signed package is verified with
-  `dotnet nuget verify`; an unsigned one is reported (nuget.org signs on
-  ingest and accepts unsigned packages); Windows binaries are checked for
-  the presence of an Authenticode certificate table;
-- a push of all seven to a throwaway folder feed, twice, with
-  `--skip-duplicate`, then a consumer project restoring the packages from
-  that feed (third-party dependencies from nuget.org);
-- a read-only look at nuget.org: for each id and version, whether it
-  already exists. A version that exists makes `--skip-duplicate` skip it
-  silently; with `expect_new` (the default) the rehearsal fails instead.
+- signatures: a NuGet-signed package is verified with `dotnet nuget verify`;
+  an unsigned one is reported (nuget.org signs on ingest and accepts unsigned
+  packages). The Windows binaries are checked for an Authenticode
+  certificate table (at least one must exist);
+- a push of all seven to a loopback HTTP feed that answers like nuget.org
+  (201 for a new version, 409 for a duplicate, 400 for something that is not
+  a package), twice, with `--skip-duplicate`; a duplicate without the flag
+  must fail with the 409 and a truncated file with the 400; then a consumer
+  project restores AspNetCore and Sidecar from that feed and the restored
+  files must equal the pushed ones byte for byte (third-party dependencies
+  come from nuget.org);
+- a read-only look at nuget.org: for each id and version, whether it exists.
+  An answer that is not a JSON object with a `versions` array of strings
+  fails, and so does a 404 for an id that is not named in `first_packages`.
+  With `expect_new` (the default) an existing version fails; it also makes a
+  `README-SIDECAR-PIN.txt` fatal. `release_tag` input is already published,
+  so it needs `expect_new: false`.
 
-It is keyless by construction: no job names an environment, nothing reads a
-secret (the workflow token is `github.token`, read-only), no job asks for
-`id-token`, and nuget.org is only read.
-`tools/ci/test_nuget_rehearsal_keyless.sh` asserts that on every pull
-request and proves its assertions against broken copies.
+No job names an environment, nothing reads a secret (the token is
+`github.token`, read-only), no job asks for `id-token`, and nuget.org is
+only read. `tools/ci/test_nuget_rehearsal_keyless.sh` asserts that on every
+pull request and proves each assertion against a broken copy.
 
-**What it cannot prove.** nuget.org has no dry-run API. The rehearsal cannot
+**What it cannot prove.** nuget.org has no dry-run API. The rehearsal does not
 show that: the Trusted Publishing policy matches (repository, workflow file,
-environment); the account owns the `WeAmp.*` prefix and every id; the
-server accepts the packages (validation, vulnerability and malware scan,
-repository signing, indexing delay); a version it reports as new is still
-free at push time; `--skip-duplicate` behaves on nuget.org as the client
-does on a folder feed (nuget.org answers 409 and the client skips it; only
-the real push shows that). It also cannot check the Authenticode chain or
-timestamp, only that a signature is present.
+environment); the account owns the `WeAmp.*` prefix and every id; the server
+accepts the packages (validation, scanning, repository signing, indexing); a
+version it reports as new is still free at push time; nuget.org answers a
+duplicate with a 409 as the loopback feed does (the client's reaction to a
+409 is what is rehearsed). A real run packs again, with signed Windows
+binaries, so the bytes rehearsed from a dry run are not the bytes pushed:
+the rehearsal covers the structure, not the signed files. It checks that an
+Authenticode signature is present, not its chain or timestamp.
+
+### Prerelease dry runs
+
+A dispatch dry run may name `v<X>-pre.<N>` (for example `v2.8.0-pre.1`)
+when `<X>` equals `VERSION.txt`. The packages carry the version
+`<X>-pre.<N>`, the Windows binaries are unsigned, and the sidecar packages
+come from the newest published module release when `module-v<X>` does not
+exist, which leaves a `README-SIDECAR-PIN.txt` next to the packages.
+
+A prerelease tag cannot be released. The ref guard stops a push of a
+`v*-*` tag and a dispatch of one with `dry_run: false` before any other job
+starts, so no job in the `release` environment and no nuget.org step can
+run for it. `tools/ci/test_nuget_prerelease_refusal.sh` runs the guard step
+for each case and checks that every job depends on the ref guard.
 
 ## nuget.org Trusted Publishing (owner steps)
 

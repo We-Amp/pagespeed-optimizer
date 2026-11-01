@@ -427,6 +427,8 @@ jobs:
         run: tools/ci/test_nupkg_checks.sh
       - name: NuGet rehearsal is keyless
         run: tools/ci/test_nuget_rehearsal_keyless.sh
+      - name: NuGet prerelease tags are dry-run only
+        run: tools/ci/test_nuget_prerelease_refusal.sh
       - name: Release tag version guard self-test
         run: tools/ci/check_optimizer_tag_version.sh --self-test
       - name: Release CI gate self-test
