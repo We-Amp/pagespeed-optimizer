@@ -1,8 +1,8 @@
 {
   "source": {
     "repo": "https://github.com/We-Amp/mod_pagespeed",
-    "tag": "v2.6.0",
-    "commit": "da5e9a5c91666e10e38a250708726ca3dcb30542"
+    "tag": "v2.7.0",
+    "commit": "b30b635c42398c7b2765003c6dfa44f9b13a134a"
   },
   "generator": "website/scripts/generate-references.mjs",
   "areas": [
@@ -3338,6 +3338,38 @@
       "origin": "rewrite_options",
       "deprecated": false,
       "safeToPrint": null
+    },
+    {
+      "name": "ExposeVersionInHeaders",
+      "kind": "option",
+      "area": "Other",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedExposeVersionInHeaders on|off",
+        "nginx": "pagespeed ExposeVersionInHeaders on|off;"
+      },
+      "default": "off",
+      "context": {
+        "apache": [
+          "server config"
+        ],
+        "nginx": [
+          "http"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Report the product version in the X-Mod-Pagespeed / X-Page-Speed response header instead of the generic value \"on\". Server-wide only; an explicit XHeaderValue still wins.",
+      "descriptionSource": "source",
+      "scope": "process",
+      "valueType": "bool",
+      "id": "eveh",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
     },
     {
       "name": "FetcherTimeOutMs",
@@ -8247,6 +8279,40 @@
       "safeToPrint": true
     },
     {
+      "name": "RedisPassword",
+      "kind": "option",
+      "area": "Caching",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedRedisPassword value",
+        "nginx": "pagespeed RedisPassword value;"
+      },
+      "default": "",
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Password sent with AUTH after every Redis connect",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": "string",
+      "id": "rdp",
+      "origin": "system",
+      "deprecated": false,
+      "safeToPrint": false
+    },
+    {
       "name": "RedisReconnectionDelayMs",
       "kind": "option",
       "area": "Caching",
@@ -8305,7 +8371,7 @@
         "query": false
       },
       "since": null,
-      "description": "Redis server to use in format: <host>[:<port>]",
+      "description": "Redis server to use in format: <host>[:<port>] or unix:/<socket path>",
       "descriptionSource": "source",
       "scope": "server",
       "valueType": "empty",
@@ -8381,6 +8447,40 @@
       "origin": "system",
       "deprecated": false,
       "safeToPrint": true
+    },
+    {
+      "name": "RedisUser",
+      "kind": "option",
+      "area": "Caching",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedRedisUser value",
+        "nginx": "pagespeed RedisUser value;"
+      },
+      "default": "",
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Redis ACL user for AUTH (used together with RedisPassword)",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": "string",
+      "id": "rdu",
+      "origin": "system",
+      "deprecated": false,
+      "safeToPrint": false
     },
     {
       "name": "RefererStatisticsOutputLevel",
