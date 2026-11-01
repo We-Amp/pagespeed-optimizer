@@ -673,6 +673,12 @@ TEST_F(WorkerTest, ContentHashStaleSelfPurgeCountsAsFencedNotFailure) {
       break;
   }
   ASSERT_FALSE(variant.empty()) << "First HTML variant not written";
+  // The variant is readable before the first notification's work item has
+  // left the worker.  Wait until it is gone: a second notification for the
+  // same URL that arrives while the first is still running is turned away as
+  // already in flight, and the content-hash purge below would never run.
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
 
   uint64_t chs_before = worker.stats().content_hash_stale.load();
   uint64_t wf_before = worker.stats().alternate_write_failures.load();
@@ -696,14 +702,9 @@ TEST_F(WorkerTest, ContentHashStaleSelfPurgeCountsAsFencedNotFailure) {
 
   worker.ClearDedupAndCooldown(notification_url, "", "https");
   SendNotification(notification);
-  for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().content_hash_stale.load() > chs_before &&
-        worker.stats().alternate_writes_fenced.load() > fenced_before)
-      break;
-  }
-  // Allow any trailing counter writes to settle.
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  // Both notifications retired: the counters below are final.
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
 
   EXPECT_GE(worker.stats().content_hash_stale.load(), chs_before + 1)
       << "A genuine origin change must purge";
