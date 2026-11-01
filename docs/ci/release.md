@@ -480,17 +480,35 @@ Authenticode signature is present, not its chain or timestamp.
 
 ### Prerelease dry runs
 
-A dispatch dry run may name `v<X>-pre.<N>` (for example `v2.8.0-pre.1`)
-when `<X>` equals `VERSION.txt`. The packages carry the version
-`<X>-pre.<N>`, the Windows binaries are unsigned, and the sidecar packages
-come from the newest published module release when `module-v<X>` does not
-exist, which leaves a `README-SIDECAR-PIN.txt` next to the packages.
+A dispatch dry run may name `v<X>-pre.<N>` (digits only, for example
+`v2.8.0-pre.1`) when `<X>` equals `VERSION.txt`. The packages carry the
+version `<X>-pre.<N>` and the Windows binaries are unsigned.
 
-A prerelease tag cannot be released. The ref guard stops a push of a
-`v*-*` tag and a dispatch of one with `dry_run: false` before any other job
-starts, so no job in the `release` environment and no nuget.org step can
-run for it. `tools/ci/test_nuget_prerelease_refusal.sh` runs the guard step
-for each case and checks that every job depends on the ref guard.
+Only a `v<X>.<Y>.<Z>` tag can take a real run. The ref guard step refuses
+every other `v*` tag (a prerelease, another suffix, build metadata) for a tag
+push and for a dispatch with `dry_run: false`, before it writes any output
+and before any later job runs. The jobs in the `release` environment also
+need `real == 'true'` (`sign-windows`, `package`) or the success of the job
+before them. `tools/ci/test_nuget_prerelease_refusal.sh` runs the guard step
+for each case, reads the `if` of each of those jobs, checks that no other
+workflow has a tag trigger, names an environment or pushes to nuget.org, and
+fails when any of that is removed.
+
+In a dry run the sidecar packages want the module release `module-v<X>`
+of the base version (`module-${RELEASE_TAG%%-pre.*}`; a real run wants
+`module-<tag>`). When that is the release the sidecar comes from, the packages
+carry no note. Otherwise a `README-SIDECAR-PIN.txt` sits next to them and
+names the release used:
+
+- Today (before the sidecar change in #636) the sidecar comes from the module
+  release in `tools/ci/sidecar-pin.json`.
+- After #636 it comes from `module-v<X>` when that is published, and
+  otherwise from the newest published module release.
+
+The rehearsal with `expect_new: true` fails when the note is present, for a
+prerelease dry run as for any candidate. Until `module-v<X>` is published,
+run it with `expect_new: false` (the nuget.org check then only reports and
+the note only warns).
 
 ## nuget.org Trusted Publishing (owner steps)
 

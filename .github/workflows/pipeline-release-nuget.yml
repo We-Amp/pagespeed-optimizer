@@ -182,13 +182,15 @@ jobs:
             refs/tags/v*) ;;
             *) echo "::error::the NuGet lane releases a v* tag, not '$REF'"; exit 1 ;;
           esac
-          # A prerelease tag (v<X>-pre.<N>) is for dispatch dry runs only. A
-          # tag push and a dispatch with dry_run false are refused here, before
-          # any other job runs, so no prerelease tag can reach a job in the
-          # `release` environment or nuget.org.
-          case "${REF#refs/tags/}" in
-            *-*) if [ "$REAL" = true ]; then echo "::error::${REF#refs/tags/} is a prerelease tag: it can only be dry-run (workflow_dispatch with dry_run true)"; exit 1; fi ;;
-          esac
+          # Only a v<X>.<Y>.<Z> tag can take a real run. Any other tag (a
+          # prerelease such as v<X>-pre.<N>, a suffix, build metadata) can be
+          # dry-run by dispatch and nothing else: a tag push and a dispatch
+          # with dry_run false are refused here, before any output is written
+          # and before any later job runs.
+          if [ "$REAL" = true ] && ! [[ "${REF#refs/tags/}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::${REF#refs/tags/} is not a v<X>.<Y>.<Z> tag: it can only be dry-run (workflow_dispatch with dry_run true)"
+            exit 1
+          fi
           {
             echo "real=$REAL"
             echo "tag=${REF#refs/tags/}"
@@ -264,9 +266,9 @@ jobs:
           # carries. Only a dry run: the ref guard refuses a real run of any
           # prerelease tag before this job.
           if [ "$REAL_RUN" != true ]; then
-            case "$EXPECTED" in
-              [0-9]*.[0-9]*.[0-9]*-pre.[0-9]*) EXPECTED="${EXPECTED%%-pre.*}" ;;
-            esac
+            if [[ "$EXPECTED" =~ ^[0-9]+\.[0-9]+\.[0-9]+-pre\.[0-9]+$ ]]; then
+              EXPECTED="${EXPECTED%%-pre.*}"
+            fi
           fi
           ACTUAL="$(tr -d '[:space:]' < VERSION.txt)"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
@@ -1246,6 +1248,9 @@ jobs:
           set -euo pipefail
           PIN_TAG="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("tag", ""))' trust/tools/ci/sidecar-pin.json)"
           WANT="module-${RELEASE_TAG}"
+          # A prerelease dry run (v<X>-pre.<N>) wants the module release of
+          # its base version, module-v<X>.
+          if [ "$REAL_RUN" != true ]; then WANT="module-${RELEASE_TAG%%-pre.*}"; fi
           ARTIFACT="sidecar-nupkg-${SHORT_SHA}"
           if [ "$PIN_TAG" != "$WANT" ]; then
             if [ "$REAL_RUN" = true ]; then

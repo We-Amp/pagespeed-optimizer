@@ -16,7 +16,7 @@ V=9.9.9
 
 # mkset <dir> [mutation]: seven synthetic packages.
 mkset() {
-  python3 -I - "$1" "${2:-}" "$V" <<'PY'
+  python3 -I - "$1" "${2:-}" "${VV:-$V}" <<'PY'
 import json, os, struct, sys, zipfile
 d, mut, v = sys.argv[1], sys.argv[2], sys.argv[3]
 os.makedirs(d, exist_ok=True)
@@ -73,7 +73,9 @@ for i in ids:
         else: z.writestr(nf, b"bin")
     z.close()
 if mut == "extra": open(os.path.join(d, "WeAmp.Other.9.9.9.nupkg"), "wb").write(b"x")
-if mut in ("pinnote", "pinnote2"): open(os.path.join(d, "README-SIDECAR-PIN.txt"), "w").write("note")
+if mut in ("pinbase", "pinother"):
+    named = "module-v" + v.split("-pre.")[0] if mut == "pinbase" else "module-v0.0.1"
+    open(os.path.join(d, "README-SIDECAR-PIN.txt"), "w").write("DRY RUN ONLY: contain the native pair and the managed code of %s, not of module-v%s." % (named, v))
 if mut == "corrupt":
     p = os.path.join(d, "WeAmp.PageSpeed.%s.nupkg" % v); open(p, "wb").write(b"not a zip")
 PY
@@ -88,8 +90,11 @@ t() { # t ok|no <desc> <mutation> <check...>
 }
 S="$W/set"
 t ok 'a good set passes every offline check'           ''          offline "$S" $V signed
-t ok 'a README-SIDECAR-PIN.txt note warns for a non-candidate' pinnote offline "$S" $V signed
-PIN_NOTE_FATAL=1 t no 'a README-SIDECAR-PIN.txt note fails a candidate' pinnote2 identity "$S" $V
+t ok 'a note only warns for a non-candidate'          pinother    offline "$S" $V signed
+PIN_NOTE_FATAL=1 t no 'a note on a release candidate fails' pinother    identity "$S" $V
+VV=9.9.9-pre.1 PIN_NOTE_FATAL=1 t no 'a note on a prerelease candidate fails' pinother identity "$S" 9.9.9-pre.1
+VV=9.9.9-pre.1 t ok 'a note on a prerelease warns when not a candidate' pinother identity "$S" 9.9.9-pre.1
+VV=9.9.9-pre.1 PIN_NOTE_FATAL=1 t ok 'a prerelease dry run without a note passes' '' identity "$S" 9.9.9-pre.1
 EXPECT_SHA=$(printf 'a%.0s' $(seq 40)) t ok 'the expected commit matches' '' identity "$S" $V
 EXPECT_SHA=$(printf 'b%.0s' $(seq 40)) t no 'a different expected commit' '' identity "$S" $V
 t no 'a native binary missing from a package'          nonative    identity "$S" $V

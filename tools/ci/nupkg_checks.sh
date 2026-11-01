@@ -117,13 +117,16 @@ def err(m): errs.append(m); print("::error::" + m)
 SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$")
 if not SEMVER.match(version):
     err("version %r is not SemVer 2" % version)
-# README-SIDECAR-PIN.txt travels with the packages in a dry run whose sidecar
-# came from another module release: packages that are not the candidate's own.
-if os.path.exists(os.path.join(d, "README-SIDECAR-PIN.txt")):
+# README-SIDECAR-PIN.txt travels with the packages when the sidecar did not come
+# from module-v<X> (X: the version without any -pre.<N>). For a candidate
+# (PIN_NOTE_FATAL=1) that fails; otherwise it only warns.
+note = os.path.join(d, "README-SIDECAR-PIN.txt")
+if os.path.exists(note):
+    base = version.split("-pre.")[0]
     if pin_note_fatal:
-        err("README-SIDECAR-PIN.txt is present: the sidecar packages are not built from this version's module release")
+        err("README-SIDECAR-PIN.txt is present: the sidecar packages are not built from module-v%s" % base)
     else:
-        print("::warning::README-SIDECAR-PIN.txt is present: the sidecar packages are from another module release")
+        print("::warning::README-SIDECAR-PIN.txt is present: the sidecar packages are not from module-v%s" % base)
 files = sorted(f for f in os.listdir(d) if not f.startswith(".") and f != "README-SIDECAR-PIN.txt")
 want = sorted("%s.%s.nupkg" % (i, version) for i in ids)
 extra = [f for f in files if f not in want]
