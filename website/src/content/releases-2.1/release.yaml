@@ -5,13 +5,17 @@
 # licensed under the Apache License 2.0. The predecessor lines
 # (mod_pagespeed 1.15, ModPageSpeed 2.0) carry the same license.
 #
-# Edit this file when a new 2.1 release ships. Every website, script, and
-# docs page that needs a 2.1 version string derives it from this manifest
-# (§1).
+# This file is named 2.1.yaml and `product.line` stays "2.1" because
+# tooling keys on both; the "2.1" product label itself is retired (plain
+# "mod_pagespeed"; the version appears only as a release fact).
 #
-# 2.1 uses plain SemVer (no `+rN` build metadata), like 2.0. The first GA
-# release of the converged line is v2.1.0 (2026-09-17), tagged v2.1.0 in the
-# public source repository.
+# Edit this file when a new release of this line ships. Every website,
+# script, and docs page that needs a version string derives it from this
+# manifest (§1).
+#
+# The line uses plain SemVer (no `+rN` build metadata), like 2.0. The first
+# GA release of the converged line was v2.1.0 (2026-09-17), tagged v2.1.0 in
+# the public source repository.
 #
 # DO NOT hand-edit `release.{semver,revision,tag,released_on}` routinely —
 # bump tooling for the 2.1 line is pending; until it lands, this manifest is
@@ -20,7 +24,7 @@
 #
 # Schema: scripts/release/manifest-schema.mjs (2.1 branch pending)
 # Distribution scope: Docker + Helm + native deb/rpm packages, plus the
-# ASP.NET Core middleware on NuGet, which ships as 2.6.0 with this release,
+# ASP.NET Core middleware on NuGet, which ships as 2.7.0 with this release,
 # and the signed IIS installer on the module's GitHub release.
 # The middleware's artifact block still lives in the 2.0 manifest; where it
 # re-homes is tracked separately.
@@ -34,10 +38,10 @@ product:
 status: active
 
 release:
-  semver: "2.6.0"
+  semver: "2.7.0"
   revision: null # plain SemVer; +rN not used on the converged line
-  tag: "v2.6.0"
-  released_on: "2026-10-28"
+  tag: "v2.7.0"
+  released_on: "2026-11-01"
 
 artifacts:
   # Docker images published to GHCR (ghcr.io/we-amp) — same channels as the
@@ -102,5 +106,5 @@ compat:
 display:
   # The 2.1 line derives every customer-facing version string from
   # release.semver (same invariant the 2.0 collection enforces).
-  header_version: "2.6.0"
-  badge_version: "v2.6.0"
+  header_version: "2.7.0"
+  badge_version: "v2.7.0"
