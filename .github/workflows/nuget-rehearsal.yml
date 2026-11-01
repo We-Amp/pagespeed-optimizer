@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+#
+# NuGet publish rehearsal caller: dispatch only, no triggers that publish.
+# The jobs live in pipeline-nuget-rehearsal.yml. The rehearsal never enters
+# the `release` environment and is handed no secret (docs/ci/release.md,
+# "NuGet publish rehearsal"); tools/ci/test_nuget_rehearsal_keyless.sh
+# asserts both.
+
+name: NuGet rehearsal
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Run id of a Release workflow run for the candidate tag (its nupkg-<sha> artifact is the input). Empty when release_tag is given.'
+        type: string
+        default: ''
+      release_tag:
+        description: 'Published GitHub release whose .nupkg assets are the input (for example v2.7.0). Empty when run_id is given.'
+        type: string
+        default: ''
+      version:
+        description: 'The package version the seven packages must carry (for example 2.8.0 or 2.8.0-pre.1).'
+        type: string
+        required: true
+      windows_binaries:
+        description: 'Authenticode state expected of the Windows binaries: unsigned (a dry run), signed (a real run) or report.'
+        type: choice
+        options: [report, unsigned, signed]
+        default: report
+      expect_new:
+        description: 'Fail when a package version already exists on nuget.org (true for the candidate).'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nuget-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  rehearsal:
+    permissions:
+      contents: read
+      actions: read
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nuget-rehearsal.yml@main
+    with:
+      run_id: ${{ inputs.run_id }}
+      release_tag: ${{ inputs.release_tag }}
+      version: ${{ inputs.version }}
+      windows_binaries: ${{ inputs.windows_binaries }}
+      expect_new: ${{ inputs.expect_new }}

@@ -423,6 +423,10 @@ jobs:
         run: tools/ci/test_bisect_job.sh
       - name: Release checksum signature self-test
         run: tools/ci/test_release_checksums_sig.sh
+      - name: NuGet package checks self-test
+        run: tools/ci/test_nupkg_checks.sh
+      - name: NuGet rehearsal is keyless
+        run: tools/ci/test_nuget_rehearsal_keyless.sh
       - name: Release tag version guard self-test
         run: tools/ci/check_optimizer_tag_version.sh --self-test
       - name: Release CI gate self-test

@@ -418,6 +418,51 @@ sha256sum sidecar/SHA256SUMS sidecar/sidecar-pair.json   # the two pinned digest
 tools/ci/sidecar_fetch.sh verify tools/ci/sidecar-pin.json sidecar RELEASE-SIGNING-KEY.asc
 ```
 
+## NuGet publish rehearsal
+
+`publish-nuget` is the one irreversible step of the NuGet lane (a pushed
+version can be unlisted, never removed or reused). The rehearsal runs
+everything it does except the push, on the packages a candidate's dry run
+produced. Dispatch the `NuGet rehearsal` workflow with the `run_id` of the
+candidate's Release dry run (or `release_tag` of a published release), the
+`version` the packages must carry, and `windows_binaries: unsigned` for a
+dry run.
+
+It checks, with the same script the `package` job uses
+(`tools/ci/nupkg_checks.sh`; the three checks `package` ran inline moved
+there unchanged):
+
+- seven packages, exactly the seven ids, file names, nuspec id and version,
+  internal dependencies pinned to the version, license, icon and readme
+  present, nuget.org's size limit, the sidecar pair;
+- source-control metadata and the embedded `/console/` SPA;
+- package signatures: a NuGet-signed package is verified with
+  `dotnet nuget verify`; an unsigned one is reported (nuget.org signs on
+  ingest and accepts unsigned packages); Windows binaries are checked for
+  the presence of an Authenticode certificate table;
+- a push of all seven to a throwaway folder feed, twice, with
+  `--skip-duplicate`, then a consumer project restoring the packages from
+  that feed (third-party dependencies from nuget.org);
+- a read-only look at nuget.org: for each id and version, whether it
+  already exists. A version that exists makes `--skip-duplicate` skip it
+  silently; with `expect_new` (the default) the rehearsal fails instead.
+
+It is keyless by construction: no job names an environment, nothing reads a
+secret (the workflow token is `github.token`, read-only), no job asks for
+`id-token`, and nuget.org is only read.
+`tools/ci/test_nuget_rehearsal_keyless.sh` asserts that on every pull
+request and proves its assertions against broken copies.
+
+**What it cannot prove.** nuget.org has no dry-run API. The rehearsal cannot
+show that: the Trusted Publishing policy matches (repository, workflow file,
+environment); the account owns the `WeAmp.*` prefix and every id; the
+server accepts the packages (validation, vulnerability and malware scan,
+repository signing, indexing delay); a version it reports as new is still
+free at push time; `--skip-duplicate` behaves on nuget.org as the client
+does on a folder feed (nuget.org answers 409 and the client skips it; only
+the real push shows that). It also cannot check the Authenticode chain or
+timestamp, only that a signature is present.
+
 ## nuget.org Trusted Publishing (owner steps)
 
 `publish-nuget` exchanges the job's OIDC token for a short-lived nuget.org

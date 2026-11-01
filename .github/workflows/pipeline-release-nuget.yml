@@ -1567,11 +1567,8 @@ jobs:
           set -euo pipefail
           cd samples/aspnetcore/nupkg
           VERSION="${RELEASE_TAG#v}"
-          ls -lh
-          [ "$(find . -maxdepth 1 -name '*.nupkg' | wc -l)" -eq 7 ] || { echo "::error::expected 7 packages"; exit 1; }
-          for id in WeAmp.PageSpeed.Sidecar WeAmp.PageSpeed.Sidecar.NativeAssets.Linux; do
-            [ -s "${id}.${VERSION}.nupkg" ] || { echo "::error::missing ${id}.${VERSION}.nupkg"; exit 1; }
-          done
+          # The same script the publish rehearsal runs (docs/ci/release.md).
+          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" expect-seven . "$VERSION"
           # Only a dry run with a pin of another version carries the note
           # (a real run refuses that pin); it travels with the packages.
           if [ -s README-SIDECAR-PIN.txt ]; then
@@ -1586,42 +1583,14 @@ jobs:
       - name: Guard against wrong source-control metadata in the .nupkg files
         run: |
           set -euo pipefail
-          cd samples/aspnetcore/nupkg
-          expected='https://github.com/We-Amp/pagespeed-optimizer'
-          bad=0
-          for nupkg in *.nupkg; do
-            nuspec=$(unzip -p "$nupkg" "*.nuspec" 2>/dev/null)
-            if echo "$nuspec" | grep -qi '<sourceLink'; then
-              echo "::error::unexpected SourceLink element in $nupkg"
-              bad=1
-            fi
-            url=$(echo "$nuspec" | grep -io '<repository[^>]* url="[^"]*"' | sed -E 's/.* url="([^"]*)"/\1/' || true)
-            if [ -n "$url" ] && [ "$url" != "$expected" ]; then
-              echo "::error::repository url in $nupkg is '$url', expected '$expected'"
-              bad=1
-            fi
-            case "$nupkg" in
-              WeAmp.PageSpeed.Sidecar*) ;;
-              *) [ "$url" = "$expected" ] || { echo "::error::$nupkg has no repository url"; bad=1; } ;;
-            esac
-          done
-          [ "$bad" = "0" ] || exit 1
-          echo "OK: source-control metadata in the packages is as expected."
+          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" metadata samples/aspnetcore/nupkg
 
       # A failed SPA build or a drifted EmbedWebShell glob would ship an
       # empty console and every install would answer 503 for /console/.
       - name: Guard against shipping an empty /console/ SPA
         run: |
           set -euo pipefail
-          cd samples/aspnetcore/nupkg
-          aspnet_nupkg=$(find . -maxdepth 1 -name 'WeAmp.PageSpeed.AspNetCore.*.nupkg' | head -1)
-          STRINGS="${RUNNER_TEMP}/aspnet-dll.strings"
-          unzip -p "$aspnet_nupkg" "lib/net10.0/WeAmp.PageSpeed.AspNetCore.dll" | strings -a > "$STRINGS"
-          if ! grep -aFq 'WeAmp.PageSpeed.AspNetCore.Console/index.html' "$STRINGS"; then
-            echo "::error::Embedded /console/ SPA missing from $aspnet_nupkg"
-            exit 1
-          fi
-          echo "OK: embedded /console/ SPA present ($(grep -acF 'WeAmp.PageSpeed.AspNetCore.Console/' "$STRINGS") manifest entries)."
+          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" console-spa samples/aspnetcore/nupkg
 
       # Real runs only. A draft that already exists for the tag is reused
       # (an operator may have created it by hand); otherwise it is created.
