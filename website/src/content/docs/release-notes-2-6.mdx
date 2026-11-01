@@ -3,19 +3,19 @@ title: 'Release notes: 2.6'
 description: 'mod_pagespeed 2.6.0 release notes: security fixes for the nginx and Apache modules, and an optimizer service that can start after the web server.'
 order: 76
 group: 'Release notes by line'
-lastUpdated: 2026-10-28
+lastUpdated: 2026-11-01
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 
 <ReleaseNotesDeepLink />
 
-mod_pagespeed 2.6.0 is the current release: the module and the optimizer worker, released together on 2026-10-28 and installed as a matching pair. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+mod_pagespeed 2.6 was released as 2.6.0 on 2026-10-28: the module and the optimizer worker together, installed as a matching pair. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
 
-<span id="v2-6-0" class="rn-alias" aria-hidden="true"></span>
-<div class="rn-entry rn-entry-current">
+## Releases
 
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.6.0</span> <span class="rn-date">2026-10-28</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<details id="v2-6-0" class="rn-entry">
+<summary><span class="rn-ver">2.6.0</span> <span class="rn-date">2026-10-28</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Security update for the nginx and Apache modules, released together with the optimizer worker: two fixes in the nginx module and two in the Apache module, and an optimizer service that starts after the web server is picked up without a restart. Update recommended.</span></summary>
 
 **Release date:** 2026-10-28
 
@@ -665,4 +665,4 @@ _Sidecar upgrade notes_
   `PageSpeed:Sidecar:ConfigValidationTimeoutMs` (default 60 seconds); the new
   default only changes behaviour on hosts too loaded to finish validation.
 
-</div>
+</details>

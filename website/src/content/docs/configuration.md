@@ -363,9 +363,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.6.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.6.0): 325 directives.
+Generated from the mod_pagespeed source at tag [`v2.7.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.7.0): 328 directives.
 
-Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (5) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (30) · [Images](#area-images) (43) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (9) · [Caching](#area-caching) (46) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (3) · [Experiments and analytics](#area-experiments-and-analytics) (6) · [Deprecated and ignored](#area-deprecated-and-ignored) (35).
+Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (5) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (30) · [Images](#area-images) (43) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (9) · [Caching](#area-caching) (48) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (3) · [Experiments and analytics](#area-experiments-and-analytics) (6) · [Other](#area-other) (1) · [Deprecated and ignored](#area-deprecated-and-ignored) (35).
 
 ### Enabling and filter selection {#area-enabling-and-filter-selection}
 
@@ -2203,7 +2203,7 @@ Evaluate nginx script variables ($var) in pagespeed directive arguments at reque
 
 ### Caching {#area-caching}
 
-[`AsyncMetadataL2Writes`](#asyncmetadatal2writes), [`AwaitPcacheLookup`](#awaitpcachelookup), [`CacheFlushFilename`](#cacheflushfilename), [`CacheFlushPollIntervalSec`](#cacheflushpollintervalsec), [`CacheFragment`](#cachefragment), [`CompressMetadataCache`](#compressmetadatacache), [`CreateSharedMemoryMetadataCache`](#createsharedmemorymetadatacache), [`CycloneRamCacheKb`](#cycloneramcachekb), [`CycloneZeroCopy`](#cyclonezerocopy), [`CycloneZeroCopyServe`](#cyclonezerocopyserve), [`DefaultCacheHtml`](#defaultcachehtml), [`DefaultSharedMemoryCacheKB`](#defaultsharedmemorycachekb), [`DownstreamCachePurgeLocationPrefix`](#downstreamcachepurgelocationprefix), [`DownstreamCachePurgeMethod`](#downstreamcachepurgemethod), [`DownstreamCacheRebeaconingKey`](#downstreamcacherebeaconingkey), [`DownstreamCacheRewrittenPercentageThreshold`](#downstreamcacherewrittenpercentagethreshold), [`EnableCachePurge`](#enablecachepurge), [`FileCachePath`](#filecachepath), [`FileCacheSizeKb`](#filecachesizekb), [`FileCacheSmallTierPercent`](#filecachesmalltierpercent), [`FinderPropertiesCacheExpirationTimeMs`](#finderpropertiescacheexpirationtimems), [`FinderPropertiesCacheRefreshTimeMs`](#finderpropertiescacherefreshtimems), [`ForceCaching`](#forcecaching), [`HttpCacheCompressionLevel`](#httpcachecompressionlevel), [`ImplicitCacheTtlMs`](#implicitcachettlms), [`LRUCacheByteLimit`](#lrucachebytelimit), [`LRUCacheKbPerProcess`](#lrucachekbperprocess), [`MaxCacheableContentLength`](#maxcacheablecontentlength), [`MaxHtmlCacheTimeMs`](#maxhtmlcachetimems), [`MemcachedServers`](#memcachedservers), [`MemcachedThreads`](#memcachedthreads), [`MemcachedTimeoutUs`](#memcachedtimeoutus), [`MetadataCacheStalenessThresholdMs`](#metadatacachestalenessthresholdms), [`MinResourceCacheTimeToRewriteMs`](#minresourcecachetimetorewritems), [`NonCacheablesForCachePartialHtml`](#noncacheablesforcachepartialhtml), [`OverrideCachingTtlMs`](#overridecachingttlms), [`PubliclyCacheMismatchedHashesExperimental`](#publiclycachemismatchedhashesexperimental), [`PurgeMethod`](#purgemethod), [`RedisDatabaseIndex`](#redisdatabaseindex), [`RedisReconnectionDelayMs`](#redisreconnectiondelayms), [`RedisServer`](#redisserver), [`RedisTimeoutUs`](#redistimeoutus), [`RedisTTLSec`](#redisttlsec), [`SharedMemoryLocks`](#sharedmemorylocks), [`ShmMetadataCacheCheckpointIntervalSec`](#shmmetadatacachecheckpointintervalsec), [`UseFallbackPropertyCacheValues`](#usefallbackpropertycachevalues)
+[`AsyncMetadataL2Writes`](#asyncmetadatal2writes), [`AwaitPcacheLookup`](#awaitpcachelookup), [`CacheFlushFilename`](#cacheflushfilename), [`CacheFlushPollIntervalSec`](#cacheflushpollintervalsec), [`CacheFragment`](#cachefragment), [`CompressMetadataCache`](#compressmetadatacache), [`CreateSharedMemoryMetadataCache`](#createsharedmemorymetadatacache), [`CycloneRamCacheKb`](#cycloneramcachekb), [`CycloneZeroCopy`](#cyclonezerocopy), [`CycloneZeroCopyServe`](#cyclonezerocopyserve), [`DefaultCacheHtml`](#defaultcachehtml), [`DefaultSharedMemoryCacheKB`](#defaultsharedmemorycachekb), [`DownstreamCachePurgeLocationPrefix`](#downstreamcachepurgelocationprefix), [`DownstreamCachePurgeMethod`](#downstreamcachepurgemethod), [`DownstreamCacheRebeaconingKey`](#downstreamcacherebeaconingkey), [`DownstreamCacheRewrittenPercentageThreshold`](#downstreamcacherewrittenpercentagethreshold), [`EnableCachePurge`](#enablecachepurge), [`FileCachePath`](#filecachepath), [`FileCacheSizeKb`](#filecachesizekb), [`FileCacheSmallTierPercent`](#filecachesmalltierpercent), [`FinderPropertiesCacheExpirationTimeMs`](#finderpropertiescacheexpirationtimems), [`FinderPropertiesCacheRefreshTimeMs`](#finderpropertiescacherefreshtimems), [`ForceCaching`](#forcecaching), [`HttpCacheCompressionLevel`](#httpcachecompressionlevel), [`ImplicitCacheTtlMs`](#implicitcachettlms), [`LRUCacheByteLimit`](#lrucachebytelimit), [`LRUCacheKbPerProcess`](#lrucachekbperprocess), [`MaxCacheableContentLength`](#maxcacheablecontentlength), [`MaxHtmlCacheTimeMs`](#maxhtmlcachetimems), [`MemcachedServers`](#memcachedservers), [`MemcachedThreads`](#memcachedthreads), [`MemcachedTimeoutUs`](#memcachedtimeoutus), [`MetadataCacheStalenessThresholdMs`](#metadatacachestalenessthresholdms), [`MinResourceCacheTimeToRewriteMs`](#minresourcecachetimetorewritems), [`NonCacheablesForCachePartialHtml`](#noncacheablesforcachepartialhtml), [`OverrideCachingTtlMs`](#overridecachingttlms), [`PubliclyCacheMismatchedHashesExperimental`](#publiclycachemismatchedhashesexperimental), [`PurgeMethod`](#purgemethod), [`RedisDatabaseIndex`](#redisdatabaseindex), [`RedisPassword`](#redispassword), [`RedisReconnectionDelayMs`](#redisreconnectiondelayms), [`RedisServer`](#redisserver), [`RedisTimeoutUs`](#redistimeoutus), [`RedisTTLSec`](#redisttlsec), [`RedisUser`](#redisuser), [`SharedMemoryLocks`](#sharedmemorylocks), [`ShmMetadataCacheCheckpointIntervalSec`](#shmmetadatacachecheckpointintervalsec), [`UseFallbackPropertyCacheValues`](#usefallbackpropertycachevalues)
 
 #### AsyncMetadataL2Writes {#asyncmetadatal2writes}
 
@@ -2525,6 +2525,14 @@ HTTP method used for Cache Purge requests. Typically this is set to PURGE, but y
 
 Redis server database index selection
 
+#### RedisPassword {#redispassword}
+
+- **Syntax:** `ModPagespeedRedisPassword value` (Apache) · `pagespeed RedisPassword value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Password sent with AUTH after every Redis connect
+
 #### RedisReconnectionDelayMs {#redisreconnectiondelayms}
 
 - **Syntax:** `ModPagespeedRedisReconnectionDelayMs number` (Apache) · `pagespeed RedisReconnectionDelayMs number;` (nginx)
@@ -2539,7 +2547,7 @@ Time to wait after unsuccessful reconnection before another attempt (ms)
 - **Default:** `(empty)`
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Redis server to use in format: &lt;host&gt;[:&lt;port&gt;]
+Redis server to use in format: &lt;host&gt;[:&lt;port&gt;] or unix:/&lt;socket path&gt;
 
 #### RedisTimeoutUs {#redistimeoutus}
 
@@ -2556,6 +2564,14 @@ Timeout for all Redis operations and connection (us)
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 Redis key TTL to use (seconds)
+
+#### RedisUser {#redisuser}
+
+- **Syntax:** `ModPagespeedRedisUser value` (Apache) · `pagespeed RedisUser value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Redis ACL user for AUTH (used together with RedisPassword)
 
 #### SharedMemoryLocks {#sharedmemorylocks}
 
@@ -2927,6 +2943,18 @@ Meaningless integer option for browser cache-busting in query-params
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Run an experiment to test the effectiveness of rewriters.
+
+### Other {#area-other}
+
+[`ExposeVersionInHeaders`](#exposeversioninheaders)
+
+#### ExposeVersionInHeaders {#exposeversioninheaders}
+
+- **Syntax:** `ModPagespeedExposeVersionInHeaders on|off` (Apache) · `pagespeed ExposeVersionInHeaders on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config · nginx: http
+
+Report the product version in the X-Mod-Pagespeed / X-Page-Speed response header instead of the generic value "on". Server-wide only; an explicit XHeaderValue still wins.
 
 ### Deprecated and ignored {#area-deprecated-and-ignored}
 
