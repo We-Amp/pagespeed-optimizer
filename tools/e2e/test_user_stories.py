@@ -1222,6 +1222,37 @@ class TestOriginChangeConvergence:
             )
         )
 
+    @staticmethod
+    def _settled_stats(worker_api, quiet=4.0, timeout=60.0):
+        """Return worker stats once the write counters have stopped moving.
+
+        The counters are global to the worker.  Variant builds that earlier
+        tests left in flight (a rebuild of another file finishing late)
+        would otherwise move them inside the window under test and be
+        mistaken for work on the file under test.
+        """
+        keys = (
+            ("origin_refresh", "purges"),
+            ("origin_refresh", "change_rebuilt"),
+            ("alternates", "writes"),
+        )
+
+        def snapshot():
+            stats = worker_api.get_stats()
+            return stats, tuple(stats[g][k] for g, k in keys)
+
+        deadline = time.monotonic() + timeout
+        stats, last = snapshot()
+        stable_since = time.monotonic()
+        while time.monotonic() < deadline:
+            time.sleep(0.5)
+            stats, now = snapshot()
+            if now != last:
+                last, stable_since = now, time.monotonic()
+            elif time.monotonic() - stable_since >= quiet:
+                return stats
+        pytest.fail(f"Worker write counters did not settle within {timeout}s: {last}")
+
     def test_css_change_converges_across_encodings_after_max_age(self, e2e_services):
         name = f"conv_css_{int(time.time() * 1000)}.css"
         path = unique_url(f"/mutable/{name}", "conv_css")
@@ -1256,7 +1287,7 @@ class TestOriginChangeConvergence:
         path = unique_url(f"/mutable/{name}", "conv_same")
         _write_mutable(name, _css("#a1b2c4"))
         self._warm(e2e_services.nginx_url, path, "#a1b2c4")
-        before = worker_api.get_stats()
+        before = self._settled_stats(worker_api)
         time.sleep(self.MAX_AGE + 1)
         revalidated = False
         deadline = time.monotonic() + 20.0
