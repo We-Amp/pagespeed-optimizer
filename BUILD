@@ -24,6 +24,7 @@ refresh_compile_commands(
     name = "refresh_all",
     targets = {
         "@//...": "",
+        "//lib/cache:html_cache_policy_fuzz": "",
         "//lib/css:css_minify_fuzz": "",
         "//lib/html:html_fuzz": "",
     },

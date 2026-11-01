@@ -113,3 +113,8 @@ _ps_html_config_init_sized
 _ps_critical_css_config_init_sized
 _ps_read_shared_config_generation
 _ps_serve_stats_record_hit_host
+_ps_html_store_classify
+_ps_html_serve_classify
+_ps_html_decision_format
+_ps_html_store_reason_name
+_ps_html_serve_reason_name

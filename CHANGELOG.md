@@ -374,6 +374,24 @@ once, and then drops the cached copy. Previously such a client could receive a
 bodyless `304 Not Modified` it had not asked for. A client whose own
 `If-None-Match` matches still receives a `304`.
 
+Added: the C API (PS_API 1.12) gains the HTML cacheability policy entry
+points: `ps_html_store_classify` decides whether a `text/html` response may
+be stored, `ps_html_serve_classify` decides whether a stored page may be
+served, `ps_html_decision_format` writes one decision as a single JSON line
+whose keys and values are a closed set of codes and counts, and
+`ps_html_store_reason_name` and `ps_html_serve_reason_name` name the reasons.
+The policy stores a page only when the origin stated its lifetime or sent a
+validator, never on a guessed lifetime; it refuses pages that look
+personalised (a request with credentials, or `Cache-Control: no-store`, or a
+cookie unless the response is explicitly `public` or carries `s-maxage`; a
+response that sets a cookie, `private` or `no-store`, a `Vary` beyond
+`Accept-Encoding`, a CSRF token or a login or checkout form in the body) and
+URLs it cannot key safely, including the optimizer's own rewritten URLs; it
+treats conflicting `max-age` or `s-maxage` directives as a lifetime of zero;
+it reads all three HTTP date forms; and it never serves a stale page. No
+behaviour changes in this release: nothing in the nginx module, the worker or
+the ASP.NET middleware calls the new entry points yet.
+
 Fixed: nginx now serves a stale cached response that the origin confirms is
 still current (a 304 to the module's own revalidation request) to a client
 that sent no conditional request as a normal `200` with the full body, as RFC
