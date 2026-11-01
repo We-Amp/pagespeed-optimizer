@@ -429,6 +429,8 @@ jobs:
         run: tools/ci/test_nuget_rehearsal_keyless.sh
       - name: NuGet prerelease tags are dry-run only
         run: tools/ci/test_nuget_prerelease_refusal.sh
+      - name: Sidecar inputs fetch and verify self-test
+        run: tools/ci/test_sidecar_fetch.sh
       - name: Release tag version guard self-test
         run: tools/ci/check_optimizer_tag_version.sh --self-test
       - name: Release CI gate self-test

@@ -94,9 +94,9 @@ From 2.5.0 the module release pairs with `optimizer-v` plus the same version,
 so the cut runs in this order: bump `VERSION.txt` to the release version on
 `main`, tag `optimizer-v<X>` on that commit, record the pin in the module
 repository (`install/debian/optimizer-pin.json`), then tag `module-v<X>`
-there (its `docs/ci/release.md` has the module side). Before `v<X>` is
-tagged (or released from an existing tag), record that module release in
-`tools/ci/sidecar-pin.json` on `main` (see "The sidecar pin"). Once the module
+there (its `docs/ci/release.md` has the module side). `v<X>` is tagged (or
+released from an existing tag) once `module-v<X>` is published; nothing is
+recorded in this repository for it (see "The sidecar inputs"). Once the module
 packages are published, `MODULE_PACKAGE_VERSION` in
 `website/src/data/product-facts.mjs` moves to the same
 version: the scan's lifecycle sentence (`website/src/lib/scan/lifecycle.ts`)
@@ -341,7 +341,7 @@ smoke lane by hand with a manual dispatch.
 A dispatch whose tag starts with neither `optimizer-v` nor `v` fails in the
 `unsupported-tag` job of the caller instead of ending green with no jobs.
 
-## The sidecar pin
+## The sidecar inputs
 
 The NuGet lane also publishes the ASP.NET Core sidecar packages,
 `WeAmp.PageSpeed.Sidecar` and `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`.
@@ -352,22 +352,21 @@ tests included) and signed in the mod_pagespeed module release, as
 `sidecar-pair.json`; their managed code is `aspnetcore/` of that release's
 source tarball, `mod_pagespeed-<X>.tar.gz`. The lane builds neither from a
 branch of the module repository: the `sidecar-pack` job takes both from the
-module release named by `tools/ci/sidecar-pin.json`:
-
-| Field | Value |
-|---|---|
-| `tag` | the module release tag, `module-v<X>` |
-| `sha256sums_sha256` | sha256 of that release's `SHA256SUMS` |
-| `sidecar_pair_sha256` | sha256 of that release's `sidecar-pair.json` |
-| `release_key_fingerprint` | `411DEFDB571351D2B25AEFCC9C02B5BDCCE75313`, which must equal the fingerprint pinned in `tools/ci/release_checksums_sig.sh` |
+module release `module-v<X>` of the tag it is releasing. Nothing is recorded
+in this repository per release; the tag is derived from the `v<X>` tag, and
+the bytes are authenticated by the release signature, not by a digest copied
+into a file.
 
 `tools/ci/sidecar_fetch.sh fetch` downloads `SHA256SUMS`, `SHA256SUMS.asc`,
 `sidecar-pair.json`, the two pair tarballs and the source tarball of exactly
-that tag (never "latest"), and refuses unless the `SHA256SUMS` digest is the
-pinned one, `SHA256SUMS.asc` verifies against `RELEASE-SIGNING-KEY.asc` with
-`release_checksums_sig.sh verify`, the `sidecar-pair.json` digest is the
-pinned one and `SHA256SUMS` lists it, the manifest names the pinned tag and
-version and both RIDs, every pair tarball matches the name, size and sha256
+that tag, and refuses unless the release is published (not a draft or a
+pre-release), none of the six downloaded inputs (each present exactly once,
+with a recorded modification time) was modified after publication, the tag
+still points at the commit the manifest says was built, `SHA256SUMS.asc`
+verifies against `RELEASE-SIGNING-KEY.asc` with
+`release_checksums_sig.sh verify` (which pins the key fingerprint),
+`SHA256SUMS` lists `sidecar-pair.json` with its digest, the manifest names the
+tag and version and both RIDs, every pair tarball matches the name, size and sha256
 in the manifest and in `SHA256SUMS` and holds exactly the files the
 manifest lists with their digests, and the source tarball has the digest
 `SHA256SUMS` lists. `stage` then writes `aspnetcore/` of the source tarball
@@ -392,33 +391,37 @@ license files, and the managed package carries `lib/net8.0` and
 requires seven; from there they take the path of the others: the
 source-control metadata guard, `SHA256SUMS` and its signature, the draft
 release and `publish-nuget`. A dry run runs the same path and pushes
-nothing. When a dry run's pin names another version than its tag, the
-sidecar packages carry the tag's version but contain the pinned module
-release: the run says so in its step summary, in the artifact name
-(`sidecar-nupkg-<sha>-contains-module-v<pinned>`) and in a
+nothing. When a dry run uses another module release than its tag's (the module
+release of the version is not cut yet), the sidecar packages carry the tag's
+version but contain that module release: the run says so in its step summary, in the artifact name
+(`sidecar-nupkg-<sha>-contains-module-v<used>`) and in a
 `README-SIDECAR-PIN.txt` that travels with the packages into `nupkg-<sha>`.
 
-The pin, the script and the key are read from `main`, like the signing
-script, because the module release of a version is cut after the `v<X>`
-commit. A real run of `v<X>` refuses a pin other than `module-v<X>`; a dry
-run warns and uses the pinned release. Two consequences:
+The script, the key and the signature check are read from `main`, like the
+signing script, because the module release of a version is cut after the
+`v<X>` commit. A real run of `v<X>` takes `module-v<X>` and nothing else, and only when `<X>`
+is the version in `VERSION.txt` on `main`: an older tag cannot be released
+again from the lane (re-running a failed release of the current version is
+fine). A
+dry run of a rehearsal tag `v<X>-pre.<N>` takes `module-v<X>` when it exists and
+otherwise the newest published module release, never `module-v<X>-pre.<N>` (a
+real run of such a tag is refused). Any other dry run takes
+`module-v<X>` when it exists; the module release of a version is cut after the
+dry runs, so it otherwise rehearses with the newest published
+module release and says so (see above). Two consequences:
 
-- A real `v<X>` requires a published `module-v<X>` pinned on `main`. A
-  version the module release skips (for example 2.5.1) gets no NuGet
-  release.
-- Because the pin is read from `main`, a real re-run of an older `v<X>`
-  after the pin has moved on fails at the pin check: restore the pin to
-  `module-v<X>` on `main` first, or rehearse it as a dry run.
+- A real `v<X>` requires a published `module-v<X>`. A version the module
+  release skips (for example 2.5.1) gets no NuGet release.
+- The step summary of `sidecar-pack` records the module tag, the sha256 of its
+  `SHA256SUMS` and of its `sidecar-pair.json`, and the commit the tag points
+  at: that is the release evidence for the sidecar inputs.
 
-To record the pin after the module release is published:
+To check a module release by hand (the same checks as the lane; add
+`SIDECAR_LIVE_TAG=module-v<X>` to run the self-test against the published
+release):
 
 ```bash
-gh release download module-v<X> --repo We-Amp/mod_pagespeed --dir sidecar \
-  -p SHA256SUMS -p SHA256SUMS.asc -p sidecar-pair.json \
-  -p 'pagespeed-sidecar-native-<X>-linux-*.tar.gz' -p 'mod_pagespeed-<X>.tar.gz'
-sha256sum sidecar/SHA256SUMS sidecar/sidecar-pair.json   # the two pinned digests
-# edit tools/ci/sidecar-pin.json, then:
-tools/ci/sidecar_fetch.sh verify tools/ci/sidecar-pin.json sidecar RELEASE-SIGNING-KEY.asc
+SIDECAR_LIVE_TAG=module-v<X> tools/ci/test_sidecar_fetch.sh
 ```
 
 ## NuGet publish rehearsal
@@ -480,11 +483,13 @@ Authenticode signature is present, not its chain or timestamp.
 
 ### Prerelease dry runs
 
-A dispatch dry run may name `v<X>-pre.<N>` (digits only, for example
-`v2.8.0-pre.1`) when `<X>` equals `VERSION.txt`. The packages carry the
+A dispatch dry run may name `v<X>-pre.<N>` (`<N>` digits without a
+leading zero, for example `v2.8.0-pre.1`) when `<X>` equals `VERSION.txt`. The packages carry the
 version `<X>-pre.<N>` and the Windows binaries are unsigned.
 
-Only a `v<X>.<Y>.<Z>` tag can take a real run. The ref guard step refuses
+The version step accepts only `v<X>.<Y>.<Z>` and `v<X>.<Y>.<Z>-pre.<N>`;
+build metadata and other suffixes are refused. Only a `v<X>.<Y>.<Z>` tag can
+take a real run. The ref guard step refuses
 every other `v*` tag (a prerelease, another suffix, build metadata) for a tag
 push and for a dispatch with `dry_run: false`, before it writes any output
 and before any later job runs. The jobs in the `release` environment also
@@ -496,14 +501,10 @@ fails when any of that is removed.
 
 In a dry run the sidecar packages want the module release `module-v<X>`
 of the base version (`module-${RELEASE_TAG%%-pre.*}`; a real run wants
-`module-<tag>`). When that is the release the sidecar comes from, the packages
-carry no note. Otherwise a `README-SIDECAR-PIN.txt` sits next to them and
-names the release used:
-
-- Today (before the sidecar change in #636) the sidecar comes from the module
-  release in `tools/ci/sidecar-pin.json`.
-- After #636 it comes from `module-v<X>` when that is published, and
-  otherwise from the newest published module release.
+`module-<tag>`). The sidecar step resolves it: `module-v<X>` when that is
+published, otherwise the newest published module release. When the sidecar
+comes from `module-v<X>` the packages carry no note; otherwise a
+`README-SIDECAR-PIN.txt` sits next to them and names the release used.
 
 The rehearsal with `expect_new: true` fails when the note is present, for a
 prerelease dry run as for any candidate. Until `module-v<X>` is published,
@@ -555,7 +556,7 @@ runners. Jobs pass files only as workflow artifacts:
 | `native-linux-x64`, `native-linux-arm64`, `native-osx-arm64` | the builds | `package` |
 | `native-win-x64-unsigned` | Windows build | `sign-windows`; `package` in a dry run |
 | `native-win-x64` | `sign-windows` | `package` in a real run |
-| `sidecar-nupkg-<sha>` (dry run with another pin: `sidecar-nupkg-<sha>-contains-module-v<pinned>`) | `sidecar-pack` | `package` |
+| `sidecar-nupkg-<sha>` (dry run with another module release: `sidecar-nupkg-<sha>-contains-module-v<used>`) | `sidecar-pack` | `package` |
 | `sidecar-test-results-<sha>` | `sidecar-pack` | kept for inspection |
 | `nupkg-<sha>` | `package` | `publish-nuget` |
 | `release-sums-<sha>` | `package` (real run) | `sign-checksums`, `attach-signature` |

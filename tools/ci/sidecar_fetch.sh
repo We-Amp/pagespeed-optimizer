@@ -3,35 +3,49 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# Fetches and verifies the sidecar inputs of a mod_pagespeed module release
-# under a committed pin, stages them for packing WeAmp.PageSpeed.Sidecar and
+# Fetches and verifies the sidecar inputs of a mod_pagespeed module release,
+# stages them for packing WeAmp.PageSpeed.Sidecar and
 # WeAmp.PageSpeed.Sidecar.NativeAssets.Linux, and checks the packed packages
-# (see docs/ci/release.md, "The sidecar pin"). Never "latest": the release is
-# named by the pinned tag and its bytes by the pinned digests, and every
-# managed and source input comes from that release's signed source tarball,
-# never from a branch checkout.
+# (see docs/ci/release.md, "The sidecar inputs"). Never "latest" in a real
+# run: the release is named by the release tag (v<X> takes module-v<X>), its
+# authenticity is the detached signature over SHA256SUMS by the release key
+# committed in this repository, and every managed and source input comes from
+# that release's signed source tarball, never from a branch checkout.
 #
 # Usage:
-#   tools/ci/sidecar_fetch.sh fetch  <pin.json> <out-dir> <public key file>
-#   tools/ci/sidecar_fetch.sh verify <pin.json> <dir>     <public key file>
-#   tools/ci/sidecar_fetch.sh stage  <pin.json> <dir>     <public key file> <work-dir>
+#   tools/ci/sidecar_fetch.sh resolve <v<X> release tag> <real|dry> [<VERSION.txt of main>]
+#   tools/ci/sidecar_fetch.sh fetch  <module tag> <out-dir> <public key file>
+#   tools/ci/sidecar_fetch.sh verify <module tag> <dir>     <public key file>
+#   tools/ci/sidecar_fetch.sh stage  <module tag> <dir>     <public key file> <work-dir>
 #   tools/ci/sidecar_fetch.sh check-packages <dir> <nupkg-dir> <version>
 #
+# resolve: prints the module tag to use: module-v<X> for the release tag v<X>.
+#         A rehearsal tag v<X>-pre.<N> (dry run only; a real run refuses it)
+#         has no module release of its own: it takes module-v<X> when that exists,
+#         else the newest published one.
+#         A real run always gets that tag (fetch then fails if the module
+#         release is not published), and only when the tag is the current
+#         version: <VERSION.txt of main> is then required and must hold <X>,
+#         so an older tag cannot be released again. A dry run, which happens before the module
+#         release of the version is cut, gets module-v<X> when it exists and
+#         otherwise the newest published module release (a rehearsal of the
+#         pack path only; the workflow labels it as such).
 # fetch:  downloads SHA256SUMS, SHA256SUMS.asc, sidecar-pair.json, the two
 #         pair tarballs and the source tarball mod_pagespeed-<version>.tar.gz
-#         of the pinned tag from the public module release
-#         (We-Amp/mod_pagespeed), into an empty <out-dir>, then runs verify. GH_READ_TOKEN, when set, is sent to the
-#         API endpoint only, against the anonymous rate limit.
+#         of the tag from the public module release (We-Amp/mod_pagespeed),
+#         into an empty <out-dir>, then runs verify. It also refuses when the
+#         release is a draft or a pre-release, when any of those assets was
+#         modified after the release was published, or when the tag no longer
+#         points at the commit the manifest says was built. GH_READ_TOKEN, when
+#         set, is sent to the API endpoint only, against the anonymous rate
+#         limit.
 # verify: refuses unless all of the following hold:
-#   - the pin names a module-v<version> tag, two sha256 digests and the
-#     release key fingerprint, which must equal the fingerprint pinned in
-#     tools/ci/release_checksums_sig.sh;
-#   - sha256(SHA256SUMS) is the pinned digest;
+#   - the tag is module-v<version>;
 #   - SHA256SUMS.asc is one good signature over SHA256SUMS by the release key,
-#     checked with release_checksums_sig.sh verify against <public key file>;
-#   - sha256(sidecar-pair.json) is the pinned digest, and SHA256SUMS lists it
-#     with that digest;
-#   - sidecar-pair.json names the pinned tag and version and exactly the RIDs
+#     checked with release_checksums_sig.sh verify (which pins the key
+#     fingerprint) against <public key file>;
+#   - SHA256SUMS lists sidecar-pair.json with its sha256;
+#   - sidecar-pair.json names the tag and version and exactly the RIDs
 #     linux-x64 and linux-arm64, and each tarball has the name, size and
 #     sha256 it gives, which SHA256SUMS lists too;
 #   - each pair tarball holds exactly its top directory and the files the
@@ -39,6 +53,8 @@
 #     the two executables are executable;
 #   - the source tarball has the sha256 SHA256SUMS lists for it;
 #   - <dir> holds exactly those six files.
+#   It prints the sha256 of SHA256SUMS and of sidecar-pair.json: the lane
+#   records them in the run's step summary as release evidence.
 # stage:  runs verify, then writes <work-dir>/aspnetcore: the aspnetcore/ tree
 #         of the source tarball (regular files and directories only), with the
 #         pair of each RID (nginx, ngx_pagespeed_module.so,
@@ -59,49 +75,27 @@ SIG="$HERE/release_checksums_sig.sh"
 REPO=We-Amp/mod_pagespeed
 FETCH_API=""
 
-# pin_field <pin> <key>
-pin_field() {
-  python3 -I -c 'import json,sys; v=json.load(open(sys.argv[1])).get(sys.argv[2], ""); print(v if isinstance(v, str) else "")' "$1" "$2"
-}
-
-# Reads and checks the pin; sets PIN_TAG, PIN_VERSION, PIN_SUMS, PIN_PAIR, PIN_FPR.
-read_pin() {
-  local pin="$1" want_fpr
-  [ -s "$pin" ] || die "the sidecar pin $pin is missing or empty"
-  PIN_TAG="$(pin_field "$pin" tag)"
-  PIN_SUMS="$(pin_field "$pin" sha256sums_sha256)"
-  PIN_PAIR="$(pin_field "$pin" sidecar_pair_sha256)"
-  PIN_FPR="$(pin_field "$pin" release_key_fingerprint)"
-  case "$PIN_TAG" in
-    PLACEHOLDER*|"") die "$pin has no module release tag: publish the module release first and record the pin" ;;
-  esac
+# Checks the module tag; sets PIN_TAG and PIN_VERSION.
+read_tag() {
+  PIN_TAG="$1"
   [[ "$PIN_TAG" =~ ^module-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] \
-    || die "$pin names tag '$PIN_TAG', not module-v<version>"
+    || die "'$PIN_TAG' is not a module-v<version> tag"
   PIN_VERSION="${PIN_TAG#module-v}"
-  [[ "$PIN_SUMS" =~ ^[0-9a-f]{64}$ ]] || die "$pin: sha256sums_sha256 is not a sha256 digest"
-  [[ "$PIN_PAIR" =~ ^[0-9a-f]{64}$ ]] || die "$pin: sidecar_pair_sha256 is not a sha256 digest"
-  want_fpr="$(sed -n 's/^PINNED_FPR=\([0-9A-F]\{40\}\)$/\1/p' "$SIG")"
-  [ -n "$want_fpr" ] || die "no PINNED_FPR in $SIG"
-  [ "$PIN_FPR" = "$want_fpr" ] \
-    || die "$pin pins release key '$PIN_FPR', but $SIG pins $want_fpr"
 }
 
 cmd_verify() {
-  [ $# -eq 3 ] || die "usage: $0 verify <pin.json> <dir> <public key file>"
-  local pin="$1" dir="$2" key="$3" got
-  read_pin "$pin"
+  [ $# -eq 3 ] || die "usage: $0 verify <module tag> <dir> <public key file>"
+  local dir="$2" key="$3"
+  read_tag "$1"
   [ -d "$dir" ] || die "$dir is not a directory"
   for f in SHA256SUMS SHA256SUMS.asc sidecar-pair.json; do
     [ -s "$dir/$f" ] || die "$dir/$f is missing or empty"
   done
-  got="$(python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$dir/SHA256SUMS")"
-  [ "$got" = "$PIN_SUMS" ] \
-    || die "SHA256SUMS of $PIN_TAG has sha256 $got, the pin says $PIN_SUMS"
   bash "$SIG" verify "$dir/SHA256SUMS" "$dir/SHA256SUMS.asc" "$key"
-  python3 -I - "$dir" "$PIN_TAG" "$PIN_VERSION" "$PIN_PAIR" <<'PY'
+  python3 -I - "$dir" "$PIN_TAG" "$PIN_VERSION" <<'PY'
 import hashlib, json, os, re, sys, tarfile
 
-directory, tag, version, pin_pair = sys.argv[1:5]
+directory, tag, version = sys.argv[1:4]
 RIDS = ("linux-x64", "linux-arm64")
 EXECUTABLES = ("nginx", "pagespeed-nginx-launch")
 SOURCE = "mod_pagespeed-%s.tar.gz" % version
@@ -136,8 +130,6 @@ with open(os.path.join(directory, "SHA256SUMS")) as fh:
 
 pair_path = os.path.join(directory, "sidecar-pair.json")
 pair_sha = sha256_file(pair_path)
-if pair_sha != pin_pair:
-    refuse("sidecar-pair.json has sha256 %s, the pin says %s" % (pair_sha, pin_pair))
 if sums.get("sidecar-pair.json") != pair_sha:
     refuse("SHA256SUMS does not list sidecar-pair.json with sha256 %s" % pair_sha)
 
@@ -146,7 +138,7 @@ with open(pair_path) as fh:
 if manifest.get("schema") != 1:
     refuse("sidecar-pair.json has schema %r, expected 1" % manifest.get("schema"))
 if manifest.get("tag") != tag or manifest.get("version") != version:
-    refuse("sidecar-pair.json names %r / %r, the pin %s / %s"
+    refuse("sidecar-pair.json names %r / %r, the tag %s / %s"
            % (manifest.get("tag"), manifest.get("version"), tag, version))
 rids = manifest.get("rids") or {}
 if set(rids) != set(RIDS):
@@ -203,15 +195,17 @@ present = set(os.listdir(directory))
 if present != expected:
     refuse("%s holds %s; expected exactly %s"
            % (directory, sorted(present), sorted(expected)))
+print("sidecar_fetch: SHA256SUMS sha256 %s" % sha256_file(os.path.join(directory, "SHA256SUMS")))
+print("sidecar_fetch: sidecar-pair.json sha256 %s" % pair_sha)
 print("sidecar_fetch: %s verified (nginx %s, glibc floor %s, source %s)"
       % (tag, manifest.get("nginx_version"), manifest.get("glibc_floor"), manifest.get("source_sha")))
 PY
 }
 
 cmd_fetch() {
-  [ $# -eq 3 ] || die "usage: $0 fetch <pin.json> <out-dir> <public key file>"
-  local pin="$1" out="$2" key="$3" auth=() name url
-  read_pin "$pin"
+  [ $# -eq 3 ] || die "usage: $0 fetch <module tag> <out-dir> <public key file>"
+  local out="$2" key="$3" auth=() name url
+  read_tag "$1"
   mkdir -p "$out"
   [ -z "$(ls -A "$out")" ] || die "$out is not empty"
   FETCH_API="$(mktemp)"
@@ -231,10 +225,10 @@ cmd_fetch() {
 import json, sys
 doc = json.load(open(sys.argv[1]))
 if doc.get("draft") or doc.get("prerelease"):
-    sys.exit("the pinned module release is a draft or a pre-release")
+    sys.exit("the module release is a draft or a pre-release")
 urls = [a["browser_download_url"] for a in doc.get("assets", []) if a.get("name") == sys.argv[2]]
 if len(urls) != 1:
-    sys.exit("the pinned module release has %d assets named %s" % (len(urls), sys.argv[2]))
+    sys.exit("the module release has %d assets named %s" % (len(urls), sys.argv[2]))
 print(urls[0])
 PY
 )" || die "cannot resolve $name in $REPO $PIN_TAG"
@@ -245,14 +239,97 @@ PY
     # Anonymous: the release is public, and the token goes to the API only.
     curl -fsSL --retry 5 --retry-all-errors -o "$out/$name" "$url"
   done
+  # No fetched asset may have been touched after the release was published,
+  # and the tag must still point at the commit the manifest says was built.
+  python3 -I - "$FETCH_API" SHA256SUMS SHA256SUMS.asc sidecar-pair.json \
+      "pagespeed-sidecar-native-${PIN_VERSION}-linux-x64.tar.gz" \
+      "pagespeed-sidecar-native-${PIN_VERSION}-linux-arm64.tar.gz" \
+      "mod_pagespeed-${PIN_VERSION}.tar.gz" <<'PY' || die "the module release $PIN_TAG changed after it was published"
+import json, re, sys
+doc = json.load(open(sys.argv[1]))
+STAMP = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+pub = doc.get("published_at")
+if not isinstance(pub, str) or not STAMP.match(pub):
+    sys.exit("the module release has no usable published_at")
+for name in sys.argv[2:]:
+    found = [a for a in doc.get("assets", []) if a.get("name") == name]
+    if len(found) != 1:
+        sys.exit("the module release has %d assets named %s" % (len(found), name))
+    upd = found[0].get("updated_at")
+    if not isinstance(upd, str) or not STAMP.match(upd):
+        sys.exit("%s has no usable updated_at" % name)
+    if upd > pub:
+        sys.exit("%s was modified after publication (%s > %s)" % (name, upd, pub))
+PY
   rm -f "$FETCH_API"
-  cmd_verify "$pin" "$out" "$key"
+  cmd_verify "$PIN_TAG" "$out" "$key"
+  want_sha="$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1])).get("source_sha", ""))' "$out/sidecar-pair.json")"
+  [[ "$want_sha" =~ ^[0-9a-f]{40}$ ]] || die "sidecar-pair.json has no source_sha"
+  got_sha="$(peel_tag "$PIN_TAG" "${auth[@]+"${auth[@]}"}")" || die "cannot resolve the commit of $PIN_TAG in $REPO"
+  [ "$got_sha" = "$want_sha" ] \
+    || die "$PIN_TAG points at $got_sha now, the signed manifest was built from $want_sha"
+  echo "sidecar_fetch: $PIN_TAG still points at $want_sha"
+}
+
+# peel_tag <module tag> [curl args]: prints the commit a tag of the module repo points at.
+peel_tag() {
+  local tag="$1" ref obj type sha
+  shift
+  ref="$(curl -fsSL --retry 5 --retry-all-errors -H "Accept: application/vnd.github+json" "$@" \
+    "https://api.github.com/repos/${REPO}/git/ref/tags/${tag}")" || return 1
+  read -r type sha < <(printf '%s' "$ref" | python3 -I -c 'import json,sys; o=json.load(sys.stdin)["object"]; print(o["type"], o["sha"])')
+  if [ "$type" = tag ]; then
+    obj="$(curl -fsSL --retry 5 --retry-all-errors -H "Accept: application/vnd.github+json" "$@" \
+      "https://api.github.com/repos/${REPO}/git/tags/${sha}")" || return 1
+    read -r type sha < <(printf '%s' "$obj" | python3 -I -c 'import json,sys; o=json.load(sys.stdin)["object"]; print(o["type"], o["sha"])')
+  fi
+  [ "$type" = commit ] || return 1
+  printf '%s\n' "$sha"
+}
+
+cmd_resolve() {
+  [ $# -ge 2 ] && [ $# -le 3 ] || die "usage: $0 resolve <v<X> release tag> <real|dry> [<VERSION.txt of main>]"
+  local rel="$1" mode="$2" vfile="${3:-}" want auth=() code latest cur
+  [[ "$rel" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-pre\.[0-9]+)?$ ]] || die "'$rel' is not a v<version> or v<version>-pre.<N> release tag"
+  case "$mode" in real|dry) ;; *) die "mode is real or dry, not '$mode'" ;; esac
+  want="module-$rel"
+  if [[ "$rel" == *-pre.* ]]; then
+    # A rehearsal tag has no module release of its own: a dry run looks up
+    # the module release of its base version and otherwise takes the newest
+    # published one (never module-v<X>-pre.<N>); a real run is refused.
+    [ "$mode" = dry ] || die "a real run cannot release the rehearsal tag $rel"
+    want="module-${rel%%-pre.*}"
+  fi
+  if [ "$mode" = real ]; then
+    [ -s "$vfile" ] || die "a real run needs the VERSION.txt of main to check the tag against"
+    cur="$(tr -d '[:space:]' < "$vfile")"
+    [ "$cur" = "${rel#v}" ] || die "a real run releases the current version ($cur on main), not $rel"
+    printf '%s\n' "$want"
+    return 0
+  fi
+  if [ -n "${GH_READ_TOKEN:-}" ]; then
+    auth=(-H "Authorization: Bearer ${GH_READ_TOKEN}")
+  fi
+  code="$(curl -sSL --retry 5 --retry-all-errors -o /dev/null -w '%{http_code}' ${auth[@]+"${auth[@]}"} \
+    "https://api.github.com/repos/${REPO}/releases/tags/${want}")" || die "cannot reach the module release API"
+  case "$code" in
+    200) printf '%s\n' "$want" ;;
+    404)
+      latest="$(curl -fsSL --retry 5 --retry-all-errors -H "Accept: application/vnd.github+json" ${auth[@]+"${auth[@]}"} \
+        "https://api.github.com/repos/${REPO}/releases/latest" \
+        | python3 -I -c 'import json,sys; print(json.load(sys.stdin).get("tag_name", ""))')" \
+        || die "cannot find a published module release to rehearse with"
+      [[ "$latest" =~ ^module-v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "the latest module release '$latest' is not a module-v<version> tag"
+      printf '%s\n' "$latest"
+      ;;
+    *) die "module release API answered HTTP $code for $want" ;;
+  esac
 }
 
 cmd_stage() {
-  [ $# -eq 4 ] || die "usage: $0 stage <pin.json> <dir> <public key file> <work-dir>"
-  local pin="$1" dir="$2" key="$3" work="$4"
-  cmd_verify "$pin" "$dir" "$key"
+  [ $# -eq 4 ] || die "usage: $0 stage <module tag> <dir> <public key file> <work-dir>"
+  local dir="$2" key="$3" work="$4"
+  cmd_verify "$1" "$dir" "$key"
   mkdir -p "$work"
   [ ! -e "$work/aspnetcore" ] || die "$work/aspnetcore already exists"
   python3 -I - "$dir" "$PIN_VERSION" "$work" <<'PY'
@@ -415,9 +492,10 @@ PY
 }
 
 case "${1:-}" in
+  resolve) shift; cmd_resolve "$@" ;;
   fetch) shift; cmd_fetch "$@" ;;
   verify) shift; cmd_verify "$@" ;;
   stage) shift; cmd_stage "$@" ;;
   check-packages) shift; cmd_check_packages "$@" ;;
-  *) die "usage: $0 fetch|verify|stage|check-packages ..." ;;
+  *) die "usage: $0 resolve|fetch|verify|stage|check-packages ..." ;;
 esac

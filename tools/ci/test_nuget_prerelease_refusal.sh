@@ -100,23 +100,26 @@ for need in ("event-guard", "ref-guard", "attach-signature") + ENV:
     if need not in jobs: errs.append("job %s not found" % need)
 if "event-guard" not in jobs.get("ref-guard", {"needs": []})["needs"]: errs.append("ref-guard does not need event-guard")
 envjobs = sorted(j for j in jobs if jobs[j]["env"])
-for want in ENV:
-    if want not in envjobs: errs.append("%s no longer names an environment (test needs updating)" % want)
 for j in jobs:
     if j in ("event-guard", "ref-guard"): continue
     if "ref-guard" not in closure(j): errs.append("%s does not depend on ref-guard" % j)
     if "always()" in jobs[j]["if"]: errs.append("%s: its if: uses always()" % j)
-need_if = {
-    "sign-windows": ["needs.ref-guard.outputs.real == 'true'", "!cancelled()"],
-    "package": ["needs.ref-guard.outputs.real == 'true'", "needs.sign-windows.result == 'success'", "!cancelled()"],
-    "sign-checksums": ["needs.package.result == 'success'"],
-    "attach-signature": ["needs.sign-checksums.result == 'success'"],
-    "publish-nuget": ["needs.package.result == 'success'", "needs.attach-signature.result == 'success'"],
-    "promote-release": ["needs.publish-nuget.result == 'success'"],
+# The whole condition of every job that runs in the release environment (and of
+# attach-signature, which feeds publish-nuget), whitespace-collapsed. A change
+# to any of them, including an added || term, must be reviewed together with
+# this test.
+EXPECT_IF = {
+    "sign-windows": "${{ !cancelled() && needs.ref-guard.outputs.real == 'true' && (needs.windows-release-build.result == 'success' || needs.windows-release-build-hosted.result == 'success') }}",
+    "package": "${{ !cancelled() && needs.ref-guard.outputs.real == 'true' && needs.ci-release-gate.result == 'success' && needs.security-gates.result == 'success' && needs.sidecar-pack.result == 'success' && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success') && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success') && needs.sign-windows.result == 'success' && needs.macos-release-build.result == 'success' && needs.macos-release-tests.result == 'success' && needs.linux-arm64-release-build.result == 'success' && needs.linux-arm64-release-tests.result == 'success' }}",
+    "sign-checksums": "${{ !cancelled() && needs.package.result == 'success' }}",
+    "attach-signature": "${{ !cancelled() && needs.sign-checksums.result == 'success' }}",
+    "publish-nuget": "${{ !cancelled() && needs.package.result == 'success' && needs.attach-signature.result == 'success' }}",
+    "promote-release": "${{ !cancelled() && needs.publish-nuget.result == 'success' && inputs.auto_promote == true }}",
 }
-for j, parts in need_if.items():
-    for part in parts:
-        if part not in jobs.get(j, {"if": ""})["if"]: errs.append("%s: its if: lacks %s" % (j, part))
+if envjobs != sorted(ENV): errs.append("the jobs naming an environment are %s, expected exactly %s" % (envjobs, sorted(ENV)))
+for j, want in EXPECT_IF.items():
+    got = re.sub(r"\s+", " ", re.sub(r"^\s*if:\s*(>-\s*)?", "", jobs.get(j, {"if": ""})["if"])).strip()
+    if got != want: errs.append("%s: its if: is %r, expected %r" % (j, got, want))
 for j in ("vendor", "vendor-hosted"):  # the version step reads REAL_RUN
     if "REAL_RUN: ${{ needs.ref-guard.outputs.real }}" not in jobs.get(j, {"text": ""})["text"]: errs.append("%s: REAL_RUN is not passed to the job" % j)
 c = open(caller).read()
@@ -184,14 +187,46 @@ versions() {
     [ "$got" = "$want" ] || { echo "$desc: wanted $want, got $got"; bad=1; }
   }
   tryv ok v2.8.0-pre.1 false 2.8.0 'dry run of -pre.1, VERSION.txt is the base'
+  tryv ok v2.8.0-pre.0 false 2.8.0 'dry run of -pre.0'
+  tryv ok v2.8.0-pre.10 false 2.8.0 'dry run of -pre.10'
   tryv no v2.8.0-pre.1 false 2.7.0 'dry run of -pre.1, VERSION.txt is older'
   tryv no v2.8.0-pre.1 true  2.8.0 'real run of -pre.1'
   tryv no v2.8.0-rc.1  false 2.8.0 'dry run of -rc.1'
   tryv no v2.8.0-pre.1x false 2.8.0 'dry run of -pre.1x'
   tryv no v2.8.0-pre.1-pre.2 false 2.8.0 'dry run of -pre.1-pre.2'
+  tryv no v2.8.0-pre.01 false 2.8.0 'dry run of -pre.01'
   tryv no v2.8.0-pre.  false 2.8.0 'dry run of -pre. with no number'
+  tryv no v2.8.0+pre.1 false 2.8.0 'dry run of +pre.1'
+  tryv no v2.8.0+pre.1 false '2.8.0+pre.1' 'dry run of +pre.1 whose VERSION.txt names it'
+  tryv no v2.8.0+b     true  2.8.0 'real run with build metadata'
+  tryv no v2.8.0+b     false 2.8.0 'dry run with build metadata'
   tryv ok v2.8.0       false 2.8.0 'dry run of a release tag'
+  tryv ok v2.8.0       true  2.8.0 'real run of a release tag'
   tryv no v2.8.0       true  2.7.0 'real run, VERSION.txt differs'
+  [ "$bad" = 0 ]
+}
+
+# wants <root>: the sidecar step's WANT rule (stubbed resolve; no network).
+wants() {
+  local root="$1" f="$W/pin.sh" bad=0
+  step_script "$root/$LANE" "The module release of this tag" > "$f" 2>/dev/null
+  [ -s "$f" ] || { echo "sidecar pin step not found"; return 1; }
+  tryw() { # tryw <want ok|no> <note yes|no> <tag> <real> <resolved module tag> <desc>
+    local want="$1" note="$2" tag="$3" real="$4" pin="$5" desc="$6" got has=no d="$W/pinrun"
+    rm -rf "$d"; mkdir -p "$d/trust/tools/ci" "$d/tmp"
+    printf '#!/bin/bash\necho "%s"\n' "$pin" > "$d/trust/tools/ci/sidecar_fetch.sh"
+    : > "$d/env"; : > "$d/out"; : > "$d/sum"
+    if (cd "$d" && RELEASE_TAG="$tag" REAL_RUN="$real" SHORT_SHA=abcdef0 GITHUB_ENV="$d/env" GITHUB_OUTPUT="$d/out" GITHUB_STEP_SUMMARY="$d/sum" RUNNER_TEMP="$d/tmp" GH_READ_TOKEN=x bash "$f" >/dev/null 2>&1); then got=ok; else got=no; fi
+    [ -f "$d/tmp/sidecar-nupkg/README-SIDECAR-PIN.txt" ] && has=yes
+    if [ "$got" != "$want" ]; then echo "$desc: wanted $want, got $got"; bad=1; return; fi
+    if [ "$want" = ok ] && [ "$has" != "$note" ]; then echo "$desc: note $has, expected $note"; bad=1; fi
+  }
+  tryw ok no  v2.8.0-pre.1 false module-v2.8.0 'pre dry run, module-v<X> is the source: no note'
+  tryw ok yes v2.8.0-pre.1 false module-v2.7.0 'pre dry run, another release is the source: note'
+  tryw ok no  v2.8.0       false module-v2.8.0 'dry run, module-v<X> is the source: no note'
+  tryw ok yes v2.8.0       false module-v2.7.0 'dry run, another release: note'
+  tryw ok no  v2.8.0       true  module-v2.8.0 'real run, module-v<X>'
+  tryw no no  v2.8.0       true  module-v2.7.0 'real run, another release'
   [ "$bad" = 0 ]
 }
 
@@ -199,6 +234,7 @@ all() { local root="$1" n=0 o
   o="$(modes "$root")" || { echo "$o"; n=1; }
   o="$(structure "$root" 2>/dev/null)" || { echo "$o"; n=1; }
   o="$(versions "$root")" || { echo "$o"; n=1; }
+  o="$(wants "$root")" || { echo "$o"; n=1; }
   return $n; }
 
 fail=0
@@ -240,9 +276,18 @@ mutate 'publish-nuget no longer needs package to succeed' $LANE "setif(s, 'publi
 mutate 'security-gates no longer needs ref-guard' $LANE "s.replace('  security-gates:\n    name: Security Gates (SBOM + Grype + VEX)\n    needs: ref-guard', '  security-gates:\n    name: Security Gates (SBOM + Grype + VEX)\n    needs: event-guard')"
 mutate 'publish-nuget needs nothing' $LANE "s.replace('    needs: [ref-guard, package, attach-signature]', '    needs: []')"
 mutate 'an environment job without ref-guard' $LANE "s + '\n  extra:\n    runs-on: ubuntu-latest\n    environment: release\n    steps: []\n'"
-mutate 'the dry-run base rule removed' $LANE "s.replace('=~ ^[0-9]+\\.[0-9]+\\.[0-9]+-pre\\.[0-9]+\$ ]]; then', '== NEVER ]]; then')"
-mutate 'the base rule widened to -pre*' $LANE "s.replace('-pre\\.[0-9]+\$ ]]; then', '-pre.*\$ ]]; then')"
-mutate 'the base rule applied to real runs too' $LANE "s.replace('if [ \"\$REAL_RUN\" != true ]; then\n            if', 'if true; then\n            if')"
+mutate 'the dry-run base rule removed' $LANE "s.replace('EXPECTED=\"\${EXPECTED%%-pre.*}\"', ':')"
+mutate 'the tag regex widened to any -pre suffix' $LANE "s.replace('(-pre\\\\.(0|[1-9][0-9]*))?\$ ]]; then\n            echo \"::error::release tag', '(-pre\\\\..*)?\$ ]]; then\n            echo \"::error::release tag')"
+mutate '-pre.01 allowed' $LANE "s.replace('(0|[1-9][0-9]*)', '[0-9]+')"
+mutate 'build metadata allowed in the tag' $LANE "s.replace('^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+(-pre', '^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+(\\\\+[0-9a-z.]+)?(-pre')"
+mutate 'the tag regex removed' $LANE "s.replace('if ! [[ \"\$RELEASE_TAG\" =~', 'if false \&\& ! [[ \"\$RELEASE_TAG\" =~')"
+
+mutate 'the base rule applied to real runs too' $LANE "s.replace('if [ \"\$REAL_RUN\" != true ]; then\n            EXPECTED', 'if true; then\n            EXPECTED')"
+mutate 'the WANT rule removed' $LANE "s.replace('if [ \"\$REAL_RUN\" != true ]; then WANT=\"module-\${RELEASE_TAG%%-pre.*}\"; fi', ':')"
+mutate 'a || term added to the package condition' $LANE "setif(s, 'package', \"\${{ !cancelled() || needs.ref-guard.outputs.real == 'true' }}\")"
+mutate '|| failure() added to publish-nuget' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace(\"needs.attach-signature.result == 'success' }}\", \"needs.attach-signature.result == 'success' || failure() }}\", 1))"
+mutate 'a second environment job named' $LANE "jobedit(s, 'attach-signature', lambda t: t.replace('    runs-on: ubuntu-latest', '    environment: release\n    runs-on: ubuntu-latest', 1))"
+mutate 'an environment job renamed away' $LANE "jobedit(s, 'promote-release', lambda t: t.replace('    environment: release\n', '', 1))"
 mutate 'REAL_RUN dropped from vendor' $LANE "jobedit(s, 'vendor', lambda t: t.replace('      REAL_RUN: \${{ needs.ref-guard.outputs.real }}\n', '', 1))"
 mutate 'REAL_RUN dropped from vendor-hosted' $LANE "jobedit(s, 'vendor-hosted', lambda t: t.replace('      REAL_RUN: \${{ needs.ref-guard.outputs.real }}\n', '', 1))"
 mutate 'another workflow calls the lane' .github/workflows/website.yml "s + '\n  x:\n    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-nuget.yml@main\n'"
