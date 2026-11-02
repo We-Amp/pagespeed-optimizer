@@ -5,3 +5,4 @@
 /.github/workflows/release.yml @oschaaf
 /.github/workflows/pipeline-release-optimizer.yml @oschaaf
 /.github/workflows/pipeline-release-nuget.yml @oschaaf
+/tools/ci/nupkg_checks.sh @oschaaf
