@@ -43,8 +43,10 @@ environment, so it needs no approval.
   `nupkg-<sha>`). The Windows binaries in a dry run are unsigned, because
   signing happens only inside the environment. The tag must exist and be
   reachable from `main`: the ref guard is enforced on NuGet dry runs, so the
-  first dry run needs an existing `v*` tag (pushing one starts a real run,
-  which waits at its first environment job for approval).
+  first dry run needs an existing `v*` tag (pushing a release tag starts a
+  real run, which waits at its first environment job for approval; pushing a
+  prerelease tag `v<X>-pre.<N>` starts a run that stops at the ref guard, and
+  the tag then exists for dispatch dry runs).
 
 **Real run.** Requires the tag to exist (the lanes never create tags) and to
 pass the ref guard, then publishes from jobs inside the `release`
@@ -73,7 +75,8 @@ Both lanes hold the tag to `VERSION.txt` of the commit they build, the
 number the worker reports:
 
 - NuGet lane: `v<X>` must equal `VERSION.txt` (inline step in the `vendor`
-  job).
+  job). A dry run of `v<X>-pre.<N>` is held to `<X>`; a prerelease tag is
+  never released (see "Prerelease dry runs").
 - Optimizer lane: from 2.5.0 on, `optimizer-v<X>` must equal `VERSION.txt`
   (`tools/ci/check_optimizer_tag_version.sh`, in the `version` job, run from
   `main`; self-test in `pipeline-pr.yml`). The host packages up to
@@ -420,6 +423,93 @@ release):
 ```bash
 SIDECAR_LIVE_TAG=module-v<X> tools/ci/test_sidecar_fetch.sh
 ```
+
+## NuGet publish rehearsal
+
+`publish-nuget` is the one step of the NuGet lane that cannot be undone: a
+pushed version can be unlisted, never removed or reused. The `NuGet
+rehearsal` workflow runs everything the push relies on, except the push, on
+the packages a dry run produced.
+
+Dispatch it with the `run_id` of the Release dry run (or `release_tag` of a
+published release), the full `sha` the packages must be built from, the
+`version` they must carry, and `windows_binaries: unsigned` for a dry run.
+It requires the run to have concluded `success`, to have run that `sha`, and
+the artifact to be `nupkg-<first 7 of sha>`.
+
+Checks, made by `tools/ci/nupkg_checks.sh`, the script the `package` job
+also uses (the three checks `package` ran inline moved there with the same
+logic):
+
+- seven packages: exactly the seven ids and file names, nuspec id and
+  version, internal dependencies pinned to the version, license, icon and
+  readme present, nuget.org's size limit, the sidecar pair; every native
+  binary present and not empty; `BUILD_INFO.json` and the repository commit
+  equal to `sha`;
+- source-control metadata and the embedded `/console/` SPA;
+- signatures: a NuGet-signed package is verified with `dotnet nuget verify`;
+  an unsigned one is reported (nuget.org signs on ingest and accepts unsigned
+  packages). The Windows binaries are checked for an Authenticode
+  certificate table (at least one must exist);
+- a push of all seven to a loopback HTTP feed that answers like nuget.org
+  (201 for a new version, 409 for a duplicate, 400 for something that is not
+  a package), twice, with `--skip-duplicate`; a duplicate without the flag
+  must fail with the 409 and a truncated file with the 400; then a consumer
+  project restores AspNetCore and Sidecar from that feed and the restored
+  files must equal the pushed ones byte for byte (third-party dependencies
+  come from nuget.org);
+- a read-only look at nuget.org: for each id and version, whether it exists.
+  An answer that is not a JSON object with a `versions` array of strings
+  fails, and so does a 404 for an id that is not named in `first_packages`.
+  With `expect_new` (the default) an existing version fails; it also makes a
+  `README-SIDECAR-PIN.txt` fatal. `release_tag` input is already published,
+  so it needs `expect_new: false`.
+
+No job names an environment, nothing reads a secret (the token is
+`github.token`, read-only), no job asks for `id-token`, and nuget.org is
+only read. `tools/ci/test_nuget_rehearsal_keyless.sh` asserts that on every
+pull request and proves each assertion against a broken copy.
+
+**What it cannot prove.** nuget.org has no dry-run API. The rehearsal does not
+show that: the Trusted Publishing policy matches (repository, workflow file,
+environment); the account owns the `WeAmp.*` prefix and every id; the server
+accepts the packages (validation, scanning, repository signing, indexing); a
+version it reports as new is still free at push time; nuget.org answers a
+duplicate with a 409 as the loopback feed does (the client's reaction to a
+409 is what is rehearsed). A real run packs again, with signed Windows
+binaries, so the bytes rehearsed from a dry run are not the bytes pushed:
+the rehearsal covers the structure, not the signed files. It checks that an
+Authenticode signature is present, not its chain or timestamp.
+
+### Prerelease dry runs
+
+A dispatch dry run may name `v<X>-pre.<N>` (`<N>` digits without a
+leading zero, for example `v2.8.0-pre.1`) when `<X>` equals `VERSION.txt`. The packages carry the
+version `<X>-pre.<N>` and the Windows binaries are unsigned.
+
+The version step accepts only `v<X>.<Y>.<Z>` and `v<X>.<Y>.<Z>-pre.<N>`;
+build metadata and other suffixes are refused. Only a `v<X>.<Y>.<Z>` tag can
+take a real run. The ref guard step refuses
+every other `v*` tag (a prerelease, another suffix, build metadata) for a tag
+push and for a dispatch with `dry_run: false`, before it writes any output
+and before any later job runs. The jobs in the `release` environment also
+need `real == 'true'` (`sign-windows`, `package`) or the success of the job
+before them. `tools/ci/test_nuget_prerelease_refusal.sh` runs the guard step
+for each case, reads the `if` of each of those jobs, checks that no other
+workflow has a tag trigger, names an environment or pushes to nuget.org, and
+fails when any of that is removed.
+
+In a dry run the sidecar packages want the module release `module-v<X>`
+of the base version (`module-${RELEASE_TAG%%-pre.*}`; a real run wants
+`module-<tag>`). The sidecar step resolves it: `module-v<X>` when that is
+published, otherwise the newest published module release. When the sidecar
+comes from `module-v<X>` the packages carry no note; otherwise a
+`README-SIDECAR-PIN.txt` sits next to them and names the release used.
+
+The rehearsal with `expect_new: true` fails when the note is present, for a
+prerelease dry run as for any candidate. Until `module-v<X>` is published,
+run it with `expect_new: false` (the nuget.org check then only reports and
+the note only warns).
 
 ## nuget.org Trusted Publishing (owner steps)
 

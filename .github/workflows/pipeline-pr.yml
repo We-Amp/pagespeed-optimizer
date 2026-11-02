@@ -423,6 +423,12 @@ jobs:
         run: tools/ci/test_bisect_job.sh
       - name: Release checksum signature self-test
         run: tools/ci/test_release_checksums_sig.sh
+      - name: NuGet package checks self-test
+        run: tools/ci/test_nupkg_checks.sh
+      - name: NuGet rehearsal is keyless
+        run: tools/ci/test_nuget_rehearsal_keyless.sh
+      - name: NuGet prerelease tags are dry-run only
+        run: tools/ci/test_nuget_prerelease_refusal.sh
       - name: Sidecar inputs fetch and verify self-test
         run: tools/ci/test_sidecar_fetch.sh
       - name: Release tag version guard self-test
