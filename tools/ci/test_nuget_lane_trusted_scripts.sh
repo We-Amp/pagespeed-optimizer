@@ -37,7 +37,13 @@ for l in uses:
 m = re.search(r"- name: Checkout main \(package checks\)\n\s+uses: actions/checkout@[0-9a-f]{40}[^\n]*\n\s+with:\n\s+ref: main\n\s+path: trust\n\s+sparse-checkout: \|\n\s+tools/ci/nupkg_checks\.sh\n\s+sparse-checkout-cone-mode: false\n\s+persist-credentials: false\n", code)
 if not m: errs.append("the package steps do not check out main into trust/ (sparse, ref: main, persist-credentials: false)")
 elif m.start() > code.index("nupkg_checks.sh"): errs.append("the trusted checkout comes after the first use")
-if m and "&package-steps" not in code[:m.start()][-3000:]: errs.append("the trusted checkout is not part of the shared package steps")
+if m:
+    a = code.find("steps: &package-steps")
+    nxt = re.search(r"\n  [A-Za-z_][\w-]*:\n", code[a:]) if a >= 0 else None
+    end = a + nxt.start() if nxt else len(code)
+    if not (0 <= a < m.start() < end): errs.append("the trusted checkout is not part of the shared package steps")
+    p = code.find("- name: Pack NuGet packages", a if a >= 0 else 0)
+    if p < 0 or not (p < m.start()): errs.append("the trusted checkout comes before the steps that run the released tree's code")
 print("\n".join(errs)); sys.exit(1 if errs else 0)
 PY
 }
@@ -110,6 +116,7 @@ mutate 'one step calls the script from the tag tree' "s.replace('\"\${GITHUB_WOR
 mutate 'all steps call the script from the tag tree' "s.replace('\${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh', '\${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh')"
 mutate 'a relative tag-tree call' "s.replace('\"\${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh\" console-spa', 'tools/ci/nupkg_checks.sh console-spa')"
 mutate 'the trusted checkout removed' "s.replace('      - name: Checkout main (package checks)\n', '      - name: Something else\n')"
+mutate 'the trusted checkout moved before the released tree runs' "(lambda b: s.replace(b, '', 1).replace('      - name: Ensure .NET 10 SDK', b + '      - name: Ensure .NET 10 SDK', 1))(s[s.index('      # The package checks come from main'):s.index('      - name: Expect seven packages')])"
 mutate 'the trusted checkout takes the release ref' "s.replace('          ref: main\n          path: trust\n          sparse-checkout: |\n            tools/ci/nupkg_checks.sh', '          ref: \${{ needs.ref-guard.outputs.sha }}\n          path: trust\n          sparse-checkout: |\n            tools/ci/nupkg_checks.sh')"
-mutate 'the trusted checkout persists credentials' "s.replace('          sparse-checkout-cone-mode: false\n          persist-credentials: false\n\n      - name: Ensure .NET 10 SDK\n        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0\n        with:\n          dotnet-version: 10.0.x\n\n      - name: Download linux-x64', '          sparse-checkout-cone-mode: false\n\n      - name: Ensure .NET 10 SDK\n        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0\n        with:\n          dotnet-version: 10.0.x\n\n      - name: Download linux-x64')"
+mutate 'the trusted checkout persists credentials' "s.replace('          sparse-checkout-cone-mode: false\n          persist-credentials: false\n\n      - name: Expect seven packages', '          sparse-checkout-cone-mode: false\n\n      - name: Expect seven packages')"
 if [ "$fail" = 0 ]; then echo PASS; else echo FAILED; exit 1; fi
