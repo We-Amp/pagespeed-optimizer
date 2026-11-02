@@ -23,6 +23,9 @@ import sys
 
 # script basename -> reason it is not run by any workflow
 ALLOW_UNREGISTERED = {
+    "test_nupkg_checks.sh": "held only until the next commit removes these tests with the workflow they check",
+    "test_nuget_prerelease_refusal.sh": "held only until the next commit removes these tests with the workflow they check",
+    "test_nuget_rehearsal_keyless.sh": "held only until the next commit removes these tests with the workflow they check",
     "test_deployment_smoke.sh": "quick-start smoke against published images; to be registered in a nightly or after-publish job",
 }
 
