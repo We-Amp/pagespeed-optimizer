@@ -75,7 +75,7 @@ jobs, cur, injobs = {}, None, False
 for l in text:
     if l == "jobs:": injobs = True; continue
     if not injobs: continue
-    m = re.match(r"^  ([A-Za-z_][A-Za-z0-9_-]*):\s*(#.*)?$", l)
+    m = re.match(r"^  [\"']?([A-Za-z_][A-Za-z0-9_-]*)[\"']?:\s*(#.*)?$", l)
     if m: cur = m.group(1); jobs[cur] = {"needs": [], "env": False, "if": "", "text": ""}; continue
     if cur is None: continue
     jobs[cur]["text"] += l + "\n"
@@ -137,6 +137,11 @@ ALLOWED_ANCHORS = {"package-steps", "package-env"}
 for j in ENV:
     for m in re.finditer(r"^    [A-Za-z_][A-Za-z0-9_-]*:\s*[&*]([A-Za-z0-9_-]+)", jobs.get(j, {"text": ""})["text"], re.M):
         if j == "publish-nuget" or m.group(1) not in ALLOWED_ANCHORS: errs.append("%s: uses the YAML anchor or alias %s" % (j, m.group(1)))
+# publish-nuget has no YAML anchor, alias or merge key anywhere (step-level and
+# scalar-level included): nothing it runs can be defined once and reused elsewhere.
+ANCHOR = re.compile(r"^\s*(-\s+)?([\w-]+:\s*)?(<<:\s*)?[&*][A-Za-z_][\w-]*(\s|$)", re.M)
+for m in ANCHOR.finditer(jobs.get("publish-nuget", {"text": ""})["text"]):
+    errs.append("publish-nuget: a YAML anchor, alias or merge key: %s" % m.group(0).strip())
 # every environment job names exactly the release environment
 for j in ENV:
     if not re.search(r"^    environment:\s*release\s*(#.*)?$", jobs.get(j, {"text": ""})["text"], re.M): errs.append("%s: its environment is not exactly `release`" % j)
@@ -364,5 +369,9 @@ mutate 'a Nuget Push in mixed case in another job' $LANE "jobedit(s, 'security-g
 mutate 'an anchor on the steps of publish-nuget' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace('    steps:', '    steps: &pub', 1)) + '\\n  extra:\\n    needs: ref-guard\\n    runs-on: ubuntu-latest\\n    steps: *pub\\n'"
 mutate 'a step with if: as its first key on the guard' $LANE "s.replace('      - id: guard\\n', '      - if: false\\n        id: guard\\n')"
 mutate 'a step with continue-on-error as its first key' $LANE "s.replace('      - id: guard\\n', '      - continue-on-error: true\\n        id: guard\\n')"
+mutate 'an anchor on the push step with an alias in a new job' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace('      - name: Push packages to nuget.org', '      - &pushstep\\n        name: Push packages to nuget.org', 1)) + '\\n  extra:\\n    needs: ref-guard\\n    runs-on: ubuntu-latest\\n    steps:\\n      - *pushstep\\n'"
+mutate 'an anchor on the push command with an alias in a new job' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace('        run: |\\n          set -euo pipefail\\n          for pkg', '        run: &r |\\n          set -euo pipefail\\n          for pkg', 1)) + '\\n  extra:\\n    needs: ref-guard\\n    runs-on: ubuntu-latest\\n    steps:\\n      - run: *r\\n'"
+mutate 'a quoted job name after publish-nuget' $LANE "jobedit(s, 'publish-nuget', lambda t: t + '\\n  \\x22extra\\x22:\\n    needs: ref-guard\\n    runs-on: ubuntu-latest\\n    steps:\\n      - run: dotnet nuget push x.nupkg\\n')"
+mutate 'a single-quoted job name after publish-nuget' $LANE "jobedit(s, 'publish-nuget', lambda t: t + \"\\n  'extra':\\n    needs: ref-guard\\n    runs-on: ubuntu-latest\\n    steps:\\n      - run: dotnet nuget push x.nupkg\\n\")"
 MUT_PERMIT=1 mutate 'a trailing comment on an environment line' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace('    environment: release', '    environment: release # the protected environment', 1))"
 [ "$fail" = 0 ] && echo PASS || { echo FAILED; exit 1; }
