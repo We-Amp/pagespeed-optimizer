@@ -120,6 +120,27 @@ if envjobs != sorted(ENV): errs.append("the jobs naming an environment are %s, e
 for j, want in EXPECT_IF.items():
     got = re.sub(r"\s+", " ", re.sub(r"^\s*if:\s*(>-\s*)?", "", jobs.get(j, {"if": ""})["if"])).strip()
     if got != want: errs.append("%s: its if: is %r, expected %r" % (j, got, want))
+# nuget push and NuGet/login live in publish-nuget and nowhere else in the lane.
+def codeonly(t): return "\n".join(l for l in t.split("\n") if not l.lstrip().startswith("#"))
+for j, d in jobs.items():
+    if j == "publish-nuget": continue
+    if re.search(r"nuget\s+push|NuGet/login", codeonly(d["text"])): errs.append("%s: runs nuget push or NuGet/login (only publish-nuget may)" % j)
+pn = codeonly(jobs.get("publish-nuget", {"text": ""})["text"])
+if not re.search(r"nuget\s+push", pn) or "NuGet/login@" not in pn: errs.append("publish-nuget: no longer holds nuget push and NuGet/login (test needs updating)")
+# every environment job names exactly the release environment
+for j in ENV:
+    if "\n    environment: release\n" not in "\n" + jobs.get(j, {"text": ""})["text"]: errs.append("%s: its environment is not exactly `release`" % j)
+# the literal real output of ref-guard, and nothing that could skip or soften the guard
+rg = jobs.get("ref-guard", {"text": ""})["text"]
+if "\n      real: ${{ steps.mode.outputs.real }}\n" not in "\n" + rg: errs.append("ref-guard: the real output is not exactly steps.mode.outputs.real")
+if '            echo "real=$REAL"\n' not in rg: errs.append("ref-guard: the mode step does not write real=$REAL")
+for j in ("event-guard", "ref-guard") + ENV:
+    jt = jobs.get(j, {"text": ""})["text"]
+    if re.search(r"^    continue-on-error:", jt, re.M): errs.append("%s: has continue-on-error" % j)
+for j in ("event-guard", "ref-guard"):
+    jt = jobs.get(j, {"text": ""})["text"]
+    if re.search(r"^    if:", jt, re.M): errs.append("%s: has a job-level if" % j)
+    if re.search(r"^        (if|continue-on-error):", jt, re.M): errs.append("%s: a step has if: or continue-on-error" % j)
 for j in ("vendor", "vendor-hosted"):  # the version step reads REAL_RUN
     if "REAL_RUN: ${{ needs.ref-guard.outputs.real }}" not in jobs.get(j, {"text": ""})["text"]: errs.append("%s: REAL_RUN is not passed to the job" % j)
 c = open(caller).read()
@@ -167,6 +188,11 @@ modes() {
   done
   for t in v2.8.0-pre.1 v2.8.0-rc.1 v2.8.0+pre.1; do
     try ok workflow_dispatch true "refs/tags/$t" "dispatch dry run of $t" false
+  done
+  # dry_run is real only when it is exactly false: an empty or odd value is a dry run
+  for t in v2.8.0-pre.1 v2.8.0; do
+    try ok workflow_dispatch ''      "refs/tags/$t" "dispatch with an empty dry_run of $t" false
+    try ok workflow_dispatch maybe   "refs/tags/$t" "dispatch with dry_run=maybe of $t" false
   done
   try ok push ''    refs/tags/v2.8.0         'push of a release tag' true
   try ok workflow_dispatch false refs/tags/v2.8.0 'dispatch dry_run false of a release tag' true
@@ -227,6 +253,7 @@ wants() {
   tryw ok yes v2.8.0       false module-v2.7.0 'dry run, another release: note'
   tryw ok no  v2.8.0       true  module-v2.8.0 'real run, module-v<X>'
   tryw no no  v2.8.0       true  module-v2.7.0 'real run, another release'
+  tryw no no  v2.8.0-pre.1 true  module-v2.8.0 'real run of a prerelease tag never takes the base release'
   [ "$bad" = 0 ]
 }
 
@@ -257,7 +284,8 @@ open(p, "w").write(s2)
 sys.exit(0 if s2 != s else 3)
 PY
   [ $? = 0 ] || { echo "FAIL mutation did not change anything: $1"; fail=1; return; }
-  if all "$d" >/dev/null 2>&1; then echo "FAIL not caught: $1"; fail=1; else echo "ok   caught: $1"; fi
+  local why
+  if why="$(all "$d" 2>&1)"; then echo "FAIL not caught: $1"; fail=1; else echo "ok   caught: $1  <-  $(printf '%s' "$why" | head -n 1 | cut -c1-150)"; fi
 }
 COND='! [[ "${REF#refs/tags/}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]'
 mutate 'the refusal removed' $LANE "s.replace('[ \"\$REAL\" = true ] && $COND', 'false')"
@@ -280,9 +308,10 @@ mutate 'the dry-run base rule removed' $LANE "s.replace('EXPECTED=\"\${EXPECTED%
 mutate 'the tag regex widened to any -pre suffix' $LANE "s.replace('(-pre\\\\.(0|[1-9][0-9]*))?\$ ]]; then\n            echo \"::error::release tag', '(-pre\\\\..*)?\$ ]]; then\n            echo \"::error::release tag')"
 mutate '-pre.01 allowed' $LANE "s.replace('(0|[1-9][0-9]*)', '[0-9]+')"
 mutate 'build metadata allowed in the tag' $LANE "s.replace('^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+(-pre', '^v[0-9]+\\\\.[0-9]+\\\\.[0-9]+(\\\\+[0-9a-z.]+)?(-pre')"
-mutate 'the tag regex removed' $LANE "s.replace('if ! [[ \"\$RELEASE_TAG\" =~', 'if false \&\& ! [[ \"\$RELEASE_TAG\" =~')"
+mutate 'the tag regex removed' $LANE "s.replace('if ! [[ \"\$RELEASE_TAG\" =~', 'if false && ! [[ \"\$RELEASE_TAG\" =~')"
 
 mutate 'the base rule applied to real runs too' $LANE "s.replace('if [ \"\$REAL_RUN\" != true ]; then\n            EXPECTED', 'if true; then\n            EXPECTED')"
+mutate 'the WANT rule applied to real runs' $LANE "s.replace('if [ \"\$REAL_RUN\" != true ]; then WANT', 'if true; then WANT')"
 mutate 'the WANT rule removed' $LANE "s.replace('if [ \"\$REAL_RUN\" != true ]; then WANT=\"module-\${RELEASE_TAG%%-pre.*}\"; fi', ':')"
 mutate 'a || term added to the package condition' $LANE "setif(s, 'package', \"\${{ !cancelled() || needs.ref-guard.outputs.real == 'true' }}\")"
 mutate '|| failure() added to publish-nuget' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace(\"needs.attach-signature.result == 'success' }}\", \"needs.attach-signature.result == 'success' || failure() }}\", 1))"
@@ -296,4 +325,18 @@ mutate 'a new workflow on v* tags that pushes without an environment' .github/wo
 mutate 'dry_run: false hard-coded in release.yml' $CALLER "s.replace(\"      dry_run: \${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}\n      auto_promote:\", '      dry_run: false\n      auto_promote:')"
 mutate 'an extra release.yml job calling the lane' $CALLER "s + '\n  again:\n    if: startsWith(github.ref, \"refs/tags/v\")\n    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-nuget.yml@main\n    with:\n      dry_run: false\n'"
 mutate 'the v* trigger changed' $CALLER "s.replace(\"'v*'\", \"'w*'\")"
+mutate 'nuget push added to another job' $LANE "jobedit(s, 'security-gates', lambda t: t.replace('    steps:', '    steps:\\n      - run: dotnet nuget push x.nupkg', 1))"
+mutate 'NuGet/login added to another job' $LANE "jobedit(s, 'package', lambda t: t.replace('    steps:', '    steps:\\n      - uses: NuGet/login@v1', 1))"
+mutate 'publish-nuget environment changed' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace('    environment: release', '    environment: staging', 1))"
+mutate 'sign-windows environment changed' $LANE "jobedit(s, 'sign-windows', lambda t: t.replace('    environment: release', '    environment: staging', 1))"
+mutate 'the real output hard-coded' $LANE "s.replace('      real: \${{ steps.mode.outputs.real }}', \"      real: 'true'\")"
+mutate 'the real output read from another step' $LANE "s.replace('      real: \${{ steps.mode.outputs.real }}', '      real: \${{ steps.guard.outputs.real }}')"
+mutate 'dry_run compared with != true' $LANE "s.replace('[ \"\$DRY_RUN_INPUT\" = false ]', '[ \"\$DRY_RUN_INPUT\" != true ]')"
+mutate 'continue-on-error on the mode step' $LANE "s.replace('        id: mode\n', '        id: mode\n        continue-on-error: true\n')"
+mutate 'continue-on-error on the ref-guard job' $LANE "jobedit(s, 'ref-guard', lambda t: t.replace('    runs-on: ubuntu-latest', '    runs-on: ubuntu-latest\n    continue-on-error: true', 1))"
+mutate 'continue-on-error on the event-guard job' $LANE "jobedit(s, 'event-guard', lambda t: t.replace('    runs-on: ubuntu-latest', '    runs-on: ubuntu-latest\n    continue-on-error: true', 1))"
+mutate 'continue-on-error on publish-nuget' $LANE "jobedit(s, 'publish-nuget', lambda t: t.replace('    timeout-minutes: 15', '    timeout-minutes: 15\n    continue-on-error: true', 1))"
+mutate 'if: false on the mode step' $LANE "s.replace('        id: mode\n', '        id: mode\n        if: false\n')"
+mutate 'if on the guard step' $LANE "s.replace('      - id: guard\n', '      - id: guard\n        if: false\n')"
+mutate 'a job-level if on ref-guard' $LANE "jobedit(s, 'ref-guard', lambda t: t.replace('    runs-on: ubuntu-latest', '    runs-on: ubuntu-latest\n    if: false', 1))"
 [ "$fail" = 0 ] && echo PASS || { echo FAILED; exit 1; }
