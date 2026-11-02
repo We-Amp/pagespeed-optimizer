@@ -1471,6 +1471,18 @@ jobs:
           ref: ${{ needs.ref-guard.outputs.sha }}
           persist-credentials: false
 
+      # The package checks come from main, never from the tree being released:
+      # an older tag does not carry the script.
+      - name: Checkout main (package checks)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trust
+          sparse-checkout: |
+            tools/ci/nupkg_checks.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - name: Ensure .NET 10 SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -1601,8 +1613,9 @@ jobs:
           set -euo pipefail
           cd samples/aspnetcore/nupkg
           VERSION="${RELEASE_TAG#v}"
-          # The same script the publish rehearsal runs (docs/ci/release.md).
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" expect-seven . "$VERSION"
+          # The same script the publish rehearsal runs (docs/ci/release.md), taken
+          # from the trusted checkout of main.
+          "${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh" expect-seven . "$VERSION"
           # Only a dry run with a module release of another version carries the note
           # (a real run never resolves to one); it travels with the packages.
           if [ -s README-SIDECAR-PIN.txt ]; then
@@ -1617,14 +1630,14 @@ jobs:
       - name: Guard against wrong source-control metadata in the .nupkg files
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" metadata samples/aspnetcore/nupkg
+          "${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh" metadata samples/aspnetcore/nupkg
 
       # A failed SPA build or a drifted EmbedWebShell glob would ship an
       # empty console and every install would answer 503 for /console/.
       - name: Guard against shipping an empty /console/ SPA
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" console-spa samples/aspnetcore/nupkg
+          "${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh" console-spa samples/aspnetcore/nupkg
 
       # Real runs only. A draft that already exists for the tag is reused
       # (an operator may have created it by hand); otherwise it is created.

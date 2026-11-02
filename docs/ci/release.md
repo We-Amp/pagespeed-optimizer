@@ -438,7 +438,8 @@ It requires the run to have concluded `success`, to have run that `sha`, and
 the artifact to be `nupkg-<first 7 of sha>`.
 
 Checks, made by `tools/ci/nupkg_checks.sh`, the script the `package` job
-also uses (the three checks `package` ran inline moved there with the same
+also uses, taken in the lane from a checkout of `main` (an older tag does
+not carry it; the three checks `package` ran inline moved there with the same
 logic):
 
 - seven packages: exactly the seven ids and file names, nuspec id and
