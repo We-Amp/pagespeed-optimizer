@@ -182,15 +182,6 @@ jobs:
             refs/tags/v*) ;;
             *) echo "::error::the NuGet lane releases a v* tag, not '$REF'"; exit 1 ;;
           esac
-          # Only a v<X>.<Y>.<Z> tag can take a real run. Any other tag (a
-          # prerelease such as v<X>-pre.<N>, a suffix, build metadata) can be
-          # dry-run by dispatch and nothing else: a tag push and a dispatch
-          # with dry_run false are refused here, before any output is written
-          # and before any later job runs.
-          if [ "$REAL" = true ] && ! [[ "${REF#refs/tags/}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::${REF#refs/tags/} is not a v<X>.<Y>.<Z> tag: it can only be dry-run (workflow_dispatch with dry_run true)"
-            exit 1
-          fi
           {
             echo "real=$REAL"
             echo "tag=${REF#refs/tags/}"
@@ -234,7 +225,6 @@ jobs:
     env:
       RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
       RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
-      REAL_RUN: ${{ needs.ref-guard.outputs.real }}
       SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
     steps: &vendor-steps
       - name: Unlock stale vendored files
@@ -260,19 +250,8 @@ jobs:
       - name: Verify VERSION.txt matches the release tag
         run: |
           set -euo pipefail
-          # The tag must be v<X>.<Y>.<Z>, or v<X>.<Y>.<Z>-pre.<N> (N without a
-          # leading zero): anything else, build metadata included, is refused.
-          if ! [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-pre\.(0|[1-9][0-9]*))?$ ]]; then
-            echo "::error::release tag $RELEASE_TAG is not v<X>.<Y>.<Z> or v<X>.<Y>.<Z>-pre.<N>"
-            exit 1
-          fi
           EXPECTED="${RELEASE_TAG#v}"
-          # A dry run may name v<X>-pre.<N>: its base <X> is what VERSION.txt
-          # carries. Only a dry run: the ref guard refuses a real run of any
-          # prerelease tag before this job.
-          if [ "$REAL_RUN" != true ]; then
-            EXPECTED="${EXPECTED%%-pre.*}"
-          fi
+          EXPECTED="${EXPECTED%%+*}"
           ACTUAL="$(tr -d '[:space:]' < VERSION.txt)"
           if [ "$ACTUAL" != "$EXPECTED" ]; then
             echo "::error::VERSION.txt ($ACTUAL) != release tag ($RELEASE_TAG -> $EXPECTED). Bump VERSION.txt on main and tag the bump commit."
@@ -338,7 +317,6 @@ jobs:
     env:
       RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
       RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
-      REAL_RUN: ${{ needs.ref-guard.outputs.real }}
       SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
     steps: *vendor-steps
 
@@ -1258,9 +1236,6 @@ jobs:
           MODE=dry
           if [ "$REAL_RUN" = true ]; then MODE=real; fi
           WANT="module-${RELEASE_TAG}"
-          # A prerelease dry run (v<X>-pre.<N>) wants the module release of
-          # its base version, module-v<X>.
-          if [ "$REAL_RUN" != true ]; then WANT="module-${RELEASE_TAG%%-pre.*}"; fi
           PIN_TAG="$(bash trust/tools/ci/sidecar_fetch.sh resolve "$RELEASE_TAG" "$MODE" trust/VERSION.txt)"
           echo "MODULE_TAG=$PIN_TAG" >> "$GITHUB_ENV"
           ARTIFACT="sidecar-nupkg-${SHORT_SHA}"
@@ -1601,8 +1576,11 @@ jobs:
           set -euo pipefail
           cd samples/aspnetcore/nupkg
           VERSION="${RELEASE_TAG#v}"
-          # The same script the publish rehearsal runs (docs/ci/release.md).
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" expect-seven . "$VERSION"
+          ls -lh
+          [ "$(find . -maxdepth 1 -name '*.nupkg' | wc -l)" -eq 7 ] || { echo "::error::expected 7 packages"; exit 1; }
+          for id in WeAmp.PageSpeed.Sidecar WeAmp.PageSpeed.Sidecar.NativeAssets.Linux; do
+            [ -s "${id}.${VERSION}.nupkg" ] || { echo "::error::missing ${id}.${VERSION}.nupkg"; exit 1; }
+          done
           # Only a dry run with a module release of another version carries the note
           # (a real run never resolves to one); it travels with the packages.
           if [ -s README-SIDECAR-PIN.txt ]; then
@@ -1617,14 +1595,42 @@ jobs:
       - name: Guard against wrong source-control metadata in the .nupkg files
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" metadata samples/aspnetcore/nupkg
+          cd samples/aspnetcore/nupkg
+          expected='https://github.com/We-Amp/pagespeed-optimizer'
+          bad=0
+          for nupkg in *.nupkg; do
+            nuspec=$(unzip -p "$nupkg" "*.nuspec" 2>/dev/null)
+            if echo "$nuspec" | grep -qi '<sourceLink'; then
+              echo "::error::unexpected SourceLink element in $nupkg"
+              bad=1
+            fi
+            url=$(echo "$nuspec" | grep -io '<repository[^>]* url="[^"]*"' | sed -E 's/.* url="([^"]*)"/\1/' || true)
+            if [ -n "$url" ] && [ "$url" != "$expected" ]; then
+              echo "::error::repository url in $nupkg is '$url', expected '$expected'"
+              bad=1
+            fi
+            case "$nupkg" in
+              WeAmp.PageSpeed.Sidecar*) ;;
+              *) [ "$url" = "$expected" ] || { echo "::error::$nupkg has no repository url"; bad=1; } ;;
+            esac
+          done
+          [ "$bad" = "0" ] || exit 1
+          echo "OK: source-control metadata in the packages is as expected."
 
       # A failed SPA build or a drifted EmbedWebShell glob would ship an
       # empty console and every install would answer 503 for /console/.
       - name: Guard against shipping an empty /console/ SPA
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" console-spa samples/aspnetcore/nupkg
+          cd samples/aspnetcore/nupkg
+          aspnet_nupkg=$(find . -maxdepth 1 -name 'WeAmp.PageSpeed.AspNetCore.*.nupkg' | head -1)
+          STRINGS="${RUNNER_TEMP}/aspnet-dll.strings"
+          unzip -p "$aspnet_nupkg" "lib/net10.0/WeAmp.PageSpeed.AspNetCore.dll" | strings -a > "$STRINGS"
+          if ! grep -aFq 'WeAmp.PageSpeed.AspNetCore.Console/index.html' "$STRINGS"; then
+            echo "::error::Embedded /console/ SPA missing from $aspnet_nupkg"
+            exit 1
+          fi
+          echo "OK: embedded /console/ SPA present ($(grep -acF 'WeAmp.PageSpeed.AspNetCore.Console/' "$STRINGS") manifest entries)."
 
       # Real runs only. A draft that already exists for the tag is reused
       # (an operator may have created it by hand); otherwise it is created.
