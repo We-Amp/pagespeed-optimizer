@@ -30,7 +30,7 @@ ARG VERSION=dev
 ARG BUILD_DATE
 ARG SOURCE_REVISION=unknown
 
-LABEL org.opencontainers.image.title="mod_pagespeed 2.1 Worker" \
+LABEL org.opencontainers.image.title="mod_pagespeed Worker" \
       org.opencontainers.image.vendor="We-Amp B.V." \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.documentation="https://modpagespeed.com/recipes/docker.md" \
