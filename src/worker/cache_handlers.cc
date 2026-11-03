@@ -20,6 +20,7 @@
 #include "lib/classify/content_type.h"
 #include "lib/classify/pagespeed_selector.h"
 #include "nlohmann/json.hpp"
+#include "src/proto/worker_ipc.h"
 #include "src/worker/json_dump.h"
 
 namespace pagespeed {
@@ -133,6 +134,40 @@ static const char* ContentTypeString(ContentType ct) {
 // than no diagnostic, and a registry with two copies grows a disagreement.
 static std::string SentinelNameFor(uint8_t id) {
   return std::string(pagespeed::SentinelName(static_cast<AlternateId>(id)));
+}
+
+// The optional site of a request: absent, "" (the unsited keyspace), or a
+// site id this instance has stored work for.  Returns the error response for
+// a malformed (400) or unknown (403) site, or nothing when `site` is usable.
+static std::optional<HttpResponse> CheckSiteParam(const CacheApiContext& ctx,
+                                                  std::string_view site) {
+  if (site.empty()) return std::nullopt;
+  if (!IsSiteId(site)) {
+    return HttpResponse::Error(
+        ApiErrorCode::kBadRequest,
+        "Invalid 'site': must be 64 lowercase hex characters");
+  }
+  if (!ctx.url_registry.HasSite(site)) {
+    return HttpResponse::Error(ApiErrorCode::kForbidden,
+                               "Site was never served through this instance.");
+  }
+  return std::nullopt;
+}
+
+// The same for a JSON body.  `*present` says whether the body named a site.
+static std::optional<HttpResponse> ReadSiteField(const CacheApiContext& ctx,
+                                                 const json& body,
+                                                 std::string* site,
+                                                 bool* present) {
+  site->clear();
+  *present = body.contains("site");
+  if (!*present) return std::nullopt;
+  if (!body["site"].is_string()) {
+    return HttpResponse::Error(ApiErrorCode::kBadRequest,
+                               "Invalid 'site': must be a string");
+  }
+  *site = body["site"].get<std::string>();
+  return CheckSiteParam(ctx, *site);
 }
 
 // ---------------------------------------------------------------------------
@@ -257,9 +292,8 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
         j["origin_s_maxage"] = meta->origin_s_maxage;
         j["origin_cc_flags"] = meta->origin_cc_flags;
         j["version"] = meta->version;
-        if (meta->ssimulacra2_score_x100 != AlternateMetadata::kScoreNA) {
-          j["ssimulacra2_score"] =
-              static_cast<double>(meta->ssimulacra2_score_x100) / 100.0;
+        if (const auto score = meta->QualityScoreX100(); score.has_value()) {
+          j["ssimulacra2_score"] = static_cast<double>(*score) / 100.0;
         }
         if (meta->content_class < AlternateMetadata::kContentClassUnknown) {
           static constexpr const char* kClassNames[] = {
@@ -296,7 +330,8 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
   // Add the composed cache key (matches ComposeKey output).
   std::string normalized_host =
       NormalizeHostnameForApi(hostname, ctx.url_norm_config);
-  std::string cache_key_str = absl::StrCat(scheme, "://", normalized_host, url);
+  std::string cache_key_str = absl::StrCat(PageSpeedCache::kKeyNamespace,
+                                           scheme, "://", normalized_host, url);
   resp["cache_key"] = cache_key_str;
 
   resp["alternates"] = std::move(alternates);
@@ -305,7 +340,8 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
 
   // Add cooldown info if callback is available and URL is in cooldown.
   if (ctx.get_cooldown) {
-    auto cd = ctx.get_cooldown(std::string(url), std::string(hostname), scheme);
+    auto cd = ctx.get_cooldown(std::string(url), std::string(hostname), scheme,
+                               /*site=*/"");
     if (cd) {
       resp["cooldown"] = {{"reason", cd->reason},
                           {"remaining_seconds", cd->remaining_seconds},
@@ -325,6 +361,8 @@ static HttpResponse HandleListUrls(CacheApiContext& ctx,
   auto offset_str = request.QueryParam("offset");
   auto limit_str = request.QueryParam("limit");
   auto hostname = request.QueryParam("hostname");
+  auto site = request.QueryParam("site");
+  if (auto err = CheckSiteParam(ctx, site)) return std::move(*err);
 
   size_t offset = 0;
   size_t limit = 100;
@@ -343,13 +381,14 @@ static HttpResponse HandleListUrls(CacheApiContext& ctx,
   if (limit > 1000) limit = 1000;
   if (limit == 0) limit = 100;
 
-  auto page = ctx.url_registry.List(offset, limit, hostname);
+  auto page = ctx.url_registry.List(offset, limit, hostname, site);
 
   json urls = json::array();
   for (const auto& entry : page.entries) {
     json j = {{"url", entry.url},
               {"hostname", entry.hostname},
-              {"scheme", entry.scheme}};
+              {"scheme", entry.scheme},
+              {"site", entry.site}};
 
     // Alternate count is maintained in the registry by the worker on the
     // notification thread, so listing never touches the cache here.  This is
@@ -363,6 +402,10 @@ static HttpResponse HandleListUrls(CacheApiContext& ctx,
         NormalizeHostnameForApi(entry.hostname, ctx.url_norm_config);
     std::string cache_key_str =
         absl::StrCat(entry.scheme, "://", normalized_host, entry.url);
+    if (!entry.site.empty()) {
+      cache_key_str = absl::StrCat("st1:", entry.site, "@", cache_key_str);
+    }
+    cache_key_str = absl::StrCat(PageSpeedCache::kKeyNamespace, cache_key_str);
     j["cache_key"] = cache_key_str;
 
     urls.push_back(std::move(j));
@@ -509,7 +552,10 @@ static HttpResponse HandleContent(CacheApiContext& ctx,
   }
   uint8_t alt_id = static_cast<uint8_t>(*id_val);
 
-  auto result = ctx.cache->ReadAlternate(url, hostname, scheme, alt_id);
+  auto site = request.QueryParam("site");
+  if (auto err = CheckSiteParam(ctx, site)) return std::move(*err);
+
+  auto result = ctx.cache->ReadAlternate(url, hostname, scheme, alt_id, site);
   if (!result) {
     return HttpResponse::Error(ApiErrorCode::kNotFound, "Alternate not found");
   }
@@ -608,6 +654,9 @@ static HttpResponse HandlePurge(CacheApiContext& ctx,
     // recreate from scratch.  The shared_mutex in PageSpeedCache
     // ensures all in-flight operations complete before the reset.
     size_t urls_cleared = ctx.url_registry.ClearAll().size();
+    // The volume goes, and every site's entries with it: drop the known
+    // sites too (ClearAll keeps them, as it keeps the known hostnames).
+    ctx.url_registry.ClearKnownSites();
 
     std::string err = ctx.reset_cache();
     if (!err.empty()) {
@@ -660,6 +709,12 @@ static HttpResponse HandlePurge(CacheApiContext& ctx,
         "Hostname was never served through this instance.");
   }
 
+  std::string site;
+  bool site_given = false;
+  if (auto err = ReadSiteField(ctx, body, &site, &site_given)) {
+    return std::move(*err);
+  }
+
   std::string scheme;
   bool purge_both_schemes = true;
   if (body.contains("scheme") && body["scheme"].is_string()) {
@@ -671,16 +726,36 @@ static HttpResponse HandlePurge(CacheApiContext& ctx,
     purge_both_schemes = false;
   }
 
-  int deleted = 0;
+  // One purge acts on one keyspace.  A request naming a site purges that
+  // one; without one, the purge runs over every known site and the unsited
+  // keyspace.
+  std::vector<std::string> sites;
+  if (site_given) {
+    sites.push_back(site);
+  } else {
+    sites = ctx.url_registry.KnownSites();
+    sites.emplace_back();
+  }
+  std::vector<std::string> schemes;
   if (purge_both_schemes) {
-    deleted += ctx.invalidate_url(url, hostname, "https");
-    ctx.url_registry.Remove(url, hostname, "https");
-    deleted += ctx.invalidate_url(url, hostname, "http");
-    ctx.url_registry.Remove(url, hostname, "http");
+    schemes = {"https", "http"};
     scheme = "both";
   } else {
-    deleted = ctx.invalidate_url(url, hostname, scheme);
-    ctx.url_registry.Remove(url, hostname, scheme);
+    schemes = {scheme};
+  }
+
+  int deleted = 0;
+  json per_site = json::array();
+  for (const std::string& s : sites) {
+    int site_deleted = 0;
+    for (const std::string& sch : schemes) {
+      site_deleted += ctx.invalidate_url(url, hostname, sch, s);
+      ctx.url_registry.Remove(url, hostname, sch, s);
+    }
+    if (site_deleted > 0) {
+      per_site.push_back({{"site", s}, {"deleted", site_deleted}});
+    }
+    deleted += site_deleted;
   }
 
   json resp;
@@ -690,6 +765,10 @@ static HttpResponse HandlePurge(CacheApiContext& ctx,
   // in the request, both HTTP and HTTPS entries are purged).
   resp["scheme"] = scheme;
   resp["deleted"] = deleted;
+  resp["sites"] = std::move(per_site);
+  resp["sites_checked"] = sites.size();
+  resp["known_sites_incomplete"] =
+      ctx.known_sites_incomplete ? ctx.known_sites_incomplete() : false;
   if (deleted == 0) {
     resp["note"] =
         "URL not found in cache. It may have been evicted under cache "
@@ -761,11 +840,17 @@ static HttpResponse HandleReprocess(CacheApiContext& ctx,
         "Hostname was never served through this instance.");
   }
 
+  std::string site;
+  bool site_given = false;
+  if (auto err = ReadSiteField(ctx, body, &site, &site_given)) {
+    return std::move(*err);
+  }
+
   // Read content type from the original alternate's metadata.
   ContentType ct = ContentType::kOther;
   AlternateId default_id =
       MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
-  auto read = ctx.cache->ReadAlternate(url, hostname, scheme, default_id);
+  auto read = ctx.cache->ReadAlternate(url, hostname, scheme, default_id, site);
   if (read) {
     auto meta = AlternateMetadata::Deserialize(read->handle.content());
     if (meta) {
@@ -777,18 +862,19 @@ static HttpResponse HandleReprocess(CacheApiContext& ctx,
   // notification.  Don't remove cached content — the worker needs the
   // original to optimize from, and overwrites variants on write.
   if (ctx.clear_dedup) {
-    ctx.clear_dedup(url, hostname, scheme);
+    ctx.clear_dedup(url, hostname, scheme, site);
   }
 
   // Enqueue reprocessing notification.
   if (ctx.enqueue_reprocess) {
-    ctx.enqueue_reprocess(url, hostname, scheme, ct);
+    ctx.enqueue_reprocess(url, hostname, scheme, site, ct);
   }
 
   json resp;
   resp["url"] = url;
   resp["hostname"] = hostname;
   resp["scheme"] = scheme;
+  resp["site"] = site;
   resp["reprocess_enqueued"] = ctx.enqueue_reprocess != nullptr;
 
   return HttpResponse().Json(DumpJson(resp));

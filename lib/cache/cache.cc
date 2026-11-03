@@ -17,6 +17,7 @@
 inline int chmod(const char*, int) { return 0; }
 #endif
 
+#include <array>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -201,17 +202,37 @@ PageSpeedCache::Create(const PageSpeedCacheConfig& config) {
   return ps_cache;
 }
 
+namespace {
+
+// Every key this version builds is the composed string below with the key
+// namespace (PageSpeedCache::kKeyNamespace) in front, so an earlier version,
+// whose keys begin with a scheme or "oc1:", never computes one of them and
+// simply misses, and this version never computes an earlier version's key.
+// The volume and its format are untouched.
+cyclone::CacheKey KeyInNamespace(std::string_view composed) {
+  constexpr std::string_view kNamespace = PageSpeedCache::kKeyNamespace;
+  std::string key;
+  key.reserve(kNamespace.size() + composed.size());
+  key.append(kNamespace);
+  key.append(composed);
+  return cyclone::CacheKey(key);
+}
+
+}  // namespace
+
 cyclone::CacheKey PageSpeedCache::ComposeKey(std::string_view url,
                                              std::string_view hostname,
-                                             std::string_view scheme) {
+                                             std::string_view scheme,
+                                             std::string_view site) {
   std::string normalized = NormalizeHostname(hostname);
-  return ComposeKeyPreNormalized(url, normalized, scheme);
+  return ComposeSiteKeyPreNormalized(url, normalized, scheme,
+                                     /*option_signature=*/{}, site);
 }
 
 cyclone::CacheKey PageSpeedCache::ComposeKeyPreNormalized(
     std::string_view url, std::string_view normalized_hostname,
     std::string_view scheme) {
-  // Key format: "scheme://hostname/url" (url already starts with /).
+  // Key format: "ks2:scheme://hostname/url" (url already starts with /).
   // This produces distinct keys for http vs https.
   std::string combined;
   combined.reserve(scheme.size() + 3 + normalized_hostname.size() + url.size());
@@ -219,7 +240,7 @@ cyclone::CacheKey PageSpeedCache::ComposeKeyPreNormalized(
   combined.append("://");
   combined.append(normalized_hostname);
   combined.append(url);
-  return cyclone::CacheKey(combined);
+  return KeyInNamespace(combined);
 }
 
 cyclone::CacheKey PageSpeedCache::ComposeKeyPreNormalized(
@@ -247,7 +268,46 @@ cyclone::CacheKey PageSpeedCache::ComposeKeyPreNormalized(
   combined.append("://");
   combined.append(normalized_hostname);
   combined.append(url);
-  return cyclone::CacheKey(combined);
+  return KeyInNamespace(combined);
+}
+
+cyclone::CacheKey PageSpeedCache::ComposeSiteKeyPreNormalized(
+    std::string_view url, std::string_view normalized_hostname,
+    std::string_view scheme, std::string_view option_signature,
+    std::string_view site) {
+  // An empty site is the SAME CALL as the four-argument overload, so an
+  // unsited caller keeps its key byte for byte.
+  if (site.empty()) {
+    return ComposeKeyPreNormalized(url, normalized_hostname, scheme,
+                                   option_signature);
+  }
+  // The sited form wraps exactly the string the four-argument overload
+  // composes inside the key namespace ("scheme://host/url", or its
+  // "oc1:<signature>@" form), and goes into the same namespace. That string
+  // is rebuilt here rather than read back, because a CacheKey keeps only the
+  // digest; cache_key_test pins the two spellings against each other.
+  static constexpr std::string_view kSiteKeyPrefix = "st1:";
+  static constexpr std::string_view kContextKeyPrefix = "oc1:";
+  const bool with_context = !IsDefaultOptionContext(option_signature);
+  std::string combined;
+  combined.reserve(kSiteKeyPrefix.size() + site.size() + 1 +
+                   (with_context
+                        ? kContextKeyPrefix.size() + option_signature.size() + 1
+                        : 0) +
+                   scheme.size() + 3 + normalized_hostname.size() + url.size());
+  combined.append(kSiteKeyPrefix);
+  combined.append(site);
+  combined.push_back('@');
+  if (with_context) {
+    combined.append(kContextKeyPrefix);
+    combined.append(option_signature);
+    combined.push_back('@');
+  }
+  combined.append(scheme);
+  combined.append("://");
+  combined.append(normalized_hostname);
+  combined.append(url);
+  return KeyInNamespace(combined);
 }
 
 std::expected<ReadResult, cyclone::CacheError>
@@ -255,8 +315,9 @@ PageSpeedCache::ReadBestAlternate(std::string_view url,
                                   std::string_view hostname,
                                   std::string_view scheme,
                                   const CapabilityMask& mask,
-                                  bool agent_request_entitled) {
-  auto key = ComposeKey(url, hostname, scheme);
+                                  bool agent_request_entitled,
+                                  std::string_view site) {
+  auto key = ComposeKey(url, hostname, scheme, site);
   auto result = ReadBestAlternateByKey(key, mask, agent_request_entitled);
   if (!result && handler_) {
     handler_->Info("Read miss for %.*s: %s", static_cast<int>(url.size()),
@@ -271,9 +332,10 @@ PageSpeedCache::ReadBestAlternateAgent(std::string_view url,
                                        std::string_view hostname,
                                        std::string_view scheme,
                                        const CapabilityMask& mask,
-                                       bool agent_request_entitled) {
-  return ReadBestAlternateAgentByKey(ComposeKey(url, hostname, scheme), mask,
-                                     agent_request_entitled);
+                                       bool agent_request_entitled,
+                                       std::string_view site) {
+  return ReadBestAlternateAgentByKey(ComposeKey(url, hostname, scheme, site),
+                                     mask, agent_request_entitled);
 }
 
 std::expected<ReadResult, cyclone::CacheError>
@@ -351,8 +413,8 @@ PageSpeedCache::ReadBestAlternateAgentByKey(const cyclone::CacheKey& key,
 
 std::expected<ReadResult, cyclone::CacheError> PageSpeedCache::ReadAlternate(
     std::string_view url, std::string_view hostname, std::string_view scheme,
-    AlternateId id) {
-  auto key = ComposeKey(url, hostname, scheme);
+    AlternateId id, std::string_view site) {
+  auto key = ComposeKey(url, hostname, scheme, site);
   auto result = ReadAlternateByKey(key, id);
   if (!result && handler_) {
     handler_->Info("Read alternate 0x%02X miss for %.*s: %s",
@@ -379,21 +441,29 @@ PageSpeedCache::ReadAlternateByKey(const cyclone::CacheKey& key,
   }
 
   // ReadAlternate is used for both content alternates and sentinels.
-  // Sentinels have no metadata prefix (prefix_size == 0 is normal).
-  // Don't reject on parse failure here — callers know what they're
-  // reading.
+  // Most sentinels have no metadata prefix (prefix_size == 0 is normal), so a
+  // parse failure is not an error for them.  A content alternate and the
+  // agent Markdown variant always carry one: when it does not parse (a
+  // version this build refuses, or damage) the entry is a MISS, exactly as
+  // for the selector read.  Handing it out would give callers default
+  // metadata, flags clear, over bytes that still hold the metadata prefix.
   ReadResult rr;
   rr.metadata_prefix_size_ =
       ParseMetadataPrefix(result->content(), &rr.metadata);
+  if (rr.metadata_prefix_size_ == 0 &&
+      (!IsSentinel(id) ||
+       id == static_cast<AlternateId>(SentinelId::kAgentMarkdown))) {
+    return std::unexpected(cyclone::CacheError::NotFound);
+  }
   rr.handle = std::move(*result);
   return rr;
 }
 
 std::expected<WriteResult, cyclone::CacheError> PageSpeedCache::WriteAlternate(
     std::string_view url, std::string_view hostname, std::string_view scheme,
-    AlternateId id, uint64_t content_length,
-    const AlternateMetadata& metadata) {
-  return WriteAlternateByKey(ComposeKey(url, hostname, scheme), id,
+    AlternateId id, uint64_t content_length, const AlternateMetadata& metadata,
+    std::string_view site) {
+  return WriteAlternateByKey(ComposeKey(url, hostname, scheme, site), id,
                              content_length, metadata, url);
 }
 
@@ -469,12 +539,12 @@ PageSpeedCache::WriteAlternateByKey(const cyclone::CacheKey& key,
 
 std::expected<WriteResult, cyclone::CacheError> PageSpeedCache::WriteSentinel(
     std::string_view url, std::string_view hostname, std::string_view scheme,
-    SentinelId sentinel, uint64_t content_length) {
+    SentinelId sentinel, uint64_t content_length, std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
   }
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
   auto id = static_cast<cyclone::AlternateId>(sentinel);
 
   // The class is named with its id so the diagnostics below say WHICH
@@ -539,7 +609,8 @@ PageSpeedCache::WriteAgentAlternate(std::string_view url,
                                     std::string_view hostname,
                                     std::string_view scheme,
                                     uint64_t content_length,
-                                    const AlternateMetadata& metadata) {
+                                    const AlternateMetadata& metadata,
+                                    std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
@@ -568,7 +639,7 @@ PageSpeedCache::WriteAgentAlternate(std::string_view url,
     return std::unexpected(cyclone::CacheError::InvalidArgument);
   }
 
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
 
   if (content_length >
       std::numeric_limits<uint64_t>::max() - serialized.size()) {
@@ -637,7 +708,8 @@ PageSpeedCache::WriteOriginalAlternate(std::string_view url,
                                        std::string_view hostname,
                                        std::string_view scheme,
                                        uint64_t content_length,
-                                       const AlternateMetadata& metadata) {
+                                       const AlternateMetadata& metadata,
+                                       std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
@@ -676,7 +748,7 @@ PageSpeedCache::WriteOriginalAlternate(std::string_view url,
     return std::unexpected(cyclone::CacheError::InvalidArgument);
   }
 
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
 
   if (content_length >
       std::numeric_limits<uint64_t>::max() - serialized.size()) {
@@ -766,8 +838,9 @@ PageSpeedCache::WriteOriginalAlternate(std::string_view url,
 std::expected<ReadResult, cyclone::CacheError>
 PageSpeedCache::ReadOriginalAlternate(std::string_view url,
                                       std::string_view hostname,
-                                      std::string_view scheme) {
-  auto key = ComposeKey(url, hostname, scheme);
+                                      std::string_view scheme,
+                                      std::string_view site) {
+  auto key = ComposeKey(url, hostname, scheme, site);
   auto result = ReadOriginalAlternateByKey(key);
   if (!result && handler_ != nullptr) {
     handler_->Info("Original miss for %.*s: %s", static_cast<int>(url.size()),
@@ -863,7 +936,8 @@ std::expected<PageSpeedCache::HeadersSidecarWrite, cyclone::CacheError>
 PageSpeedCache::WriteHeadersSidecar(std::string_view url,
                                     std::string_view hostname,
                                     std::string_view scheme,
-                                    std::span<const HeaderField> headers) {
+                                    std::span<const HeaderField> headers,
+                                    std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
@@ -906,7 +980,7 @@ PageSpeedCache::WriteHeadersSidecar(std::string_view url,
     return outcome;
   }
 
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
 
   // ONE ENTRY PER URL, as far as it can be made true from here.  At the
   // pinned storage layer a write to an id that already exists LINKS A SECOND
@@ -1003,8 +1077,9 @@ PageSpeedCache::WriteHeadersSidecar(std::string_view url,
 std::expected<ReadResult, cyclone::CacheError>
 PageSpeedCache::ReadHeadersSidecar(std::string_view url,
                                    std::string_view hostname,
-                                   std::string_view scheme) {
-  auto key = ComposeKey(url, hostname, scheme);
+                                   std::string_view scheme,
+                                   std::string_view site) {
+  auto key = ComposeKey(url, hostname, scheme, site);
   auto result = ReadHeadersSidecarByKey(key);
   // A plain miss is the normal case (every entry recorded without a sidecar)
   // and stays silent; only a real read error is worth a log line.
@@ -1047,12 +1122,13 @@ std::string_view PageSpeedCache::HeadersSidecarPayload(
 }
 
 std::expected<void, cyclone::CacheError> PageSpeedCache::Remove(
-    std::string_view url, std::string_view hostname, std::string_view scheme) {
+    std::string_view url, std::string_view hostname, std::string_view scheme,
+    std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
   }
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
   if (handler_ != nullptr) {
     handler_->Info("Remove %.*s", static_cast<int>(url.size()), url.data());
   }
@@ -1061,12 +1137,12 @@ std::expected<void, cyclone::CacheError> PageSpeedCache::Remove(
 
 std::expected<void, cyclone::CacheError> PageSpeedCache::RemoveAlternate(
     std::string_view url, std::string_view hostname, std::string_view scheme,
-    AlternateId id) {
+    AlternateId id, std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
   }
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
   if (handler_ != nullptr) {
     handler_->Info("RemoveAlternate %.*s id=0x%02x",
                    static_cast<int>(url.size()), url.data(),
@@ -1084,7 +1160,8 @@ std::expected<size_t, cyclone::CacheError>
 PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
                                        std::string_view hostname,
                                        std::string_view scheme,
-                                       std::span<const AlternateId> preserve) {
+                                       std::span<const AlternateId> preserve,
+                                       std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
@@ -1100,7 +1177,7 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
     }
   }
   return RemoveAlternatesWhereLocked(
-      url, hostname, scheme,
+      url, hostname, scheme, site,
       [&](AlternateId id) {
         for (AlternateId k : preserve) {
           if (k == id) return true;
@@ -1113,7 +1190,8 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
 std::expected<size_t, cyclone::CacheError>
 PageSpeedCache::RemoveDerivedAlternates(std::string_view url,
                                         std::string_view hostname,
-                                        std::string_view scheme) {
+                                        std::string_view scheme,
+                                        std::string_view site) {
   constexpr auto kOriginal =
       static_cast<AlternateId>(SentinelId::kOriginalContent);
   constexpr auto kSidecar =
@@ -1127,10 +1205,10 @@ PageSpeedCache::RemoveDerivedAlternates(std::string_view url,
   // with a superseded entry's flag.  An absent or unreadable slot is not
   // preserved: there is nothing to keep, and a worker-derived entry that fails
   // to read must not survive a purge.
-  EvictAlternateFromRamCache(url, hostname, scheme, identity_id);
+  EvictAlternateFromRamCache(url, hostname, scheme, identity_id, site);
   bool keep_identity = false;
   {
-    auto identity = ReadAlternate(url, hostname, scheme, identity_id);
+    auto identity = ReadAlternate(url, hostname, scheme, identity_id, site);
     if (identity.has_value() && identity->is_valid()) {
       keep_identity = (identity->metadata.flags &
                        AlternateMetadata::kFlagWorkerProcessed) == 0;
@@ -1142,7 +1220,7 @@ PageSpeedCache::RemoveDerivedAlternates(std::string_view url,
     return std::unexpected(cyclone::CacheError::NotInitialized);
   }
   return RemoveAlternatesWhereLocked(
-      url, hostname, scheme,
+      url, hostname, scheme, site,
       [&](AlternateId id) {
         return id == kOriginal || id == kSidecar ||
                (keep_identity && id == identity_id);
@@ -1151,10 +1229,70 @@ PageSpeedCache::RemoveDerivedAlternates(std::string_view url,
 }
 
 std::expected<size_t, cyclone::CacheError>
+PageSpeedCache::RemoveRetiredAlternates(std::string_view url,
+                                        std::string_view hostname,
+                                        std::string_view scheme,
+                                        std::string_view site) {
+  std::shared_lock lock(reset_mutex_);
+  if (!cache_) {
+    return std::unexpected(cyclone::CacheError::NotInitialized);
+  }
+  auto key = ComposeKey(url, hostname, scheme, site);
+  auto listed = cache_->list_alternates_sync(key);
+  if (!listed) {
+    if (listed.error() == cyclone::CacheError::NotFound ||
+        listed.error() == cyclone::CacheError::AlternateNotFound) {
+      return 0;
+    }
+    return std::unexpected(listed.error());
+  }
+
+  // The listing starts at the chain head, so the first node of an id is the
+  // newest one.
+  std::array<bool, 256> seen{};
+  std::vector<cyclone::AlternateId> retired;
+  for (const auto& alt : *listed) {
+    const auto id = static_cast<uint8_t>(alt.id);
+    if (seen[id]) continue;
+    seen[id] = true;
+    if (!alt.header.empty()) {
+      if (AlternateMetadata::IsRetired(alt.header)) retired.push_back(alt.id);
+      continue;
+    }
+    // No header copy (an entry written before headers were kept): judge the
+    // stored prefix.
+    ExactIdSelector selector(alt.id);
+    cyclone::AlternateSelectionContext ctx;
+    auto read = cache_->read_alternate_sync(key, selector, ctx);
+    if (read && AlternateMetadata::IsRetired(read->content())) {
+      retired.push_back(alt.id);
+    }
+  }
+
+  size_t removed = 0;
+  for (cyclone::AlternateId id : retired) {
+    cache_->evict_from_ram_cache(key, id);
+    auto result = cache_->remove_alternate_sync(key, id);
+    if (result) {
+      ++removed;
+    } else if (handler_ != nullptr &&
+               result.error() != cyclone::CacheError::NotFound &&
+               result.error() != cyclone::CacheError::AlternateNotFound) {
+      handler_->Warning(
+          "Removing earlier-version entry 0x%02X failed for %.*s: %s",
+          static_cast<int>(id), static_cast<int>(url.size()), url.data(),
+          make_error_code(result.error()).message().c_str());
+    }
+  }
+  return removed;
+}
+
+std::expected<size_t, cyclone::CacheError>
 PageSpeedCache::RemoveAlternatesWhereLocked(
     std::string_view url, std::string_view hostname, std::string_view scheme,
-    const std::function<bool(AlternateId)>& is_preserved, const char* label) {
-  auto key = ComposeKey(url, hostname, scheme);
+    std::string_view site, const std::function<bool(AlternateId)>& is_preserved,
+    const char* label) {
+  auto key = ComposeKey(url, hostname, scheme, site);
 
   // One listing is one traversal of the key's alternate chain, and a
   // traversal is CAPPED, so a listing need not show the whole chain and
@@ -1317,23 +1455,25 @@ PageSpeedCache::RemoveAlternatesWhereLocked(
 void PageSpeedCache::EvictAlternateFromRamCache(std::string_view url,
                                                 std::string_view hostname,
                                                 std::string_view scheme,
-                                                AlternateId id) {
+                                                AlternateId id,
+                                                std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return;
   }
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
   cache_->evict_from_ram_cache(key, static_cast<cyclone::AlternateId>(id));
 }
 
 bool PageSpeedCache::AlternateExists(std::string_view url,
                                      std::string_view hostname,
-                                     std::string_view scheme, AlternateId id) {
+                                     std::string_view scheme, AlternateId id,
+                                     std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return false;
   }
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
   auto alts = cache_->list_alternates_sync(key);
   if (!alts) {
     return false;
@@ -1349,12 +1489,12 @@ bool PageSpeedCache::AlternateExists(std::string_view url,
 
 std::expected<std::vector<cyclone::AlternateInfo>, cyclone::CacheError>
 PageSpeedCache::ListAlternates(std::string_view url, std::string_view hostname,
-                               std::string_view scheme) {
+                               std::string_view scheme, std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
   }
-  auto key = ComposeKey(url, hostname, scheme);
+  auto key = ComposeKey(url, hostname, scheme, site);
   return cache_->list_alternates_sync(key);
 }
 

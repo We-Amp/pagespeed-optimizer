@@ -309,7 +309,6 @@
           { label: 'Screenshot', count: stats.content_analysis.screenshot },
           { label: 'Illustration', count: stats.content_analysis.illustration },
           { label: 'Noisy', count: stats.content_analysis.noisy },
-          { label: 'Denoised', count: stats.content_analysis.denoised },
         ] as Array<{ label: string; count: number }>)
       : [],
   );
@@ -401,7 +400,6 @@
       ['Content Analysis', 'Screenshot', stats.content_analysis.screenshot],
       ['Content Analysis', 'Illustration', stats.content_analysis.illustration],
       ['Content Analysis', 'Noisy', stats.content_analysis.noisy],
-      ['Content Analysis', 'Denoised', stats.content_analysis.denoised],
       ['SSIMULACRA2', 'Checks', stats.ssimulacra2.checks],
       ['SSIMULACRA2', 'Re-encodes', stats.ssimulacra2.reencodes],
       ['SSIMULACRA2', 'Avg Score (x100)', stats.ssimulacra2.avg_score_x100],

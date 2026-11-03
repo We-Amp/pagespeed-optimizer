@@ -5,9 +5,12 @@
 
 #include "src/worker/url_registry.h"
 
+#include <cstdio>
 #include <string>
+#include <vector>
 
 #include "gtest/gtest.h"
+#include "src/worker/known_sites.h"
 
 namespace pagespeed {
 namespace {
@@ -321,6 +324,105 @@ TEST(UrlRegistryTest, EvictionDropsAlternateCount) {
   ASSERT_EQ(page.entries.size(), 1u);
   EXPECT_EQ(page.entries[0].url, "/b.html");
   EXPECT_EQ(page.entries[0].alternate_count, 0u);
+}
+
+// --- The site dimension -----------------------------------------------------
+
+const std::string kSiteA(64, 'a');
+const std::string kSiteB(64, 'b');
+
+TEST(UrlRegistryTest, SameUrlOnTwoSitesAreSeparateEntries) {
+  UrlRegistry reg;
+  reg.Record("/a.html", "example.com", "https", kSiteA);
+  reg.Record("/a.html", "example.com", "https", kSiteB);
+  reg.Record("/a.html", "example.com", "https");
+  EXPECT_EQ(reg.size(), 3u);
+
+  reg.SetAlternateCount("/a.html", "example.com", "https", 7, kSiteA);
+  auto a = reg.List(0, 10, {}, kSiteA);
+  ASSERT_EQ(a.entries.size(), 1u);
+  EXPECT_EQ(a.total, 1u);
+  EXPECT_EQ(a.entries[0].site, kSiteA);
+  EXPECT_EQ(a.entries[0].alternate_count, 7u);
+  auto b = reg.List(0, 10, "example.com", kSiteB);
+  ASSERT_EQ(b.entries.size(), 1u);
+  EXPECT_EQ(b.entries[0].site, kSiteB);
+  EXPECT_EQ(b.entries[0].alternate_count, 0u);
+  // No site filter lists every keyspace.
+  EXPECT_EQ(reg.List(0, 10).total, 3u);
+
+  reg.Remove("/a.html", "example.com", "https", kSiteA);
+  EXPECT_EQ(reg.size(), 2u);
+  EXPECT_EQ(reg.List(0, 10, {}, kSiteA).total, 0u);
+  EXPECT_EQ(reg.List(0, 10, {}, kSiteB).total, 1u);
+}
+
+TEST(UrlRegistryTest, RecordingASiteMakesItKnown) {
+  UrlRegistry reg;
+  EXPECT_FALSE(reg.HasSite(kSiteA));
+  reg.Record("/a.html", "example.com", "https");  // unsited
+  EXPECT_TRUE(reg.KnownSites().empty());
+  reg.Record("/a.html", "example.com", "https", kSiteB);
+  reg.Record("/b.html", "example.com", "https", kSiteA);
+  EXPECT_TRUE(reg.HasSite(kSiteA));
+  EXPECT_TRUE(reg.HasSite(kSiteB));
+  EXPECT_FALSE(reg.HasSite(""));
+  EXPECT_EQ(reg.KnownSites(), (std::vector<std::string>{kSiteA, kSiteB}));
+}
+
+TEST(UrlRegistryTest, KnownSitesSurviveEvictionAndClearAll) {
+  UrlRegistry reg(/*max_entries=*/1);
+  reg.Record("/a.html", "example.com", "https", kSiteA);
+  reg.Record("/b.html", "example.com", "https", kSiteB);  // evicts /a.html
+  EXPECT_EQ(reg.size(), 1u);
+  EXPECT_TRUE(reg.HasSite(kSiteA));
+  (void)reg.ClearAll();
+  EXPECT_EQ(reg.size(), 0u);
+  EXPECT_TRUE(reg.HasSite(kSiteA));
+  EXPECT_TRUE(reg.HasSite(kSiteB));
+}
+
+TEST(UrlRegistryTest, ClearKnownSitesDropsThemAndMarksAChange) {
+  UrlRegistry reg;
+  reg.Record("/a.html", "example.com", "https", kSiteA);
+  ASSERT_TRUE(reg.TakeKnownSitesIfChanged().has_value());
+  EXPECT_FALSE(reg.TakeKnownSitesIfChanged().has_value());
+
+  reg.ClearKnownSites();
+  EXPECT_FALSE(reg.HasSite(kSiteA));
+  EXPECT_TRUE(reg.KnownSites().empty());
+  auto changed = reg.TakeKnownSitesIfChanged();
+  ASSERT_TRUE(changed.has_value());
+  EXPECT_TRUE(changed->empty()) << "the file is rewritten as empty";
+}
+
+TEST(UrlRegistryTest, LoadedSitesAreKnownWithoutAChange) {
+  UrlRegistry reg;
+  reg.LoadKnownSites({kSiteA});
+  EXPECT_TRUE(reg.HasSite(kSiteA));
+  EXPECT_FALSE(reg.TakeKnownSitesIfChanged().has_value());
+  reg.Record("/a.html", "example.com", "https", kSiteA);  // already known
+  EXPECT_FALSE(reg.TakeKnownSitesIfChanged().has_value());
+}
+
+TEST(UrlRegistryTest, SitesPastTheCapAreCountedNotRemembered) {
+  UrlRegistry reg(/*max_entries=*/4);
+  std::vector<std::string> full;
+  full.reserve(kMaxKnownSites);
+  char buf[65];
+  for (size_t i = 0; i < kMaxKnownSites; ++i) {
+    std::snprintf(buf, sizeof(buf), "%064zx", i);
+    full.emplace_back(buf);
+  }
+  reg.LoadKnownSites(full);
+  EXPECT_EQ(reg.KnownSites().size(), kMaxKnownSites);
+  EXPECT_EQ(reg.known_sites_overflow(), 0u);
+
+  std::snprintf(buf, sizeof(buf), "%064zx", kMaxKnownSites);
+  reg.Record("/a.html", "example.com", "https", buf);
+  EXPECT_EQ(reg.known_sites_overflow(), 1u);
+  EXPECT_FALSE(reg.HasSite(buf));
+  EXPECT_EQ(reg.size(), 1u) << "the entry itself is still tracked";
 }
 
 }  // namespace

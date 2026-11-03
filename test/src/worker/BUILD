@@ -11,6 +11,14 @@ gtest_test(
 )
 
 gtest_test(
+    name = "subresource_gate_test",
+    deps = [
+        "//lib/classify:alternate_metadata",
+        "//src/worker:subresource_gate",
+    ],
+)
+
+gtest_test(
     name = "serve_stats_test",
     # Production code already has Windows mmap support; test uses std::atomic_ref (C++20).
     deps = [
@@ -175,6 +183,7 @@ gtest_test(
         "//lib/html:html_writer_filter",
         "//src/worker:cascade_layer_order",
         "//src/worker:html_transform_filter",
+        "//src/worker:subresource_gate",
     ],
 )
 
@@ -192,6 +201,7 @@ gtest_test(
         "//lib/image:exif_orientation",
         "//lib/image:image_util",
         "//lib/image:jpeg",
+        "//lib/image:quality_verifier",
         "//lib/image:read_image",
         "//src/worker:image_transcoder",
         "@libavif",
@@ -286,6 +296,7 @@ gtest_test(
         "//lib/classify:capability_mask",
         "//lib/classify:content_type",
         "//src/worker:cache_handlers",
+        "//src/worker:known_sites",
         "//src/worker:url_registry",
         "//test/test_util:tcp_client",
         "//test/test_util:temp_dir",
@@ -427,7 +438,16 @@ gtest_test(
 gtest_test(
     name = "url_registry_test",
     deps = [
+        "//src/worker:known_sites",
         "//src/worker:url_registry",
+    ],
+)
+
+gtest_test(
+    name = "known_sites_file_test",
+    deps = [
+        "//src/worker:known_sites",
+        "//test/test_util:temp_dir",
     ],
 )
 
@@ -452,6 +472,7 @@ gtest_test(
         "worker_notify_test.cc",
         "worker_origin_refresh_test.cc",
         "worker_peer_rewrite_test.cc",
+        "worker_subresource_gate_test.cc",
         "worker_test_fixture.cc",
         "worker_test_fixture.h",
     ],
@@ -487,10 +508,14 @@ gtest_test(
         "//src/worker:html_scanner",
         "//src/worker:layer_order_sources",
         "//src/worker:shared_config",
+        "//src/worker:known_sites",
+        "//src/worker:subresource_gate",
         "//src/worker:text_compressor",
         "//src/worker:url_registry",
         "//src/worker:worker_lib",
+        "@com_google_absl//absl/strings",
         "@libavif",
+        "//test/test_util:cache_test_peer",
         "//test/test_util:pipe_client",
         "//test/test_util:tcp_client",
         "//test/test_util:temp_dir",

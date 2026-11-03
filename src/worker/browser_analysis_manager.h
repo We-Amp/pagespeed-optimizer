@@ -45,6 +45,7 @@
 #include "src/worker/browser_analysis_manager_internal.h"
 #include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_scanner.h"
+#include "src/worker/subresource_gate.h"
 #include "uv.h"
 
 namespace pagespeed {
@@ -184,9 +185,13 @@ class BrowserAnalysisManager {
 
   // Thread-safe.  Fires uv_async_send to wake event loop.
   // Returns false if queue is full (item dropped).
+  //
+  // `site`, `host_vouched` and `from_module` are the notification's (wire v6)
+  // and travel with the item: see AnalysisQueue::Item.
   bool EnqueueAnalysis(
       const std::string& url, const std::string& hostname,
-      const std::string& scheme, uint32_t mask, uint64_t template_hash,
+      const std::string& scheme, const std::string& site, bool host_vouched,
+      bool from_module, uint32_t mask, uint64_t template_hash,
       std::string_view original_html = {},
       std::optional<std::array<std::byte, 32>> origin_html_hash = std::nullopt,
       bool force_agent_render = false);
@@ -206,14 +211,16 @@ class BrowserAnalysisManager {
   // request. Thread-safe. Returns true when an analysis was queued.
   bool RequestRevalidation(
       const std::string& url, const std::string& hostname,
-      const std::string& scheme, uint32_t mask, uint64_t template_hash,
+      const std::string& scheme, const std::string& site, bool host_vouched,
+      bool from_module, uint32_t mask, uint64_t template_hash,
       std::string_view original_html,
       std::optional<std::array<std::byte, 32>> origin_html_hash = std::nullopt,
       std::chrono::steady_clock::time_point now =
           std::chrono::steady_clock::now());
 
-  // Thread-safe cache lookup for an existing profile.
-  std::optional<OptimizationProfile> LookupProfile(uint64_t template_hash);
+  // Thread-safe cache lookup for an existing profile, in `site`'s keyspace.
+  std::optional<OptimizationProfile> LookupProfile(uint64_t template_hash,
+                                                   std::string_view site = {});
 
   TemplateDetector& template_detector() { return template_detector_; }
   const BrowserStats& stats() const { return stats_; }
@@ -234,9 +241,10 @@ class BrowserAnalysisManager {
   // Invoked (best-effort) after a kAgentMarkdown variant is written for a page
   // URL.  This write happens outside HandleNotification, so the worker uses
   // this hook to refresh that URL's cached alternate count in the URL registry.
-  // Args: url, hostname, scheme.
-  using AgentAlternateWrittenCallback = std::function<void(
-      const std::string&, const std::string&, const std::string&)>;
+  // Args: url, hostname, scheme, site.
+  using AgentAlternateWrittenCallback =
+      std::function<void(const std::string&, const std::string&,
+                         const std::string&, const std::string&)>;
   void set_agent_alternate_written_callback(AgentAlternateWrittenCallback cb) {
     on_agent_alternate_written_ = std::move(cb);
   }
@@ -263,6 +271,15 @@ class BrowserAnalysisManager {
   }
   void set_combined_css_builder(CombinedCssBuilder builder) {
     combined_css_builder_ = std::move(builder);
+  }
+
+  // The gate every cached sub-resource the analysis loads (stylesheets and
+  // their @imports, scripts) must pass (SubresourceGate).  Without one the
+  // analysis loads none.  The analysis runs on the event loop, where the gate
+  // answers from its memo only; EnqueueAnalysis, which runs on the
+  // notification's thread, asks it first.
+  void set_subresource_gate(std::shared_ptr<SubresourceGate> gate) {
+    subresource_gate_ = std::move(gate);
   }
 
   // Test-only seam: the async half of one viewport's validation — hand it the
@@ -325,7 +342,8 @@ class BrowserAnalysisManager {
   // Lets a test exercise the profile-driven critical-CSS path (e.g. the Issue A
   // coverage-budget suppression) without driving a live Chrome render.
   void TestStoreProfile(uint64_t template_hash,
-                        const OptimizationProfile& profile);
+                        const OptimizationProfile& profile,
+                        std::string_view site = {});
 
  private:
   // Chrome lifecycle.
@@ -378,6 +396,12 @@ class BrowserAnalysisManager {
   MessageHandler* handler_;  // Not owned
 
   CombinedCssBuilder combined_css_builder_;
+  std::shared_ptr<SubresourceGate> subresource_gate_;
+  // A cache lookup for the analysis of `item` that returns only what the
+  // gate admits; the lookup's url is a cache URL (or an absolute URL whose
+  // host keys the read).  `may_fetch` false: memo only.
+  std::function<std::optional<std::string>(std::string_view)> GatedLookup(
+      const AnalysisQueue::Item& item, bool may_fetch);
   ValidationRunner validation_runner_;
   // Set only while TestValidateOneViewport is driving: stops the pipeline at
   // the end of the viewport rather than advancing the schedule, which would

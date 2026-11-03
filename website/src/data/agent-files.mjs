@@ -29,7 +29,7 @@ Heritage: mod_pagespeed, the open-source optimization core this product continue
 
 What it does:
 
-- Image optimization in the optimizer worker: WebP, AVIF and SVG transcoding, viewport-aware resizing, learned per-format quality prediction with SSIMULACRA2 verification, content-aware classification and denoising, up to {{MAX_VARIANTS}} variants per image ({{RASTER_VARIANTS}} raster plus one SVG)
+- Image optimization in the optimizer worker: WebP, AVIF and SVG transcoding, viewport-aware resizing, learned per-format quality prediction with SSIMULACRA2 verification, content-aware classification, up to {{MAX_VARIANTS}} variants per image ({{RASTER_VARIANTS}} raster plus one SVG)
 - CSS optimization: minification, heuristic critical-CSS extraction with an optional headless-browser pipeline, non-blocking stylesheet loading
 - JavaScript optimization: safe minification and browser-analysis-driven script deferral, no AST transforms
 - HTML optimization: critical CSS injection, 103 Early Hints, lazy-loading attributes, image dimensions, LCP image preload, font preloading, preconnect hints

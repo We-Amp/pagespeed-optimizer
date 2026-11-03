@@ -25,6 +25,19 @@ gtest_test(
 )
 
 gtest_test(
+    name = "agent_self_fetch_test",
+    deps = [
+        "//lib/net:curl_fetcher",
+        "//src/nginx:agent_self_fetch",
+    ],
+)
+
+gtest_test(
+    name = "host_vouch_test",
+    deps = ["//src/nginx:host_vouch"],
+)
+
+gtest_test(
     name = "cache_generation_check_test",
     deps = [
         "//src/nginx:cache_generation_check",

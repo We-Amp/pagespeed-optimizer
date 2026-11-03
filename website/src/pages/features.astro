@@ -424,8 +424,8 @@ const jsonLd = [softwareApplication, faqPage];
                 <p class="text-sm text-text-muted">
                   Each image is classified as photo, screenshot, illustration, or noisy before
                   compression. Photos tolerate more aggressive compression than screenshots with
-                  sharp text. Noisy images are denoised with a bilateral filter before encoding,
-                  preventing wasted bytes on noise that no one wants to preserve.
+                  sharp text. Noisy images keep their detail, and a variant is only served when it
+                  is smaller than the original.
                 </p>
               </div>
             </li>

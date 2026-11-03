@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 We-Amp B.V.
 
+using System.Buffers.Binary;
 using System.Net.Http;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
@@ -1214,6 +1218,170 @@ public class MiddlewareTests
             context.Response.Headers["X-PageSpeed"].ToString());
     }
 
+    // While the worker's agent optimization is on, an HTML notification is
+    // sent only for a host AllowedHosts names; a list that allows any host,
+    // or none, names no host.
+    [Theory]
+    [InlineData("site.test", "site.test", true)]
+    [InlineData("a.site.test", "*.site.test", true)]
+    [InlineData("other.test", "site.test", false)]
+    [InlineData("other.test", "*", false)]
+    [InlineData("other.test", null, false)]
+    public async Task HtmlRevalidation_AgentOn_NotifiesOnlyForAllowedHosts(
+        string host, string? allowedHost, bool expectNotified)
+    {
+        var pending = await RevalidateHtml(host, allowedHost, agentEntitled: 1);
+        Assert.Equal(expectNotified ? 1 : 0, pending);
+    }
+
+    // With agent optimization off, AllowedHosts plays no part.
+    [Fact]
+    public async Task HtmlRevalidation_AgentOff_NotifiesForAnyHost()
+    {
+        var pending = await RevalidateHtml("other.test", "*", agentEntitled: 0);
+        Assert.Equal(1, pending);
+    }
+
+    // The notification carries the host check in its flags byte (bit 0,
+    // HOST_VOUCHED): the worker runs the agent render and the llms.txt build
+    // only for a vouched notification, so a host AllowedHosts names turns
+    // them on and any other host leaves them off.
+    [Theory]
+    [InlineData("site.test", "site.test", 1, 0x01)]
+    [InlineData("a.site.test", "*.site.test", 1, 0x01)]
+    [InlineData("site.test", "site.test", 0, 0x01)]
+    [InlineData("other.test", "site.test", 0, 0x00)]
+    [InlineData("other.test", "*", 0, 0x00)]
+    public async Task HtmlRevalidation_NotificationCarriesTheHostCheck(
+        string host, string allowedHost, int agentEntitled, int expectedFlags)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return; // named pipes
+
+        var frame = await RevalidateHtmlAndReadFrame(host, allowedHost, agentEntitled);
+        Assert.Equal(6, frame[4]);                // wire version
+        Assert.Equal(0, frame[^2]);               // no site
+        Assert.Equal(expectedFlags, frame[^1]);   // flags
+    }
+
+    private async Task<byte[]> RevalidateHtmlAndReadFrame(
+        string host, string allowedHost, int agentEntitled)
+    {
+        var sockPath = $"/tmp/psv-{Guid.NewGuid():N}".Substring(0, 24) + ".sock";
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var listener = new Socket(
+            AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        try
+        {
+            listener.Bind(new UnixDomainSocketEndPoint(sockPath));
+            listener.Listen(1);
+
+            var notifierOptions = Substitute.For<IOptionsMonitor<PageSpeedOptions>>();
+            notifierOptions.CurrentValue.Returns(new PageSpeedOptions());
+            var endpoint = new WeAmp.PageSpeed.AspNetCore.Internal.InternalWorkerEndpoint();
+            var notifier = new WorkerNotificationService(
+                notifierOptions, endpoint,
+                Substitute.For<ILogger<WorkerNotificationService>>());
+            await notifier.StartAsync(cts.Token);
+            endpoint.SetSocketPath(sockPath);
+            var acceptTask = listener.AcceptAsync(cts.Token).AsTask();
+
+            var cache = new HitPageSpeedCache(new FakeReadResult
+            {
+                ContentMemory = Encoding.UTF8.GetBytes("<html></html>"),
+                Mask = 0x08,
+                ContentType = PageSpeedContentType.Html,
+                OriginContentType = "text/html",
+                NeedsRevalidation = true,
+                Flags = CacheFlags.NeedsRevalidation,
+            })
+            {
+                AgentEntitled = agentEntitled,
+            };
+            var hostFiltering = Substitute.For<IOptionsMonitor<HostFilteringOptions>>();
+            hostFiltering.CurrentValue.Returns(new HostFilteringOptions
+            {
+                AllowedHosts = new List<string> { allowedHost },
+            });
+            var middleware = new PageSpeedMiddleware(
+                _ => Task.CompletedTask, _optionsMonitor,
+                _htmlProcessor, cache, notifier, _logger, hostFiltering);
+
+            var context = new DefaultHttpContext();
+            context.Request.Method = "GET";
+            context.Request.Path = "/page";
+            context.Request.Scheme = "http";
+            context.Request.Host = new HostString(host);
+            context.Response.Body = new MemoryStream();
+            await middleware.InvokeAsync(context);
+            Assert.Equal("HIT", context.Response.Headers["X-PageSpeed"].ToString());
+
+            using var conn = await acceptTask;
+            var header = await ReadExactlyAsync(conn, 4, cts.Token);
+            var payload = await ReadExactlyAsync(
+                conn, BinaryPrimitives.ReadInt32BigEndian(header), cts.Token);
+            await notifier.StopAsync(cts.Token);
+            return header.Concat(payload).ToArray();
+        }
+        finally
+        {
+            try { File.Delete(sockPath); } catch { /* best effort */ }
+        }
+    }
+
+    private static async Task<byte[]> ReadExactlyAsync(
+        Socket s, int n, CancellationToken ct)
+    {
+        var buf = new byte[n];
+        int got = 0;
+        while (got < n)
+        {
+            int r = await s.ReceiveAsync(buf.AsMemory(got), SocketFlags.None, ct);
+            if (r == 0) throw new IOException("socket closed early");
+            got += r;
+        }
+        return buf;
+    }
+
+    private async Task<int> RevalidateHtml(
+        string host, string? allowedHost, int agentEntitled)
+    {
+        var cache = new HitPageSpeedCache(new FakeReadResult
+        {
+            ContentMemory = Encoding.UTF8.GetBytes("<html></html>"),
+            Mask = 0x08,
+            ContentType = PageSpeedContentType.Html,
+            OriginContentType = "text/html",
+            NeedsRevalidation = true,
+            Flags = CacheFlags.NeedsRevalidation,
+        })
+        {
+            AgentEntitled = agentEntitled,
+        };
+        var hostFiltering = Substitute.For<IOptionsMonitor<HostFilteringOptions>>();
+        hostFiltering.CurrentValue.Returns(new HostFilteringOptions
+        {
+            AllowedHosts = allowedHost is null
+                ? new List<string>()
+                : new List<string> { allowedHost },
+        });
+
+        var middleware = new PageSpeedMiddleware(
+            _ => Task.CompletedTask, _optionsMonitor,
+            _htmlProcessor, cache, _notifier, _logger, hostFiltering);
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/page";
+        context.Request.Scheme = "http";
+        context.Request.Host = new HostString(host);
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal("HIT", context.Response.Headers["X-PageSpeed"].ToString());
+        return _notifier.PendingCount;
+    }
+
     [Fact]
     public async Task SafeMode_CssHit_DefaultMaxAge300()
     {
@@ -2297,11 +2465,12 @@ public class MiddlewareTests
         public PageSpeedContentType ContentType { get; init; }
         public string? OriginContentType { get; init; }
         // Entries these tests describe were written with their response
-        // headers checked (nothing to carry), as the middleware writes them.
+        // headers checked (nothing to carry) from an anonymous request, as
+        // the middleware writes them.
         private readonly byte _flags;
         public byte Flags
         {
-            get => (byte)(_flags | CacheFlags.HeadersClassified);
+            get => (byte)(_flags | CacheFlags.HeadersClassified | CacheFlags.AnonymousRecorded);
             init => _flags = value;
         }
         public ushort OriginCcFlags { get; init; }
@@ -2394,6 +2563,9 @@ public class MiddlewareTests
 
         public HitPageSpeedCache(IReadResult result) => _result = result;
 
+        // The worker's published agent optimization flag.
+        public int AgentEntitled { get; init; }
+
         WeAmp.PageSpeed.Native.SafeCacheHandle IPageSpeedCache.Handle =>
             throw new NotSupportedException(
                 "Test fake has no native handle");
@@ -2404,7 +2576,7 @@ public class MiddlewareTests
         public IReadResult? ReadBestAgent(
             string url, string hostname, string scheme, uint mask, int agentEntitled) => null;
 
-        public int ReadSharedConfigAgentEntitled() => 0;
+        public int ReadSharedConfigAgentEntitled() => AgentEntitled;
 
         public IReadResult? ReadAlternate(
             string url, string hostname, string scheme, byte alternateId) => null;

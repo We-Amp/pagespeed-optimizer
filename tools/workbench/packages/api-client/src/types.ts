@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 // ---------------------------------------------------------------------------
-// Backend API response types for the mod_pagespeed 2.1 worker management API.
+// Backend API response types for the mod_pagespeed worker management API.
 // ---------------------------------------------------------------------------
 
 // ---- GET /v1/health -------------------------------------------------------
@@ -164,9 +164,6 @@ export interface ConfigResponse {
   quality_verify: boolean;
   target_ssimulacra2: number;
   ssimulacra2_tolerance: number;
-  denoise_threshold: number;
-  denoise_sigma_spatial: number;
-  denoise_sigma_range: number;
   disable_html: boolean;
   disable_css: boolean;
   disable_js: boolean;

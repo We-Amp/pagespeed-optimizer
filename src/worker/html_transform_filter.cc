@@ -14,6 +14,7 @@
 #include "lib/base/string_util.h"
 #include "lib/cache/cache.h"
 #include "lib/cache/headers_sidecar.h"
+#include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
 #include "lib/html/csp_inline_policy.h"
 #include "lib/html/html_element.h"
@@ -388,21 +389,16 @@ void HtmlTransformFilter::InjectCriticalCss(
     if (c != '\0') sanitized.push_back(c);
   }
 
-  // XSS prevention: reject CSS containing </style (case-insensitive).
-  for (size_t i = 0; i + 7 <= sanitized.size(); ++i) {
-    char c0 = sanitized[i];
-    if (c0 != '<') continue;
-    std::string_view candidate(sanitized.data() + i, 7);
-    bool match = true;
-    static constexpr std::string_view kCloseStyle = "</style";
-    for (size_t j = 0; j < 7; ++j) {
-      char a = net_instaweb::LowerChar(candidate[j]);
-      if (a != kCloseStyle[j]) {
-        match = false;
-        break;
-      }
+  // Markup safety: refuse CSS holding a `<` that could open a tag, a closing
+  // tag, a comment or a processing instruction (`<` then an ASCII letter,
+  // `/`, `!` or `?`).  A bare `<` in a range media query stays allowed.
+  for (size_t i = 0; i + 1 < sanitized.size(); ++i) {
+    if (sanitized[i] != '<') continue;
+    const unsigned char next = static_cast<unsigned char>(sanitized[i + 1]);
+    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+        next == '/' || next == '!' || next == '?') {
+      return;  // Abort injection.
     }
-    if (match) return;  // Abort injection.
   }
 
   // Create <style data-pagespeed-critical>...</style>. It goes BEFORE the
@@ -612,6 +608,11 @@ void HtmlTransformFilter::ApplyLazyLoad(net_instaweb::HtmlElement* element) {
 
   // All other <img> and <iframe> get loading="lazy".
   parser_->AddAttribute(element, "loading", "lazy");
+  // A lazy image is below the fold: decode it off the main thread so a late
+  // scroll-in does not stall rendering. An author's decoding attribute wins.
+  if (is_img && element->FindAttribute("decoding") == nullptr) {
+    parser_->AddAttribute(element, "decoding", "async");
+  }
   modified_ = true;
 }
 
@@ -800,10 +801,48 @@ void HtmlTransformFilter::ApplyImageDimensions(
 
   if (cache_ == nullptr) return;
 
+  // Only an image the server serves to any client may size this page.
+  if (subresource_gate_ == nullptr) return;
+
   // Look up the image in cache to read its dimensions.
-  auto read_result = cache_->ReadBestAlternate(std::string(src), hostname_,
-                                               scheme_, CapabilityMask());
-  if (!read_result.has_value()) return;
+  auto read_image = [&] {
+    return cache_->ReadBestAlternate(std::string(src), hostname_, scheme_,
+                                     CapabilityMask(),
+                                     /*agent_request_entitled=*/false, site_);
+  };
+  std::optional<ReadResult> read_result;
+  {
+    SubresourceRead read;
+    read.site = site_;
+    read.scheme = scheme_;
+    read.host = hostname_;
+    read.url = src_view;
+    read.page_host = hostname_;
+    read.host_fetch_allowed = host_fetch_allowed_;
+    // Under a host the worker may not ask, an image the front end recorded
+    // from an anonymous request is admitted as read.  Anything else is asked
+    // about first, without holding a read.
+    if (!read.host_fetch_allowed) {
+      auto first = read_image();
+      if (first.has_value() &&
+          (first->metadata.flags & AlternateMetadata::kFlagAnonymousRecorded) !=
+              0) {
+        read.entry_read = true;
+        read.entry_flags = first->metadata.flags;
+        read.entry_site = site_;  // the read above is keyed by site_
+        if (subresource_gate_->Admitted(read, /*may_fetch=*/true)) {
+          read_result.emplace(std::move(*first));
+        }
+        read.entry_read = false;
+      }
+    }
+    if (!read_result.has_value()) {
+      if (!subresource_gate_->Admitted(read, /*may_fetch=*/true)) return;
+      auto again = read_image();
+      if (!again.has_value()) return;
+      read_result.emplace(std::move(*again));
+    }
+  }
 
   auto content_span = read_result->content();
   if (content_span.empty()) return;
@@ -1142,10 +1181,10 @@ void HtmlTransformFilter::CollectMetaCsp(net_instaweb::HtmlElement* element) {
 // static
 std::vector<std::string> HtmlTransformFilter::ReadHeaderCsps(
     PageSpeedCache* cache, std::string_view url, std::string_view hostname,
-    std::string_view scheme) {
+    std::string_view scheme, std::string_view site) {
   std::vector<std::string> out;
   if (cache == nullptr) return out;
-  auto read = cache->ReadHeadersSidecar(url, hostname, scheme);
+  auto read = cache->ReadHeadersSidecar(url, hostname, scheme, site);
   if (!read.has_value()) return out;
   auto fields =
       ParseHeadersSidecar(PageSpeedCache::HeadersSidecarPayload(*read));

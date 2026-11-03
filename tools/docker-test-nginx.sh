@@ -10,6 +10,8 @@
 #   docker run --rm \
 #     -v "$PWD:/workspace" -v "pagespeed2-bazel-cache:/root/.cache/bazel" \
 #     -w /workspace pagespeed2-dev bash tools/docker-test-nginx.sh
+# To run a single test file, pass it as an argument:
+#   ... pagespeed2-dev bash tools/docker-test-nginx.sh t/200-miss-path.t
 set -euxo pipefail
 
 echo "=== Step 1: Installing nginx + Test::Nginx ==="
@@ -53,21 +55,26 @@ echo "ABI check passed"
 
 echo "=== Step 6: Seeding cache for HIT-path tests ==="
 rm -f /tmp/test-ps-*.vol /tmp/test-ps-*.vol.gen /tmp/test-ps-*.sock
-"$SEED_TOOL" \
-  --cache /tmp/test-ps-300-1.vol \
-  --url "/style.css" \
-  --host "localhost" \
-  --scheme http \
-  --content "h1{color:red}" \
-  --content_type css \
-  --mask 0x08
+export SEED_TEST_CACHE="$SEED_TOOL"
+for seed_script in /workspace/t/seed-*.sh; do
+  [ -f "$seed_script" ] && bash "$seed_script"
+done
 
 echo "=== Step 7: Running test-nginx tests ==="
 export TEST_NGINX_LOAD_MODULES="$MODULE_SO"
 export TEST_NGINX_LOG_LEVEL=warn
 export TEST_NGINX_SERVER_PORT=19840
-export SEED_TEST_CACHE="$SEED_TOOL"
 export WEBBOTAUTH_SIGN_TOOL
-# PROVE_ARGS overrides the prove invocation for targeted iterations
-# (e.g. PROVE_ARGS="-v t/200-miss-path.t"); default is the full suite.
-prove ${PROVE_ARGS:--v -r t/}
+# PROVE_OPTS is prove options only; test files are positional arguments.
+# PROVE_ARGS (older name) holds the whole prove invocation.
+if [ -z "${PROVE_OPTS:-}" ] && [ -n "${PROVE_ARGS:-}" ]; then
+  # shellcheck disable=SC2086
+  prove $PROVE_ARGS
+else
+  if [ $# -eq 0 ]; then
+    # No test files given: run the full suite.
+    PROVE_OPTS="${PROVE_OPTS:--v -r}"
+    set -- t/
+  fi
+  prove ${PROVE_OPTS:--v} "$@"
+fi

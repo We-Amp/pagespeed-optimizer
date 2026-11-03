@@ -2,8 +2,10 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -130,10 +132,27 @@ public sealed class MarkdownContentNegotiationTests
         Assert.False(headers.ContainsKey("X-Robots-Tag"));
     }
 
+    [Fact]
+    public async Task EntitledMarkdownRequest_HostNotInAllowedHosts_ServesHtml()
+    {
+        if (!NativeMarkdownProbe.Available(_output)) return;
+
+        var cache = new MarkdownNegotiationCache(agentEntitled: 1);
+        var (status, ct, body, headers) = await Serve(
+            cache, enableAgentOptimize: true, accept: "text/markdown",
+            allowedHost: "*");
+
+        Assert.Equal(200, status);
+        Assert.Equal("text/html; charset=utf-8", ct);
+        Assert.Equal(HtmlBody, body);
+        Assert.False(headers.ContainsKey("X-Robots-Tag"));
+    }
+
     // ── harness ──────────────────────────────────────────────────────
 
     private async Task<(int Status, string? ContentType, byte[] Body, IHeaderDictionary Headers)>
-        Serve(IPageSpeedCache cache, bool enableAgentOptimize, string accept)
+        Serve(IPageSpeedCache cache, bool enableAgentOptimize, string accept,
+              string allowedHost = "localhost")
     {
         var options = new PageSpeedOptions
         {
@@ -150,10 +169,16 @@ public sealed class MarkdownContentNegotiationTests
             new WeAmp.PageSpeed.AspNetCore.Internal.InternalWorkerEndpoint(),
             Substitute.For<ILogger<WorkerNotificationService>>());
 
+        var hostFiltering = Substitute.For<IOptionsMonitor<HostFilteringOptions>>();
+        hostFiltering.CurrentValue.Returns(new HostFilteringOptions
+        {
+            AllowedHosts = new List<string> { allowedHost },
+        });
+
         var middleware = new PageSpeedMiddleware(
             _ => Task.CompletedTask, optionsMonitor,
             Substitute.For<IHtmlProcessor>(), cache, notifier,
-            Substitute.For<ILogger<PageSpeedMiddleware>>());
+            Substitute.For<ILogger<PageSpeedMiddleware>>(), hostFiltering);
 
         var context = new DefaultHttpContext();
         context.Request.Method = "GET";
@@ -223,7 +248,7 @@ public sealed class MarkdownContentNegotiationTests
         public uint Mask { get; init; }
         public PageSpeedContentType ContentType { get; init; }
         public string? OriginContentType { get; init; }
-        public byte Flags { get; init; } = CacheFlags.HeadersClassified;
+        public byte Flags { get; init; } = CacheFlags.HeadersClassified | CacheFlags.AnonymousRecorded;
         public bool NeedsRevalidation => false;
         public ushort OriginCcFlags => 0;
         public bool RevalidationRequired => false;
@@ -268,10 +293,23 @@ internal static class NativeMarkdownProbe
         }
     }
 
-    private static bool TryEnable(ITestOutputHelper output)
+    private static string? _stageNote;
+
+    /// <summary>
+    /// Stages the env-pointed library into the test output's
+    /// runtimes/&lt;rid&gt;/native layout, where the product resolver (set once
+    /// per assembly by its own module initializer) looks. This runs when the
+    /// test assembly loads, before any test has mapped that file, so every
+    /// test in the process sees the same library. The file is never written
+    /// in place: it is copied to a unique name in the same directory and
+    /// renamed over the target, so a mapping of the old file (if there were
+    /// one) stays valid instead of being truncated underneath the process.
+    /// </summary>
+    [ModuleInitializer]
+    internal static void StageEnvNativeLib()
     {
         var src = Environment.GetEnvironmentVariable("PAGESPEED_AGENT_NATIVE_LIB");
-        if (string.IsNullOrWhiteSpace(src) || !File.Exists(src)) return false;
+        if (string.IsNullOrWhiteSpace(src) || !File.Exists(src)) return;
         try
         {
             var rid = RuntimeInformation.RuntimeIdentifier;
@@ -281,12 +319,28 @@ internal static class NativeMarkdownProbe
                 : "libpagespeed.so";
             var dest = Path.Combine(
                 AppContext.BaseDirectory, "runtimes", rid, "native", nativeName);
-            // Force-overwrite: the build may have already staged a RELEASED
-            // NativeAssets lib that predates ps_wants_agent_markdown; the
-            // env-pointed feature build is authoritative here.
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            File.Copy(src, dest, overwrite: true);
-            output.WriteLine($"staged native lib {src} -> {dest}");
+            // The build may have staged a RELEASED NativeAssets lib that
+            // predates ps_wants_agent_markdown; the env-pointed feature build
+            // is authoritative here.
+            var tmp = dest + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.Copy(src, tmp, overwrite: false);
+            File.Move(tmp, dest, overwrite: true);
+            _stageNote = $"staged native lib {src} -> {dest}";
+        }
+        catch (Exception ex)
+        {
+            _stageNote = $"staging native lib failed: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private static bool TryEnable(ITestOutputHelper output)
+    {
+        var src = Environment.GetEnvironmentVariable("PAGESPEED_AGENT_NATIVE_LIB");
+        if (string.IsNullOrWhiteSpace(src) || !File.Exists(src)) return false;
+        try
+        {
+            if (_stageNote is not null) output.WriteLine(_stageNote);
             // Probe the actual Accept parser the negotiation depends on
             // (catches EntryPointNotFound if a stale lib somehow loaded first).
             return NativePageSpeed.WantsAgentMarkdown("text/markdown") == 1;

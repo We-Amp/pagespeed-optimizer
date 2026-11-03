@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
-// mod_pagespeed 2.1 — Corpus Validation Tool
+// mod_pagespeed — Corpus Validation Tool
 //
 // Loads images via the scanline API, rejects animated images,
 // runs ContentAnalyzer, and outputs a CSV manifest.

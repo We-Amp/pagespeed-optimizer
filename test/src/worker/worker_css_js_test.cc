@@ -242,6 +242,8 @@ TEST_F(WorkerTest, RawInputVariantsCarrySourceBinding) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -803,6 +805,68 @@ TEST_F(WorkerTest, CssNotificationWritesCompressedVariants) {
   // Verify stats counters.
   EXPECT_GE(worker.stats().gzip_variants_written.load(), 1u);
   EXPECT_GE(worker.stats().brotli_variants_written.load(), 1u);
+}
+
+// The coded copies record the size of the RAW origin under their own encoding,
+// which the serve-time split measures a rewrite against.
+TEST_F(WorkerTest, CodedCssVariantsRecordTheEncodedOriginSize) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/encoded-size.css";
+  std::string css;
+  for (int i = 0; i < 40; ++i) {
+    css += "body  {  margin:  " + std::to_string(i) +
+           "px;  padding:  0;  }\n/* comment " + std::to_string(i * 7) +
+           " */\n";
+  }
+  CacheOriginal(worker.cache(), url, css);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kCss;
+  notification.capability_mask = CapabilityMask().Encode();
+  SendNotification(notification);
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  CapabilityMask identity_mask;
+  const auto identity = ReadVariantWithMeta(worker.cache(), url, identity_mask);
+  ASSERT_TRUE(identity.has_value());
+  ASSERT_LT(identity->content.size(), css.size());
+  // Identity: measured against the origin itself.
+  EXPECT_EQ(identity->metadata.EncodedOriginLength(), css.size());
+
+  CapabilityMask gz_mask;
+  gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  const auto gz = ReadVariantWithMeta(worker.cache(), url, gz_mask);
+  ASSERT_TRUE(gz.has_value());
+  const auto gz_encoded = gz->metadata.EncodedOriginLength();
+  ASSERT_TRUE(gz_encoded.has_value());
+  const double gz_expected = GzipCompress(css, config.gzip_level).size();
+  EXPECT_NEAR(*gz_encoded, gz_expected, css.size() / 50000.0 + 1.0);
+  EXPECT_FALSE(gz->metadata.QualityScoreX100().has_value());
+
+  CapabilityMask br_mask;
+  br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
+  const auto br = ReadVariantWithMeta(worker.cache(), url, br_mask);
+  ASSERT_TRUE(br.has_value());
+  const auto br_encoded = br->metadata.EncodedOriginLength();
+  ASSERT_TRUE(br_encoded.has_value());
+  const double br_expected = BrotliCompress(css, config.brotli_level).size();
+  EXPECT_NEAR(*br_encoded, br_expected, css.size() / 50000.0 + 1.0);
+  // The rewrite saved bytes beyond what the encoding saved.
+  EXPECT_LT(gz->content.size(), *gz_encoded);
 }
 
 TEST_F(WorkerTest, CompressionDisabledProducesNoCompressedVariants) {

@@ -1,7 +1,7 @@
 # Cache Freshness: Conditional Revalidation & Origin CC Guidance
 
 **Status:** Implemented
-**Baseline:** designed against AlternateMetadata v5; the current format is v8 (`kCurrentVersion` in `lib/classify/alternate_metadata.h`)
+**Baseline:** designed against AlternateMetadata v5; the current format is v9 (`kCurrentVersion` in `lib/classify/alternate_metadata.h`)
 **RFC references:** RFC 9111 (HTTP Caching), RFC 9110 (HTTP Semantics)
 
 ---

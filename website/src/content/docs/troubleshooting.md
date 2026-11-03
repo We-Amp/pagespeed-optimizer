@@ -203,6 +203,25 @@ curl -sI http://localhost:5050/hero.jpg -H 'Accept: image/webp'
 A full walkthrough is in the
 [getting-started guide](/docs/aspnet-getting-started/#verify-the-install).
 
+## Admin console savings total reads lower after updating
+
+**Symptom:** After updating, the [admin console](/docs/admin-console/)'s
+savings total reads lower than before, or the console shows only a total with
+no split.
+
+**Cause:** Expected, not a regression. The console now shows how much of the
+saving on responses served from the optimizer's cache came from compression
+applied by mod_pagespeed and how much from its optimization; your web server's
+own compression on other responses is not counted. The two parts, plus a share
+not yet attributed, add up to the total saving. The total now counts HTML that
+the optimizer makes larger, for example by inlining above-the-fold CSS or
+adding preload hints; earlier versions counted that as zero, so the total can
+read lower than before without anything optimizing less.
+
+**Fix:** Nothing to fix. After the update the caches start cold, so the split
+fills in as pages are re-optimized; until then the console shows the total
+only.
+
 ## Images not converting to WebP/AVIF
 
 **Symptom:** Image requests with `Accept: image/webp` still return the original
@@ -791,3 +810,5 @@ Verify that the configuration options match between the HTML-serving VHost and t
 - [Web Console](/docs/workbench/) — Visual cache inspector, debug console, and
   real-time metrics
 - [Deployment Guide](/docs/deployment/) — Production setup and monitoring
+- [Hydrated pages](/docs/hydrated-pages/) — What is left unchanged on hydrated
+  React, Next.js, Vue, Nuxt and Svelte pages, and what to do when one is missed

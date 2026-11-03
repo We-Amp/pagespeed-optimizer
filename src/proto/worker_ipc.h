@@ -12,6 +12,7 @@
 #ifndef PAGESPEED_SRC_PROTO_WORKER_IPC_H_
 #define PAGESPEED_SRC_PROTO_WORKER_IPC_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -28,8 +29,8 @@ inline constexpr uint32_t kMaxUrlLength = 16384;
 // Maximum hostname length accepted during deserialization.
 inline constexpr uint32_t kMaxHostnameLength = 512;
 
-// Wire protocol version.  v5 appends the per-request option context; v4
-// appended the agent_request bit.
+// Wire protocol version.  v6 appends the site and the notification flags; v5
+// appended the per-request option context; v4 appended the agent_request bit.
 //
 // WHY THE VERSION MOVED RATHER THAN THE FRAME JUST GETTING LONGER.  Appending
 // a field without bumping the version looks free — a v4 reader would stop at
@@ -65,7 +66,24 @@ inline constexpr uint32_t kMaxHostnameLength = 512;
 // from the outside (nothing gets optimized) and have completely different
 // fixes, so an operator who cannot tell them apart is left staring at a cache
 // that never warms.
-inline constexpr uint8_t kIpcVersion = 5;
+inline constexpr uint8_t kIpcVersion = 6;
+
+// The site (v6): the keyspace of one server block or virtual host of the
+// front end that recorded the entry.  Empty, or exactly this many lowercase
+// hex characters; nothing else is a site.
+inline constexpr size_t kSiteIdChars = 64;
+
+// True for exactly kSiteIdChars characters of [0-9a-f].  False for empty.
+bool IsSiteId(std::string_view site);
+
+// Notification flags byte (v6).  Bits 3-7 are reserved and must be zero.
+inline constexpr uint8_t kNotifyFlagHostVouched = 0x01;
+inline constexpr uint8_t kNotifyFlagFromModule = 0x02;
+// Set only by libpagespeed, on a frame from a caller whose
+// ps_notify_params_t predates the site fields.
+inline constexpr uint8_t kNotifyFlagLegacyExCaller = 0x04;
+inline constexpr uint8_t kNotifyFlagsKnown =
+    kNotifyFlagHostVouched | kNotifyFlagFromModule | kNotifyFlagLegacyExCaller;
 
 // Why a notification was refused.  Deliberately distinguishes skew from
 // damage; see the kIpcVersion note above.
@@ -136,7 +154,22 @@ struct CacheNotification {
   std::string option_context;
   std::string option_signature;
 
-  // Serialize to binary format (v5).
+  // The site (v6): empty, or kSiteIdChars lowercase hex.  Empty is the
+  // unsited keyspace.  Serialize refuses, and Deserialize rejects, any other
+  // value.
+  std::string site;
+  // The flags byte (v6).  Each defaults to clear; a sender that says nothing
+  // is unvouched and not the module.
+  //   host_vouched: the sender checked `hostname` against the names the site
+  //     serves.  Required for work that fetches from that host.
+  //   from_module: the sender is the mod_pagespeed in-place arm.
+  //   legacy_ex_caller: libpagespeed built this frame for a caller whose
+  //     parameters predate the site fields.
+  bool host_vouched = false;
+  bool from_module = false;
+  bool legacy_ex_caller = false;
+
+  // Serialize to binary format (v6).
   // Returns empty vector if validation fails.
   std::vector<char> Serialize() const;
 
@@ -152,8 +185,8 @@ struct CacheNotification {
                           IpcRejection* rejection = nullptr);
 };
 
-// Wire format (v5 — appends the option context; v4 appended the agent_request
-// bit; v3 added version+scheme):
+// Wire format (v6 — appends the site and the flags; v5 appended the option
+// context; v4 appended the agent_request bit; v3 added version+scheme):
 //
 // The socket framing layer reads the first 4 bytes as total_length,
 // then passes all bytes (including the 4-byte header) to Deserialize.
@@ -175,6 +208,10 @@ struct CacheNotification {
 //   [option_context_length bytes: option_context]
 //   [1 byte: option_signature_length — v5, 0 or 64]
 //   [option_signature_length bytes: option_signature]
+//   [1 byte: site_length — v6, 0 or 64]
+//   [site_length bytes: site, lowercase hex]
+//   [1 byte: flags — v6; bit0 host vouched, bit1 from module,
+//            bit2 legacy caller, bits 3-7 zero]
 
 }  // namespace pagespeed
 

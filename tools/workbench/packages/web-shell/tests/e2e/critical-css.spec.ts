@@ -28,6 +28,21 @@ const BLOG = `${PROXY_BASE}/demos/blog/index.html`;
 // writes for alternate IDs it hasn't cached in RAM yet.
 const BROWSER_HEADERS = { 'Accept-Encoding': 'gzip, deflate, br' };
 
+// The block is inlined only together with the deferral it makes possible.
+// Zero blocks needs a render-blocking stylesheet and no async marker; one block
+// needs the deferred stylesheet. Never more than one.
+function assertBlockInvariant(html: string): number {
+  const blocks = (html.match(/data-pagespeed-critical/g) || []).length;
+  expect(blocks).toBeLessThanOrEqual(1);
+  if (blocks === 0) {
+    expect(html).toMatch(/<link[^>]*rel="stylesheet"/);
+    expect(html).not.toContain('data-pagespeed-async');
+  } else {
+    expect(html).toContain('data-pagespeed-async');
+  }
+  return blocks;
+}
+
 test.describe('Critical CSS — No Duplication', () => {
   // Seed the cache: first request is a MISS, then CSS gets cached,
   // then a revalidation request lets the worker gather external CSS.
@@ -56,7 +71,7 @@ test.describe('Critical CSS — No Duplication', () => {
       description: `data-pagespeed-critical occurrences: ${matches.length}`,
     });
 
-    expect(matches.length).toBe(1);
+    expect(assertBlockInvariant(html)).toBe(matches.length);
   });
 
   test('no duplicate selectors in critical CSS', async ({ request }) => {
@@ -69,7 +84,10 @@ test.describe('Critical CSS — No Duplication', () => {
     const styleMatch = html.match(
       /<style[^>]*data-pagespeed-critical[^>]*>([\s\S]*?)<\/style>/,
     );
-    expect(styleMatch).not.toBeNull();
+    if (styleMatch === null) {
+      assertBlockInvariant(html);
+      return;
+    }
     const css = styleMatch![1];
 
     // Split into rules and extract selectors.
@@ -171,7 +189,7 @@ test.describe('Critical CSS — Blog (AVIF format-bit regression)', () => {
       description: `data-pagespeed-critical occurrences: ${matches.length}`,
     });
 
-    expect(matches.length).toBe(1);
+    expect(assertBlockInvariant(html)).toBe(matches.length);
   });
 
   test('blog critical CSS contains rules', async ({ request }) => {
@@ -181,7 +199,10 @@ test.describe('Critical CSS — Blog (AVIF format-bit regression)', () => {
     const styleMatch = html.match(
       /<style[^>]*data-pagespeed-critical[^>]*>([\s\S]*?)<\/style>/,
     );
-    expect(styleMatch).not.toBeNull();
+    if (styleMatch === null) {
+      assertBlockInvariant(html);
+      return;
+    }
     const css = styleMatch![1];
 
     // Count CSS rules (selector { ... } pairs).

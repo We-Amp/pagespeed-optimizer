@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -28,6 +29,7 @@
 #include "lib/html/html_writer_filter.h"
 #include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_scanner.h"
+#include "src/worker/subresource_gate.h"
 
 namespace pagespeed {
 namespace {
@@ -41,6 +43,17 @@ size_t CountOccurrences(std::string_view haystack, std::string_view needle) {
     pos += needle.size();
   }
   return count;
+}
+
+// A gate whose server serves every URL to any client: the pre-gate behaviour
+// the tests below were written against.
+SubresourceGate* AdmitAllGate() {
+  static SubresourceGate gate(
+      [](const std::string&, const std::string&) -> std::optional<int> {
+        return 200;
+      },
+      [] { return std::int64_t{0}; });
+  return &gate;
 }
 
 // Helper to run the transform filter on HTML and return the output.
@@ -60,6 +73,7 @@ std::string TransformHtml(
   HtmlTransformFilter transform(&parser, config, critical_css, cache, hostname,
                                 "https", lcp_candidate, preconnect_origins,
                                 speculation_urls, defer_scripts, font_urls);
+  transform.set_subresource_gate(AdmitAllGate(), /*host_fetch_allowed=*/true);
   parser.AddFilter(&transform);
 
   std::string output;
@@ -156,6 +170,42 @@ TEST(HtmlTransformFilterTest, AddsLazyLoadToImages) {
   std::string second_tag =
       result.substr(second_img_start, second_img_end - second_img_start + 1);
   EXPECT_NE(second_tag.find("loading=\"lazy\""), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, LazyImagesGetAsyncDecoding) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = true;
+  config.enable_image_dimensions = false;
+
+  std::string result = TransformHtml(
+      "<html><body>"
+      "<img src=\"hero.jpg\">"
+      "<img src=\"below.jpg\">"
+      "<img src=\"authored.jpg\" decoding=\"sync\">"
+      "<iframe src=\"a.html\"></iframe><iframe src=\"b.html\"></iframe>"
+      "<iframe src=\"c.html\"></iframe><iframe src=\"d.html\"></iframe>"
+      "</body></html>",
+      "http://example.com/", config);
+
+  auto tag_around = [&](const std::string& needle) {
+    auto at = result.find(needle);
+    EXPECT_NE(at, std::string::npos) << needle;
+    auto start = result.rfind('<', at);
+    return result.substr(start, result.find('>', at) - start + 1);
+  };
+  // The promoted first image is not lazy and gets no decoding hint.
+  EXPECT_EQ(tag_around("hero.jpg").find("decoding="), std::string::npos);
+  // A lazy image gets decoding="async".
+  EXPECT_NE(tag_around("below.jpg").find("decoding=\"async\""),
+            std::string::npos);
+  // An authored decoding attribute is kept as written.
+  std::string authored = tag_around("authored.jpg");
+  EXPECT_NE(authored.find("decoding=\"sync\""), std::string::npos);
+  EXPECT_EQ(authored.find("decoding=\"async\""), std::string::npos);
+  // Lazy iframes get loading but no decoding attribute.
+  EXPECT_NE(tag_around("d.html").find("loading=\"lazy\""), std::string::npos);
+  EXPECT_EQ(tag_around("d.html").find("decoding="), std::string::npos);
 }
 
 TEST(HtmlTransformFilterTest, SkipsImgWithExistingLoading) {
@@ -693,7 +743,7 @@ TEST(HtmlTransformFilterTest, StandInPlaceholderNeverTakesTheFallback) {
               std::string::npos)
         << first << " in " << real;
     EXPECT_EQ(tag_around(real, "/a.jpg"),
-              "<img src=\"/a.jpg\" loading=\"lazy\">")
+              "<img src=\"/a.jpg\" loading=\"lazy\" decoding=\"async\">")
         << first << " in " << real;
   }
 
@@ -2638,40 +2688,62 @@ TEST(HtmlTransformFilterTest, LcpPreloadRejectsProtocolRelativeUrl) {
       << "Protocol-relative URL should NOT produce a preload link";
 }
 
-// ========== Coverage: XSS check character mismatch (lines 132-133, 137) ==========
+// ========== Critical CSS: sequences that could open markup ==========
 
-TEST(HtmlTransformFilterTest, CriticalCssAllowsNonStyleClosingTag) {
+TEST(HtmlTransformFilterTest, CriticalCssRefusesAnyClosingTagSequence) {
   HtmlTransformConfig config;
   config.enable_critical_css = true;
   config.enable_lazy_load = false;
   config.enable_image_dimensions = false;
 
-  // CSS containing "</span>" — starts with "</" but is NOT "</style",
-  // so the XSS check loop should hit the mismatch branch and allow
-  // injection.
   std::string result = TransformHtml("<html><head></head><body></body></html>",
                                      "http://example.com/", config,
                                      "body { } </span> .foo { color: red; }");
 
-  // The CSS should be injected (it's safe — no </style).
-  EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos)
-      << "CSS with </span> should be allowed (not </style)";
-  EXPECT_NE(result.find("</span>"), std::string::npos);
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+      << "CSS with </span> must not be injected";
 }
 
-TEST(HtmlTransformFilterTest, CriticalCssAllowsMultipleNonStyleClosingTags) {
+TEST(HtmlTransformFilterTest, CriticalCssRefusesMarkupOpeningSequences) {
   HtmlTransformConfig config;
   config.enable_critical_css = true;
   config.enable_lazy_load = false;
   config.enable_image_dimensions = false;
 
-  // CSS containing multiple "</xyz" sequences that are NOT "</style".
-  std::string result = TransformHtml(
-      "<html><head></head><body></body></html>", "http://example.com/", config,
-      ".a { } </div> .b { } </section> .c { color: blue; }");
+  const char* const refused[] = {
+      "a[title=\"<b\"] { color: red; }", "a { content: \"<A\"; }",
+      "a { color: red; } </x",           "a { content: \"<!\"; }",
+      "a { content: \"<?\"; }",          "a { background: url(\"<i\"); }",
+  };
+  for (const char* css : refused) {
+    SCOPED_TRACE(css);
+    std::string result =
+        TransformHtml("<html><head></head><body></body></html>",
+                      "http://example.com/", config, css);
+    EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+  }
+}
 
-  EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos)
-      << "CSS with </div> and </section> should be allowed";
+TEST(HtmlTransformFilterTest, CriticalCssKeepsRangeMediaQueries) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = true;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+
+  const char* const kept[] = {
+      "@media (width<900px) { .a { color: red; } }",
+      "@media (width<=900px) { .a { color: red; } }",
+      "@media (400px < width < 900px) { .a { color: red; } }",
+      ".a { --x: 1 < 2; }",
+      ".a { color: red; }<",
+  };
+  for (const char* css : kept) {
+    SCOPED_TRACE(css);
+    std::string result =
+        TransformHtml("<html><head></head><body></body></html>",
+                      "http://example.com/", config, css);
+    EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos);
+  }
 }
 
 TEST(HtmlTransformFilterTest, CriticalCssRejectsStyleAfterNonStyleTag) {
@@ -2873,6 +2945,104 @@ TEST(HtmlTransformFilterTest, ImageDimensionsFromCache) {
       << "Should inject width from cached image";
   EXPECT_NE(result.find("height=\"1\""), std::string::npos)
       << "Should inject height from cached image";
+}
+
+// An image the server refuses to an anonymous client sizes nothing, even
+// though a copy of it is in the cache; an image it serves still does.
+TEST(HtmlTransformFilterTest, ImageDimensionsSkipRefusedImage) {
+  CacheHelper cache_helper;
+  ASSERT_TRUE(cache_helper.valid()) << "Cache creation failed";
+  const std::string hostname = "example.com";
+  cache_helper.WriteImage("/held/a.png", hostname,
+                          std::span<const uint8_t>(kMinimalPng));
+  cache_helper.WriteImage("/open/b.png", hostname,
+                          std::span<const uint8_t>(kMinimalPng));
+
+  std::vector<std::string> asked;
+  SubresourceGate gate(
+      [&asked](const std::string&,
+               const std::string& url) -> std::optional<int> {
+        asked.push_back(url);
+        return url.find("/held/") != std::string::npos ? 403 : 200;
+      },
+      [] { return std::int64_t{0}; });
+
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = true;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+
+  net_instaweb::HtmlKeywords::Init();
+  net_instaweb::NullMessageHandler message_handler;
+  net_instaweb::HtmlParse parser(&message_handler);
+  HtmlTransformFilter transform(&parser, config, "", cache_helper.cache(),
+                                hostname, "https");
+  transform.set_subresource_gate(&gate, /*host_fetch_allowed=*/true);
+  parser.AddFilter(&transform);
+  std::string output;
+  net_instaweb::StringWriter writer(&output);
+  net_instaweb::HtmlWriterFilter writer_filter(&parser);
+  writer_filter.set_writer(&writer);
+  parser.AddFilter(&writer_filter);
+  ASSERT_TRUE(parser.StartParse("https://example.com/"));
+  parser.ParseText(
+      "<html><body><img src=\"/held/a.png\"><img src=\"/open/b.png\">"
+      "</body></html>");
+  parser.FinishParse();
+
+  EXPECT_NE(output.find("<img src=\"/held/a.png\">"), std::string::npos)
+      << output;
+  EXPECT_NE(output.find("src=\"/open/b.png\" width=\"1\""), std::string::npos)
+      << output;
+  EXPECT_EQ(asked.size(), 2u);
+}
+
+// Without a gate, and for a sender that may not have the worker ask the
+// host, no cached image is read.
+TEST(HtmlTransformFilterTest, ImageDimensionsNeedGateAndPermission) {
+  CacheHelper cache_helper;
+  ASSERT_TRUE(cache_helper.valid()) << "Cache creation failed";
+  const std::string hostname = "example.com";
+  cache_helper.WriteImage("/images/test.png", hostname,
+                          std::span<const uint8_t>(kMinimalPng));
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = true;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+
+  for (int variant = 0; variant < 2; ++variant) {
+    int heads = 0;
+    SubresourceGate gate(
+        [&heads](const std::string&, const std::string&) -> std::optional<int> {
+          ++heads;
+          return 200;
+        },
+        [] { return std::int64_t{0}; });
+    net_instaweb::HtmlKeywords::Init();
+    net_instaweb::NullMessageHandler message_handler;
+    net_instaweb::HtmlParse parser(&message_handler);
+    HtmlTransformFilter transform(&parser, config, "", cache_helper.cache(),
+                                  hostname, "https");
+    if (variant == 1) {
+      transform.set_subresource_gate(&gate, /*host_fetch_allowed=*/false);
+    }
+    parser.AddFilter(&transform);
+    std::string output;
+    net_instaweb::StringWriter writer(&output);
+    net_instaweb::HtmlWriterFilter writer_filter(&parser);
+    writer_filter.set_writer(&writer);
+    parser.AddFilter(&writer_filter);
+    ASSERT_TRUE(parser.StartParse("https://example.com/"));
+    parser.ParseText(
+        "<html><body><img src=\"/images/test.png\"></body></html>");
+    parser.FinishParse();
+    EXPECT_EQ(output.find("width="), std::string::npos) << output;
+    EXPECT_EQ(heads, 0);
+  }
 }
 
 // An image whose header declares an out-of-range dimension must yield NO
@@ -3822,6 +3992,35 @@ TEST(HtmlTransformFilterTest, ScriptDeferralSkipsAsyncScripts) {
 
   // Already async — should not add defer.
   EXPECT_EQ(result.find("data-pagespeed-defer"), std::string::npos);
+}
+
+// An SVG or MathML <script> is not an HTML script element: it is left as it
+// is, while an HTML one inside an integration point is deferred.
+TEST(HtmlTransformFilterTest, ScriptDeferralSkipsForeignScripts) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+  config.enable_script_deferral = true;
+
+  const std::string foreign =
+      "<html><head></head><body>"
+      "<svg><script src=\"https://cdn.example.com/analytics.js\"></script>"
+      "</svg><math><script src=\"https://cdn.example.com/analytics.js\">"
+      "</script></math></body></html>";
+  EXPECT_EQ(TransformHtml(foreign, "http://example.com/", config, "", nullptr,
+                          "", {}, {}, {}, {"analytics.js"}),
+            foreign);
+
+  std::string result = TransformHtml(
+      "<html><head></head><body><svg><foreignObject>"
+      "<script src=\"https://cdn.example.com/analytics.js\"></script>"
+      "</foreignObject></svg></body></html>",
+      "http://example.com/", config, "", nullptr, "", {}, {}, {},
+      {"analytics.js"});
+  EXPECT_NE(result.find("data-pagespeed-defer"), std::string::npos);
 }
 
 TEST(HtmlTransformFilterTest, ScriptDeferralSkipsInlineScripts) {

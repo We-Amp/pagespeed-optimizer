@@ -3,7 +3,8 @@
 //
 // Shared whitespace/comment phases for the streaming CSS minifier —
 // the SINGLE SOURCE OF TRUTH for Phase 1 (comment
-// strip + whitespace collapse + string/url preservation) and Phase 2
+// strip + whitespace collapse + string/url preservation, keeping
+// /*! and @license/@preserve comments for later restoration) and Phase 2
 // (whitespace removal around operators), factored verbatim out of
 // lib/css/css_minify.cc so the minifier and the token-stream fuzz
 // oracle (lib/css/css_token_stream.h) consume the SAME code (the
@@ -26,6 +27,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace pagespeed::css {
 namespace {
@@ -53,6 +55,119 @@ enum class State : uint8_t {
 };
 
 bool CiMatch(char c, char lower) { return c == lower || c == (lower - 32); }
+
+// ----------------------------------------------------------------------
+// Preserved comments (#582): a comment starting with /*! or
+// containing @license or @preserve (case-insensitive) is kept in the
+// minified output byte for byte, in position.  Phases 2-5 have no
+// comment state, so Phase 1 cannot leave the bytes in the stream —
+// Phase 2 would strip spaces inside them, Phase 4 rewrite their
+// decimals, Phase 3 trim their ';'s, Phase 5 read their braces as
+// block edges.  Instead Phase 1 replaces each preserved comment with
+// a one-byte SENTINEL and records the exact bytes; the caller restores
+// them after the pipeline (MinifyCss) and after normalization (the
+// token-stream oracle's Normalize, so its pass-1/pass-2 fixpoint
+// invariant keeps holding on output that contains preserved
+// comments).  The sentinel is the first candidate byte the input does
+// not contain — control bytes never occur in valid CSS, so it cannot
+// collide with real content; an input containing every candidate is
+// pathological, and preservation degrades to stripping there.
+
+struct PreservedComments {
+  // Exact bytes of each preserved comment (from "/*" through "*/" or
+  // end of input), in order.  Filled by Phase 1.
+  std::vector<std::string> texts;
+  char sentinel = '\0';  // '\0' = preservation disabled this call.
+};
+
+// One past the "*/" closing the comment that starts at i, or end of
+// input when the comment never closes.  Matches the kInComment scan:
+// the FIRST "*/" wins and backslashes carry no meaning inside
+// comments.
+size_t CommentEnd(std::string_view input, size_t i) {
+  for (size_t j = i + 2; j + 1 < input.size(); ++j) {
+    if (input[j] == '*' && input[j + 1] == '/') return j + 2;
+  }
+  return input.size();
+}
+
+// Case-insensitive substring match.  Case folds only where the needle
+// char is an ASCII lowercase letter, so '@' matches '@' alone.
+bool ContainsCi(std::string_view text, std::string_view lower) {
+  if (text.size() < lower.size()) return false;
+  for (size_t i = 0; i + lower.size() <= text.size(); ++i) {
+    bool matched = true;
+    for (size_t j = 0; j < lower.size(); ++j) {
+      char t = text[i + j];
+      char n = lower[j];
+      if (t != n && !(n >= 'a' && n <= 'z' && t == n - 32)) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return true;
+  }
+  return false;
+}
+
+// True for the comment spanning [begin, end) of input that must
+// survive minification.
+bool CommentIsPreserved(std::string_view input, size_t begin, size_t end) {
+  const std::string_view comment = input.substr(begin, end - begin);
+  if (comment.size() > 2 && comment[2] == '!') return true;
+  return ContainsCi(comment, "@license") || ContainsCi(comment, "@preserve");
+}
+
+// Sentinel for this input: the first candidate byte it does not
+// contain, or '\0' when preservation must be disabled.
+char ChooseCommentSentinel(std::string_view input) {
+  for (const char c :
+       {'\x01', '\x02', '\x03', '\x04', '\x05', '\x06', '\x07'}) {
+    if (input.find(c) == std::string_view::npos) return c;
+  }
+  return '\0';
+}
+
+// Replaces the k-th sentinel occurrence with the k-th recorded
+// comment.  Every phase copies the sentinel through verbatim (it is
+// not whitespace, not an operator, not a block/declaration delimiter,
+// and never enters strings or urls), so occurrence order equals
+// recording order.  Nothing enforces that, so the count is checked:
+// when the output carries a different number of sentinels than there
+// are recorded comments, pairing them would put comments in the wrong
+// places, and the function returns false with *out left empty.
+//
+// A preserved comment that never closed (it ran to the end of the
+// input) is closed with "*/" when restored, so the output stays
+// well-formed if it is later concatenated or inlined with other CSS.
+bool RestorePreservedComments(std::string_view input,
+                              const PreservedComments& preserved,
+                              std::string* out) {
+  out->clear();
+  if (preserved.sentinel == '\0' || preserved.texts.empty()) {
+    out->assign(input);
+    return true;
+  }
+  size_t count = 0;
+  for (char c : input) {
+    if (c == preserved.sentinel) ++count;
+  }
+  if (count != preserved.texts.size()) return false;
+  out->reserve(input.size());
+  size_t k = 0;
+  for (char c : input) {
+    if (c == preserved.sentinel) {
+      const std::string& text = preserved.texts[k++];
+      *out += text;
+      const bool closed = text.size() >= 4 && text[text.size() - 2] == '*' &&
+                          text[text.size() - 1] == '/';
+      if (!closed) *out += "*/";
+      continue;
+    }
+    *out += c;
+  }
+  return true;
+}
 
 // True if a ':' about to be emitted sits in a declaration's property
 // position and the property name starts with "--" (a CSS custom
@@ -135,8 +250,12 @@ bool AtCustomPropertyColon(const std::string& r) {
   return s == 0 || r[s - 1] == '{' || r[s - 1] == ';' || r[s - 1] == '}';
 }
 
-// Phase 1: Strip comments, collapse whitespace, preserve strings and url().
-std::string Phase1(std::string_view input) {
+// Phase 1: Strip comments, collapse whitespace, preserve strings and
+// url().  Preserved comments (see PreservedComments) are replaced by
+// preserved->sentinel with their exact bytes recorded in *preserved;
+// restore them with RestorePreservedComments.  All other comments are
+// stripped as before.
+std::string Phase1(std::string_view input, PreservedComments* preserved) {
   std::string r;
   r.reserve(input.size());
   State state = State::kNormal;
@@ -146,6 +265,7 @@ std::string Phase1(std::string_view input) {
   bool custom_started = false;
   int custom_bd = 0;
   size_t i = 0;
+  preserved->sentinel = ChooseCommentSentinel(input);
   while (i < input.size()) {
     char c = input[i];
     switch (state) {
@@ -191,6 +311,18 @@ std::string Phase1(std::string_view input) {
               continue;
             }
             if (c == '/' && i + 1 < input.size() && input[i + 1] == '*') {
+              size_t end = CommentEnd(input, i);
+              if (preserved->sentinel != '\0' &&
+                  CommentIsPreserved(input, i, end)) {
+                // A preserved comment is itself a value token (its
+                // bytes stay in the served value), so the value has
+                // started — same as the escape-pair token above.
+                preserved->texts.emplace_back(input.substr(i, end - i));
+                r += preserved->sentinel;
+                custom_started = true;
+                i = end;
+                continue;
+              }
               state = State::kInComment;
               i += 2;
               continue;
@@ -211,6 +343,23 @@ std::string Phase1(std::string_view input) {
             continue;
           }
           if (c == '/' && i + 1 < input.size() && input[i + 1] == '*') {
+            size_t end = CommentEnd(input, i);
+            if (preserved->sentinel != '\0' &&
+                CommentIsPreserved(input, i, end)) {
+              // No separator space follows the sentinel: the restored
+              // comment's own bytes keep the surrounding tokens apart
+              // (the tokenizer skips comments).  A separator pending
+              // from a preceding stripped comment still flushes, as it
+              // would before any token.
+              if (psp) {
+                r += ' ';
+                psp = false;
+              }
+              preserved->texts.emplace_back(input.substr(i, end - i));
+              r += preserved->sentinel;
+              i = end;
+              continue;
+            }
             state = State::kInComment;
             i += 2;
             continue;
@@ -272,6 +421,22 @@ std::string Phase1(std::string_view input) {
           continue;
         }
         if (c == '/' && i + 1 < input.size() && input[i + 1] == '*') {
+          size_t end = CommentEnd(input, i);
+          if (preserved->sentinel != '\0' &&
+              CommentIsPreserved(input, i, end)) {
+            // Flush any pending separator first, exactly as the quote
+            // entries below do; none is added after the sentinel — the
+            // restored comment's own bytes separate it from the token
+            // that follows.
+            if (psp) {
+              r += ' ';
+              psp = false;
+            }
+            preserved->texts.emplace_back(input.substr(i, end - i));
+            r += preserved->sentinel;
+            i = end;
+            continue;
+          }
           state = State::kInComment;
           i += 2;
           continue;

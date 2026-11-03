@@ -50,7 +50,12 @@ std::vector<std::string> BuildPinnedGetArgv(std::string_view url,
       "--max-time", std::to_string(opts.max_time_sec), "--max-filesize",
       std::to_string(opts.max_response_bytes), "-A",
       opts.user_agent,  // fixed, anonymous UA (no page UA forwarded)
-      "-H", "Accept: " + opts.accept,  // the ONLY content header we send
+      "-H", "Accept: " + opts.accept,  // the only content header we send
+                                       // besides the encoding negotiation
+      "--compressed",  // ask for gzip/br and let curl decode it. The size cap
+                       // that matters is the one on curl's stdout, which the
+                       // spawner enforces on the DECODED bytes (--max-filesize
+                       // only bounds the encoded transfer).
   };
 
   // Pin the connection to the validated IP. When the host is already an IP literal
@@ -66,8 +71,12 @@ std::vector<std::string> BuildPinnedGetArgv(std::string_view url,
   }
 
   argv.emplace_back("-i");  // include response headers (status/Location/CT)
-  argv.emplace_back("-X");
-  argv.emplace_back("GET");    // GET only — no body, no other method
+  if (opts.head) {
+    argv.emplace_back("--head");  // HEAD: status and headers, no body
+  } else {
+    argv.emplace_back("-X");
+    argv.emplace_back("GET");  // GET only — no body, no other method
+  }
   argv.emplace_back("--url");  // explicit URL value — a '-'-leading URL can
   argv.emplace_back(std::string(url));  // never be parsed as a curl flag
   return argv;

@@ -20,7 +20,9 @@ if [ ! -x "$SEED" ]; then
   exit 1
 fi
 
-# CSS alternate at default mask (Desktop/Identity = 0x08).  --scheme http:
+# CSS alternate at default mask (Desktop/Identity = 0x08).  The entry carries
+# a content-identity hash because a HIT with no identity signal emits no
+# ETag, and TEST 1 asserts the weak ETag.  --scheme http:
 # the cache key is scheme://host/url and Test::Nginx issues plain-http
 # requests — an https-seeded key is a permanent MISS.
 "$SEED" \
@@ -30,4 +32,5 @@ fi
   --scheme http \
   --content "h1{color:red}" \
   --content_type css \
-  --mask 0x08
+  --mask 0x08 \
+  --origin_html_hash "$(printf 'aa%.0s' $(seq 32))"

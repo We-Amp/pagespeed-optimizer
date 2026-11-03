@@ -71,6 +71,45 @@ struct FlattenResult {
   bool skipped_unresolved_import = false;
 };
 
+// True when `media` can be written as the prelude of `@media <media> { ... }`
+// without changing what the block contains: no braces, semicolons,
+// backslash, `@`, angle brackets, quotes or comment opener, and balanced
+// parentheses. Every valid media query list passes.
+bool IsSafeMediaValue(std::string_view media);
+
+// The media query a stylesheet's rules are scoped to when the sheet is
+// appended to a combined stylesheet, for the stylesheet media `media` (the
+// `media` attribute of its <link> or <style>):
+//   - "" when the rules apply on every screen as written: no media, `all` or
+//     `screen` (any case, surrounding whitespace ignored);
+//   - the trimmed media query list otherwise (`print`, `(max-width: 600px)`),
+//     which AppendMediaScopedCss writes as an @media block, so a rule from a
+//     print sheet stays a print rule in the combined sheet;
+//   - nullopt when the value cannot be written as an @media prelude safely
+//     (IsSafeMediaValue). No valid media query list is refused. Such a sheet
+//     belongs in no combined sheet, and a caller treats it as missing.
+std::optional<std::string_view> CombinedSheetMediaScope(std::string_view media);
+
+// The size AppendMediaScopedCss adds for `css_size` bytes under `scope`.
+size_t MediaScopedCssSize(std::string_view scope, size_t css_size);
+
+// True when `css` can be embedded in another sheet without changing how the
+// surrounding rules parse: comments and strings are terminated, braces are
+// balanced (never negative, zero at the end), and a trailing backslash does
+// not escape the closing brace of a wrapper. Braces inside comments, strings,
+// escapes and unquoted url() values do not count. Only such a sheet can be
+// written inside an @media block without a stray `}` closing the block early,
+// which would let the rules after it apply outside the media.
+bool IsStructurallyBalanced(std::string_view css);
+
+// Appends `css` to `*out`: as written when `scope` is empty, else as
+// `@media <scope>{<css>}`. `scope` comes from CombinedSheetMediaScope.
+// Returns false, appending nothing, when `scope` is not empty and `css`
+// cannot be wrapped safely (IsStructurallyBalanced); a caller treats that sheet
+// as missing.
+bool AppendMediaScopedCss(std::string_view scope, std::string_view css,
+                          std::string* out);
+
 // Flatten @import statements by reading imported CSS from cache.
 // lookup_fn: given a URL, returns CSS content if cached, nullopt if not.
 // max_depth: recursion limit (default 5).

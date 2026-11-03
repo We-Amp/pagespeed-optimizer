@@ -16,6 +16,7 @@
 #include "lib/html/html_parse.h"
 #include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_scanner.h"
+#include "src/worker/subresource_gate.h"
 
 namespace pagespeed {
 
@@ -89,6 +90,19 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   // that names a layer can still go before the sheets, with an `@layer`
   // statement in front. Unset (the default) is "not proven": a layered block
   // keeps the old placement.
+  // The page's site (wire v6): the keyspace the image lookups read.  Empty is
+  // the unsited keyspace.
+  void set_site(std::string_view site) { site_ = std::string(site); }
+
+  // The gate an image's cached bytes must pass before its dimensions are
+  // read into the page (SubresourceGate), and whether the notification's
+  // sender may have the worker ask the page's host.  Without a gate no image
+  // is read.
+  void set_subresource_gate(SubresourceGate* gate, bool host_fetch_allowed) {
+    subresource_gate_ = gate;
+    host_fetch_allowed_ = host_fetch_allowed;
+  }
+
   void set_cascade_layer_order(CascadeLayerOrder order) {
     layer_order_ = std::move(order);
   }
@@ -110,7 +124,8 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   static std::vector<std::string> ReadHeaderCsps(PageSpeedCache* cache,
                                                  std::string_view url,
                                                  std::string_view hostname,
-                                                 std::string_view scheme);
+                                                 std::string_view scheme,
+                                                 std::string_view site = {});
 
   // Returns true if any transformation was applied.
   bool modified() const { return modified_; }
@@ -244,6 +259,9 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   PageSpeedCache* cache_;
   std::string hostname_;
   std::string scheme_;
+  std::string site_;
+  SubresourceGate* subresource_gate_ = nullptr;
+  bool host_fetch_allowed_ = false;
 
   // Without an LCP candidate, the first plausible body image inside this
   // window gets the fetchpriority="high" fallback; with a candidate, the

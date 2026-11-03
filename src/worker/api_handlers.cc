@@ -208,10 +208,19 @@ json BuildStatsJson(ApiContext& ctx) {
       {"rejected_sentinel", s.notifications_rejected_sentinel.load()},
       {"rejected_option_context",
        s.notifications_rejected_option_context.load()},
+      {"rejected_empty_site", s.notifications_rejected_empty_site.load()},
+      {"rejected_module_render", s.notifications_rejected_module_render.load()},
+      // Not refusals: frames from a caller that predates site identity
+      // (processed unsited), and page work withheld from an unvouched host.
+      {"legacy_ex_caller", s.notifications_legacy_ex_caller.load()},
+      {"unvouched_render_skipped",
+       s.notifications_unvouched_render_skipped.load()},
       // Not a refusal: a valid non-default per-request options context was
       // accepted and its work stored under the default context.
       {"accepted_non_default_option_context",
        s.notifications_accepted_non_default_option_context.load()}};
+  j["known_sites"] = {{"overflow", s.known_sites_overflow.load()},
+                      {"incomplete", s.known_sites_incomplete.load() != 0}};
   j["variants"] = {{"written", s.variants_written.load()},
                    {"proactive", s.proactive_variants_written.load()},
                    {"gzip", s.gzip_variants_written.load()},
@@ -238,11 +247,12 @@ json BuildStatsJson(ApiContext& ctx) {
                     {"avif", s.avif_generated.load()},
                     {"jpeg", s.jpeg_optimized.load()},
                     {"png", s.png_optimized.load()}};
-  j["content_analysis"] = {{"photo", s.content_photo.load()},
-                           {"screenshot", s.content_screenshot.load()},
-                           {"illustration", s.content_illustration.load()},
-                           {"noisy", s.content_noisy.load()},
-                           {"denoised", s.images_denoised.load()}};
+  j["content_analysis"] = {
+      {"photo", s.content_photo.load()},
+      {"screenshot", s.content_screenshot.load()},
+      {"illustration", s.content_illustration.load()},
+      {"noisy", s.content_noisy.load()},
+      {"denoised", 0}};  // removed feature; kept at 0 for consumers
   j["ssimulacra2"] = {
       {"checks", ssim_checks},
       {"reencodes", s.ssimulacra2_reencodes.load()},
@@ -305,6 +315,7 @@ json BuildStatsJson(ApiContext& ctx) {
   j["image_unconverted_fallthrough"] = s.image_unconverted_fallthrough.load();
   j["image_size_refused"] = {{"webp", s.image_size_refused_webp.load()},
                              {"avif", s.image_size_refused_avif.load()}};
+  j["image_savedata_refused"] = s.image_savedata_refused.load();
   j["image_budget_rescued"] = {{"webp", s.image_budget_rescued_webp.load()},
                                {"avif", s.image_budget_rescued_avif.load()}};
   j["dedup"] = {{"writes_skipped", s.dedup_writes_skipped.load()},
@@ -372,27 +383,44 @@ json BuildStatsJson(ApiContext& ctx) {
            {{"hits", load(s->serve_hits_by_encoding[type_index][2])},
             {"bytes", load(s->serve_bytes_by_encoding[type_index][2])}}}};
     };
+    // The saving divided into what the served encoding saves and what the
+    // rewrite saves, over the serves whose encoded-origin size was known.
+    // original_bytes - compressed_original_bytes is the encoding's share and
+    // compressed_original_bytes - optimized_bytes the rewrite's (negative when
+    // the served bytes exceed the encoded origin).  All three are 0 when no
+    // serve carried the size; the share of original_bytes they cover is the
+    // coverage.
+    auto split_json = [ss](ContentType type) {
+      const ServeStats::SplitCounters sp = ReadServeSplit(ss, type);
+      return json{{"original_bytes", sp.original_bytes},
+                  {"compressed_original_bytes", sp.compressed_original_bytes},
+                  {"optimized_bytes", sp.optimized_bytes}};
+    };
     j["serve_savings"] = {
         {"html",
          {{"original_bytes", load(ss->html_original_bytes)},
           {"optimized_bytes", load(ss->html_optimized_bytes)},
           {"hits", load(ss->html_optimized_hits)},
-          {"by_encoding", by_encoding(ss, 0)}}},
+          {"by_encoding", by_encoding(ss, 0)},
+          {"split", split_json(ContentType::kHtml)}}},
         {"css",
          {{"original_bytes", load(ss->css_original_bytes)},
           {"optimized_bytes", load(ss->css_optimized_bytes)},
           {"hits", load(ss->css_optimized_hits)},
-          {"by_encoding", by_encoding(ss, 1)}}},
+          {"by_encoding", by_encoding(ss, 1)},
+          {"split", split_json(ContentType::kCss)}}},
         {"js",
          {{"original_bytes", load(ss->js_original_bytes)},
           {"optimized_bytes", load(ss->js_optimized_bytes)},
           {"hits", load(ss->js_optimized_hits)},
-          {"by_encoding", by_encoding(ss, 2)}}},
+          {"by_encoding", by_encoding(ss, 2)},
+          {"split", split_json(ContentType::kJs)}}},
         {"image",
          {{"original_bytes", load(ss->image_original_bytes)},
           {"optimized_bytes", load(ss->image_optimized_bytes)},
           {"hits", load(ss->image_optimized_hits)},
-          {"by_encoding", by_encoding(ss, 3)}}},
+          {"by_encoding", by_encoding(ss, 3)},
+          {"split", split_json(ContentType::kImage)}}},
     };
     // The same serves attributed to the host the front end served them for:
     // up to 32 hosts (of the first 64 distinct hosts seen since the optimizer
@@ -698,6 +726,10 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
           "Converted-format variants refused because the fall-through "
           "produced no conversion.",
           s.image_unconverted_fallthrough.load());
+  counter("pagespeed_image_savedata_refused_total",
+          "Save-Data image variants that were not smaller than the same "
+          "variant without Save-Data and so were not stored.",
+          s.image_savedata_refused.load());
   counter("pagespeed_image_size_refused_webp_total",
           "WebP images that were not smaller than the original-format image "
           "of their slot, including refusals against a stored image.",
@@ -789,8 +821,8 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
                   s.content_illustration.load(), "\n");
   absl::StrAppend(&m, "pagespeed_content_analysis_total{class=\"noisy\"} ",
                   s.content_noisy.load(), "\n");
-  counter("pagespeed_images_denoised_total", "Images denoised.",
-          s.images_denoised.load());
+  counter("pagespeed_images_denoised_total",
+          "Images denoised (always 0; the denoise step was removed).", 0);
 
   // SVG auto-vectorization
   counter("pagespeed_svg_candidates_evaluated_total",
@@ -967,6 +999,36 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
         load(ss->js_optimized_hits),
         "\npagespeed_optimized_hits_served_total{type=\"image\"} ",
         load(ss->image_optimized_hits), "\n");
+    // The split of the saving, over the serves whose encoded-origin size was
+    // known: origin bytes, those bytes encoded as served, bytes served.
+    struct SplitSeries {
+      const char* name;
+      const char* help;
+      uint64_t ServeStats::SplitCounters::* field;
+    };
+    for (const SplitSeries& series :
+         {SplitSeries{"pagespeed_split_original_bytes_served_total",
+                      "Original content bytes of the HITs whose encoded size "
+                      "was known.",
+                      &ServeStats::SplitCounters::original_bytes},
+          SplitSeries{"pagespeed_split_compressed_original_bytes_served_total",
+                      "Those original bytes encoded the way each HIT was "
+                      "served.",
+                      &ServeStats::SplitCounters::compressed_original_bytes},
+          SplitSeries{"pagespeed_split_optimized_bytes_served_total",
+                      "Bytes served for those HITs.",
+                      &ServeStats::SplitCounters::optimized_bytes}}) {
+      absl::StrAppend(&m, "# HELP ", series.name, " ", series.help, "\n",
+                      "# TYPE ", series.name, " counter\n");
+      for (const auto& [label, type] :
+           {std::pair{"html", ContentType::kHtml},
+            std::pair{"css", ContentType::kCss},
+            std::pair{"js", ContentType::kJs},
+            std::pair{"image", ContentType::kImage}}) {
+        absl::StrAppend(&m, series.name, "{type=\"", label, "\"} ",
+                        ReadServeSplit(ss, type).*series.field, "\n");
+      }
+    }
     // Serve savings by host: the hosts /v1/stats names, the rest under
     // host="(other)" -- a value no host name can take, so it never collides.
     const ServeSavingsByHost by_host =

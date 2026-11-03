@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 We-Amp B.V.
 
+using System.Runtime.InteropServices;
 using WeAmp.PageSpeed.Native;
 
 namespace WeAmp.PageSpeed;
@@ -23,34 +24,55 @@ public sealed class HtmlProcessor : IHtmlProcessor
     }
 
     public HtmlResult Process(
-        ReadOnlySpan<byte> html, string url, string hostname)
+        ReadOnlySpan<byte> html, string url, string hostname) =>
+        ProcessCore(html, url, hostname, null);
+
+    public HtmlResult Process(
+        ReadOnlySpan<byte> html, string url, string hostname, string scheme) =>
+        ProcessCore(html, url, hostname, scheme);
+
+    private HtmlResult ProcessCore(
+        ReadOnlySpan<byte> html, string url, string hostname, string? scheme)
     {
         var config = BuildNativeConfig(_options);
 
-        int err;
-        IntPtr raw;
+        // NULL leaves the library's default ("https"). The UTF-8 copy stays
+        // alive until the native call has returned.
+        var schemePtr = scheme is null
+            ? IntPtr.Zero
+            : Marshal.StringToCoTaskMemUTF8(scheme);
         try
         {
-            err = NativePageSpeed.HtmlProcess(
-                html, (nuint)html.Length,
-                url, hostname,
-                in config, _cache?.Handle,
-                out raw);
+            config.Scheme = schemePtr;
+            int err;
+            IntPtr raw;
+            try
+            {
+                err = NativePageSpeed.HtmlProcess(
+                    html, (nuint)html.Length,
+                    url, hostname,
+                    in config, _cache?.Handle,
+                    out raw);
+            }
+            catch (ObjectDisposedException) when (_cache != null)
+            {
+                // A cache that swaps its instance (the ASP.NET Core middleware's,
+                // after a volume reset) can close the handle between reading
+                // Handle and the call (the call never started); Handle now
+                // returns the replacement.
+                err = NativePageSpeed.HtmlProcess(
+                    html, (nuint)html.Length,
+                    url, hostname,
+                    in config, _cache.Handle,
+                    out raw);
+            }
+            NativeCheck.ThrowOnError(err);
+            return new HtmlResult(new SafeHtmlResultHandle(raw));
         }
-        catch (ObjectDisposedException) when (_cache != null)
+        finally
         {
-            // A cache that swaps its instance (the ASP.NET Core middleware's,
-            // after a volume reset) can close the handle between reading
-            // Handle and the call (the call never started); Handle now
-            // returns the replacement.
-            err = NativePageSpeed.HtmlProcess(
-                html, (nuint)html.Length,
-                url, hostname,
-                in config, _cache.Handle,
-                out raw);
+            if (schemePtr != IntPtr.Zero) Marshal.FreeCoTaskMem(schemePtr);
         }
-        NativeCheck.ThrowOnError(err);
-        return new HtmlResult(new SafeHtmlResultHandle(raw));
     }
 
     private static NativeHtmlConfig BuildNativeConfig(
@@ -58,6 +80,9 @@ public sealed class HtmlProcessor : IHtmlProcessor
     {
         var config = new NativeHtmlConfig();
         NativePageSpeed.HtmlConfigInit(ref config);
+        // HtmlConfigInit stamps the 128-byte size; claim the whole struct so
+        // the library reads Scheme.
+        config.StructSize = (nuint)Marshal.SizeOf<NativeHtmlConfig>();
         config.EnableCriticalCss = opts.EnableCriticalCss ? 1 : 0;
         config.EnableLazyLoad = opts.EnableLazyLoad ? 1 : 0;
         config.EnableImageDimensions = opts.EnableImageDimensions ? 1 : 0;

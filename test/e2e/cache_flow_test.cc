@@ -353,4 +353,42 @@ TEST_F(CacheFlowTest, MaskConsistencyAcrossRequests) {
   EXPECT_EQ(result->metadata.full_mask, mask1.Encode());
 }
 
+// =============================================================================
+// Save-Data Variants Are Not Served To Clients Without Save-Data
+// =============================================================================
+
+TEST_F(CacheFlowTest, SaveDataVariantNotServedToNormalClient) {
+  std::string_view url = "https://example.com/hero.jpg";
+  auto mask = [](CapabilityMask::ImageFormat fmt, CapabilityMask::SaveData sd) {
+    return CapabilityMask(fmt, CapabilityMask::Viewport::kDesktop,
+                          CapabilityMask::PixelDensity::k1x, sd,
+                          CapabilityMask::TransferEncoding::kIdentity);
+  };
+  using F = CapabilityMask::ImageFormat;
+  using S = CapabilityMask::SaveData;
+
+  // The normal WebP slot is empty; the Save-Data WebP and the normal JPEG
+  // are stored.
+  WriteAtMask(url, mask(F::kWebP, S::kOn), "sd-webp", ContentType::kImage);
+  WriteAtMask(url, mask(F::kOriginal, S::kOff), "normal-jpeg",
+              ContentType::kImage);
+
+  auto read = [&](const CapabilityMask& client) {
+    auto result = cache_->ReadBestAlternate(url, "", "", client);
+    EXPECT_TRUE(result.has_value());
+    if (!result.has_value()) return std::string();
+    auto data = result->content();
+    return std::string(reinterpret_cast<const char*>(data.data()), data.size());
+  };
+
+  // A normal WebP client gets the normal bytes, a Save-Data client its own.
+  EXPECT_EQ(read(mask(F::kWebP, S::kOff)), "normal-jpeg");
+  EXPECT_EQ(read(mask(F::kWebP, S::kOn)), "sd-webp");
+
+  // Once the normal WebP slot is filled, the normal client takes it.
+  WriteAtMask(url, mask(F::kWebP, S::kOff), "normal-webp", ContentType::kImage);
+  EXPECT_EQ(read(mask(F::kWebP, S::kOff)), "normal-webp");
+  EXPECT_EQ(read(mask(F::kWebP, S::kOn)), "sd-webp");
+}
+
 }  // namespace

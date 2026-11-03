@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# mod_pagespeed 2.1 - Async-CSS probe runner
+# mod_pagespeed - Async-CSS probe runner
 #
 # Runs the markup lane against the full stack in Docker, in each of its three
 # modes (see conftest.py): gated, forced, shipped. One pass per mode because

@@ -90,11 +90,13 @@ internal struct NativeCacheStats
 // Explicit layout guarantees correct alignment across all platforms.
 // 10 ints (40 bytes) between two size_t fields are naturally packed,
 // but Explicit removes any compiler-dependent ambiguity.
-// Size = 128: the seven const char** pointers end at offset 120; appending an
-// int enable_async_css (offset 120) rounds the C struct up to 128 under 8-byte
-// alignment. MUST stay layout-matched with ps_html_config_t in
-// lib/pagespeed/pagespeed.h.
-[StructLayout(LayoutKind.Explicit, Size = 128)]
+// Size = 136: the seven const char** pointers end at offset 120; the int
+// enable_async_css sits at 120 and is padded to 128 under 8-byte alignment;
+// the const char* scheme (PS_API 1.12) is appended at 128. The library reads
+// Scheme only when StructSize covers it, so StructSize must be set to 136
+// after HtmlConfigInit, which stamps the 128-byte size. MUST stay
+// layout-matched with ps_html_config_t in lib/pagespeed/pagespeed.h.
+[StructLayout(LayoutKind.Explicit, Size = 136)]
 internal struct NativeHtmlConfig
 {
     [FieldOffset(0)]   public nuint StructSize;
@@ -118,6 +120,7 @@ internal struct NativeHtmlConfig
     [FieldOffset(104)] public IntPtr ExcludeIdPatterns;
     [FieldOffset(112)] public IntPtr ExcludeTagPatterns;
     [FieldOffset(120)] public int EnableAsyncCss;
+    [FieldOffset(128)] public IntPtr Scheme;                   // const char*
 }
 
 // Explicit layout required: 3 ints after size_t create a 4-byte padding gap

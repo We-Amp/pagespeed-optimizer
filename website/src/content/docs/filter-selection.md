@@ -273,6 +273,9 @@ pagespeed ForbidAllDisabledFilters on
 
 </div>
 
+On pages mod_pagespeed recognizes as hydrated, some filters do not run. See
+[Hydrated pages](/docs/hydrated-pages/).
+
 ## Checking your filter configuration
 
 Open the admin page at `/pagespeed_admin/config` in your browser to see the full list of active filters and their current settings. This page reflects the running configuration after all directives are applied.

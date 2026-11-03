@@ -229,7 +229,7 @@ A one-line health summary sits at the top: "All systems healthy", or "N issue(s)
 
 Both cards link to their detail page (All statistics, Optimizer status).
 
-The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. The console does not yet report the optimizer's two parts separately.
+The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. For responses served from the optimizer's cache, the console splits the saving into "Saved by mod_pagespeed compression" and "Saved by optimization", both measured against the compressed original, and shows the part it could not attribute as "Not yet attributed"; the three add up to the total. The split appears once the optimizer records it and covers at least 90% of the served bytes; until then, and with an optimizer version that does not report it, the console shows the combined figure. See [Admin console savings total reads lower after updating](/docs/troubleshooting/#admin-console-savings-total-reads-lower-after-updating).
 
 ### Alerts
 
@@ -321,11 +321,13 @@ Per-vhost statistics are enabled by default on IIS. Each website gets its own se
 
 The caches page (`/pagespeed_admin/cache`) reports cache observability counters for each Cyclone cache:
 
+- **Scope** — hit, read and eviction counts are for the server process that answered, since it started; entries, size and write buffer wraps are for the whole cache file. The statistics page shows totals for all processes.
 - **Current entries / Current size bytes** — how full the cache is.
 - **RAM cache bytes / RAM cache hits / RAM cache misses** — activity of the optional RAM tier (`CycloneRamCacheKb`).
-- **Disk cache hits / Disk cache misses** — hit rate of the memory-mapped volume.
-- **Evictions / Tag collision evictions** — entries displaced by capacity pressure or key collisions.
+- **Reads served (RAM + disk)** — every read the cache served, whether the RAM tier or the disk volume answered; the cache does not count misses, so no misses row is shown.
+- **Evictions / Tag collision evictions / Bucket full evictions** — entries displaced by capacity pressure, by a key colliding with another entry's, or by the directory bucket the entry maps to being full.
 - **Write buffer wraps / Wraps deferred by lease / Writes dropped by lease / Wraps forced past lease** — write-buffer turnover and how zero-copy serving interacts with it; sustained deferred or dropped counts indicate a cache that is too small for its write rate.
+- **Resets under degraded gate / Resets gate verified** — times the cache was reset, split by whether the cache could confirm that no other process still had it open.
 
 The statistics page also has counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](/docs/cache-modes/#zero-copy-serving) for the zero-copy options.
 

@@ -146,7 +146,11 @@ public class ResponseHeaderReplayTests
         ("Vary", "User-Agent"),
     };
 
-    private static FakeCache HitCache(byte flags = CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired,
+    // How the middleware records an entry: headers checked, from an
+    // anonymous request.
+    private const byte Recorded = CacheFlags.HeadersClassified | CacheFlags.AnonymousRecorded;
+
+    private static FakeCache HitCache(byte flags = Recorded | CacheFlags.HeadersSidecarRequired,
         (string, string)[]? block = null) =>
         new()
         {
@@ -218,7 +222,7 @@ public class ResponseHeaderReplayTests
     [Fact]
     public async Task CacheHit_NeedingRevalidation_CarriesApplicationHeaders()
     {
-        var cache = HitCache(CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired
+        var cache = HitCache(Recorded | CacheFlags.HeadersSidecarRequired
             | CacheFlags.NeedsRevalidation);
         var ctx = await Run(cache);
         Assert.Equal(200, ctx.Response.StatusCode);
@@ -235,7 +239,7 @@ public class ResponseHeaderReplayTests
                 ContentMemory = Body,
                 ContentType = PageSpeedContentType.Html,
                 OriginContentType = "text/html",
-                Flags = CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired,
+                Flags = Recorded | CacheFlags.HeadersSidecarRequired,
             },
             Block = EncodeBlock(("Link", "</app.css>; rel=preload; as=style"), ("Vary", "Save-Data")),
             EarlyHints = Encoding.UTF8.GetBytes("/hint.css\n"),
@@ -304,6 +308,18 @@ public class ResponseHeaderReplayTests
         Assert.True(reached);
     }
 
+    [Theory]
+    [InlineData(CacheFlags.HeadersClassified)]
+    [InlineData(CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired)]
+    public async Task CacheHit_EntryWithoutAnonymousRecordStamp_IsRefetched(int flags)
+    {
+        var cache = HitCache(flags: (byte)flags);
+        var reached = false;
+        var ctx = await Run(cache, NewContext(), c => { reached = true; return Task.CompletedTask; });
+        Assert.True(reached);
+        Assert.NotEqual("HIT", ctx.Response.Headers["X-PageSpeed"].ToString());
+    }
+
     [Fact]
     public async Task CacheHit_RequiredBlockMissing_IsRefetched()
     {
@@ -317,7 +333,7 @@ public class ResponseHeaderReplayTests
     [Fact]
     public async Task CacheHit_ClassifiedWithNothingToCarry_IsServed()
     {
-        var cache = HitCache(flags: CacheFlags.HeadersClassified);
+        var cache = HitCache(flags: Recorded);
         var ctx = await Run(cache);
         Assert.Equal("HIT", ctx.Response.Headers["X-PageSpeed"].ToString());
     }

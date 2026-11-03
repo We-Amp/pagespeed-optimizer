@@ -21,7 +21,9 @@
 //   Normalize(x) = Phase2(Phase1(x)) — the minifier's OWN
 //   whitespace/comment engine, consumed VERBATIM from
 //   lib/css/css_phases.h (factored, single source of truth, not a
-//   re-implementation).  Both sides are canonicalized BEFORE
+//   re-implementation; preserved /*! and @license/@preserve
+//   comments round-trip through their sentinel, byte for byte).
+//   Both sides are canonicalized BEFORE
 //   tokenizing, so whatever the glue behavior is — removal sets,
 //   escape awareness, calc mode, comment strip, url/string/custom
 //   opacity, sign handling — both sides get exactly it, and glued
@@ -385,12 +387,24 @@ std::string Phase4Canonical(std::string_view doc, std::string_view tok,
 
 // The canonicalization pass: the minifier's own Phase1/Phase2
 // whitespace/comment engine, consumed verbatim from
-// lib/css/css_phases.h.  Both sides are normalized BEFORE
+// lib/css/css_phases.h, with preserved comments (#582) round-tripped
+// through their sentinel so normalized text still carries their exact
+// bytes (the fixpoint invariant below must hold on output that
+// contains them).  Both sides are normalized BEFORE
 // tokenizing, so glued forms are byte-identical whenever the minifier
 // is byte-identical (the pass-1/pass-2 idempotence invariant, which
 // the harness asserts as a counted diagnostic).
 std::string Normalize(std::string_view input) {
-  return pagespeed::css::Phase2(pagespeed::css::Phase1(input));
+  pagespeed::css::PreservedComments preserved;
+  std::string glued =
+      pagespeed::css::Phase2(pagespeed::css::Phase1(input, &preserved));
+  std::string restored;
+  if (!pagespeed::css::RestorePreservedComments(glued, preserved, &restored)) {
+    // Sentinel count mismatch: fall back to the text as the phases left
+    // it, where each preserved comment is still its one-byte sentinel.
+    return glued;
+  }
+  return restored;
 }
 
 // The glue-free extractor: the plain LITE tokenizer over NORMALIZED
@@ -672,6 +686,20 @@ bool HasUnterminatedUrlAtEof(std::string_view in) {
 // append guard, R2 (unterminated url at EOF), R3 (garbage-input
 // agreement) — see the file header for the full retirement map and
 // the survival rationale.
+// True when the input ends inside a preserved comment (#582) that never
+// closes.  The minifier closes such a comment with "*/" on output, so
+// that exact two-byte tail is sanctioned.
+bool EndsInUnterminatedPreservedComment(std::string_view input) {
+  PreservedComments preserved;
+  Phase1(input, &preserved);
+  if (preserved.texts.empty()) return false;
+  const std::string& last = preserved.texts.back();
+  const bool closed = last.size() >= 4 && last[last.size() - 2] == '*' &&
+                      last[last.size() - 1] == '/';
+  return !closed && input.size() >= last.size() &&
+         input.substr(input.size() - last.size()) == last;
+}
+
 bool Equivalent(std::string_view input, std::string_view output) {
   if (ChannelsEquivalent(Normalize(input), Normalize(output))) {
     // Append guard (carried from v3): an output that extends the
@@ -682,7 +710,9 @@ bool Equivalent(std::string_view input, std::string_view output) {
     // matching the classifier's bucket).
     if (output.size() > input.size() &&
         output.substr(0, input.size()) == input &&
-        GarbageByteCount(input) == 0) {
+        GarbageByteCount(input) == 0 &&
+        !(output.substr(input.size()) == "*/" &&
+          EndsInUnterminatedPreservedComment(input))) {
       for (const char c : output.substr(input.size())) {
         if (!(c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' ||
               c == '\v')) {

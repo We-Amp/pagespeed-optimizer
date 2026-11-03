@@ -32,6 +32,10 @@ constexpr int kSvgFormat = 3;
 // so an entitled agent request always prefers it.
 constexpr int kAgentMarkdownScore = 100000;
 
+// Penalty for a stored Save-Data variant when the client did not ask for
+// Save-Data (see ScoreAlternate).
+constexpr int kSaveDataMismatchPenalty = 980;
+
 // The one selectable sentinel and the never-selectable one are different
 // classes.  If they were ever given the same id, the skip in select() below
 // would silently become unreachable and the durable original would inherit
@@ -114,8 +118,9 @@ int ScoreAlternate(uint32_t client_mask, uint32_t stored_mask) {
   // JPEG) was handed the full-size desktop WebP, many times the bytes of
   // the phone JPEG it could have had; and a desktop could be handed a
   // phone-size image.  2000 exceeds every other dimension combined
-  // (1000 + 40 + 20 + 60 = 1120), so a size-class match always wins, and
-  // the SVG tier (which always takes this bonus) stays above every raster.
+  // (1000 + 40 + 20 + 60 = 1120), so a size-class match always wins (a
+  // Save-Data variant penalized for a client without Save-Data included:
+  // see the penalty below), and the SVG tier (which always takes this bonus) stays above every raster.
   // SVG is resolution-independent — always award the viewport bonus.
   if (is_svg || ExtractViewport(client_mask) == ExtractViewport(stored_mask)) {
     score += 2000;
@@ -133,6 +138,25 @@ int ScoreAlternate(uint32_t client_mask, uint32_t stored_mask) {
     score += 50;
   } else if (ExtractSaveData(client_mask) == ExtractSaveData(stored_mask)) {
     score += 20;
+  } else if (!is_svg && ExtractSaveData(stored_mask) == 1) {
+    // A Save-Data variant offered to a client that did not ask for Save-Data
+    // carries deliberately reduced quality.  The format bonus alone outranks
+    // the +20 match above, so with the client's own normal slot empty a
+    // normal client was handed the reduced-quality sibling of its format
+    // instead of the normal variant of another format at the same size.
+    // The penalty is 980 so that the orderings hold for every mask:
+    //   * a penalized variant (at most 1000 + 2000 + 40 + 60 - 980 = 2120)
+    //     stays below every normal variant at the client's viewport (at
+    //     least 100 + 2000 + 20 + 5 = 2125);
+    //   * a penalized variant at the client's viewport (at least
+    //     100 + 2000 + 5 - 980 = 1125) stays above every normal variant at
+    //     another viewport (at most 1000 + 40 + 20 + 60 = 1120).
+    // Normal bytes for a Save-Data client stay allowed: that direction is
+    // never penalized.  Text variants are scored the same way; they carry the
+    // Save-Data bit only when written for it, and a fallback hit asks the
+    // worker for the client's own slot, so they self-heal.  The floor below
+    // keeps a penalized variant selectable as a last resort.
+    score -= kSaveDataMismatchPenalty;
   }
 
   // Encoding: exact match +60, identity fallback +5, mismatched
@@ -150,7 +174,7 @@ int ScoreAlternate(uint32_t client_mask, uint32_t stored_mask) {
     return 0;
   }
 
-  return score;
+  return score > 0 ? score : 1;
 }
 
 std::optional<size_t> PageSpeedSelector::select(
@@ -228,7 +252,11 @@ std::optional<size_t> PageSpeedSelector::select(
     // on top.  (Cross-format positive ties cannot actually occur today —
     // the SVG tier scores >= 3245, viewport-matched exact formats are
     // 3005-3120 and Original fallbacks 2105-2220, and without a viewport
-    // match exact formats are 1005-1120 and Original fallbacks 105-220,
+    // match exact formats are 1005-1120 and Original fallbacks 105-220;
+    // a Save-Data variant offered to a client without Save-Data sits lower
+    // still: viewport-matched exact 2025-2120, Original fallbacks 1125-1220,
+    // exact 25-120 without a viewport match, and Original fallbacks there
+    // floored at 1 (all one format, so the byte arm decides),
     // and every one of these totals differs between an exact match and a
     // fallback by the format bonus alone (900), which no combination of
     // the smaller dimensions (at most 120) can close; so the byte arm is

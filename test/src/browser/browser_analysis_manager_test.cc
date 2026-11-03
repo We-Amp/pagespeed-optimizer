@@ -180,8 +180,9 @@ TEST_F(BrowserAnalysisManagerTest, EnqueueBeforeInitialize) {
   // EnqueueAnalysis should work (queue is created in constructor).
   // Without Initialize, analysis_async_ is not initialized so
   // uv_async_send is skipped, but the item is queued.
-  bool enqueued = mgr_->EnqueueAnalysis("http://example.com/", "example.com",
-                                        "http", 0x08, 12345);
+  bool enqueued = mgr_->EnqueueAnalysis(
+      "http://example.com/", "example.com", "http", /*site=*/"",
+      /*host_vouched=*/false, /*from_module=*/false, 0x08, 12345);
   EXPECT_TRUE(enqueued);
   EXPECT_EQ(1u, mgr_->queue_depth());
   EXPECT_EQ(1u, mgr_->stats().queue_enqueued.load());
@@ -193,8 +194,9 @@ TEST_F(BrowserAnalysisManagerTest, EnqueueAfterShutdownReturnsFalse) {
   mgr_->Shutdown();
   RunLoop(loop_);
 
-  bool enqueued = mgr_->EnqueueAnalysis("http://example.com/", "example.com",
-                                        "http", 0x08, 12345);
+  bool enqueued = mgr_->EnqueueAnalysis(
+      "http://example.com/", "example.com", "http", /*site=*/"",
+      /*host_vouched=*/false, /*from_module=*/false, 0x08, 12345);
   EXPECT_FALSE(enqueued);
   EXPECT_EQ(0u, mgr_->queue_depth());
 }
@@ -202,7 +204,8 @@ TEST_F(BrowserAnalysisManagerTest, EnqueueAfterShutdownReturnsFalse) {
 TEST_F(BrowserAnalysisManagerTest, EnqueueMultipleItems) {
   for (int i = 0; i < 5; ++i) {
     bool enqueued = mgr_->EnqueueAnalysis(
-        "http://example.com/" + std::to_string(i), "example.com", "http", 0x08,
+        "http://example.com/" + std::to_string(i), "example.com", "http",
+        /*site=*/"", /*host_vouched=*/false, /*from_module=*/false, 0x08,
         static_cast<uint64_t>(i) + 1);
     EXPECT_TRUE(enqueued);
   }
@@ -219,9 +222,10 @@ TEST_F(BrowserAnalysisManagerTest, RevalidationIsRateLimitedPerTemplate) {
   using std::chrono::seconds;
   const auto t0 = std::chrono::steady_clock::now();
   auto request = [&](uint64_t hash, std::chrono::steady_clock::time_point at) {
-    bool queued = mgr_->RequestRevalidation("http://example.com/p",
-                                            "example.com", "http", 0x08, hash,
-                                            "<html></html>", std::nullopt, at);
+    bool queued = mgr_->RequestRevalidation(
+        "http://example.com/p", "example.com", "http", /*site=*/"",
+        /*host_vouched=*/false, /*from_module=*/false, 0x08, hash,
+        "<html></html>", std::nullopt, at);
     // Drain so the queue's own per-template dedup is not what is measured.
     while (mgr_->TestDequeue().has_value()) {
     }
@@ -242,8 +246,9 @@ TEST_F(BrowserAnalysisManagerTest, RevalidationIsRateLimitedPerTemplate) {
 
   // The queued item is an ordinary analysis of the template: the page's own
   // bytes, keyed on the template hash.
-  ASSERT_TRUE(mgr_->RequestRevalidation("http://example.com/q", "example.com",
-                                        "https", 0x08, 9, "<p>q</p>"));
+  ASSERT_TRUE(mgr_->RequestRevalidation(
+      "http://example.com/q", "example.com", "https", /*site=*/"",
+      /*host_vouched=*/false, /*from_module=*/false, 0x08, 9, "<p>q</p>"));
   auto item = mgr_->TestDequeue();
   ASSERT_TRUE(item.has_value());
   EXPECT_EQ(9u, item->template_hash);
@@ -260,9 +265,10 @@ TEST_F(BrowserAnalysisManagerTest, RevalidationBudgetOverflowEvictsTheOldest) {
   using std::chrono::seconds;
   const auto t0 = std::chrono::steady_clock::now();
   auto request = [&](uint64_t hash, std::chrono::steady_clock::time_point at) {
-    bool queued = mgr_->RequestRevalidation("http://example.com/p",
-                                            "example.com", "http", 0x08, hash,
-                                            "<html></html>", std::nullopt, at);
+    bool queued = mgr_->RequestRevalidation(
+        "http://example.com/p", "example.com", "http", /*site=*/"",
+        /*host_vouched=*/false, /*from_module=*/false, 0x08, hash,
+        "<html></html>", std::nullopt, at);
     while (mgr_->TestDequeue().has_value()) {
     }
     return queued;
@@ -285,9 +291,13 @@ TEST_F(BrowserAnalysisManagerTest, RevalidationBudgetOverflowEvictsTheOldest) {
 TEST_F(BrowserAnalysisManagerTest, ForceAgentRenderDedupsByUrlNotTemplate) {
   // Normal (perf) enqueue dedups on the template hash —
   // distinct URLs of one template collapse (perf is template-amortized).
-  EXPECT_TRUE(mgr_->EnqueueAnalysis("http://x.com/a", "x.com", "http", 0x08,
+  EXPECT_TRUE(mgr_->EnqueueAnalysis("http://x.com/a", "x.com", "http",
+                                    /*site=*/"", /*host_vouched=*/false,
+                                    /*from_module=*/false, 0x08,
                                     /*template_hash=*/42));
-  EXPECT_FALSE(mgr_->EnqueueAnalysis("http://x.com/b", "x.com", "http", 0x08,
+  EXPECT_FALSE(mgr_->EnqueueAnalysis("http://x.com/b", "x.com", "http",
+                                     /*site=*/"", /*host_vouched=*/false,
+                                     /*from_module=*/false, 0x08,
                                      /*template_hash=*/42));  // same template
   EXPECT_EQ(1u, mgr_->queue_depth());
 
@@ -295,19 +305,22 @@ TEST_F(BrowserAnalysisManagerTest, ForceAgentRenderDedupsByUrlNotTemplate) {
   // enqueue (markdown is per-URL) — they dedup on the URL, not the template, so
   // they never starve each other.
   std::array<std::byte, 32> h{};
-  EXPECT_TRUE(mgr_->EnqueueAnalysis("http://y.com/a", "y.com", "http", 0x08,
-                                    /*template_hash=*/99, /*original_html=*/{},
-                                    h,
-                                    /*force_agent_render=*/true));
-  EXPECT_TRUE(mgr_->EnqueueAnalysis("http://y.com/b", "y.com", "http", 0x08,
-                                    /*template_hash=*/99, /*original_html=*/{},
-                                    h,
-                                    /*force_agent_render=*/true));
+  EXPECT_TRUE(
+      mgr_->EnqueueAnalysis("http://y.com/a", "y.com", "http", /*site=*/"",
+                            /*host_vouched=*/false, /*from_module=*/false, 0x08,
+                            /*template_hash=*/99, /*original_html=*/{}, h,
+                            /*force_agent_render=*/true));
+  EXPECT_TRUE(
+      mgr_->EnqueueAnalysis("http://y.com/b", "y.com", "http", /*site=*/"",
+                            /*host_vouched=*/false, /*from_module=*/false, 0x08,
+                            /*template_hash=*/99, /*original_html=*/{}, h,
+                            /*force_agent_render=*/true));
   // Same forced URL again -> deduped on the URL.
-  EXPECT_FALSE(mgr_->EnqueueAnalysis("http://y.com/a", "y.com", "http", 0x08,
-                                     /*template_hash=*/99, /*original_html=*/{},
-                                     h,
-                                     /*force_agent_render=*/true));
+  EXPECT_FALSE(
+      mgr_->EnqueueAnalysis("http://y.com/a", "y.com", "http", /*site=*/"",
+                            /*host_vouched=*/false, /*from_module=*/false, 0x08,
+                            /*template_hash=*/99, /*original_html=*/{}, h,
+                            /*force_agent_render=*/true));
   EXPECT_EQ(3u, mgr_->queue_depth());  // x/a + y/a + y/b
 }
 
@@ -323,9 +336,11 @@ TEST_F(BrowserAnalysisManagerTest, EnqueueCarriesOwnedOriginalHtml) {
   // item owns its own copy.
   {
     std::string scratch = raw_html;
-    EXPECT_TRUE(mgr_->EnqueueAnalysis("http://example.com/", "example.com",
-                                      "http", 0x08, /*template_hash=*/7,
-                                      /*original_html=*/scratch));
+    EXPECT_TRUE(
+        mgr_->EnqueueAnalysis("http://example.com/", "example.com", "http",
+                              /*site=*/"", /*host_vouched=*/false,
+                              /*from_module=*/false, 0x08, /*template_hash=*/7,
+                              /*original_html=*/scratch));
     scratch.assign(scratch.size(), 'X');  // clobber the source buffer
   }
   auto item = mgr_->TestDequeue();
@@ -338,7 +353,9 @@ TEST_F(BrowserAnalysisManagerTest, EnqueueCarriesOwnedOriginalHtml) {
 // falls back to the cache re-read (preserving the prior behavior).
 TEST_F(BrowserAnalysisManagerTest, EnqueueWithoutHtmlLeavesOriginalHtmlEmpty) {
   EXPECT_TRUE(mgr_->EnqueueAnalysis("http://example.com/", "example.com",
-                                    "http", 0x08, /*template_hash=*/8));
+                                    "http", /*site=*/"", /*host_vouched=*/false,
+                                    /*from_module=*/false, 0x08,
+                                    /*template_hash=*/8));
   auto item = mgr_->TestDequeue();
   ASSERT_TRUE(item.has_value());
   EXPECT_TRUE(item->original_html.empty());
@@ -348,9 +365,10 @@ TEST_F(BrowserAnalysisManagerTest, EnqueueWithoutHtmlLeavesOriginalHtmlEmpty) {
 // item, even when a different value would be read from cache.
 TEST_F(BrowserAnalysisManagerTest, EnqueuedOriginalHtmlIsTheSuppliedBytes) {
   const std::string supplied = "SUPPLIED-RAW-HTML";
-  EXPECT_TRUE(mgr_->EnqueueAnalysis("http://example.com/", "example.com",
-                                    "http", 0x08, /*template_hash=*/9,
-                                    /*original_html=*/supplied));
+  EXPECT_TRUE(mgr_->EnqueueAnalysis(
+      "http://example.com/", "example.com", "http", /*site=*/"",
+      /*host_vouched=*/false, /*from_module=*/false, 0x08, /*template_hash=*/9,
+      /*original_html=*/supplied));
   auto item = mgr_->TestDequeue();
   ASSERT_TRUE(item.has_value());
   EXPECT_EQ(item->original_html, supplied);
@@ -364,16 +382,19 @@ TEST_F(BrowserAnalysisManagerTest, QueueFullDropsItem) {
       loop_, tiny_config, nullptr, handler_.get());
 
   // Fill the queue.
-  EXPECT_TRUE(
-      tiny_mgr->EnqueueAnalysis("http://a.com/", "a.com", "http", 0x08, 1));
-  EXPECT_TRUE(
-      tiny_mgr->EnqueueAnalysis("http://b.com/", "b.com", "http", 0x08, 2));
+  EXPECT_TRUE(tiny_mgr->EnqueueAnalysis("http://a.com/", "a.com", "http",
+                                        /*site=*/"", /*host_vouched=*/false,
+                                        /*from_module=*/false, 0x08, 1));
+  EXPECT_TRUE(tiny_mgr->EnqueueAnalysis("http://b.com/", "b.com", "http",
+                                        /*site=*/"", /*host_vouched=*/false,
+                                        /*from_module=*/false, 0x08, 2));
   EXPECT_EQ(2u, tiny_mgr->queue_depth());
 
   // Third item: queue evicts the lowest-priority item (head-drop).
   // AnalysisQueue does head-drop so enqueue still succeeds.
-  bool enqueued =
-      tiny_mgr->EnqueueAnalysis("http://c.com/", "c.com", "http", 0x08, 3);
+  bool enqueued = tiny_mgr->EnqueueAnalysis("http://c.com/", "c.com", "http",
+                                            /*site=*/"", /*host_vouched=*/false,
+                                            /*from_module=*/false, 0x08, 3);
   // Depending on priority, it may enqueue (evicting old) or be dropped.
   // Either way, queue depth remains at most 2.
   EXPECT_LE(tiny_mgr->queue_depth(), 2u);
@@ -431,16 +452,21 @@ TEST_F(BrowserAnalysisManagerTest, StatusJsonContainsScriptEvidenceCounters) {
 }
 
 TEST_F(BrowserAnalysisManagerTest, StatusJsonReflectsQueueDepth) {
-  mgr_->EnqueueAnalysis("http://example.com/", "example.com", "http", 0x08, 42);
+  mgr_->EnqueueAnalysis("http://example.com/", "example.com", "http",
+                        /*site=*/"", /*host_vouched=*/false,
+                        /*from_module=*/false, 0x08, 42);
 
   std::string json = mgr_->StatusJson();
   EXPECT_NE(std::string::npos, json.find("\"queue_depth\":1"));
 }
 
 TEST_F(BrowserAnalysisManagerTest, StatusJsonReflectsEnqueueStats) {
-  mgr_->EnqueueAnalysis("http://a.com/", "a.com", "http", 0x08, 1);
-  mgr_->EnqueueAnalysis("http://b.com/", "b.com", "http", 0x08, 2);
-  mgr_->EnqueueAnalysis("http://c.com/", "c.com", "http", 0x08, 3);
+  mgr_->EnqueueAnalysis("http://a.com/", "a.com", "http", /*site=*/"",
+                        /*host_vouched=*/false, /*from_module=*/false, 0x08, 1);
+  mgr_->EnqueueAnalysis("http://b.com/", "b.com", "http", /*site=*/"",
+                        /*host_vouched=*/false, /*from_module=*/false, 0x08, 2);
+  mgr_->EnqueueAnalysis("http://c.com/", "c.com", "http", /*site=*/"",
+                        /*host_vouched=*/false, /*from_module=*/false, 0x08, 3);
 
   std::string json = mgr_->StatusJson();
   EXPECT_NE(std::string::npos, json.find("\"queue_enqueued\":3"));
@@ -460,7 +486,8 @@ TEST_F(BrowserAnalysisManagerTest, SetHandlerDoesNotCrash) {
   auto other_handler = std::make_unique<NullMessageHandler>();
   mgr_->set_handler(other_handler.get());
   // Use the manager normally after swapping handler.
-  mgr_->EnqueueAnalysis("http://x.com/", "x.com", "http", 0x08, 1);
+  mgr_->EnqueueAnalysis("http://x.com/", "x.com", "http", /*site=*/"",
+                        /*host_vouched=*/false, /*from_module=*/false, 0x08, 1);
   EXPECT_EQ(1u, mgr_->queue_depth());
 }
 
@@ -1485,7 +1512,9 @@ TEST(ValidationInputsTest, TheSheetBuilderSeesTheOriginDocumentAndItsIdentity) {
 
   auto inputs = browser_internal::BuildValidationInputs(
       [&](const HtmlScanResult& scan, const std::string& url,
-          const std::string& hostname, const std::string& scheme) {
+          const std::string& hostname, const std::string& scheme,
+          const std::string& /*site*/, bool /*host_vouched*/,
+          bool /*from_module*/) {
         ++calls;
         seen_url = url;
         seen_host = hostname;
@@ -1529,7 +1558,8 @@ TEST(ValidationInputsTest, NoscriptElementsDoNotReachTheDerivation) {
   size_t seen_stylesheets = 0;
   auto inputs = browser_internal::BuildValidationInputs(
       [&](const HtmlScanResult& scan, const std::string&, const std::string&,
-          const std::string&) {
+          const std::string&, const std::string& /*site*/,
+          bool /*host_vouched*/, bool /*from_module*/) {
         seen_stylesheets = scan.stylesheets.size();
         return browser_internal::CombinedCssBytes{
             ".nojs-banner{height:300px}#nojs{color:red}.hero{display:flex}",
@@ -1684,7 +1714,9 @@ TEST(AnalysisDocumentsTest, AnUntrustedRemovalRefusesTheCoverageRender) {
 
 TEST(ValidationInputsTest, NoscriptRenderEffectTravelsWithTheSheet) {
   auto builder = [](const HtmlScanResult&, const std::string&,
-                    const std::string&, const std::string&) {
+                    const std::string&, const std::string&,
+                    const std::string& /*site*/, bool /*host_vouched*/,
+                    bool /*from_module*/) {
     return browser_internal::CombinedCssBytes{".hero{display:flex}", false};
   };
   auto banner = browser_internal::BuildValidationInputs(
@@ -1710,7 +1742,8 @@ TEST(ValidationInputsTest, TheLayerOrderTravelsWithTheSheet) {
   // inputs unchanged.
   auto inputs = browser_internal::BuildValidationInputs(
       [](const HtmlScanResult&, const std::string&, const std::string&,
-         const std::string&) {
+         const std::string&, const std::string& /*site*/, bool /*host_vouched*/,
+         bool /*from_module*/) {
         browser_internal::CombinedCssBytes bytes;
         bytes.css = "@layer base{.hero{display:flex}}";
         bytes.layer_order.proven = true;
@@ -1728,7 +1761,8 @@ TEST(ValidationInputsTest, AnUncachedStylesheetProducesNoInputs) {
   bool called = false;
   auto inputs = browser_internal::BuildValidationInputs(
       [&](const HtmlScanResult&, const std::string&, const std::string&,
-          const std::string&) {
+          const std::string&, const std::string& /*site*/,
+          bool /*host_vouched*/, bool /*from_module*/) {
         called = true;
         // Whatever bytes came back, one declared sheet is missing from them.
         // Same-origin, so it can still land: transient.
@@ -1750,7 +1784,8 @@ TEST(ValidationInputsTest, ACrossOriginSheetIsAPermanentRefusal) {
   // reading "will be retried" about this page would wait forever.
   auto inputs = browser_internal::BuildValidationInputs(
       [](const HtmlScanResult&, const std::string&, const std::string&,
-         const std::string&) {
+         const std::string&, const std::string& /*site*/, bool /*host_vouched*/,
+         bool /*from_module*/) {
         return browser_internal::CombinedCssBytes{".partial{}", true, false};
       },
       "http://example.com/p", "example.com", "https", kOriginPage);
@@ -1769,7 +1804,8 @@ TEST(ValidationInputsTest, ACrossOriginSheetIsAPermanentRefusal) {
 TEST(ValidationInputsTest, AnEmptySheetProducesNoInputs) {
   auto inputs = browser_internal::BuildValidationInputs(
       [](const HtmlScanResult&, const std::string&, const std::string&,
-         const std::string&) {
+         const std::string&, const std::string& /*site*/, bool /*host_vouched*/,
+         bool /*from_module*/) {
         return browser_internal::CombinedCssBytes{"", false};
       },
       "http://example.com/p", "example.com", "https", kOriginPage);
@@ -1793,7 +1829,8 @@ TEST(ValidationInputsTest, EmptyMarkupNeverReachesTheBuilder) {
   bool called = false;
   auto inputs = browser_internal::BuildValidationInputs(
       [&](const HtmlScanResult&, const std::string&, const std::string&,
-          const std::string&) {
+          const std::string&, const std::string& /*site*/,
+          bool /*host_vouched*/, bool /*from_module*/) {
         called = true;
         return browser_internal::CombinedCssBytes{".a{}", false};
       },
@@ -1856,7 +1893,8 @@ AnalysisQueue::Item GlueItem() {
 
 BrowserAnalysisManager::CombinedCssBuilder GlueSheetBuilder() {
   return [](const HtmlScanResult&, const std::string&, const std::string&,
-            const std::string&) {
+            const std::string&, const std::string& /*site*/,
+            bool /*host_vouched*/, bool /*from_module*/) {
     return browser_internal::CombinedCssBytes{kGlueSheet, false};
   };
 }
@@ -1958,7 +1996,8 @@ TEST_F(BrowserAnalysisManagerCacheTest,
     const CascadeLayerOrder order = LayeredOrder(proven);
     mgr_->set_combined_css_builder(
         [order](const HtmlScanResult&, const std::string&, const std::string&,
-                const std::string&) {
+                const std::string&, const std::string& /*site*/,
+                bool /*host_vouched*/, bool /*from_module*/) {
           return browser_internal::CombinedCssBytes{kLayeredSheet, false, false,
                                                     order};
         });
@@ -2032,11 +2071,13 @@ TEST_F(BrowserAnalysisManagerCacheTest,
       "<html><head><link rel=stylesheet href=/s.css></head>"
       "<body><nav class=\"hidden\">x</nav></body></html>";
   const CascadeLayerOrder unproven;
-  mgr_->set_combined_css_builder([unproven](
-                                     const HtmlScanResult&, const std::string&,
-                                     const std::string&, const std::string&) {
-    return browser_internal::CombinedCssBytes{kSheet, false, false, unproven};
-  });
+  mgr_->set_combined_css_builder(
+      [unproven](const HtmlScanResult&, const std::string&, const std::string&,
+                 const std::string&, const std::string& /*site*/,
+                 bool /*host_vouched*/, bool /*from_module*/) {
+        return browser_internal::CombinedCssBytes{kSheet, false, false,
+                                                  unproven};
+      });
   ValidationDocuments seen;
   mgr_->set_validation_runner(
       [&seen](const ValidationDocuments& docs, uint32_t, uint32_t,
@@ -2111,11 +2152,12 @@ TEST_F(BrowserAnalysisManagerCacheTest,
   const CascadeLayerOrder order = ComputeCascadeLayerOrder(sources, {});
   ASSERT_FALSE(order.proven);
   ASSERT_NE(order.reason.find("escape"), std::string::npos) << order.reason;
-  mgr_->set_combined_css_builder([order](const HtmlScanResult&,
-                                         const std::string&, const std::string&,
-                                         const std::string&) {
-    return browser_internal::CombinedCssBytes{kSheet, false, false, order};
-  });
+  mgr_->set_combined_css_builder(
+      [order](const HtmlScanResult&, const std::string&, const std::string&,
+              const std::string&, const std::string& /*site*/,
+              bool /*host_vouched*/, bool /*from_module*/) {
+        return browser_internal::CombinedCssBytes{kSheet, false, false, order};
+      });
   ValidationDocuments seen;
   mgr_->set_validation_runner(
       [&seen](const ValidationDocuments& docs, uint32_t, uint32_t,

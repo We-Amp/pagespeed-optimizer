@@ -537,7 +537,7 @@ TEST(HeadersSidecarTest, TheClassCostsNoEntryMetadataVersionOfItsOwn) {
   // that byte: adding it did not move the entry-metadata format version, and
   // must not. An entry format version is a cache-wide event — every entry on
   // every volume — and a new entry class is not a reason to spend one.
-  EXPECT_EQ(AlternateMetadata::kCurrentVersion, 8);
+  EXPECT_EQ(AlternateMetadata::kCurrentVersion, 9);
   EXPECT_EQ(kHeadersSidecarFormatVersion, 1);
 }
 

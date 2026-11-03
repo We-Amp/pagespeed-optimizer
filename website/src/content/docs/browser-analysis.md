@@ -160,8 +160,10 @@ the page is rendered twice at each viewport — once with its whole stylesheet,
 once with only the above-the-fold block that would be inlined — and the two
 above-the-fold regions are compared. The stylesheet is made non-render-blocking
 only when they match. If the check does not run, or does not pass, the
-stylesheet stays render-blocking and the above-the-fold CSS is still inlined,
-so the page loses the deferral and keeps everything else.
+stylesheet stays render-blocking and no above-the-fold CSS is inlined next to
+it (a stylesheet applied by script, or placed after the page content, keeps the
+inlined block, because first paint does not wait for it), so the page loses the
+deferral and keeps everything else.
 
 The check is tied to the exact stylesheet it was made against, so publishing new
 CSS re-checks before deferring again, and a page whose analysis has not finished

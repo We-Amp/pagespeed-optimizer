@@ -711,7 +711,7 @@ See [Preconnect injection](#preconnect-injection).
 - **Syntax:** `--no-async-css`
 - **Default:** —
 
-Disable async CSS loading (keep stylesheets render-blocking)
+Disable async CSS loading (keep stylesheets render-blocking and inline no above-the-fold CSS)
 
 Enabled does not mean applied: see [Async CSS](#async-css) for the per-page
 conditions deferral requires.
@@ -751,7 +751,7 @@ Enable speculation rules injection (default: off)
 Disable content-aware quality presets
 
 Falls back to the `Unknown` content class for every image. See
-[Content analysis and denoising](#content-analysis-and-denoising).
+[Content analysis](#content-analysis-and-denoising).
 
 #### --no-preserve-c2pa {#--no-preserve-c2pa}
 
@@ -770,28 +770,28 @@ Recompress manifest-bearing PNGs and re-splice C2PA chunks (PNG only; default: o
 #### --denoise-threshold {#--denoise-threshold}
 
 - **Syntax:** `--denoise-threshold LEVEL`
-- **Default:** `0.3`
+- **Default:** —
 
-Noise level threshold 0.0-1.0 (default: 0.3, 0=disable)
+Deprecated and ignored (accepted so existing command lines keep working)
 
-Range 0.0-1.0; `0` disables denoising. See
-[Content analysis and denoising](#content-analysis-and-denoising).
+Removed: noisy images are no longer smoothed before encoding. The flag is
+still accepted and ignored.
 
 #### --denoise-sigma-spatial {#--denoise-sigma-spatial}
 
 - **Syntax:** `--denoise-sigma-spatial F`
-- **Default:** `3.0`
+- **Default:** —
 
-Bilateral filter spatial sigma, max 10.0 (default: 3.0)
+Deprecated and ignored
 
-Range 0.0-10.0.
+Removed. Still accepted and ignored.
 
 #### --denoise-sigma-range {#--denoise-sigma-range}
 
 - **Syntax:** `--denoise-sigma-range F`
-- **Default:** `25.0`
+- **Default:** —
 
-Bilateral filter range sigma (default: 25.0)
+Deprecated and ignored
 
 #### --no-quality-verify {#--no-quality-verify}
 
@@ -1673,18 +1673,15 @@ Disabling verification ([`--no-quality-verify`](#--no-quality-verify)) skips the
 SSIMULACRA2 measurement pass entirely, reducing CPU cost at the risk of
 inconsistent visual quality.
 
-## Content analysis and denoising
+## Content analysis {#content-analysis-and-denoising}
 
 The worker classifies image content (photo, screenshot, illustration, noisy) and
-applies content-aware encoding presets. A bilateral filter denoises images that
-exceed the noise threshold before encoding, improving compression efficiency.
-The flags are [`--no-content-analysis`](#--no-content-analysis),
-[`--denoise-threshold`](#--denoise-threshold),
-[`--denoise-sigma-spatial`](#--denoise-sigma-spatial) and
-[`--denoise-sigma-range`](#--denoise-sigma-range).
+applies content-aware encoding presets. Images are not smoothed before
+encoding. The flag is [`--no-content-analysis`](#--no-content-analysis); the
+`--denoise-*` flags are deprecated and ignored.
 
 Content analysis is fast (runs on the already-decoded pixel buffer) and feeds
-into both the learned quality model and the denoising decision. Disabling it
+into the learned quality model. Disabling it
 falls back to the `Unknown` content class for all images.
 
 ## HTML transforms {#html-optimization-flags}
@@ -1739,7 +1736,7 @@ with the stylesheet deferred, and only while that page still serves the exact
 stylesheet the confirmation was made against — publish new styles and the check
 runs again before deferral resumes. Everywhere the confirmation does not apply,
 including a page whose browser analysis has not completed, the stylesheet stays
-render-blocking and the above-the-fold CSS is still inlined. Disable the
+render-blocking and no above-the-fold CSS is inlined next to it. Disable the
 transform entirely with `--no-async-css`.
 
 Under a nonce-only or `strict-dynamic` CSP, host allowlists including `'self'`
@@ -1767,7 +1764,7 @@ suppress them is the coarse `--disable-html` / `--disable-css` /
 
 ### Image pipeline {#image-pipeline}
 
-Decodes source images, applies content-aware quality and denoising, and
+Decodes source images, applies content-aware quality, and
 re-encodes to modern formats (WebP, AVIF). Emits viewport, density, and
 Save-Data variants. Metadata (EXIF, ICC profiles other than sRGB) is
 stripped. Always-on baseline under `pagespeed on;`; there is no

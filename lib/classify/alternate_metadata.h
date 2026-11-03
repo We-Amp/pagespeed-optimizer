@@ -18,8 +18,8 @@ namespace pagespeed {
 
 // Metadata stored in each Cyclone alternate's header field.
 //
-// Serialized format (version 8):
-//   [1B version=8][4B full_mask LE][1B content_type][1B flags]
+// Serialized format (version 9, layout identical to version 8):
+//   [1B version=9][4B full_mask LE][1B content_type][1B flags]
 //   [2B origin_ct_len LE][origin_ct...]
 //   [4B cache_inserted_at LE][4B origin_max_age LE]
 //   [4B origin_s_maxage LE][2B origin_cc_flags LE]
@@ -29,6 +29,11 @@ namespace pagespeed {
 //   [32B origin_html_hash][32B render_source_hash]   (v7)
 //   [8B origin_epoch LE]                             (v8)
 //   [2B origin_cc_len LE][origin_cc_len bytes...]    (v8)
+//
+// Version 9 changes no byte of the layout.  Deserialize refuses every HTML
+// entry below version 9, and a page's Markdown version the worker wrote below
+// version 9 (IsRetired), so it reads as a MISS and is rebuilt.  CSS, images
+// and everything else below version 9 stay readable.
 //
 // Total: kFixedPrefixSize(9) + ct_len + kV8FixedSuffixSize(101) + etag_len
 //        + cc_len
@@ -50,7 +55,7 @@ namespace pagespeed {
 // byte used as AlternateId.  This allows the selector to examine all
 // dimensions.
 struct AlternateMetadata {
-  static constexpr uint8_t kCurrentVersion = 8;
+  static constexpr uint8_t kCurrentVersion = 9;
   static constexpr size_t kFixedPrefixSize = 9;   // version through ct_len
   static constexpr size_t kFixedSuffixSize = 17;  // v3/v4 trailing cc fields
   static constexpr size_t kFixedTotalSize = kFixedPrefixSize + kFixedSuffixSize;
@@ -136,6 +141,25 @@ struct AlternateMetadata {
 
   // V4 sentinel values.
   static constexpr uint16_t kScoreNA = 0xFFFF;
+
+  // The 16-bit score field has two meanings, keyed on the transfer encoding
+  //  the variant's mask names (see the accessors below; nothing outside this
+  // class reads the raw field):
+  //   - identity-encoded entries (images, and every plain variant): the
+  //     quality score, 0-10000 (x100) or kScoreNA;
+  //   - gzip or brotli coded entries (the pre-compressed copies of text and
+  //     SVG; they never carry a quality score): kScoreNA, or a code in
+  //     [kEncodedRatioBase, kScoreNA - 1] carrying the size of the origin
+  //     bytes under this variant's own transfer encoding, as a fraction of
+  //     origin_content_length.
+  // Every released reader clamps a value above 10000 (other than kScoreNA)
+  // to kScoreNA when it parses, so an entry carrying a code is read as
+  // "score not available" by them; the metadata version does not change.
+  static constexpr uint16_t kMaxScoreX100 = 10000;
+  static constexpr uint16_t kEncodedRatioBase = kMaxScoreX100 + 1;
+  // Code = kEncodedRatioBase + round(ratio * kEncodedRatioScale).  The largest
+  // code is kScoreNA - 1, so the largest representable ratio is 1.1107.
+  static constexpr uint32_t kEncodedRatioScale = 50000;
   static constexpr uint8_t kContentClassUnknown = 4;
 
   // Flag bits for the flags byte.
@@ -238,15 +262,25 @@ struct AlternateMetadata {
   // propagation and ETag notes as above.  Read by the nginx serve paths
   // (src/nginx/headers_sidecar_replay.h).
   static constexpr uint8_t kFlagHeadersSidecarRequired = 0x20;
+  // kFlagAnonymousRecorded: the front stage recorded this entry from its
+  // response to a request it judged anonymous (no credentials on the
+  // request, no signed-in user, no authorization requirement on the
+  // endpoint).  STAMPED BY THE WRITER at record time and PROPAGATED by the
+  // worker into every variant it derives, with the same rules as
+  // kFlagHeadersClassified (agent markdown does not inherit it).  Set by the
+  // ASP.NET Core middleware, which serves only entries that carry it; the
+  // nginx record arm does not set it and the nginx serve paths do not read
+  // it.  Feeds the weak hit ETag like every other flag bit.
+  static constexpr uint8_t kFlagAnonymousRecorded = 0x40;
   // The flags byte is OPAQUE on the wire: it is read verbatim and written
   // back verbatim, so a bit set by a peer this build does not know about
   // survives a read/rewrite cycle rather than being cleared.  Do not add a
   // mask that filters unknown bits — losing a flag is indistinguishable from
-  // never having been told about it.  Bits 0x40..0x80 are free.
+  // never having been told about it.  Bit 0x80 is free.
   static constexpr uint8_t kFlagsAssignedMask =
       kFlagNeedsRevalidation | kFlagWorkerProcessed | kFlagOriginVariesAccept |
       kFlagOriginHeadersNotReproducible | kFlagHeadersClassified |
-      kFlagHeadersSidecarRequired;
+      kFlagHeadersSidecarRequired | kFlagAnonymousRecorded;
 
   // Origin Cache-Control flag bits (origin_cc_flags).
   static constexpr uint16_t kCCOriginNoCache = 1 << 0;
@@ -416,6 +450,43 @@ struct AlternateMetadata {
   // constant or omitted a field.
   size_t consumed_size = 0;
 
+  // True when full_mask names gzip or brotli transfer encoding: the
+  // pre-compressed copy of a text or SVG variant.
+  bool IsEncodedVariant() const;
+
+  // The quality score (x100) of an image-like entry; nullopt when it is not
+  // available or the entry is gzip/brotli coded (whose field means something
+  // else).
+  std::optional<uint16_t> QualityScoreX100() const {
+    if (IsEncodedVariant() || ssimulacra2_score_x100 > kMaxScoreX100) {
+      return std::nullopt;
+    }
+    return ssimulacra2_score_x100;
+  }
+  // Sets the quality score (x100); nullopt or an out-of-range value stores
+  // "not available".  No-op on a gzip/brotli coded entry.
+  void SetQualityScoreX100(std::optional<uint16_t> score) {
+    if (IsEncodedVariant()) return;
+    ssimulacra2_score_x100 =
+        (score.has_value() && *score <= kMaxScoreX100) ? *score : kScoreNA;
+  }
+
+  // The size of the origin bytes encoded the way THIS variant is served
+  // (what the saving of the encoding itself is measured against).
+  //   - identity encoding: origin_content_length (also what an image, which
+  //     has no text encoding, is measured against);
+  //   - a gzip/brotli coded variant: the stored value, or nullopt when the
+  //     entry does not carry one (written before the value existed, or the
+  //     encoded form is more than 1.11 times the origin);
+  //   - nullopt also when origin_content_length is 0.
+  std::optional<uint32_t> EncodedOriginLength() const;
+  // Stores the encoded size for a gzip/brotli coded variant.  No-op for other
+  // entries; an unrepresentable value stores "not available".
+  void SetEncodedOriginLength(uint64_t encoded_bytes);
+  // Stores "not available" on a gzip/brotli coded entry (drops a value
+  // inherited from the entry this one was copied from).
+  void ClearEncodedOriginLength();
+
   // Version-aware wire size (prefix + ct_len + suffix).
   size_t WireSize() const {
     if (version >= 8) {
@@ -445,9 +516,11 @@ struct AlternateMetadata {
   // Deserialize from bytes read from Cyclone alternate header.
   // Returns std::nullopt on:
   //   - Data too short
-  //   - Version not 3, 4, 5, 6, 7, or 8  (a HIGHER version is a peer that
+  //   - Version not 3, 4, 5, 6, 7, 8, or 9  (a HIGHER version is a peer that
   //     knows something this build does not: nullopt, which the read path
   //     turns into a MISS, never a best-effort parse of the prefix)
+  //   - an entry IsRetired accepts (the caller treats it as a MISS and
+  //     rebuilds it)
   //   - origin_ct_len exceeds remaining data
   //   - origin_ct_len > kMaxOriginCtLen
   //   - content_type out of enum range
@@ -459,6 +532,13 @@ struct AlternateMetadata {
   // data.
   static std::optional<AlternateMetadata> Deserialize(
       std::span<const std::byte> data);
+
+  // True for an entry written below version 9 that is an HTML page, whoever
+  // wrote it, or the Markdown version of a page written by the worker.  This
+  // build no longer serves those: Deserialize refuses them and
+  // PageSpeedCache::RemoveRetiredAlternates drops them.  `data` is the
+  // serialized metadata, alone or followed by the content.
+  static bool IsRetired(std::span<const std::byte> data);
 };
 
 // The derivation above, pinned.  These are not tautologies: they are the
@@ -492,7 +572,14 @@ static_assert((AlternateMetadata::kFlagHeadersSidecarRequired &
                 AlternateMetadata::kFlagOriginVariesAccept |
                 AlternateMetadata::kFlagOriginHeadersNotReproducible |
                 AlternateMetadata::kFlagHeadersClassified)) == 0);
-static_assert(AlternateMetadata::kFlagsAssignedMask == 0x3F);
+static_assert((AlternateMetadata::kFlagAnonymousRecorded &
+               (AlternateMetadata::kFlagNeedsRevalidation |
+                AlternateMetadata::kFlagWorkerProcessed |
+                AlternateMetadata::kFlagOriginVariesAccept |
+                AlternateMetadata::kFlagOriginHeadersNotReproducible |
+                AlternateMetadata::kFlagHeadersClassified |
+                AlternateMetadata::kFlagHeadersSidecarRequired)) == 0);
+static_assert(AlternateMetadata::kFlagsAssignedMask == 0x7F);
 
 }  // namespace pagespeed
 

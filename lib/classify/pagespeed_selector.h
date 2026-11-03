@@ -48,6 +48,9 @@ namespace pagespeed {
 //   Density match  : +40   (exact match; SVG always awarded)
 //   Save-Data match: +20   (exact match)
 //   Save-Data SVG  : +50   (SVG is inherently lightweight)
+//   Save-Data clash: -980  (stored is Save-Data, client did not ask for it;
+//                           not for SVG; the total is floored at 1, so the
+//                           variant stays selectable as a last resort)
 //   Encoding match : +60   (exact match)
 //   Encoding ident.: +5    (stored is identity, client wants compressed)
 //   Encoding clash : 0     (stored is non-identity, doesn't match client)

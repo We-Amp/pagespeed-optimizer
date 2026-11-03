@@ -335,7 +335,7 @@
       {#if supportNoticeVisible}
         <div class="support-notice" role="status" data-testid="support-notice">
           <span class="support-notice-text">
-            mod_pagespeed 2.1 is licensed under the Apache License 2.0.
+            mod_pagespeed is licensed under the Apache License 2.0.
             Support subscriptions:
             <a href={SUPPORT_URL} target="_blank" rel="noopener" class="support-notice-link">{SUPPORT_URL}</a>
           </span>

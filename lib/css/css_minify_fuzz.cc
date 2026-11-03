@@ -170,6 +170,11 @@ const char* const kValidCssSeeds[] = {
     // property; the rule block's empty-declaration trim is sanctioned.
     "2[/ro;--y:t){;m0}",
     "[;--a:b]{;c}",
+    // #582: preserved comments (/*!, @license, @preserve) survive
+    // byte-for-byte through the sentinel round trip; ordinary comments
+    // still strip.
+    "/*! banner */a{b:c}/* drop */d{e:f}",
+    "/* @license MIT */ a{--x:/*!k*/ v;margin:0.5px}",
 };
 
 // Normalize-invariant diagnostic (glue-normalization cutover): the

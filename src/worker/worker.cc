@@ -71,6 +71,7 @@
 #include "src/worker/html_scanner.h"
 #include "src/worker/html_transform_filter.h"
 #include "src/worker/http_server.h"
+#include "src/worker/known_sites.h"
 #include "src/worker/layer_order_sources.h"
 #include "src/worker/llms_txt_builder.h"
 #include "src/worker/pipe_dacl.h"
@@ -286,15 +287,16 @@ constexpr CapabilityMask::ImageFormat kImageSlotFormats[] = {
 };
 
 // The flag bits a variant inherits from the entry it is derived from.  A hit
-// reads the selected variant, never the identity, so the headers-sidecar
-// state recorded on the source entry (kFlagHeadersClassified,
-// kFlagHeadersSidecarRequired) has to ride every variant the worker builds.
-// Every variant-metadata site goes through here so a future inherited bit is
-// added in one place.  Agent markdown is built from fresh metadata and does
-// not inherit them.
+// reads the selected variant, never the identity, so the record-time state
+// stamped on the source entry (kFlagHeadersClassified,
+// kFlagHeadersSidecarRequired, kFlagAnonymousRecorded) has to ride every
+// variant the worker builds.  Every variant-metadata site goes through here
+// so a future inherited bit is added in one place.  Agent markdown is built
+// from fresh metadata and does not inherit them.
 constexpr uint8_t kVariantInheritedFlags =
     AlternateMetadata::kFlagHeadersClassified |
-    AlternateMetadata::kFlagHeadersSidecarRequired;
+    AlternateMetadata::kFlagHeadersSidecarRequired |
+    AlternateMetadata::kFlagAnonymousRecorded;
 
 uint8_t InheritedVariantFlags(const AlternateMetadata& source) {
   return source.flags & kVariantInheritedFlags;
@@ -324,6 +326,10 @@ AlternateMetadata CreateWorkerMetadata(const AlternateMetadata& base,
                                        size_t origin_content_length) {
   AlternateMetadata m = base;
   m.content_type = type;
+  // The score field does not carry over from the entry this one is built from:
+  // for text it is the variant's own encoded size (set when the coded copies
+  // are written), for images the score of the new variant.
+  m.ssimulacra2_score_x100 = AlternateMetadata::kScoreNA;
   m.flags = flags | InheritedVariantFlags(base);
   m.origin_content_length = static_cast<uint32_t>(
       std::min(origin_content_length, size_t{UINT32_MAX}));
@@ -357,16 +363,24 @@ bool IsGzipCompressed(std::string_view content) {
 // cannot contain pipe (DNS label charset) and scheme is constrained
 // to "http"/"https".  If any component admits user-controlled data
 // with pipes, switch to a multi-byte or null-byte separator.
+//
+// A non-empty site (64 lowercase hex, validated on receipt) appends
+// "|s=" + site, so each site's state is its own; an empty site gives the
+// unsited key unchanged.  The prefix clears that build "url|host|scheme|" or
+// "url|host|" by hand match every site's keys for the URL on purpose.
 std::string ComposeInternalKey(std::string_view url, std::string_view hostname,
-                               std::string_view scheme) {
-  return absl::StrCat(url, "|", hostname, "|", scheme);
+                               std::string_view scheme, std::string_view site) {
+  if (site.empty()) return absl::StrCat(url, "|", hostname, "|", scheme);
+  return absl::StrCat(url, "|", hostname, "|", scheme, "|s=", site);
 }
 
-// Compose internal key with alternate ID suffix (for processed-set).
+// Compose internal key with alternate ID suffix (for processed-set).  The
+// site, when there is one, comes before the id.
 std::string ComposeInternalKeyWithId(std::string_view url,
                                      std::string_view hostname,
-                                     std::string_view scheme, AlternateId id) {
-  return absl::StrCat(url, "|", hostname, "|", scheme, "|",
+                                     std::string_view scheme,
+                                     std::string_view site, AlternateId id) {
+  return absl::StrCat(ComposeInternalKey(url, hostname, scheme, site), "|",
                       static_cast<int>(id));
 }
 
@@ -443,11 +457,13 @@ static constexpr int kCacheReadBackoffMultiplier = 5;
 // bundled here.
 auto ReadSourceOnce(PageSpeedCache* cache, const std::string& url,
                     const std::string& hostname, std::string_view scheme,
-                    WorkerStats& stats, MessageHandler* handler)
+                    std::string_view site, WorkerStats& stats,
+                    MessageHandler* handler)
     -> decltype(cache->ReadBestAlternate(url, hostname, scheme,
                                          CapabilityMask())) {
   auto selected =
-      cache->ReadBestAlternate(url, hostname, scheme, CapabilityMask());
+      cache->ReadBestAlternate(url, hostname, scheme, CapabilityMask(),
+                               /*agent_request_entitled=*/false, site);
   if (selected.has_value()) return selected;
 
   // The durable original is recorded by the front end, often another
@@ -455,8 +471,8 @@ auto ReadSourceOnce(PageSpeedCache* cache, const std::string& url,
   // earlier read here would keep answering with the superseded bytes.
   cache->EvictAlternateFromRamCache(
       url, hostname, scheme,
-      static_cast<AlternateId>(SentinelId::kOriginalContent));
-  auto original = cache->ReadOriginalAlternate(url, hostname, scheme);
+      static_cast<AlternateId>(SentinelId::kOriginalContent), site);
+  auto original = cache->ReadOriginalAlternate(url, hostname, scheme, site);
   if (original.has_value()) {
     stats.source_reads_from_durable_original.fetch_add(
         1, std::memory_order_relaxed);
@@ -489,11 +505,13 @@ auto ReadSourceOnce(PageSpeedCache* cache, const std::string& url,
 // this fixes.
 auto ReadOriginalWithRetry(PageSpeedCache* cache, const std::string& url,
                            const std::string& hostname, std::string_view scheme,
-                           WorkerStats& stats, MessageHandler* handler)
+                           std::string_view site, WorkerStats& stats,
+                           MessageHandler* handler)
     -> decltype(cache->ReadBestAlternate(url, hostname, scheme,
                                          CapabilityMask())) {
   stats.selector_invocations.fetch_add(1, std::memory_order_relaxed);
-  auto result = ReadSourceOnce(cache, url, hostname, scheme, stats, handler);
+  auto result =
+      ReadSourceOnce(cache, url, hostname, scheme, site, stats, handler);
   if (result.has_value()) return result;
 
   if (handler != nullptr) {
@@ -505,7 +523,7 @@ auto ReadOriginalWithRetry(PageSpeedCache* cache, const std::string& url,
   int delay_ms = kCacheReadInitialDelayMs;
   for (int attempt = 0; attempt < kCacheReadMaxRetries; ++attempt) {
     std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
-    result = ReadSourceOnce(cache, url, hostname, scheme, stats, handler);
+    result = ReadSourceOnce(cache, url, hostname, scheme, site, stats, handler);
     if (result.has_value()) {
       stats.cache_read_retries.fetch_add(1, std::memory_order_relaxed);
       if (handler != nullptr) {
@@ -537,7 +555,8 @@ using PurgeCheck = std::function<bool()>;
 // If purge_check is provided and returns true, the write is skipped.
 bool WriteVariant(PageSpeedCache* cache, std::string_view url,
                   std::string_view hostname, std::string_view scheme,
-                  const CapabilityMask& mask, std::span<const char> data,
+                  std::string_view site, const CapabilityMask& mask,
+                  std::span<const char> data,
                   const AlternateMetadata& origin_meta,
                   const PurgeCheck& purge_check = nullptr,
                   Worker* purge_undo_worker = nullptr) {
@@ -548,7 +567,8 @@ bool WriteVariant(PageSpeedCache* cache, std::string_view url,
   AlternateMetadata meta = origin_meta;  // Copy to preserve cc fields
   meta.full_mask = mask.Encode();
   // content_type, flags, origin_content_type are inherited from origin_meta
-  auto wh = cache->WriteAlternate(url, hostname, scheme, id, data.size(), meta);
+  auto wh =
+      cache->WriteAlternate(url, hostname, scheme, id, data.size(), meta, site);
   if (!wh) return false;
   auto written =
       wh->write_sync(std::as_bytes(std::span(data.data(), data.size())));
@@ -564,7 +584,7 @@ bool WriteVariant(PageSpeedCache* cache, std::string_view url,
   // same way.  Must run post-commit: evicting earlier would let a
   // concurrent read repopulate the RAM tier with the old bytes before the
   // new document is published.
-  cache->EvictAlternateFromRamCache(url, hostname, scheme, id);
+  cache->EvictAlternateFromRamCache(url, hostname, scheme, id, site);
   // Post-commit re-check (issue #652): the pre-write check is
   // check-then-act — a purge can land between it and close_sync, in which
   // case the just-committed alternate resurrects content the purge was
@@ -584,10 +604,10 @@ bool WriteVariant(PageSpeedCache* cache, std::string_view url,
   if (purge_check && purge_check()) {
     if (purge_undo_worker != nullptr) {
       (void)purge_undo_worker->InvalidateUrl(
-          std::string(url), std::string(hostname), std::string(scheme),
+          std::string(url), std::string(hostname), std::string(scheme), site,
           /*clear_heal_state=*/false);
     } else {
-      (void)cache->Remove(url, hostname, scheme);
+      (void)cache->Remove(url, hostname, scheme, site);
     }
     return false;
   }
@@ -607,6 +627,7 @@ enum class StampResult : std::uint8_t { kSkipped, kWritten, kFailed };
 
 StampResult StampRawEntry(PageSpeedCache* cache, std::string_view url,
                           std::string_view hostname, std::string_view scheme,
+                          std::string_view site,
                           const AlternateMetadata& read_meta,
                           std::string_view bytes,
                           const std::array<std::byte, 32>& hash,
@@ -620,7 +641,7 @@ StampResult StampRawEntry(PageSpeedCache* cache, std::string_view url,
   if (read_meta.origin_html_hash == hash) return StampResult::kSkipped;
   AlternateMetadata raw_meta = read_meta;
   StampSourceBinding(&raw_meta, hash);
-  return WriteVariant(cache, url, hostname, scheme, read_mask,
+  return WriteVariant(cache, url, hostname, scheme, site, read_mask,
                       std::span<const char>(bytes.data(), bytes.size()),
                       raw_meta, purge_check, purge_undo_worker)
              ? StampResult::kWritten
@@ -640,8 +661,13 @@ void CountStamp(WorkerStats& stats, StampResult r) {
 // Check if a variant exists for a mask.
 bool VariantExistsForMask(PageSpeedCache* cache, std::string_view url,
                           std::string_view hostname, std::string_view scheme,
-                          const CapabilityMask& mask) {
-  return cache->AlternateExists(url, hostname, scheme, MaskToId(mask));
+                          std::string_view site, const CapabilityMask& mask) {
+  return cache->AlternateExists(url, hostname, scheme, MaskToId(mask), site);
+}
+
+// True when both views name the very same bytes.
+bool SameBytes(std::string_view a, std::string_view b) {
+  return a.data() == b.data() && a.size() == b.size();
 }
 
 // Write gzip and/or brotli compressed variants of text content.
@@ -651,8 +677,9 @@ bool VariantExistsForMask(PageSpeedCache* cache, std::string_view url,
 // cache-control fields from the original alternate.
 void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
                              std::string_view hostname, std::string_view scheme,
+                             std::string_view site,
                              const CapabilityMask& identity_mask,
-                             std::string_view data,
+                             std::string_view data, std::string_view origin_raw,
                              const AlternateMetadata& origin_meta,
                              int gzip_level, int brotli_level,
                              WorkerStats& stats,
@@ -665,8 +692,15 @@ void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
       gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
       AlternateMetadata gz_meta = origin_meta;
       gz_meta.full_mask = gz_mask.Encode();
+      gz_meta.ClearEncodedOriginLength();
+      if (!origin_raw.empty()) {
+        const size_t coded = SameBytes(origin_raw, data)
+                                 ? gz.size()
+                                 : GzipCompress(origin_raw, gzip_level).size();
+        if (coded > 0) gz_meta.SetEncodedOriginLength(coded);
+      }
       stats.alternate_writes.fetch_add(1, std::memory_order_relaxed);
-      if (WriteVariant(cache, url, hostname, scheme, gz_mask,
+      if (WriteVariant(cache, url, hostname, scheme, site, gz_mask,
                        std::span<const char>(gz.data(), gz.size()), gz_meta,
                        purge_check, purge_undo_worker)) {
         stats.variants_written.fetch_add(1, std::memory_order_relaxed);
@@ -686,8 +720,16 @@ void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
       br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
       AlternateMetadata br_meta = origin_meta;
       br_meta.full_mask = br_mask.Encode();
+      br_meta.ClearEncodedOriginLength();
+      if (!origin_raw.empty()) {
+        const size_t coded =
+            SameBytes(origin_raw, data)
+                ? br.size()
+                : BrotliCompress(origin_raw, brotli_level).size();
+        if (coded > 0) br_meta.SetEncodedOriginLength(coded);
+      }
       stats.alternate_writes.fetch_add(1, std::memory_order_relaxed);
-      if (WriteVariant(cache, url, hostname, scheme, br_mask,
+      if (WriteVariant(cache, url, hostname, scheme, site, br_mask,
                        std::span<const char>(br.data(), br.size()), br_meta,
                        purge_check, purge_undo_worker)) {
         stats.variants_written.fetch_add(1, std::memory_order_relaxed);
@@ -712,6 +754,7 @@ void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
 // value also stamps the variant metadata's source binding).
 void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
                       std::string_view hostname, std::string_view scheme,
+                      std::string_view site,
                       const CapabilityMask& identity_mask,
                       const std::array<std::byte, 32>& hash, bool genuine,
                       int gzip_level, int brotli_level,
@@ -722,21 +765,21 @@ void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
   CapabilityMask br_mask = identity_mask;
   br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
   if (gzip_level > 0 &&
-      !VariantExistsForMask(cache, url, hostname, scheme, gz_mask)) {
+      !VariantExistsForMask(cache, url, hostname, scheme, site, gz_mask)) {
     return;
   }
   if (brotli_level > 0 &&
-      !VariantExistsForMask(cache, url, hostname, scheme, br_mask)) {
+      !VariantExistsForMask(cache, url, hostname, scheme, site, br_mask)) {
     return;
   }
-  auto wh =
-      cache->WriteSentinel(url, hostname, scheme, SentinelId::kContentHash, 32);
+  auto wh = cache->WriteSentinel(url, hostname, scheme,
+                                 SentinelId::kContentHash, 32, site);
   if (wh) {
     (void)wh->write_sync(std::as_bytes(std::span(hash.data(), hash.size())));
     (void)wh->close_sync();
     cache->EvictAlternateFromRamCache(
         url, hostname, scheme,
-        static_cast<AlternateId>(SentinelId::kContentHash));
+        static_cast<AlternateId>(SentinelId::kContentHash), site);
   }
 }
 
@@ -872,9 +915,11 @@ class VariantSizeGates {
     // Save-Data slot will actually hold.
     if (sd == CapabilityMask::SaveData::kOn) {
       for (auto [fmt, tr] : arms) {
+        const bool had = tr->success;
         RefuseUnlessSmaller(*tr, Baseline(VariantSlotId(fmt, vp, den, kOff)),
                             VariantSlotId(fmt, vp, den, sd),
                             "variant without Save-Data");
+        if (had && !tr->success) ++multi.size_refused_savedata;
       }
     }
     size_t orig = multi.optimized_original.success
@@ -950,6 +995,19 @@ class VariantSizeGates {
   std::unordered_map<uint8_t, size_t> produced_;
 };
 
+// The result a multi-transcode holds for one format's slot.
+const TranscodeResult& ResultForFormat(const MultiTranscodeResult& multi,
+                                       CapabilityMask::ImageFormat fmt) {
+  switch (fmt) {
+    case CapabilityMask::ImageFormat::kWebP:
+      return multi.webp;
+    case CapabilityMask::ImageFormat::kAvif:
+      return multi.avif;
+    default:
+      return multi.optimized_original;
+  }
+}
+
 // Adds one multi-transcode's cross-format size gate outcomes to the worker
 // stats (#406). Call after VariantSizeGates::Apply, which folds its own
 // refusals into |multi|.
@@ -959,6 +1017,8 @@ void RecordSizeGateStats(WorkerStats& stats,
                                           std::memory_order_relaxed);
   stats.image_size_refused_avif.fetch_add(multi.size_refused_avif,
                                           std::memory_order_relaxed);
+  stats.image_savedata_refused.fetch_add(multi.size_refused_savedata,
+                                         std::memory_order_relaxed);
   stats.image_budget_rescued_webp.fetch_add(multi.size_rescued_webp,
                                             std::memory_order_relaxed);
   stats.image_budget_rescued_avif.fetch_add(multi.size_rescued_avif,
@@ -974,13 +1034,13 @@ void RecordSizeGateStats(WorkerStats& stats,
 // with it.  Such a slot counts as missing for the original format.
 bool IdentityHoldsRawOriginal(PageSpeedCache* cache, const std::string& url,
                               const std::string& hostname,
-                              std::string_view scheme,
+                              std::string_view scheme, std::string_view site,
                               const std::unordered_set<uint8_t>& existing_ids) {
   const AlternateId identity = MaskToId(CapabilityMask());
   if (existing_ids.count(static_cast<uint8_t>(identity)) == 0) return false;
   // Same RAM-tier reasoning as ReadPristineOrigin: observe the on-disk entry.
-  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity);
-  auto rr = cache->ReadAlternate(url, hostname, scheme, identity);
+  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity, site);
+  auto rr = cache->ReadAlternate(url, hostname, scheme, identity, site);
   if (!rr.has_value() || !rr->is_valid()) return false;
   const bool raw =
       (rr->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) == 0;
@@ -995,13 +1055,11 @@ bool IdentityHoldsRawOriginal(PageSpeedCache* cache, const std::string& url,
 // pass would hash the worker's own encode, read it as an origin change, and
 // rebuild every variant from derived bytes.  Returns false when the bytes
 // could not be preserved; the caller then leaves the identity slot alone.
-bool PreserveIdentityAsDurableOriginal(PageSpeedCache* cache,
-                                       const std::string& url,
-                                       const std::string& hostname,
-                                       std::string_view scheme,
-                                       bool leases_enabled) {
+bool PreserveIdentityAsDurableOriginal(
+    PageSpeedCache* cache, const std::string& url, const std::string& hostname,
+    std::string_view scheme, std::string_view site, bool leases_enabled) {
   const AlternateId identity = MaskToId(CapabilityMask());
-  auto id_read = cache->ReadAlternate(url, hostname, scheme, identity);
+  auto id_read = cache->ReadAlternate(url, hostname, scheme, identity, site);
   if (!id_read.has_value() || !id_read->is_valid()) return false;
   // Re-check on the entry actually read: a concurrent pass (a warmup racing
   // a notification) may have replaced the raw recording with its own encode
@@ -1018,7 +1076,7 @@ bool PreserveIdentityAsDurableOriginal(PageSpeedCache* cache,
   if (!Worker::BorrowCopyUntorn(*id_read, leases_enabled)) return false;
   id_read->release();
   {
-    auto durable = cache->ReadOriginalAlternate(url, hostname, scheme);
+    auto durable = cache->ReadOriginalAlternate(url, hostname, scheme, site);
     if (durable.has_value() && durable->is_valid()) {
       const bool current =
           durable->metadata.cache_inserted_at >= meta.cache_inserted_at;
@@ -1027,8 +1085,8 @@ bool PreserveIdentityAsDurableOriginal(PageSpeedCache* cache,
     }
   }
   meta.full_mask = static_cast<uint32_t>(SentinelId::kOriginalContent);
-  auto wh =
-      cache->WriteOriginalAlternate(url, hostname, scheme, bytes.size(), meta);
+  auto wh = cache->WriteOriginalAlternate(url, hostname, scheme, bytes.size(),
+                                          meta, site);
   if (!wh.has_value()) return false;
   if (!wh->write_sync(std::as_bytes(std::span(bytes.data(), bytes.size())))
            .has_value()) {
@@ -1047,12 +1105,13 @@ bool PreserveIdentityAsDurableOriginal(PageSpeedCache* cache,
 // the right stamp are left alone.
 StampResult StampRawIdentityEntry(PageSpeedCache* cache, const std::string& url,
                                   const std::string& hostname,
-                                  std::string_view scheme, bool leases_enabled,
+                                  std::string_view scheme,
+                                  std::string_view site, bool leases_enabled,
                                   const PurgeCheck& purge_check,
                                   Worker* purge_undo_worker) {
   const AlternateId identity = MaskToId(CapabilityMask());
-  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity);
-  auto rr = cache->ReadAlternate(url, hostname, scheme, identity);
+  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity, site);
+  auto rr = cache->ReadAlternate(url, hostname, scheme, identity, site);
   if (!rr.has_value() || !rr->is_valid()) return StampResult::kSkipped;
   if ((rr->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) != 0) {
     rr->release();
@@ -1075,8 +1134,8 @@ StampResult StampRawIdentityEntry(PageSpeedCache* cache, const std::string& url,
   const std::array<std::byte, 32> hash =
       cyclone::crypto::SHA256::hash(std::span<const std::byte>(
           reinterpret_cast<const std::byte*>(bytes.data()), bytes.size()));
-  return StampRawEntry(cache, url, hostname, scheme, read_meta, bytes, hash,
-                       purge_check, purge_undo_worker);
+  return StampRawEntry(cache, url, hostname, scheme, site, read_meta, bytes,
+                       hash, purge_check, purge_undo_worker);
 }
 
 // ---------------------------------------------------------------------
@@ -1113,23 +1172,22 @@ struct PristineOriginRead {
 // borrow is treated as "no reference" — hashing torn bytes could
 // mis-conclude "changed", and the fail-safe direction for the callers is
 // the legacy behaviour, not a verdict over suspect bytes.
-PristineOriginRead ReadPristineOrigin(PageSpeedCache* cache,
-                                      const std::string& url,
-                                      const std::string& hostname,
-                                      std::string_view scheme,
-                                      bool leases_enabled, WorkerStats& stats,
-                                      MessageHandler* handler) {
+PristineOriginRead ReadPristineOrigin(
+    PageSpeedCache* cache, const std::string& url, const std::string& hostname,
+    std::string_view scheme, std::string_view site, bool leases_enabled,
+    WorkerStats& stats, MessageHandler* handler) {
   PristineOriginRead out;
   const AlternateId identity_id = MaskToId(CapabilityMask());
   const AlternateId durable_id =
       static_cast<AlternateId>(SentinelId::kOriginalContent);
-  cache->EvictAlternateFromRamCache(url, hostname, scheme, durable_id);
-  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity_id);
+  cache->EvictAlternateFromRamCache(url, hostname, scheme, durable_id, site);
+  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity_id, site);
 
-  auto durable = cache->ReadOriginalAlternate(url, hostname, scheme);
+  auto durable = cache->ReadOriginalAlternate(url, hostname, scheme, site);
   ReadResult* chosen = nullptr;
   AlternateId chosen_id = durable_id;
-  auto identity = cache->ReadAlternate(url, hostname, scheme, identity_id);
+  auto identity =
+      cache->ReadAlternate(url, hostname, scheme, identity_id, site);
   const bool identity_genuine =
       identity.has_value() && identity->is_valid() &&
       (identity->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) == 0;
@@ -1181,14 +1239,14 @@ PristineOriginRead ReadPristineOrigin(PageSpeedCache* cache,
 // IS the stamp the set inherited — never newer.
 uint32_t NewestVariantStamp(PageSpeedCache* cache, std::string_view url,
                             std::string_view hostname, std::string_view scheme,
-                            AlternateId skip_id) {
-  auto alts = cache->ListAlternates(url, hostname, scheme);
+                            std::string_view site, AlternateId skip_id) {
+  auto alts = cache->ListAlternates(url, hostname, scheme, site);
   if (!alts.has_value()) return 0;
   uint32_t newest = 0;
   for (const auto& alt : *alts) {
     const AlternateId pid = static_cast<uint8_t>(alt.id);
     if (pid == skip_id || IsSentinel(pid)) continue;
-    auto entry = cache->ReadAlternate(url, hostname, scheme, pid);
+    auto entry = cache->ReadAlternate(url, hostname, scheme, pid, site);
     if (!entry.has_value() || !entry->is_valid()) continue;
     newest = std::max(newest, entry->metadata.cache_inserted_at);
   }
@@ -1215,12 +1273,13 @@ uint32_t NewestVariantStamp(PageSpeedCache* cache, std::string_view url,
 size_t RestampVariantSetFreshness(PageSpeedCache* cache, std::string_view url,
                                   std::string_view hostname,
                                   std::string_view scheme,
+                                  std::string_view site,
                                   const AlternateMetadata& fresh_origin_meta,
                                   AlternateId skip_id,
                                   const PurgeCheck& purge_check) {
   const AlternateId markdown_id =
       static_cast<AlternateId>(SentinelId::kAgentMarkdown);
-  auto alts = cache->ListAlternates(url, hostname, scheme);
+  auto alts = cache->ListAlternates(url, hostname, scheme, site);
   if (!alts.has_value()) return 0;
   size_t restamped = 0;
   for (const auto& alt : *alts) {
@@ -1233,7 +1292,7 @@ size_t RestampVariantSetFreshness(PageSpeedCache* cache, std::string_view url,
     // writer below.)
     if (pid == skip_id || (IsSentinel(pid) && pid != markdown_id)) continue;
     if (purge_check && purge_check()) break;  // Purged mid-restamp: stop.
-    auto entry = cache->ReadAlternate(url, hostname, scheme, pid);
+    auto entry = cache->ReadAlternate(url, hostname, scheme, pid, site);
     if (!entry.has_value() || !entry->is_valid()) continue;
     auto span = entry->content();
     const std::string bytes(reinterpret_cast<const char*>(span.data()),
@@ -1256,9 +1315,9 @@ size_t RestampVariantSetFreshness(PageSpeedCache* cache, std::string_view url,
     }
     auto wh = pid == markdown_id
                   ? cache->WriteAgentAlternate(url, hostname, scheme,
-                                               bytes.size(), meta)
+                                               bytes.size(), meta, site)
                   : cache->WriteAlternate(url, hostname, scheme, pid,
-                                          bytes.size(), meta);
+                                          bytes.size(), meta, site);
     if (!wh) continue;
     if (!wh->write_sync(std::as_bytes(std::span(bytes.data(), bytes.size())))
              .has_value()) {
@@ -1267,7 +1326,7 @@ size_t RestampVariantSetFreshness(PageSpeedCache* cache, std::string_view url,
     if (!wh->close_sync().has_value()) continue;
     // Write-around RAM tier: the read above populated this process's RAM
     // copy and the overwrite does not evict it (see WriteVariant).
-    cache->EvictAlternateFromRamCache(url, hostname, scheme, pid);
+    cache->EvictAlternateFromRamCache(url, hostname, scheme, pid, site);
     ++restamped;
   }
   return restamped;
@@ -1630,9 +1689,6 @@ bool Worker::Initialize() {
         tc.savedata_webp_quality = cfg->savedata_webp_quality;
         tc.savedata_avif_quality = cfg->savedata_avif_quality;
         tc.content_analysis = cfg->content_analysis;
-        tc.denoise_threshold = cfg->denoise_threshold;
-        tc.denoise_sigma_spatial = cfg->denoise_sigma_spatial;
-        tc.denoise_sigma_range = cfg->denoise_sigma_range;
         tc.quality_verify = cfg->quality_verify;
         tc.target_ssimulacra2 = cfg->target_ssimulacra2;
         tc.ssimulacra2_tolerance = cfg->ssimulacra2_tolerance;
@@ -1959,6 +2015,7 @@ bool Worker::Initialize() {
         LogWarning("Browser analysis init failed, using heuristics only");
         browser_manager_.reset();
       } else {
+        browser_manager_->set_subresource_gate(subresource_gate_);
         // The critical-CSS validation needs the exact stylesheet bytes the SERVE
         // path will hash, so it calls the serve path's own assembly rather than
         // owning a second one.  Reassembling them independently would drift (the
@@ -1979,17 +2036,27 @@ bool Worker::Initialize() {
         // //tools/async-css-probe:measure_validation_threshold.
         browser_manager_->set_combined_css_builder(
             [this](const HtmlScanResult& scan_result, const std::string& url,
-                   const std::string& hostname, const std::string& scheme) {
+                   const std::string& hostname, const std::string& scheme,
+                   const std::string& site, bool host_vouched,
+                   bool from_module) {
               CacheNotification n;
               n.url = url;
               n.hostname = hostname;
               n.scheme = scheme;
+              // The analysed item's keyspace and sender bits.
+              n.site = site;
+              n.host_vouched = host_vouched;
+              n.from_module = from_module;
               const auto cfg = live_config_.load();
               // count_lookups=false: this page's sheet is assembled again on the
               // serve path, and counting both would double-report the optimizer's
               // cache probes.
-              CombinedCssResult built = BuildCombinedCss(
-                  scan_result, n, *cfg, /*count_lookups=*/false);
+              // gate_may_fetch=false: this runs on the event loop, which
+              // must not wait on a request; the serve path asked first.
+              CombinedCssResult built =
+                  BuildCombinedCss(scan_result, n, *cfg,
+                                   /*count_lookups=*/false,
+                                   /*gate_may_fetch=*/false);
               return BrowserAnalysisManager::CombinedCss{
                   std::move(built.css), built.external_css_missing,
                   built.revalidatable_css_missing,
@@ -2092,6 +2159,34 @@ bool Worker::Initialize() {
   // Initialize URL registry for cache URL enumeration.
   url_registry_ = std::make_unique<UrlRegistry>();
 
+  // Known sites: every site this worker has stored work for, kept in a file
+  // beside the cache so a purge after a restart still reaches each site's
+  // entries.  Loaded here; written off the receive thread when the set
+  // changes, at most once a second.
+  if (const std::string sites_path = KnownSitesFilePath(config_.cache_path);
+      !sites_path.empty()) {
+    bool readable = true;
+    size_t bad_lines = 0;
+    std::vector<std::string> sites =
+        ReadKnownSitesFile(sites_path, &readable, &bad_lines);
+    known_sites_unreadable_at_start_ = !readable;
+    url_registry_->LoadKnownSites(sites);
+    if (!readable) {
+      LogWarning(
+          "Known-sites file %s could not be read or has another version; a "
+          "purge without a site may miss entries stored before this start",
+          sites_path.c_str());
+    }
+    if (bad_lines > 0) {
+      LogWarning("Known-sites file %s: skipped %zu line(s) that are not sites",
+                 sites_path.c_str(), bad_lines);
+    }
+    known_sites_writer_ = std::make_unique<KnownSitesWriter>(
+        sites_path,
+        [this] { return url_registry_->TakeKnownSitesIfChanged(); });
+    known_sites_writer_->Start();
+  }
+
   // The async agent-markdown write (BrowserAnalysisManager::OnAgentRenderDone)
   // adds a kAgentMarkdown alternate to a page URL OUTSIDE HandleNotification,
   // so the notification-time scope guard never sees it.  Wire a callback so the
@@ -2100,8 +2195,8 @@ bool Worker::Initialize() {
   if (browser_manager_) {
     browser_manager_->set_agent_alternate_written_callback(
         [this](const std::string& url, const std::string& hostname,
-               const std::string& scheme) {
-          RefreshAlternateCount(url, hostname, scheme);
+               const std::string& scheme, const std::string& site) {
+          RefreshAlternateCount(url, hostname, scheme, site);
         });
   }
 
@@ -2199,32 +2294,38 @@ bool Worker::Initialize() {
           .url_registry = *url_registry_,
           .invalidate_url =
               [this](const std::string& url, const std::string& hostname,
-                     const std::string& scheme) {
-                return InvalidateUrl(url, hostname, scheme);
+                     const std::string& scheme, const std::string& site) {
+                return InvalidateUrl(url, hostname, scheme, site);
               },
           .clear_dedup =
               [this](const std::string& url, const std::string& hostname,
-                     const std::string& scheme) {
-                ClearDedupAndCooldown(url, hostname, scheme);
+                     const std::string& scheme, const std::string& site) {
+                ClearDedupAndCooldown(url, hostname, scheme, site);
               },
           .enqueue_reprocess =
               [this](const std::string& url, const std::string& hostname,
-                     const std::string& scheme, ContentType content_type) {
+                     const std::string& scheme, const std::string& site,
+                     ContentType content_type) {
+                // An operator request: it names a site but vouches for no
+                // host and is not the module.
                 CacheNotification notif;
                 notif.url = url;
                 notif.hostname = hostname;
                 notif.scheme = scheme;
+                notif.site = site;
+                notif.host_vouched = false;
+                notif.from_module = false;
                 notif.content_type = content_type;
                 notif.capability_mask = CapabilityMask().Encode();
                 DispatchNotification(notif);
               },
           .reset_cache = [this]() -> std::string { return ResetCache(); },
           .url_norm_config = &url_norm_config_,
-          .get_cooldown = [this](const std::string& url,
-                                 const std::string& hostname,
-                                 const std::string& scheme)
+          .get_cooldown =
+              [this](const std::string& url, const std::string& hostname,
+                     const std::string& scheme, const std::string& site)
               -> std::optional<CacheApiContext::CooldownEntry> {
-            auto info = GetCooldownForUrl(url, hostname, scheme);
+            auto info = GetCooldownForUrl(url, hostname, scheme, site);
             if (!info) return std::nullopt;
             return CacheApiContext::CooldownEntry{
                 .url = url,
@@ -2252,6 +2353,7 @@ bool Worker::Initialize() {
             }
             return result;
           },
+          .known_sites_incomplete = [this] { return KnownSitesIncomplete(); },
       });
       RegisterCacheRoutes(*http_server_, *cache_api_ctx_);
     }
@@ -2402,12 +2504,12 @@ void Worker::UpdateConfig(std::shared_ptr<const WorkerConfig> new_config) {
 
 bool Worker::AgentMarkdownNeedsBuild(
     const std::string& url, const std::string& hostname,
-    const std::string& scheme,
+    const std::string& scheme, std::string_view site,
     const std::array<std::byte, 32>& origin_hash) const {
   if (!cache_) return false;
   auto md = cache_->ReadAlternate(
       url, hostname, scheme,
-      static_cast<AlternateId>(SentinelId::kAgentMarkdown));
+      static_cast<AlternateId>(SentinelId::kAgentMarkdown), site);
   if (!md.has_value()) return true;  // never built -> build it
   // Built — rebuild only if its binding no longer matches the current origin.
   const auto& stamp = md->metadata.origin_html_hash;
@@ -2550,6 +2652,13 @@ void Worker::CheckShutdownComplete() {
 
 void Worker::OnStatsRefresh(uv_timer_t* timer) {
   auto* worker = static_cast<Worker*>(timer->data);
+  if (worker->url_registry_) {
+    worker->stats_.known_sites_overflow.store(
+        worker->url_registry_->known_sites_overflow(),
+        std::memory_order_relaxed);
+    worker->stats_.known_sites_incomplete.store(
+        worker->KnownSitesIncomplete() ? 1 : 0, std::memory_order_relaxed);
+  }
   if (worker->cache_) {
     auto cs = worker->cache_->Stats();
     worker->cached_cache_entries_.store(cs.current_entries,
@@ -2957,6 +3066,16 @@ void Worker::WarnIpcVersionMismatch(uint8_t peer_version) {
       static_cast<unsigned>(peer_version), static_cast<unsigned>(kIpcVersion));
 }
 
+// The /llms.txt build and the browser analysis with its agent render fetch
+// from the notification's hostname.  Only the senders that check that
+// hostname against the names the site serves may ask for them: the nginx
+// module and the ASP.NET package, which send no options context.  A
+// notification that carries one comes from a front end that asks for none of
+// this work, so it never starts a fetch from its hostname.
+bool Worker::MayRequestHostFetches(const CacheNotification& notification) {
+  return notification.option_context.empty();
+}
+
 bool Worker::AcceptOptionContext(const CacheNotification& notification) {
   const OptionContextStatus status = ValidateOptionContext(
       notification.option_context, notification.option_signature);
@@ -3074,6 +3193,38 @@ bool Worker::AcceptOptionContext(const CacheNotification& notification) {
   return false;
 }
 
+bool Worker::AcceptSiteAndSender(const CacheNotification& notification) {
+  if (notification.legacy_ex_caller) {
+    // An old module: its frames are processed unsited, as before.
+    stats_.notifications_legacy_ex_caller.fetch_add(1,
+                                                    std::memory_order_relaxed);
+  }
+  if (!notification.from_module) return true;
+  // The module keys every entry it records by its site, so a notification
+  // from it without one names no entry it wrote.
+  if (notification.site.empty()) {
+    stats_.notifications_rejected_empty_site.fetch_add(
+        1, std::memory_order_relaxed);
+    return false;
+  }
+  // The module records no HTML and asks for no page work.  Work that fetches
+  // from the notification's host never starts from a module notification.
+  if (notification.content_type == ContentType::kHtml ||
+      notification.capability_mask == kLlmsTxtSentinel ||
+      notification.agent_request || notification.host_vouched) {
+    stats_.notifications_rejected_module_render.fetch_add(
+        1, std::memory_order_relaxed);
+    return false;
+  }
+  return true;
+}
+
+bool Worker::KnownSitesIncomplete() const {
+  return known_sites_unreadable_at_start_ ||
+         (url_registry_ != nullptr &&
+          url_registry_->known_sites_overflow() > 0);
+}
+
 void Worker::DispatchNotification(const CacheNotification& notification) {
   stats_.notifications_received.fetch_add(1, std::memory_order_relaxed);
 
@@ -3084,6 +3235,10 @@ void Worker::DispatchNotification(const CacheNotification& notification) {
   // context that validates is accepted here whatever it names; see
   // AcceptOptionContext for why that is safe on this surface.
   if (!AcceptOptionContext(notification)) {
+    return;
+  }
+  // Then the site and the sender bits, still before any read.
+  if (!AcceptSiteAndSender(notification)) {
     return;
   }
 
@@ -3118,11 +3273,19 @@ void Worker::DispatchNotification(const CacheNotification& notification) {
   bool tracked = false;
   if (normalized.capability_mask != kWarmupSentinel) {
     dedup_key = ComposeInternalKey(normalized.url, normalized.hostname,
-                                   normalized.scheme);
+                                   normalized.scheme, normalized.site);
     auto [it, inserted] = in_flight_urls_.insert(dedup_key);
     if (!inserted) {
       stats_.notifications_skipped_inflight.fetch_add(
           1, std::memory_order_relaxed);
+      // An origin-refreshed sentinel carries information that no later
+      // request is guaranteed to resend (a forced reload that revalidated
+      // the origin sends it once).  Hold one per URL and dispatch it when
+      // the running item finishes, rather than letting it vanish.  It is
+      // still not allowed to run beside the item in flight.
+      if (normalized.capability_mask == kOriginRefreshedSentinel) {
+        pending_origin_refresh_[dedup_key] = std::move(normalized);
+      }
       return;
     }
     tracked = true;
@@ -3133,8 +3296,8 @@ void Worker::DispatchNotification(const CacheNotification& notification) {
   // purge_gen_mutex_ here orders this capture against
   // PurgeUrlAndBumpGeneration: observing a post-purge generation implies
   // the purge's Remove() has already completed.
-  PurgeDispatchGen current_purge_gen =
-      CapturePurgeGen(normalized.url, normalized.hostname, normalized.scheme);
+  PurgeDispatchGen current_purge_gen = CapturePurgeGen(
+      normalized.url, normalized.hostname, normalized.scheme, normalized.site);
 
   auto* ctx = new NotificationWorkContext();
   ctx->worker = this;
@@ -3178,10 +3341,22 @@ void Worker::OnNotificationDone(uv_work_t* req, int status) {
   }
 
   Worker* worker = ctx->worker;
+  std::optional<CacheNotification> held_refresh;
   if (!ctx->dedup_key.empty()) {
     worker->in_flight_urls_.erase(ctx->dedup_key);
+    auto held = worker->pending_origin_refresh_.find(ctx->dedup_key);
+    if (held != worker->pending_origin_refresh_.end()) {
+      held_refresh = std::move(held->second);
+      worker->pending_origin_refresh_.erase(held);
+    }
   }
   delete ctx;
+
+  // Dispatch before releasing this item's in-flight count so the worker is
+  // never observed idle between the two.
+  if (held_refresh) {
+    worker->DispatchNotification(*held_refresh);
+  }
 
   worker->in_flight_work_.fetch_sub(1, std::memory_order_relaxed);
   if (worker->shutting_down_) {
@@ -3198,16 +3373,17 @@ void Worker::OnNotificationDone(uv_work_t* req, int status) {
 // written with kFlagNeedsRevalidation (they must be re-processed).
 void Worker::MarkVariantProcessed(const std::string& url,
                                   const std::string& hostname,
-                                  std::string_view scheme, AlternateId id,
+                                  std::string_view scheme,
+                                  std::string_view site, AlternateId id,
                                   const PurgeDispatchGen& purge_gen) {
   // Check if a purge occurred after this notification was dispatched.
   // If so, skip insertion to avoid re-adding stale dedup entries.
   // Always check (even for purge_gen==0) to catch first-ever purges.
-  if (WasPurgedSinceDispatch(url, hostname, purge_gen, scheme)) {
+  if (WasPurgedSinceDispatch(url, hostname, purge_gen, scheme, site)) {
     return;
   }
 
-  std::string key = ComposeInternalKeyWithId(url, hostname, scheme, id);
+  std::string key = ComposeInternalKeyWithId(url, hostname, scheme, site, id);
   std::lock_guard<std::mutex> lock(processed_set_mutex_);
   // A new verdict for this key starts without a copy record: the caller
   // adds one (MarkCopyWritten) only when it wrote the copy this time.
@@ -3229,14 +3405,15 @@ void Worker::MarkVariantProcessed(const std::string& url,
 
 void Worker::MarkCopyWritten(const std::string& url,
                              const std::string& hostname,
-                             std::string_view scheme, AlternateId id,
+                             std::string_view scheme, std::string_view site,
+                             AlternateId id,
                              const PurgeDispatchGen& purge_gen) {
   // The same test MarkVariantProcessed applies: a URL purged after this
   // notification was dispatched keeps no record of a copy the purge removed.
-  if (WasPurgedSinceDispatch(url, hostname, purge_gen, scheme)) {
+  if (WasPurgedSinceDispatch(url, hostname, purge_gen, scheme, site)) {
     return;
   }
-  std::string key = ComposeInternalKeyWithId(url, hostname, scheme, id);
+  std::string key = ComposeInternalKeyWithId(url, hostname, scheme, site, id);
   std::lock_guard<std::mutex> lock(processed_set_mutex_);
   // The record goes into the generation that holds the key's mark, and is
   // not written at all when there is no mark (MarkVariantProcessed refused
@@ -3263,8 +3440,9 @@ void Worker::EraseUrlMarksLocked(const std::string& prefix) {
 
 void Worker::SetWriteFailureCooldown(const std::string& url,
                                      const std::string& hostname,
-                                     std::string_view scheme) {
-  std::string ck = ComposeInternalKey(url, hostname, scheme);
+                                     std::string_view scheme,
+                                     std::string_view site) {
+  std::string ck = ComposeInternalKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
   auto now = std::chrono::steady_clock::now();
   text_cooldown_expiry_[ck] =
@@ -3319,8 +3497,8 @@ void Worker::RegisterIntegrityPinnedUrls(
     std::string norm_host =
         res_host.empty() ? notification.hostname
                          : NormalizeCacheHostname(res_host, url_norm_config_);
-    std::string key =
-        ComposeInternalKey(norm_url, norm_host, notification.scheme);
+    std::string key = ComposeInternalKey(
+        norm_url, norm_host, notification.scheme, notification.site);
     bool inserted = false;
     {
       std::lock_guard<std::mutex> lock(integrity_pinned_mutex_);
@@ -3336,15 +3514,18 @@ void Worker::RegisterIntegrityPinnedUrls(
       // Drop the whole cache key so nginx re-caches the original on the
       // next request, and clear dedup so that path isn't blocked.
       if (cache_) {
-        (void)cache_->Remove(norm_url, norm_host, notification.scheme);
+        (void)cache_->Remove(norm_url, norm_host, notification.scheme,
+                             notification.site);
         // Remove changed this subresource's alternate set; refresh its cached
         // count so /v1/cache/urls does not report a stale-high value.  The
         // HandleNotification count guard only refreshes notification.url, not
         // this resolved subresource key, and a now-pinned subresource may not
         // re-notify promptly.  No-op if the subresource is not tracked.
-        RefreshAlternateCount(norm_url, norm_host, notification.scheme);
+        RefreshAlternateCount(norm_url, norm_host, notification.scheme,
+                              notification.site);
       }
-      ClearDedupAndCooldown(norm_url, norm_host, notification.scheme);
+      ClearDedupAndCooldown(norm_url, norm_host, notification.scheme,
+                            notification.site);
       LogInfo(
           "SRI: excluding %s from text optimization (referenced with "
           "integrity attribute)",
@@ -3356,7 +3537,7 @@ void Worker::RegisterIntegrityPinnedUrls(
 bool Worker::IsIntegrityPinned(const CacheNotification& notification) const {
   // notification.url/hostname were normalized at dispatch time.
   std::string key = ComposeInternalKey(notification.url, notification.hostname,
-                                       notification.scheme);
+                                       notification.scheme, notification.site);
   std::lock_guard<std::mutex> lock(integrity_pinned_mutex_);
   return integrity_pinned_urls_.contains(key);
 }
@@ -3364,11 +3545,12 @@ bool Worker::IsIntegrityPinned(const CacheNotification& notification) const {
 bool Worker::WasPurgedSinceDispatch(std::string_view url,
                                     std::string_view hostname,
                                     const PurgeDispatchGen& dispatch_gen,
-                                    std::string_view scheme) const {
+                                    std::string_view scheme,
+                                    std::string_view site) const {
   // Normalize for consistency with InvalidateUrl (which also normalizes).
   std::string norm_url = NormalizeCacheUrl(url, url_norm_config_);
   std::string norm_host = NormalizeCacheHostname(hostname, url_norm_config_);
-  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme);
+  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme, site);
   std::lock_guard<std::mutex> lock(purge_gen_mutex_);
   uint64_t current_gen = 0;
   auto it = purge_generation_.find(gen_key);
@@ -3386,12 +3568,13 @@ bool Worker::WasPurgedSinceDispatch(std::string_view url,
 
 PurgeDispatchGen Worker::CapturePurgeGen(std::string_view url,
                                          std::string_view hostname,
-                                         std::string_view scheme) const {
+                                         std::string_view scheme,
+                                         std::string_view site) const {
   // Normalize for consistency with InvalidateUrl (idempotent when the
   // caller already normalized).
   std::string norm_url = NormalizeCacheUrl(url, url_norm_config_);
   std::string norm_host = NormalizeCacheHostname(hostname, url_norm_config_);
-  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme);
+  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme, site);
   PurgeDispatchGen gen;
   std::lock_guard<std::mutex> lock(purge_gen_mutex_);
   auto it = purge_generation_.find(gen_key);
@@ -3557,6 +3740,11 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
     }
     if (is_dup) {
       ++result.successful_writes;  // Not a failure -- content exists
+      LogInfo(
+          "Image variant not written for %s (mask 0x%02X): identical bytes "
+          "already written for this viewport",
+          notification.url.c_str(),
+          static_cast<int>(write_mask.Encode() & 0xFF));
       stats_.dedup_writes_skipped.fetch_add(1, std::memory_order_relaxed);
       return;
     }
@@ -3566,7 +3754,7 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
           test_hook_fail_image_variant_write_()) &&
         WriteVariant(
             cache_.get(), notification.url, notification.hostname,
-            notification.scheme, write_mask,
+            notification.scheme, notification.site, write_mask,
             std::span<const char>(tr.output_data.data(), tr.output_data.size()),
             img_variant_meta, purge_check, this);
     if (wr) {
@@ -3600,7 +3788,7 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
       // thread (dedup race).  If so, this is harmless.
       if (VariantExistsForMask(cache_.get(), notification.url,
                                notification.hostname, notification.scheme,
-                               write_mask)) {
+                               notification.site, write_mask)) {
         LogInfo(
             "Skipped %simage variant %s (mask 0x%02X, "
             "already written by concurrent thread)",
@@ -3640,7 +3828,7 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
   std::optional<std::vector<cyclone::AlternateInfo>> listed;
   {
     auto alts = cache_->ListAlternates(notification.url, notification.hostname,
-                                       notification.scheme);
+                                       notification.scheme, notification.site);
     if (alts.has_value()) {
       for (const auto& alt : *alts) {
         existing_ids.insert(static_cast<uint8_t>(alt.id));
@@ -3650,12 +3838,14 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
   }
   // A raw identity slot is rebuilt as the optimized desktop original-format
   // variant once its bytes are kept as the durable original.
-  bool identity_raw = IdentityHoldsRawOriginal(
-                          cache_.get(), notification.url, notification.hostname,
-                          notification.scheme, existing_ids) &&
-                      PreserveIdentityAsDurableOriginal(
-                          cache_.get(), notification.url, notification.hostname,
-                          notification.scheme, cfg->read_lease_duration_ms > 0);
+  bool identity_raw =
+      IdentityHoldsRawOriginal(cache_.get(), notification.url,
+                               notification.hostname, notification.scheme,
+                               notification.site, existing_ids) &&
+      PreserveIdentityAsDurableOriginal(cache_.get(), notification.url,
+                                        notification.hostname,
+                                        notification.scheme, notification.site,
+                                        cfg->read_lease_duration_ms > 0);
   if (identity_raw) {
     existing_ids.erase(static_cast<uint8_t>(MaskToId(CapabilityMask())));
   }
@@ -3768,10 +3958,6 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
           }
         }
 
-        if (multi.denoised) {
-          stats_.images_denoised.fetch_add(1, std::memory_order_relaxed);
-        }
-
         // Track learned quality prediction stats.
         if (multi.used_learned_quality) {
           stats_.learned_quality_predictions.fetch_add(
@@ -3840,10 +4026,10 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
         // Helper to set per-format SSIMULACRA2 score in metadata.
         auto set_ssim_meta = [&](float score) {
           if (score >= 0.0f) {
-            img_variant_meta.ssimulacra2_score_x100 =
-                static_cast<uint16_t>(std::min(score * 100.0f, 10000.0f));
+            img_variant_meta.SetQualityScoreX100(
+                static_cast<uint16_t>(std::min(score * 100.0f, 10000.0f)));
           } else {
-            img_variant_meta.ssimulacra2_score_x100 = 0xFFFF;  // N/A
+            img_variant_meta.SetQualityScoreX100(std::nullopt);  // N/A
           }
         };
 
@@ -3872,6 +4058,19 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
             vp, den, sd,
             !(exact_match &&
               requested_fmt == CapabilityMask::ImageFormat::kOriginal));
+
+        // One line per requested slot this pass left unwritten, with the
+        // reason, so a missing variant is never silent. A slot the content
+        // dedup skipped logs its own line in write_format.
+        for (auto fmt : missing_formats) {
+          const TranscodeResult& tr = ResultForFormat(multi, fmt);
+          if (tr.success) continue;
+          LogInfo("Image variant not written for %s (slot 0x%02X): %s",
+                  notification.url.c_str(),
+                  static_cast<int>(VariantSlotId(fmt, vp, den, sd)),
+                  tr.error_message.empty() ? "no result from the transcoder"
+                                           : tr.error_message.c_str());
+        }
 
         // Count converted-format slots the fall-through refused: the
         // optimizer answered with the origin's own bytes in the origin's own
@@ -3926,7 +4125,8 @@ std::vector<DeclineTombstoneRecord> Worker::LoadDeclineTombstone(
   }
   auto stored = cache_->ReadAlternate(
       notification.url, notification.hostname, notification.scheme,
-      static_cast<AlternateId>(SentinelId::kDeclineTombstone));
+      static_cast<AlternateId>(SentinelId::kDeclineTombstone),
+      notification.site);
   if (!stored.has_value()) return {};
   auto content = stored->content();
   return ParseDeclineTombstone(
@@ -3958,9 +4158,9 @@ void Worker::StoreDeclineTombstone(
   }
 
   std::string blob = EncodeDeclineTombstone(origin_hash, records);
-  auto wh = cache_->WriteSentinel(notification.url, notification.hostname,
-                                  notification.scheme,
-                                  SentinelId::kDeclineTombstone, blob.size());
+  auto wh = cache_->WriteSentinel(
+      notification.url, notification.hostname, notification.scheme,
+      SentinelId::kDeclineTombstone, blob.size(), notification.site);
   if (!wh.has_value()) {
     // A failed tombstone write costs a re-run of the ladder on the next
     // notification -- bounded, and the correct direction to fail in.
@@ -3975,7 +4175,8 @@ void Worker::StoreDeclineTombstone(
   // overwrite.
   cache_->EvictAlternateFromRamCache(
       notification.url, notification.hostname, notification.scheme,
-      static_cast<AlternateId>(SentinelId::kDeclineTombstone));
+      static_cast<AlternateId>(SentinelId::kDeclineTombstone),
+      notification.site);
 }
 
 void Worker::WriteTextVariant(
@@ -4019,7 +4220,7 @@ void Worker::WriteTextVariant(
     stats_.alternate_writes.fetch_add(1, std::memory_order_relaxed);
     bool write_ok =
         WriteVariant(cache_.get(), notification.url, notification.hostname,
-                     notification.scheme, mask,
+                     notification.scheme, notification.site, mask,
                      std::span<const char>(minified.data(), minified.size()),
                      variant_meta, purge_check, this);
 
@@ -4032,7 +4233,7 @@ void Worker::WriteTextVariant(
       // before removing, so re-checking here after the write catches it.
       if (IsIntegrityPinned(notification)) {
         (void)cache_->Remove(notification.url, notification.hostname,
-                             notification.scheme);
+                             notification.scheme, notification.site);
         LogInfo(
             "SRI: dropped just-written %s variant for %s "
             "(pinned concurrently)",
@@ -4042,11 +4243,13 @@ void Worker::WriteTextVariant(
       // Populate dedup set before incrementing stats so that any
       // observer polling the processed counter sees the entry present.
       MarkVariantProcessed(notification.url, notification.hostname,
-                           notification.scheme, MaskToId(mask), purge_gen);
+                           notification.scheme, notification.site,
+                           MaskToId(mask), purge_gen);
       // The optimized copy is in the cache: remember that, so a later
       // notification notices if it has gone missing.
       MarkCopyWritten(notification.url, notification.hostname,
-                      notification.scheme, MaskToId(mask), purge_gen);
+                      notification.scheme, notification.site, MaskToId(mask),
+                      purge_gen);
       stats_.variants_written.fetch_add(1, std::memory_order_relaxed);
       processed_stat.fetch_add(1, std::memory_order_relaxed);
       LogInfo(
@@ -4055,16 +4258,19 @@ void Worker::WriteTextVariant(
           type_name, notification.url.c_str(), original_input.size(),
           minified.size());
       WriteCompressedVariants(cache_.get(), notification.url,
-                              notification.hostname, notification.scheme, mask,
-                              minified, variant_meta, cfg->gzip_level,
-                              cfg->brotli_level, stats_, purge_check, this);
+                              notification.hostname, notification.scheme,
+                              notification.site, mask, minified, original_input,
+                              variant_meta, cfg->gzip_level, cfg->brotli_level,
+                              stats_, purge_check, this);
       RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                       notification.scheme, mask, source_hash, source_genuine,
-                       cfg->gzip_level, cfg->brotli_level, purge_check);
+                       notification.scheme, notification.site, mask,
+                       source_hash, source_genuine, cfg->gzip_level,
+                       cfg->brotli_level, purge_check);
       // Clear tentative cooldown on success (matches HTML path).
       {
-        std::string ck = ComposeInternalKey(
-            notification.url, notification.hostname, notification.scheme);
+        std::string ck =
+            ComposeInternalKey(notification.url, notification.hostname,
+                               notification.scheme, notification.site);
         std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
         text_cooldown_expiry_.erase(ck);
       }
@@ -4074,7 +4280,7 @@ void Worker::WriteTextVariant(
       LogWarning("Failed to write %s variant for %s", type_name,
                  notification.url.c_str());
       SetWriteFailureCooldown(notification.url, notification.hostname,
-                              notification.scheme);
+                              notification.scheme, notification.site);
     }
   } else {
     // Already minimal — still write compressed variants of the
@@ -4116,10 +4322,10 @@ void Worker::WriteTextVariant(
     // The identity entry stays the front end's own bytes; give it the same
     // source binding as the compressed copies (issue #507).
     if (source_genuine) {
-      const StampResult stamped =
-          StampRawEntry(cache_.get(), notification.url, notification.hostname,
-                        notification.scheme, read_result.metadata, owned_input,
-                        source_hash, purge_check, this);
+      const StampResult stamped = StampRawEntry(
+          cache_.get(), notification.url, notification.hostname,
+          notification.scheme, notification.site, read_result.metadata,
+          owned_input, source_hash, purge_check, this);
       CountStamp(stats_, stamped);
       if (stamped == StampResult::kFailed) {
         LogWarning("Failed to stamp unchanged %s for %s", type_name,
@@ -4127,18 +4333,22 @@ void Worker::WriteTextVariant(
       }
     }
     MarkVariantProcessed(notification.url, notification.hostname,
-                         notification.scheme, MaskToId(mask), purge_gen);
+                         notification.scheme, notification.site, MaskToId(mask),
+                         purge_gen);
     WriteCompressedVariants(cache_.get(), notification.url,
-                            notification.hostname, notification.scheme, mask,
-                            owned_input, orig_meta, cfg->gzip_level,
-                            cfg->brotli_level, stats_, purge_check, this);
+                            notification.hostname, notification.scheme,
+                            notification.site, mask, owned_input, owned_input,
+                            orig_meta, cfg->gzip_level, cfg->brotli_level,
+                            stats_, purge_check, this);
     RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                     notification.scheme, mask, source_hash, source_genuine,
-                     cfg->gzip_level, cfg->brotli_level, purge_check);
+                     notification.scheme, notification.site, mask, source_hash,
+                     source_genuine, cfg->gzip_level, cfg->brotli_level,
+                     purge_check);
     // Clear tentative cooldown on success (matches HTML path).
     {
-      std::string ck = ComposeInternalKey(
-          notification.url, notification.hostname, notification.scheme);
+      std::string ck =
+          ComposeInternalKey(notification.url, notification.hostname,
+                             notification.scheme, notification.site);
       std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
       text_cooldown_expiry_.erase(ck);
     }
@@ -4149,12 +4359,13 @@ void Worker::WriteTextVariant(
 
 void Worker::RefreshAlternateCount(const std::string& url,
                                    const std::string& hostname,
-                                   const std::string& scheme) {
+                                   const std::string& scheme,
+                                   std::string_view site) {
   if (url_registry_ == nullptr || cache_ == nullptr) return;
-  auto alts = cache_->ListAlternates(url, hostname, scheme);
+  auto alts = cache_->ListAlternates(url, hostname, scheme, site);
   url_registry_->SetAlternateCount(
       url, hostname, scheme,
-      alts ? static_cast<uint32_t>(CountUniqueAlternates(*alts)) : 0);
+      alts ? static_cast<uint32_t>(CountUniqueAlternates(*alts)) : 0, site);
 }
 
 // static
@@ -4197,9 +4408,72 @@ bool Worker::BorrowCopyUntorn(ReadResult& rr, bool leases_enabled) {
 // invalidates every stored validation record. The contract is written out next
 // to that function in src/browser/optimization_profile.h; read it before
 // touching this.
+bool Worker::SubresourceAdmitted(const CacheNotification& notification,
+                                 std::string_view read_url,
+                                 std::string_view read_host, bool may_fetch,
+                                 const AlternateMetadata* entry) {
+  if (subresource_gate_ == nullptr) return false;
+  SubresourceRead read;
+  read.site = notification.site;
+  read.scheme = notification.scheme;
+  read.host = read_host;
+  read.url = read_url;
+  read.page_host = notification.hostname;
+  read.host_fetch_allowed =
+      MayRequestHostFetches(notification) && notification.host_vouched;
+  // Every entry handed in here was read under the notification's site.
+  if (entry != nullptr) {
+    read.entry_read = true;
+    read.entry_flags = entry->flags;
+    read.entry_site = notification.site;
+  }
+  const SubresourceVerdict verdict = subresource_gate_->Check(read, may_fetch);
+  if (verdict == SubresourceVerdict::kAdmitted) return true;
+  LogInfo("Sub-resource %.*s not used for %s: %s",
+          static_cast<int>(read_url.size()), read_url.data(),
+          notification.url.c_str(),
+          verdict == SubresourceVerdict::kRefused
+              ? "not served to anonymous clients"
+              : "not confirmed as served to anonymous clients");
+  return false;
+}
+
+std::optional<ReadResult> Worker::ReadAdmittedSubresource(
+    const CacheNotification& notification, std::string_view read_url,
+    std::string_view read_host, bool may_fetch, bool* refused) {
+  if (refused != nullptr) *refused = false;
+  auto read = [&] {
+    return cache_->ReadBestAlternate(
+        read_url, read_host, notification.scheme, CapabilityMask(),
+        /*agent_request_entitled=*/false, notification.site);
+  };
+  // Under a host the worker may ask, every entry is asked about as before.
+  if (!(MayRequestHostFetches(notification) && notification.host_vouched)) {
+    auto entry = read();
+    // Recorded from an anonymous request: admitted on the entry itself, with
+    // no request, so the entry is used as read.
+    if (entry.has_value() &&
+        (entry->metadata.flags & AlternateMetadata::kFlagAnonymousRecorded) !=
+            0 &&
+        SubresourceAdmitted(notification, read_url, read_host, may_fetch,
+                            &entry->metadata)) {
+      return std::optional<ReadResult>(std::move(*entry));
+    }
+  }
+  // Anything else is asked about first, as it was before the read: the read
+  // above is not held across the request.
+  if (!SubresourceAdmitted(notification, read_url, read_host, may_fetch)) {
+    if (refused != nullptr) *refused = true;
+    return std::nullopt;
+  }
+  auto entry = read();
+  if (!entry.has_value()) return std::nullopt;
+  return std::optional<ReadResult>(std::move(*entry));
+}
+
 Worker::CombinedCssResult Worker::BuildCombinedCss(
     const HtmlScanResult& scan_result, const CacheNotification& notification,
-    const WorkerConfig& cfg, bool count_lookups) {
+    const WorkerConfig& cfg, bool count_lookups, bool gate_may_fetch) {
   CombinedCssResult out;
   auto count_lookup = [this, count_lookups] {
     if (count_lookups) {
@@ -4231,8 +4505,8 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
       std::string norm_url = NormalizeCacheUrl(url, url_norm_config_);
       std::string_view host = UrlHostname(url);
       if (host.empty()) host = notification.hostname;
-      auto result = cache_->ReadBestAlternate(
-          norm_url, host, notification.scheme, CapabilityMask());
+      auto result =
+          ReadAdmittedSubresource(notification, norm_url, host, gate_may_fetch);
       if (!result.has_value()) return std::nullopt;
       auto span = result->content();
       return std::string(reinterpret_cast<const char*>(span.data()),
@@ -4275,6 +4549,17 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
   for (const auto& stylesheet : scan_result.stylesheets) {
     const size_t sheet_index = next_sheet++;
     if (stylesheet.href.empty()) continue;
+    // The sheet's rules join the combined sheet under its media, so a print
+    // sheet's rules stay print rules and never reach a screen block as
+    // unconditional ones. A media value that cannot be written safely as an
+    // @media prelude leaves the sheet out of the combined sheet and counts it
+    // as missing, so it stays render-blocking.
+    const std::optional<std::string_view> media_scope =
+        css::CombinedSheetMediaScope(CombinedSheetMediaOf(stylesheet));
+    if (!media_scope.has_value()) {
+      external_css_missing = true;
+      continue;
+    }
     // Resolved against the document base, so under <base href="/sub/"> a
     // relative href is the sheet in /sub/, and under a cross-host <base> a
     // root-relative href is the base host's sheet, as the browser fetches it.
@@ -4300,13 +4585,22 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
                                    notification.hostname.empty() ||
                                    css_host == notification.hostname;
     if (css_host.empty()) css_host = notification.hostname;
-    auto css_read = cache_->ReadBestAlternate(
-        norm_href, css_host, notification.scheme, CapabilityMask());
+    // A sheet the server does not serve to any client is absent, and its
+    // absence does not heal on a re-notify: it is not revalidatable.
+    bool css_refused = false;
+    auto css_read = ReadAdmittedSubresource(notification, norm_href, css_host,
+                                            gate_may_fetch, &css_refused);
+    if (css_refused) {
+      external_css_missing = true;
+      continue;
+    }
     if (css_read.has_value()) {
       auto css_span = css_read->content();
       if (!css_span.empty()) {
         // Cap combined CSS to prevent excessive memory use.
-        if (combined_css.size() + css_span.size() > kMaxCombinedCssBytes) {
+        if (combined_css.size() +
+                css::MediaScopedCssSize(*media_scope, css_span.size()) >
+            kMaxCombinedCssBytes) {
           LogWarning("Combined CSS exceeds %zu bytes, truncating for %s",
                      kMaxCombinedCssBytes, notification.url.c_str());
           // Remaining sheets are unmeasured — keep the stylesheet
@@ -4331,7 +4625,9 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
           // below.  Do not "simplify" this gate away.
           if (flat.imports_resolved > 0) {
             // Re-check size after flattening expanded the content.
-            if (combined_css.size() + flat.css.size() > kMaxCombinedCssBytes) {
+            if (combined_css.size() +
+                    css::MediaScopedCssSize(*media_scope, flat.css.size()) >
+                kMaxCombinedCssBytes) {
               if (handler_) {
                 handler_->Warning(
                     "Flattened CSS exceeds %zu bytes, truncating for %s",
@@ -4341,8 +4637,15 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
               external_css_missing = true;
               break;
             }
+            const size_t before = combined_css.size();
             if (!combined_css.empty()) combined_css.append("\n");
-            combined_css.append(flat.css);
+            if (!css::AppendMediaScopedCss(*media_scope, flat.css,
+                                           &combined_css)) {
+              // Cannot be wrapped in its media safely: counts as missing.
+              combined_css.resize(before);
+              external_css_missing = true;
+              continue;
+            }
             if (handler_) {
               handler_->Info(
                   "Gathered external CSS from %s (%zu bytes, %zu after "
@@ -4353,11 +4656,20 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
           }
         }
         // No @imports resolved (or flattening disabled) — append raw CSS.
+        const size_t before = combined_css.size();
         if (!combined_css.empty()) {
           combined_css.append("\n");
         }
-        combined_css.append(reinterpret_cast<const char*>(css_span.data()),
-                            css_span.size());
+        if (!css::AppendMediaScopedCss(
+                *media_scope,
+                std::string_view(reinterpret_cast<const char*>(css_span.data()),
+                                 css_span.size()),
+                &combined_css)) {
+          // Cannot be wrapped in its media safely: counts as missing.
+          combined_css.resize(before);
+          external_css_missing = true;
+          continue;
+        }
         LogInfo("Gathered external CSS from %s (%zu bytes)",
                 resolved_href.c_str(), css_span.size());
       } else {
@@ -4382,8 +4694,8 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
     std::string norm_url = NormalizeCacheUrl(resolved, url_norm_config_);
     std::string_view host = UrlHostname(resolved);
     if (host.empty()) host = notification.hostname;
-    auto result = cache_->ReadBestAlternate(norm_url, host, notification.scheme,
-                                            CapabilityMask());
+    auto result =
+        ReadAdmittedSubresource(notification, norm_url, host, gate_may_fetch);
     if (!result.has_value()) return std::nullopt;
     auto span = result->content();
     return LayerOrderImport{
@@ -4403,11 +4715,13 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   // Metadata-only look first (RAM evicted, no byte copy, no hash): a
   // notification whose original was not re-recorded costs one small read.
   cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
-                                     notification.scheme, durable_id);
+                                     notification.scheme, durable_id,
+                                     notification.site);
   AlternateMetadata recorded;
   {
-    auto durable = cache_->ReadOriginalAlternate(
-        notification.url, notification.hostname, notification.scheme);
+    auto durable =
+        cache_->ReadOriginalAlternate(notification.url, notification.hostname,
+                                      notification.scheme, notification.site);
     if (!durable.has_value() || !durable->is_valid()) {
       // No recorded original: nothing to compare.
       return OriginRecheck::kUnchanged;
@@ -4432,13 +4746,14 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   AlternateMetadata built_from;
   {
     auto alts = cache_->ListAlternates(notification.url, notification.hostname,
-                                       notification.scheme);
+                                       notification.scheme, notification.site);
     if (!alts.has_value()) return OriginRecheck::kUnchanged;
     for (const auto& alt : *alts) {
       const AlternateId pid = static_cast<uint8_t>(alt.id);
       if (IsSentinel(pid)) continue;
-      auto entry = cache_->ReadAlternate(
-          notification.url, notification.hostname, notification.scheme, pid);
+      auto entry =
+          cache_->ReadAlternate(notification.url, notification.hostname,
+                                notification.scheme, pid, notification.site);
       if (!entry.has_value() || !entry->is_valid()) continue;
       if (entry->metadata.cache_inserted_at >= newest) {
         newest = entry->metadata.cache_inserted_at;
@@ -4469,8 +4784,9 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   // or unprovable verdict is dropped, so no copy is rewritten.
   bool limited = false;
   {
-    const std::string key = ComposeInternalKey(
-        notification.url, notification.hostname, notification.scheme);
+    const std::string key =
+        ComposeInternalKey(notification.url, notification.hostname,
+                           notification.scheme, notification.site);
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(dedup_heal_mutex_);
     auto it = origin_recheck_last_.find(key);
@@ -4492,9 +4808,10 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   stats_.notifications_origin_rechecked.fetch_add(1, std::memory_order_relaxed);
 
   // The origin state moved: decide on the bytes.
-  PristineOriginRead pristine = ReadPristineOrigin(
-      cache_.get(), notification.url, notification.hostname,
-      notification.scheme, cfg->read_lease_duration_ms > 0, stats_, handler_);
+  PristineOriginRead pristine =
+      ReadPristineOrigin(cache_.get(), notification.url, notification.hostname,
+                         notification.scheme, notification.site,
+                         cfg->read_lease_duration_ms > 0, stats_, handler_);
   if (!pristine.found || pristine.id != durable_id) {
     return OriginRecheck::kUnchanged;
   }
@@ -4503,7 +4820,7 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   {
     auto stored = cache_->ReadAlternate(
         notification.url, notification.hostname, notification.scheme,
-        static_cast<AlternateId>(SentinelId::kContentHash));
+        static_cast<AlternateId>(SentinelId::kContentHash), notification.site);
     if (stored.has_value()) {
       auto sc = stored->content();
       have_oracle = sc.size() == 32;
@@ -4519,16 +4836,18 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     return OriginRecheck::kRestamped;
   }
   if (hash_matches && may_restamp) {
-    PurgeDispatchGen gen = CapturePurgeGen(
-        notification.url, notification.hostname, notification.scheme);
-    PurgeCheck fence = [this, url = notification.url,
-                        hostname = notification.hostname,
-                        scheme = notification.scheme, gen]() {
-      return WasPurgedSinceDispatch(url, hostname, gen, scheme);
-    };
+    PurgeDispatchGen gen =
+        CapturePurgeGen(notification.url, notification.hostname,
+                        notification.scheme, notification.site);
+    PurgeCheck fence =
+        [this, url = notification.url, hostname = notification.hostname,
+         scheme = notification.scheme, site = notification.site, gen]() {
+          return WasPurgedSinceDispatch(url, hostname, gen, scheme, site);
+        };
     RestampVariantSetFreshness(cache_.get(), notification.url,
                                notification.hostname, notification.scheme,
-                               pristine.meta, pristine.id, fence);
+                               notification.site, pristine.meta, pristine.id,
+                               fence);
     stats_.origin_unchanged_restamped.fetch_add(1, std::memory_order_relaxed);
     return OriginRecheck::kRestamped;
   }
@@ -4539,12 +4858,14 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   // from the old set is fenced; the caller re-reads the generation after
   // this returns, or the rebuild would be fenced by this very bump.
   {
-    std::string gen_key = ComposeInternalKey(
-        notification.url, notification.hostname, notification.scheme);
+    std::string gen_key =
+        ComposeInternalKey(notification.url, notification.hostname,
+                           notification.scheme, notification.site);
     std::lock_guard<std::mutex> lock(purge_gen_mutex_);
     BumpPurgeGenerationLocked(gen_key);
-    auto purged = cache_->RemoveDerivedAlternates(
-        notification.url, notification.hostname, notification.scheme);
+    auto purged =
+        cache_->RemoveDerivedAlternates(notification.url, notification.hostname,
+                                        notification.scheme, notification.site);
     if (!purged.has_value()) {
       LogWarning(
           "Targeted purge for %s failed (%s): stale copies may remain until "
@@ -4555,10 +4876,11 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     }
   }
   ClearUrlProcessingState(notification.url, notification.hostname,
-                          notification.scheme);
+                          notification.scheme, notification.site);
   // Evict again: the rebuild's source read must observe the on-disk original.
   cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
-                                     notification.scheme, durable_id);
+                                     notification.scheme, durable_id,
+                                     notification.site);
   stats_.origin_change_rebuilt.fetch_add(1, std::memory_order_relaxed);
   LogInfo("Recorded original for %s changed: derived copies purged, rebuilding",
           notification.url.c_str());
@@ -4577,11 +4899,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
   // dispatch for URLs that were never previously purged.
   // Captures URL/hostname/scheme by value to avoid dangling reference if the
   // PurgeCheck outlives the notification parameter.
-  PurgeCheck purge_check = [this, url = notification.url,
-                            hostname = notification.hostname,
-                            scheme = notification.scheme, purge_gen]() {
-    return WasPurgedSinceDispatch(url, hostname, purge_gen, scheme);
-  };
+  PurgeCheck purge_check =
+      [this, url = notification.url, hostname = notification.hostname,
+       scheme = notification.scheme, site = notification.site, purge_gen]() {
+        return WasPurgedSinceDispatch(url, hostname, purge_gen, scheme, site);
+      };
 
   LogInfo("Processing notification for %s (type=%d, mask=0x%08x)",
           notification.url.c_str(), static_cast<int>(notification.content_type),
@@ -4591,7 +4913,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
   // Done early: nginx already wrote the default alternate, so the URL is cached.
   if (url_registry_) {
     url_registry_->Record(notification.url, notification.hostname,
-                          notification.scheme);
+                          notification.scheme, notification.site);
   }
 
   // Refresh the cached alternate count for this URL on EVERY exit path below.
@@ -4605,11 +4927,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
   // the worker-pool thread (HandleNotification runs via uv_queue_work), so the
   // single extra ListAlternates stays off the event loop.  SetAlternateCount
   // is a no-op if the entry was LRU-evicted between Record() and here.
-  ScopeExit count_refresh_guard([this, url = notification.url,
-                                 hostname = notification.hostname,
-                                 scheme = notification.scheme] {
-    RefreshAlternateCount(url, hostname, scheme);
-  });
+  ScopeExit count_refresh_guard(
+      [this, url = notification.url, hostname = notification.hostname,
+       scheme = notification.scheme, site = notification.site] {
+        RefreshAlternateCount(url, hostname, scheme, site);
+      });
 
   // Reject notifications with viewport=3 in the mask (sentinel range),
   // unless it is one of the whole-mask specials handled below.  A
@@ -4665,8 +4987,24 @@ void Worker::HandleNotification(const CacheNotification& notification,
   // Dispatch to the dedicated handler, bypassing the variant dedup/cooldown
   // below exactly as warmup does.
   if (notification.capability_mask == kLlmsTxtSentinel) {
+    if (!MayRequestHostFetches(notification)) {
+      LogInfo(
+          "llms.txt: not built for a notification with an options "
+          "context (%s)",
+          notification.url.c_str());
+      return;
+    }
     if (cfg->browser_analysis.agent_optimize &&
-        cfg->browser_analysis.agent_optimize_llms_txt) {
+        cfg->browser_analysis.agent_optimize_llms_txt &&
+        !notification.host_vouched) {
+      // The build fetches from the notification's host: only for a sender
+      // that vouched for it.
+      stats_.notifications_unvouched_render_skipped.fetch_add(
+          1, std::memory_order_relaxed);
+      LogInfo("llms.txt: not built for an unvouched host (%s)",
+              notification.url.c_str());
+    } else if (cfg->browser_analysis.agent_optimize &&
+               cfg->browser_analysis.agent_optimize_llms_txt) {
       HandleLlmsTxtBuild(notification, purge_gen);
     } else {
       LogInfo("llms.txt build disabled, ignoring sentinel for %s",
@@ -4723,9 +5061,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
     // defers to this notification).  Drop the derived copies; the marked
     // original is kept.  Under the purge-generation lock, as the recheck does.
     PurgeDerivedCopiesAndBumpGeneration(notification.url, notification.hostname,
-                                        notification.scheme);
+                                        notification.scheme, notification.site);
     ClearUrlProcessingState(notification.url, notification.hostname,
-                            notification.scheme);
+                            notification.scheme, notification.site);
     return;
   }
 
@@ -4750,9 +5088,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
     // ImageDedupMask).
     AlternateId target_id = MaskToId(
         DedupMaskFor(notification.content_type, notification.capability_mask));
-    std::string dedup_key =
-        ComposeInternalKeyWithId(notification.url, notification.hostname,
-                                 notification.scheme, target_id);
+    std::string dedup_key = ComposeInternalKeyWithId(
+        notification.url, notification.hostname, notification.scheme,
+        notification.site, target_id);
     bool dedup_hit = false;
     bool copy_expected = false;
     {
@@ -4778,9 +5116,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
       if (verdict == OriginRecheck::kPurgedRebuild) {
         // The processed-set entry is gone and the purge generation was
         // re-read AFTER the purge, so this pass is not fenced by its own bump.
-        HandleNotification(notification, CapturePurgeGen(notification.url,
-                                                         notification.hostname,
-                                                         notification.scheme));
+        HandleNotification(
+            notification,
+            CapturePurgeGen(notification.url, notification.hostname,
+                            notification.scheme, notification.site));
         return;
       }
     }
@@ -4873,8 +5212,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // below, which was checked above before any cache read.
       bool expected_copy_missing = false;
       if (cache_ != nullptr) {
-        auto alts = cache_->ListAlternates(
-            notification.url, notification.hostname, notification.scheme);
+        auto alts =
+            cache_->ListAlternates(notification.url, notification.hostname,
+                                   notification.scheme, notification.site);
         if (!alts.has_value()) {
           // A cache ERROR is not evidence the family is gone.  Keep the
           // skip, matching the no-cache case above: reading an error as
@@ -4969,8 +5309,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
   if (notification.content_type == ContentType::kHtml ||
       notification.content_type == ContentType::kCss ||
       notification.content_type == ContentType::kJs) {
-    std::string cooldown_key = ComposeInternalKey(
-        notification.url, notification.hostname, notification.scheme);
+    std::string cooldown_key =
+        ComposeInternalKey(notification.url, notification.hostname,
+                           notification.scheme, notification.site);
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
     auto it = text_cooldown_expiry_.find(cooldown_key);
@@ -5008,8 +5349,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // Must be called on every early-return path so the URL isn't
       // locked out for 60s after a transient failure.
       auto clear_tentative_cooldown = [&]() {
-        std::string ck = ComposeInternalKey(
-            notification.url, notification.hostname, notification.scheme);
+        std::string ck =
+            ComposeInternalKey(notification.url, notification.hostname,
+                               notification.scheme, notification.site);
         std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
         text_cooldown_expiry_.erase(ck);
       };
@@ -5027,12 +5369,24 @@ void Worker::HandleNotification(const CacheNotification& notification,
         return;
       }
 
+      // Drop what an earlier version stored for this page and this build no
+      // longer serves.  The pass below overwrites what it rebuilds, but not
+      // what it does not (a page left unchanged, a compression level now
+      // off), and selection would otherwise keep choosing those, as a miss.
+      if (auto dropped = cache_->RemoveRetiredAlternates(
+              notification.url, notification.hostname, notification.scheme,
+              notification.site);
+          dropped.has_value() && *dropped > 0) {
+        LogInfo("Dropped %zu entries stored by an earlier version for %s",
+                *dropped, notification.url.c_str());
+      }
+
       // Read original HTML from cache (stored with default mask).
       // Uses exponential-backoff retry for cross-process mmap propagation
       // delay on cold start (10ms, 50ms, 250ms).
       auto html_read_result = ReadOriginalWithRetry(
           cache_.get(), notification.url, notification.hostname,
-          notification.scheme, stats_, handler_);
+          notification.scheme, notification.site, stats_, handler_);
 
       if (!html_read_result.has_value()) {
         LogWarning("Original HTML not found in cache for %s",
@@ -5149,7 +5503,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         if (worker_processed_identity) return;
         const StampResult stamped = StampRawEntry(
             cache_.get(), notification.url, notification.hostname,
-            notification.scheme, html_read_result->metadata, html_content,
+            notification.scheme, notification.site, html_read_result->metadata,
+            html_content,
             cyclone::crypto::SHA256::hash(std::span<const std::byte>(
                 reinterpret_cast<const std::byte*>(html_content.data()),
                 html_content.size())),
@@ -5182,7 +5537,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         // The live sentinel as written over RAW on a prior raw-read run.
         auto stored = cache_->ReadAlternate(
             notification.url, notification.hostname, notification.scheme,
-            static_cast<AlternateId>(SentinelId::kContentHash));
+            static_cast<AlternateId>(SentinelId::kContentHash),
+            notification.site);
 
         std::array<std::byte, 32> origin_html_hash{};
         bool have_raw_hash = false;
@@ -5234,7 +5590,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // are atomic under purge_gen_mutex_ (issue #652).
           stats_.content_hash_stale.fetch_add(1, std::memory_order_relaxed);
           (void)PurgeUrlAndBumpGeneration(
-              notification.url, notification.hostname, notification.scheme);
+              notification.url, notification.hostname, notification.scheme,
+              notification.site);
           {
             std::lock_guard<std::mutex> lock(processed_set_mutex_);
             std::string prefix =
@@ -5255,7 +5612,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         if (have_raw_hash && content_changed) {
           auto ch_wh = cache_->WriteSentinel(
               notification.url, notification.hostname, notification.scheme,
-              SentinelId::kContentHash, 32);
+              SentinelId::kContentHash, 32, notification.site);
           if (ch_wh.has_value()) {
             (void)ch_wh->write_sync(std::as_bytes(
                 std::span(origin_html_hash.data(), origin_html_hash.size())));
@@ -5270,7 +5627,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
             // already cleared the RAM tier.
             cache_->EvictAlternateFromRamCache(
                 notification.url, notification.hostname, notification.scheme,
-                static_cast<AlternateId>(SentinelId::kContentHash));
+                static_cast<AlternateId>(SentinelId::kContentHash),
+                notification.site);
           } else {
             stats_.errors.fetch_add(1, std::memory_order_relaxed);
             LogWarning(
@@ -5297,23 +5655,57 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // any further processing so CSS/JS notifications skip them.
       RegisterIntegrityPinnedUrls(scan_result, notification);
 
+      // Gather the combined stylesheet this page is judged against. The exact
+      // bytes are a contract, not an implementation detail — see
+      // CombinedCssValidationHash in src/browser/optimization_profile.h.
+      // Gathered before the page is queued for browser analysis: the
+      // analysis assembles the same bytes on the event loop, where the
+      // sub-resource gate answers from what this call has just asked.
+      CombinedCssResult combined =
+          BuildCombinedCss(scan_result, notification, *cfg);
+
       // Browser analysis: compute template hash and look up profile.
+      // A page is queued for analysis (and the agent render that follows it)
+      // only for a sender that may ask for fetches; see
+      // MayRequestHostFetches.
       uint64_t template_hash = 0;
       std::optional<OptimizationProfile> browser_profile;
       if (browser_manager_) {
         template_hash = TemplateDetector::HashStructure(scan_result);
-        browser_profile = browser_manager_->LookupProfile(template_hash);
+        browser_profile =
+            browser_manager_->LookupProfile(template_hash, notification.site);
+        // Both rules must allow a page to be queued: the sender may ask for
+        // fetches (MayRequestHostFetches), and the agent render that can
+        // follow an analysis fetches from the notification's host, so it runs
+        // only for a vouched notification (BrowserAnalysisManager::
+        // FinishAnalysis checks the item's bit).  The analysis itself, and
+        // HTML optimization, proceed for an unvouched one.
+        const bool may_analyse = MayRequestHostFetches(notification);
+        const bool render_withheld =
+            cfg->browser_analysis.agent_optimize && !notification.host_vouched;
         if (!browser_profile) {
-          browser_manager_->EnqueueAnalysis(
-              notification.url, notification.hostname, notification.scheme,
-              notification.capability_mask, template_hash,
-              /*original_html=*/html_content, agent_origin_html_hash);
-        } else if (cfg->browser_analysis.agent_optimize &&
+          if (may_analyse) {
+            browser_manager_->EnqueueAnalysis(
+                notification.url, notification.hostname, notification.scheme,
+                notification.site, notification.host_vouched,
+                notification.from_module, notification.capability_mask,
+                template_hash,
+                /*original_html=*/html_content, agent_origin_html_hash);
+            if (render_withheld) {
+              stats_.notifications_unvouched_render_skipped.fetch_add(
+                  1, std::memory_order_relaxed);
+            }
+          }
+        } else if (render_withheld && notification.agent_request) {
+          stats_.notifications_unvouched_render_skipped.fetch_add(
+              1, std::memory_order_relaxed);
+        } else if (may_analyse && cfg->browser_analysis.agent_optimize &&
                    notification.agent_request &&
                    agent_origin_html_hash.has_value() &&
                    AgentMarkdownNeedsBuild(
                        notification.url, notification.hostname,
-                       notification.scheme, *agent_origin_html_hash)) {
+                       notification.scheme, notification.site,
+                       *agent_origin_html_hash)) {
           // The template's perf profile already exists
           // (LookupProfile hit), so the perf-driven enqueue above is skipped —
           // but THIS url's agent markdown was never built (or its origin
@@ -5321,17 +5713,14 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // analysis; the render's store-time re-validation still guards staleness).
           browser_manager_->EnqueueAnalysis(
               notification.url, notification.hostname, notification.scheme,
-              notification.capability_mask, template_hash,
+              notification.site, notification.host_vouched,
+              notification.from_module, notification.capability_mask,
+              template_hash,
               /*original_html=*/html_content, agent_origin_html_hash,
               /*force_agent_render=*/true);
         }
       }
 
-      // Gather the combined stylesheet this page is judged against. The exact
-      // bytes are a contract, not an implementation detail — see
-      // CombinedCssValidationHash in src/browser/optimization_profile.h.
-      CombinedCssResult combined =
-          BuildCombinedCss(scan_result, notification, *cfg);
       std::string& combined_css = combined.css;
       const bool external_css_missing = combined.external_css_missing;
       const bool revalidatable_css_missing = combined.revalidatable_css_missing;
@@ -5345,7 +5734,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // <0 means "unmeasured" (the heuristic path derives it from byte sizes).
       // Unified 3-band coverage policy (low band = FOUC gate, high band
       // = Issue A budget): coverage < async_css_min_coverage -> keep external
-      // <link> render-blocking, still inline (FOUC); mid -> inline + async
+      // <link> render-blocking, no inline block (FOUC); mid -> inline + async
       // defer; coverage >= ShouldInlineCriticalCss cap -> skip BOTH (below).
       float critical_css_coverage = -1.0f;
       // CriticalCssResult::anonymous_layers_dropped of whichever derivation
@@ -5550,8 +5939,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // to bridge first paint. A thin critical block (e.g. ~830 B of dark-color
       // overrides) deferring a large layout/font sheet renders the page unstyled
       // until the sheet loads. When insufficient we keep the stylesheet
-      // render-blocking (no FOUC) but STILL inline the critical CSS as a
-      // progressive-enhancement hint (has_critical_css stays true).
+      // render-blocking (no FOUC) and, below, drop the critical block: inlined
+      // next to a render-blocking sheet it only duplicates bytes.
       AsyncCssSufficiencyConfig async_css_suff{
           cfg->async_css_min_coverage, cfg->async_css_min_deferred_bytes};
       // external_css_missing is the cold-cache fail-safe: when a declared
@@ -5596,7 +5985,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
           !combined.layer_order.import_missing && !combined_css.empty()) {
         browser_manager_->RequestRevalidation(
             notification.url, notification.hostname, notification.scheme,
-            notification.capability_mask, template_hash,
+            notification.site, notification.host_vouched,
+            notification.from_module, notification.capability_mask,
+            template_hash,
             /*original_html=*/html_content, agent_origin_html_hash);
       }
       // Byte cap on the inlined block — only while the sheet stays
@@ -5635,9 +6026,12 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // low-coverage counter/log with it.
           LogInfo(
               "Async-CSS suppressed for %s: an external stylesheet is not yet "
-              "cached — keeping it render-blocking (no FOUC) until it caches; "
-              "critical CSS still inlined",
-              notification.url.c_str());
+              "cached - keeping it render-blocking (no FOUC) until it caches"
+              "%s",
+              notification.url.c_str(),
+              revalidatable_css_missing
+                  ? "; the critical CSS block stays while that sheet is missing"
+                  : "");
         } else if (!async_css_bytes_sufficient) {
           stats_.async_css_suppressed_low_coverage.fetch_add(
               1, std::memory_order_relaxed);
@@ -5656,8 +6050,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
           LogInfo(
               "Async-CSS suppressed for %s: critical %zu B / sheet %zu B "
               "(effective coverage=%.4f < floor %.2f, profile coverage=%.4f) "
-              "— keeping stylesheet render-blocking to avoid FOUC; critical "
-              "CSS still inlined",
+              "- keeping stylesheet render-blocking to avoid FOUC",
               notification.url.c_str(), critical_css.size(),
               combined_css.size(), logged_ratio, cfg->async_css_min_coverage,
               critical_css_coverage);
@@ -5692,10 +6085,65 @@ void Worker::HandleNotification(const CacheNotification& notification,
           LogInfo(
               "Async-CSS suppressed for %s: %s — keeping the stylesheet "
               "render-blocking until the above-the-fold appearance has been "
-              "confirmed; critical CSS still inlined",
+              "confirmed",
               notification.url.c_str(), reason);
         }
       }
+      // The block is only worth its bytes when it replaces the render-blocking
+      // fetch. While the full stylesheet stays render-blocking (no validated
+      // record, or the sandbox is off) it would sit next to that fetch and
+      // duplicate bytes with no paint benefit, so it is dropped and the page
+      // keeps its original <link>. When the page is later validated, the next
+      // variant write inlines the block and defers the sheet together, from the
+      // same decision.
+      //
+      // Not while a same-origin sheet is still missing from cache: such a pass
+      // is only written as a variant (flagged for revalidation, so it is
+      // decided again once the sheet caches) if the transform changes the page,
+      // and for a page whose only change is this block, dropping it would drop
+      // the revalidation with it. The window ends when the sheet caches.
+      //
+      // Nor when a gathered sheet is applied by script or stands after body
+      // content: first paint does not wait for it, so the block may be the only
+      // styling the fold has.
+      //
+      // A same-origin sheet that never caches keeps the block for as long as it
+      // is missing: the page stays flagged for revalidation and each pass
+      // decides again.
+      bool dropped_block = false;
+      bool sheet_may_not_block_paint = false;
+      for (const auto& sheet : scan_result.stylesheets) {
+        if (sheet.may_not_block_paint) sheet_may_not_block_paint = true;
+      }
+      if (has_critical_css && !has_async_css && !revalidatable_css_missing &&
+          !sheet_may_not_block_paint) {
+        LogInfo(
+            "Critical CSS not inlined for %s: the stylesheet stays "
+            "render-blocking",
+            notification.url.c_str());
+        critical_css.clear();
+        has_critical_css = false;
+        dropped_block = true;
+      }
+      // A pass that dropped the block and changed nothing else is held for a
+      // short while, so a front end that re-notifies on every hit does not
+      // rerun the whole pipeline for a page that has nothing to change. The
+      // hold is short, so a record that arrives later is picked up.
+      auto finish_unchanged = [&]() {
+        stamp_unchanged_html();
+        if (!dropped_block) {
+          clear_tentative_cooldown();
+          return;
+        }
+        std::string ck =
+            ComposeInternalKey(notification.url, notification.hostname,
+                               notification.scheme, notification.site);
+        auto now = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
+        text_cooldown_expiry_[ck] = CooldownEntry{
+            now, now + std::chrono::seconds(kDroppedBlockCooldownSecs),
+            CooldownReason::kRevalidation};
+      };
 
       // Store preload hints for future Early Hints (103) responses.
       // These are stored at mask=0xFFFFFFFF (reserved, impossible in
@@ -5775,7 +6223,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         if (!hints.empty()) {
           auto wh = cache_->WriteSentinel(
               notification.url, notification.hostname, notification.scheme,
-              SentinelId::kEarlyHints, hints.size());
+              SentinelId::kEarlyHints, hints.size(), notification.site);
           if (wh) {
             // Early hints are best-effort; write failure is non-fatal.
             (void)wh->write_sync(
@@ -5794,7 +6242,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // "never existed") is non-fatal.
           (void)cache_->RemoveAlternate(
               notification.url, notification.hostname, notification.scheme,
-              static_cast<AlternateId>(SentinelId::kEarlyHints));
+              static_cast<AlternateId>(SentinelId::kEarlyHints),
+              notification.site);
         }
       }
 
@@ -5817,12 +6266,13 @@ void Worker::HandleNotification(const CacheNotification& notification,
 
       if (!has_critical_css && !has_lazy_load && !has_image_dims &&
           !has_lcp_preload && !has_preconnect && !has_speculation &&
-          !has_async_css && !has_script_deferral) {
+          !has_async_css && !has_script_deferral &&
+          !worker_processed_identity) {
         stats_.html_assembly_skipped.fetch_add(1, std::memory_order_relaxed);
-        LogInfo("No HTML transformations applicable for %s",
-                notification.url.c_str());
-        stamp_unchanged_html();
-        clear_tentative_cooldown();
+        LogInfo("No HTML transformations applicable for %s%s",
+                notification.url.c_str(),
+                dropped_block ? " (the critical CSS block was dropped)" : "");
+        finish_unchanged();
         return;
       }
 
@@ -5864,11 +6314,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
           notification.hostname, notification.scheme, scan_result.lcp_candidate,
           scan_result.third_party_origins, speculation_urls, defer_scripts);
       transform_filter.set_cascade_layer_order(combined.layer_order);
+      transform_filter.set_site(notification.site);
+      transform_filter.set_subresource_gate(
+          subresource_gate_.get(),
+          MayRequestHostFetches(notification) && notification.host_vouched);
       // The origin's header CSP (headers sidecar) gates inline injections
       // like a <meta> CSP does. No sidecar (older entries) -> no change.
       transform_filter.set_header_csps(HtmlTransformFilter::ReadHeaderCsps(
           cache_.get(), notification.url, notification.hostname,
-          notification.scheme));
+          notification.scheme, notification.site));
       transform_parser.AddFilter(&transform_filter);
 
       std::string output_html;
@@ -5890,10 +6344,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
 
       if (!transform_filter.modified()) {
         stats_.html_assembly_skipped.fetch_add(1, std::memory_order_relaxed);
-        LogInfo("HTML transform produced no changes for %s",
-                notification.url.c_str());
-        stamp_unchanged_html();
-        clear_tentative_cooldown();
+        LogInfo("HTML transform produced no changes for %s%s",
+                notification.url.c_str(),
+                dropped_block ? " (the critical CSS block was dropped)" : "");
+        finish_unchanged();
         return;
       }
 
@@ -5957,7 +6411,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
       stats_.alternate_writes.fetch_add(1, std::memory_order_relaxed);
       bool html_write_ok = WriteVariant(
           cache_.get(), notification.url, notification.hostname,
-          notification.scheme, html_mask,
+          notification.scheme, notification.site, html_mask,
           std::span<const char>(output_html.data(), output_html.size()),
           html_variant_meta, purge_check, this);
 
@@ -5973,19 +6427,21 @@ void Worker::HandleNotification(const CacheNotification& notification,
         // Write pre-compressed (gzip/brotli) variants of the HTML.
         WriteCompressedVariants(
             cache_.get(), notification.url, notification.hostname,
-            notification.scheme, html_mask, output_html, html_variant_meta,
-            cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
+            notification.scheme, notification.site, html_mask, output_html,
+            html_content, html_variant_meta, cfg->gzip_level, cfg->brotli_level,
+            stats_, purge_check, this);
         // Mark as processed for dedup (skip if revalidation-flagged).
         // MarkVariantProcessed acquires processed_set_mutex_, so call
         // it OUTSIDE write_cooldown_mutex_ to avoid nested locking.
         if ((html_flags & AlternateMetadata::kFlagNeedsRevalidation) == 0) {
           MarkVariantProcessed(notification.url, notification.hostname,
-                               notification.scheme, MaskToId(html_mask),
-                               purge_gen);
+                               notification.scheme, notification.site,
+                               MaskToId(html_mask), purge_gen);
         }
         {
-          std::string ck = ComposeInternalKey(
-              notification.url, notification.hostname, notification.scheme);
+          std::string ck =
+              ComposeInternalKey(notification.url, notification.hostname,
+                                 notification.scheme, notification.site);
           std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
           if ((html_flags & AlternateMetadata::kFlagNeedsRevalidation) == 0) {
             // Clear cooldown: variant is fully processed.
@@ -6012,13 +6468,13 @@ void Worker::HandleNotification(const CacheNotification& notification,
         LogInfo("HTML variant write fenced for %s (purged after dispatch)",
                 notification.url.c_str());
         SetWriteFailureCooldown(notification.url, notification.hostname,
-                                notification.scheme);
+                                notification.scheme, notification.site);
       } else {
         // Distinguish reader-contention (variant exists but can't be
         // overwritten) from actual write failures.
         if (VariantExistsForMask(cache_.get(), notification.url,
                                  notification.hostname, notification.scheme,
-                                 html_mask)) {
+                                 notification.site, html_mask)) {
           LogInfo("HTML variant write skipped for %s (concurrent reader)",
                   notification.url.c_str());
         } else {
@@ -6030,7 +6486,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         }
         // Record cooldown to avoid retrying on every notification.
         SetWriteFailureCooldown(notification.url, notification.hostname,
-                                notification.scheme);
+                                notification.scheme, notification.site);
       }
       break;
     }
@@ -6057,14 +6513,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
         for (auto fmt : kImageSlotFormats) {
           slot.set_image_format(fmt);
           MarkVariantProcessed(notification.url, notification.hostname,
-                               notification.scheme, MaskToId(slot), purge_gen);
+                               notification.scheme, notification.site,
+                               MaskToId(slot), purge_gen);
         }
       };
 
       // Read original image from cache (with exponential-backoff retry).
       auto img_read_result = ReadOriginalWithRetry(
           cache_.get(), notification.url, notification.hostname,
-          notification.scheme, stats_, handler_);
+          notification.scheme, notification.site, stats_, handler_);
 
       if (!img_read_result.has_value()) {
         LogWarning(
@@ -6130,8 +6587,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           CountStamp(stats_,
                      StampRawEntry(cache_.get(), notification.url,
                                    notification.hostname, notification.scheme,
-                                   svg_read_meta, svg_data, svg_hash,
-                                   purge_check, this));
+                                   notification.site, svg_read_meta, svg_data,
+                                   svg_hash, purge_check, this));
         }
         svg_origin_meta.content_type = ContentType::kImage;
         svg_origin_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
@@ -6139,14 +6596,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
         svg_origin_meta.origin_content_length = static_cast<uint32_t>(
             std::min(svg_data.size(), size_t{UINT32_MAX}));
         // origin_content_type inherited from img_read_result->metadata
-        WriteCompressedVariants(
-            cache_.get(), notification.url, notification.hostname,
-            notification.scheme, CapabilityMask(), svg_data, svg_origin_meta,
-            cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
+        WriteCompressedVariants(cache_.get(), notification.url,
+                                notification.hostname, notification.scheme,
+                                notification.site, CapabilityMask(), svg_data,
+                                svg_data, svg_origin_meta, cfg->gzip_level,
+                                cfg->brotli_level, stats_, purge_check, this);
         RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                         notification.scheme, CapabilityMask(), svg_hash,
-                         svg_source_genuine, cfg->gzip_level, cfg->brotli_level,
-                         purge_check);
+                         notification.scheme, notification.site,
+                         CapabilityMask(), svg_hash, svg_source_genuine,
+                         cfg->gzip_level, cfg->brotli_level, purge_check);
         mark_image_slot_decided(
             CapabilityMask::Decode(notification.capability_mask));
         return;
@@ -6175,11 +6633,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
             (cfg->gzip_level <= 0 ||
              VariantExistsForMask(cache_.get(), notification.url,
                                   notification.hostname, notification.scheme,
-                                  gz_check)) &&
+                                  notification.site, gz_check)) &&
             (cfg->brotli_level <= 0 ||
              VariantExistsForMask(cache_.get(), notification.url,
                                   notification.hostname, notification.scheme,
-                                  br_check));
+                                  notification.site, br_check));
         if (coded_copies_stored) {
           // The identity stamp must not depend on the compressed copies
           // being absent: a passthrough image whose copies were written
@@ -6188,8 +6646,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           CountStamp(stats_,
                      StampRawIdentityEntry(
                          cache_.get(), notification.url, notification.hostname,
-                         notification.scheme, cfg->read_lease_duration_ms > 0,
-                         purge_check, this));
+                         notification.scheme, notification.site,
+                         cfg->read_lease_duration_ms > 0, purge_check, this));
           LogInfo(
               "Compressed variants already exist for unsupported "
               "type %.*s, skipping: %s",
@@ -6242,8 +6700,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           CountStamp(stats_,
                      StampRawEntry(cache_.get(), notification.url,
                                    notification.hostname, notification.scheme,
-                                   read_meta, data, passthrough_hash,
-                                   purge_check, this));
+                                   notification.site, read_meta, data,
+                                   passthrough_hash, purge_check, this));
         }
         meta.content_type = ContentType::kImage;
         meta.flags = AlternateMetadata::kFlagWorkerProcessed |
@@ -6252,12 +6710,13 @@ void Worker::HandleNotification(const CacheNotification& notification,
             static_cast<uint32_t>(std::min(data.size(), size_t{UINT32_MAX}));
         WriteCompressedVariants(cache_.get(), notification.url,
                                 notification.hostname, notification.scheme,
-                                CapabilityMask(), data, meta, cfg->gzip_level,
-                                cfg->brotli_level, stats_, purge_check, this);
+                                notification.site, CapabilityMask(), data, data,
+                                meta, cfg->gzip_level, cfg->brotli_level,
+                                stats_, purge_check, this);
         RecordSourceHash(cache_.get(), notification.url, notification.hostname,
-                         notification.scheme, CapabilityMask(),
-                         passthrough_hash, source_genuine, cfg->gzip_level,
-                         cfg->brotli_level, purge_check);
+                         notification.scheme, notification.site,
+                         CapabilityMask(), passthrough_hash, source_genuine,
+                         cfg->gzip_level, cfg->brotli_level, purge_check);
         mark_image_slot_decided(
             CapabilityMask::Decode(notification.capability_mask));
         return;
@@ -6327,10 +6786,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // or a genuine flag-clear identity, or nothing (the legacy
       // selector-source hash is the fallback then, unchanged).
       // ---------------------------------------------------------------
-      PristineOriginRead pristine =
-          ReadPristineOrigin(cache_.get(), notification.url,
-                             notification.hostname, notification.scheme,
-                             cfg->read_lease_duration_ms > 0, stats_, handler_);
+      PristineOriginRead pristine = ReadPristineOrigin(
+          cache_.get(), notification.url, notification.hostname,
+          notification.scheme, notification.site,
+          cfg->read_lease_duration_ms > 0, stats_, handler_);
       // An oversize reference is refused as a processing source below, so
       // it must not drive detection either (its hash would bind the oracle
       // to bytes this branch never processes).
@@ -6346,7 +6805,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         bool content_changed = true;
         auto stored = cache_->ReadAlternate(
             notification.url, notification.hostname, notification.scheme,
-            static_cast<AlternateId>(SentinelId::kContentHash));
+            static_cast<AlternateId>(SentinelId::kContentHash),
+            notification.site);
         if (stored.has_value()) {
           auto sc = stored->content();
           if (sc.size() == 32 &&
@@ -6360,8 +6820,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // save-data combination already has all format variants.
           // Don't short-circuit when only other combinations exist
           // (e.g., Desktop variants exist but Mobile was requested).
-          auto alts = cache_->ListAlternates(
-              notification.url, notification.hostname, notification.scheme);
+          auto alts =
+              cache_->ListAlternates(notification.url, notification.hostname,
+                                     notification.scheme, notification.site);
           std::unordered_set<uint8_t> existing_ids_dedup;
           if (alts.has_value()) {
             for (const auto& alt : *alts) {
@@ -6373,7 +6834,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // (IdentityHoldsRawOriginal): it still has to be built.
           if (IdentityHoldsRawOriginal(
                   cache_.get(), notification.url, notification.hostname,
-                  notification.scheme, existing_ids_dedup)) {
+                  notification.scheme, notification.site, existing_ids_dedup)) {
             existing_ids_dedup.erase(
                 static_cast<uint8_t>(MaskToId(CapabilityMask())));
           }
@@ -6413,13 +6874,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
               PurgeCheck restamp_fence = [this, url = notification.url,
                                           hostname = notification.hostname,
                                           scheme = notification.scheme,
+                                          site = notification.site,
                                           purge_gen]() {
-                return WasPurgedSinceDispatch(url, hostname, purge_gen, scheme);
+                return WasPurgedSinceDispatch(url, hostname, purge_gen, scheme,
+                                              site);
               };
               const size_t restamped = RestampVariantSetFreshness(
                   cache_.get(), notification.url, notification.hostname,
-                  notification.scheme, pristine.meta, pristine.id,
-                  restamp_fence);
+                  notification.scheme, notification.site, pristine.meta,
+                  pristine.id, restamp_fence);
               if (restamped > 0) {
                 LogInfo(
                     "Content hash unchanged for %s; restamped %zu "
@@ -6431,9 +6894,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
               // on Accept: the set built before that must not be carried
               // forward, so drop the derived copies instead of restamping.
               PurgeDerivedCopiesAndBumpGeneration(
-                  notification.url, notification.hostname, notification.scheme);
+                  notification.url, notification.hostname, notification.scheme,
+                  notification.site);
               ClearUrlProcessingState(notification.url, notification.hostname,
-                                      notification.scheme);
+                                      notification.scheme, notification.site);
               LogInfo(
                   "Content hash unchanged for %s but the fresh origin "
                   "reference may not be restamped; derived copies purged",
@@ -6460,7 +6924,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // atomically so in-flight dedup entries and variant writes are
           // rejected (issue #652).
           (void)PurgeUrlAndBumpGeneration(
-              notification.url, notification.hostname, notification.scheme);
+              notification.url, notification.hostname, notification.scheme,
+              notification.site);
           {
             std::lock_guard<std::mutex> lock(processed_set_mutex_);
             std::string prefix =
@@ -6675,11 +7140,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // identity slot (the re-encode was not smaller), it still holds the
       // front end's own bytes; give it the stamp so an origin without
       // validators gets an ETag and a 304 for them.
-      CountStamp(stats_, StampRawIdentityEntry(cache_.get(), notification.url,
-                                               notification.hostname,
-                                               notification.scheme,
-                                               cfg->read_lease_duration_ms > 0,
-                                               purge_check, this));
+      CountStamp(stats_,
+                 StampRawIdentityEntry(
+                     cache_.get(), notification.url, notification.hostname,
+                     notification.scheme, notification.site,
+                     cfg->read_lease_duration_ms > 0, purge_check, this));
       size_t smallest_raster_size = variant_result.smallest_raster_size;
       size_t expected_writes = variant_result.expected_writes;
       size_t successful_writes = variant_result.successful_writes;
@@ -6715,12 +7180,12 @@ void Worker::HandleNotification(const CacheNotification& notification,
               std::min(image_data.size(), size_t{UINT32_MAX}));
           svg_vec_meta.origin_content_type = "image/svg+xml";
           stats_.alternate_writes.fetch_add(1, std::memory_order_relaxed);
-          bool svg_written =
-              WriteVariant(cache_.get(), notification.url,
-                           notification.hostname, notification.scheme, svg_mask,
-                           std::span<const char>(svg_result.svg_data.data(),
-                                                 svg_result.svg_data.size()),
-                           svg_vec_meta, purge_check, this);
+          bool svg_written = WriteVariant(
+              cache_.get(), notification.url, notification.hostname,
+              notification.scheme, notification.site, svg_mask,
+              std::span<const char>(svg_result.svg_data.data(),
+                                    svg_result.svg_data.size()),
+              svg_vec_meta, purge_check, this);
 
           if (svg_written) {
             stats_.svg_written.fetch_add(1, std::memory_order_relaxed);
@@ -6745,11 +7210,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
             // SVGs are text and compress very well.
             WriteCompressedVariants(
                 cache_.get(), notification.url, notification.hostname,
-                notification.scheme, svg_mask,
+                notification.scheme, notification.site, svg_mask,
                 std::string_view(svg_result.svg_data.data(),
                                  svg_result.svg_data.size()),
-                svg_vec_meta, cfg->gzip_level, cfg->brotli_level, stats_,
-                purge_check, this);
+                std::string_view(), svg_vec_meta, cfg->gzip_level,
+                cfg->brotli_level, stats_, purge_check, this);
 
             // Broadcast SVG write event for workbench.
             if (ws_manager_) {
@@ -6782,9 +7247,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // Persist origin content hash for future change detection (reuses
       // the hash computed at the start of the image processing pipeline).
       {
-        auto wh = cache_->WriteSentinel(notification.url, notification.hostname,
-                                        notification.scheme,
-                                        SentinelId::kContentHash, 32);
+        auto wh = cache_->WriteSentinel(
+            notification.url, notification.hostname, notification.scheme,
+            SentinelId::kContentHash, 32, notification.site);
         if (wh) {
           (void)wh->write_sync(
               std::as_bytes(std::span(origin_hash.data(), origin_hash.size())));
@@ -6798,7 +7263,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // subsequent notification, forever.
           cache_->EvictAlternateFromRamCache(
               notification.url, notification.hostname, notification.scheme,
-              static_cast<AlternateId>(SentinelId::kContentHash));
+              static_cast<AlternateId>(SentinelId::kContentHash),
+              notification.site);
         }
       }
 
@@ -6810,8 +7276,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
         // were written (e.g., due to cache write failures from race
         // conditions), allow re-notification to fill gaps.
         if (expected_writes > 0 && successful_writes < expected_writes) {
-          std::string retry_key = ComposeInternalKey(
-              notification.url, notification.hostname, notification.scheme);
+          std::string retry_key =
+              ComposeInternalKey(notification.url, notification.hostname,
+                                 notification.scheme, notification.site);
           std::lock_guard<std::mutex> lock(incomplete_retries_mutex_);
           int& count = image_incomplete_retries_[retry_key];
           if (++count >= kMaxIncompleteRetries) {
@@ -6861,6 +7328,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
                 notification.url.c_str());
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
+            notification.site,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
             purge_gen);
         return;
@@ -6874,7 +7342,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // Read original CSS from cache (with exponential-backoff retry).
       auto css_read_result = ReadOriginalWithRetry(
           cache_.get(), notification.url, notification.hostname,
-          notification.scheme, stats_, handler_);
+          notification.scheme, notification.site, stats_, handler_);
 
       if (!css_read_result.has_value()) {
         LogWarning("Original CSS not found in cache for %s",
@@ -6941,9 +7409,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
           // directives may contain absolute URLs that need scheme+authority
           // stripping to match how nginx stores cache entries.
           std::string norm_url = NormalizeCacheUrl(url, url_norm_config_);
-          auto result =
-              cache_->ReadBestAlternate(norm_url, notification.hostname,
-                                        notification.scheme, CapabilityMask());
+          auto result = ReadAdmittedSubresource(notification, norm_url,
+                                                notification.hostname);
           if (!result.has_value()) return std::nullopt;
           auto span = result->content();
           return std::string(reinterpret_cast<const char*>(span.data()),
@@ -6980,6 +7447,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                                     std::memory_order_relaxed);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
+            notification.site,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
             purge_gen);
         return;
@@ -7007,6 +7475,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
                 notification.url.c_str());
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
+            notification.site,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
             purge_gen);
         return;
@@ -7020,7 +7489,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // Read original JS from cache (with exponential-backoff retry).
       auto js_read_result = ReadOriginalWithRetry(
           cache_.get(), notification.url, notification.hostname,
-          notification.scheme, stats_, handler_);
+          notification.scheme, notification.site, stats_, handler_);
 
       if (!js_read_result.has_value()) {
         LogWarning("Original JS not found in cache for %s",
@@ -7082,7 +7551,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         // failure is deterministic, so every cache refresh would otherwise
         // re-log this WARNING for a permanently-unparseable file.
         if (ShouldLogJsParseError(notification.url, notification.hostname,
-                                  notification.scheme)) {
+                                  notification.scheme, notification.site)) {
           LogWarning(
               "JS minification had parse errors for %s, "
               "serving original (variant not written)",
@@ -7096,6 +7565,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                                     std::memory_order_relaxed);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
+            notification.site,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
             purge_gen);
         return;
@@ -7151,11 +7621,12 @@ void Worker::HandleNotification(const CacheNotification& notification,
 
 bool Worker::LlmsTxtNeedsBuild(
     const std::string& hostname, const std::string& scheme,
-    const std::array<std::byte, 32>& live_sitemap_hash, int64_t now_sec) const {
+    std::string_view site, const std::array<std::byte, 32>& live_sitemap_hash,
+    int64_t now_sec) const {
   if (!cache_) return false;
-  auto meta =
-      cache_->ReadAlternate("/llms.txt", hostname, scheme,
-                            static_cast<AlternateId>(SentinelId::kLlmsTxtMeta));
+  auto meta = cache_->ReadAlternate(
+      "/llms.txt", hostname, scheme,
+      static_cast<AlternateId>(SentinelId::kLlmsTxtMeta), site);
   if (!meta.has_value()) return true;  // never built
   auto bytes = meta->content();
   if (bytes.size() < AlternateMetadata::kHashSize + 8)
@@ -7232,16 +7703,19 @@ void Worker::HandleLlmsTxtBuild(const CacheNotification& notification,
 
   const std::string origin = scheme + "://" + host;
   LlmsTxtVariantReaderFn variant_reader =
-      [this, host, scheme,
-       origin](const std::string& url) -> std::optional<std::string> {
+      [this, host, scheme, origin, site = notification.site,
+       &notification](const std::string& url) -> std::optional<std::string> {
     std::string path = (url.size() >= origin.size() &&
                         url.compare(0, origin.size(), origin) == 0)
                            ? url.substr(origin.size())
                            : std::string("/");
     if (path.empty()) path = "/";
+    // Another page's markdown goes into /llms.txt only when the server serves
+    // that page to any client.
+    if (!SubresourceAdmitted(notification, path, host)) return std::nullopt;
     auto md = cache_->ReadAlternate(
         path, host, scheme,
-        static_cast<AlternateId>(SentinelId::kAgentMarkdown));
+        static_cast<AlternateId>(SentinelId::kAgentMarkdown), site);
     if (!md.has_value()) return std::nullopt;
     auto c = md->content();
     return std::string(reinterpret_cast<const char*>(c.data()), c.size());
@@ -7270,8 +7744,8 @@ void Worker::HandleLlmsTxtBuild(const CacheNotification& notification,
   // scheme is the empty->"https" normalized form).
   auto write_sentinel = [this, &notification, &host, &scheme](
                             SentinelId id, std::string_view bytes) {
-    auto wh =
-        cache_->WriteSentinel(notification.url, host, scheme, id, bytes.size());
+    auto wh = cache_->WriteSentinel(notification.url, host, scheme, id,
+                                    bytes.size(), notification.site);
     if (wh.has_value()) {
       (void)wh->write_sync(
           std::as_bytes(std::span(bytes.data(), bytes.size())));
@@ -7285,7 +7759,8 @@ void Worker::HandleLlmsTxtBuild(const CacheNotification& notification,
       // just-committed slot post-commit so the next check observes the
       // fresh record.  Covers both kLlmsTxt and kLlmsTxtMeta writes.
       cache_->EvictAlternateFromRamCache(notification.url, host, scheme,
-                                         static_cast<AlternateId>(id));
+                                         static_cast<AlternateId>(id),
+                                         notification.site);
     } else {
       stats_.errors.fetch_add(1, std::memory_order_relaxed);
       LogWarning("llms.txt: sentinel write failed for %s",
@@ -7328,7 +7803,7 @@ void Worker::HandleLlmsTxtBuild(const CacheNotification& notification,
   if (stub.status == LlmsTxtBuildStatus::kAiBlocked) {
     // The site now disallows AI crawling — stop serving any prior index, then
     // stamp a backoff so we re-check robots.txt only periodically (not per req).
-    (void)cache_->Remove(notification.url, host, scheme);
+    (void)cache_->Remove(notification.url, host, scheme, notification.site);
     stamp_backoff();
     LogInfo("llms.txt: AI-blocked by robots.txt, removed index for %s",
             host.c_str());
@@ -7344,7 +7819,8 @@ void Worker::HandleLlmsTxtBuild(const CacheNotification& notification,
     return;
   }
 
-  if (existing && !LlmsTxtNeedsBuild(host, scheme, stub.sitemap_hash, now)) {
+  if (existing && !LlmsTxtNeedsBuild(host, scheme, notification.site,
+                                     stub.sitemap_hash, now)) {
     return;  // within TTL and the sitemap is unchanged — nothing to do
   }
 
@@ -7359,7 +7835,7 @@ void Worker::HandleLlmsTxtBuild(const CacheNotification& notification,
   if (full.status == LlmsTxtBuildStatus::kAiBlocked) {
     // robots.txt flipped to AI-blocked between the stub and full passes (TOCTOU):
     // honor it — remove the index (incl. any stub just written) and back off.
-    (void)cache_->Remove(notification.url, host, scheme);
+    (void)cache_->Remove(notification.url, host, scheme, notification.site);
     stamp_backoff();
     LogInfo("llms.txt: AI-blocked during full build, removed index for %s",
             host.c_str());
@@ -7383,7 +7859,7 @@ void Worker::HandleLlmsTxtBuild(const CacheNotification& notification,
 
 std::optional<std::array<std::byte, 32>> Worker::FreshOriginHash(
     const std::string& url, const std::string& hostname,
-    const std::string& scheme) {
+    const std::string& scheme, std::string_view site) {
   if (!cache_) return std::nullopt;
   const AlternateId identity_id = MaskToId(CapabilityMask());
   // At origin-refresh time nginx has re-recorded the fresh re-fetched body at
@@ -7394,10 +7870,10 @@ std::optional<std::array<std::byte, 32>> Worker::FreshOriginHash(
   // changed (a stale-serve / D8 violation).  Evict first so the hash is taken
   // over the FRESH on-disk body — the same reason HandleOriginRefreshed evicts
   // the identity before the inline rebuild reads it.
-  cache_->EvictAlternateFromRamCache(url, hostname, scheme, identity_id);
+  cache_->EvictAlternateFromRamCache(url, hostname, scheme, identity_id, site);
   // The slot holds RAW origin bytes — hash them directly to get the live
   // content-binding oracle.
-  auto id = cache_->ReadAlternate(url, hostname, scheme, identity_id);
+  auto id = cache_->ReadAlternate(url, hostname, scheme, identity_id, site);
   if (!id.has_value()) return std::nullopt;
   // FAIL-SAFE: when the slot already holds the worker's OWN optimized output
   // (kFlagWorkerProcessed — a concurrent front-end re-optimized first), its
@@ -7413,8 +7889,9 @@ std::optional<std::array<std::byte, 32>> Worker::FreshOriginHash(
 
 void Worker::RecordAgentMarkdownIntent(const std::string& url,
                                        const std::string& hostname,
-                                       const std::string& scheme) {
-  std::string key = ComposeInternalKey(url, hostname, scheme);
+                                       const std::string& scheme,
+                                       std::string_view site) {
+  std::string key = ComposeInternalKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(agent_markdown_intent_mutex_);
   if (agent_markdown_intent_urls_.size() >= kMaxAgentMarkdownIntentEntries &&
       !agent_markdown_intent_urls_.contains(key)) {
@@ -7425,16 +7902,18 @@ void Worker::RecordAgentMarkdownIntent(const std::string& url,
 
 bool Worker::HasAgentMarkdownIntent(const std::string& url,
                                     const std::string& hostname,
-                                    const std::string& scheme) const {
-  std::string key = ComposeInternalKey(url, hostname, scheme);
+                                    const std::string& scheme,
+                                    std::string_view site) const {
+  std::string key = ComposeInternalKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(agent_markdown_intent_mutex_);
   return agent_markdown_intent_urls_.contains(key);
 }
 
 bool Worker::ShouldLogJsParseError(const std::string& url,
                                    const std::string& hostname,
-                                   const std::string& scheme) {
-  std::string key = ComposeInternalKey(url, hostname, scheme);
+                                   const std::string& scheme,
+                                   std::string_view site) {
+  std::string key = ComposeInternalKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(js_parse_error_logged_mutex_);
   if (js_parse_error_logged_urls_.contains(key)) {
     return false;  // already warned once for this resource — suppress repeats
@@ -7463,8 +7942,9 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   // verdict already forces a re-fetch per request); only re-optimization
   // is deferred.
   {
-    std::string key = ComposeInternalKey(
-        notification.url, notification.hostname, notification.scheme);
+    std::string key =
+        ComposeInternalKey(notification.url, notification.hostname,
+                           notification.scheme, notification.site);
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(purge_gen_mutex_);
     auto it = origin_refresh_last_purge_.find(key);
@@ -7548,7 +8028,7 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   {
     auto stored = cache_->ReadAlternate(
         notification.url, notification.hostname, notification.scheme,
-        static_cast<AlternateId>(SentinelId::kContentHash));
+        static_cast<AlternateId>(SentinelId::kContentHash), notification.site);
     if (stored.has_value()) {
       auto sc = stored->content();
       if (sc.size() == 32) {
@@ -7560,8 +8040,8 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   if (have_oracle) {
     PristineOriginRead pristine = ReadPristineOrigin(
         cache_.get(), notification.url, notification.hostname,
-        notification.scheme, refresh_cfg->read_lease_duration_ms > 0, stats_,
-        handler_);
+        notification.scheme, notification.site,
+        refresh_cfg->read_lease_duration_ms > 0, stats_, handler_);
     const bool hash_matches = pristine.found && pristine.hash == oracle_hash;
     const bool unchanged =
         hash_matches &&
@@ -7581,7 +8061,7 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
       // The 10s wall-clock leg stays as a secondary admission.
       const uint32_t newest_variant = NewestVariantStamp(
           cache_.get(), notification.url, notification.hostname,
-          notification.scheme, pristine.id);
+          notification.scheme, notification.site, pristine.id);
       const bool reference_fresh =
           pristine.meta.cache_inserted_at > newest_variant ||
           now_sec - static_cast<int64_t>(pristine.meta.cache_inserted_at) <=
@@ -7591,16 +8071,20 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
       // extend the variant set's life — purge instead (fail-safe).
       const bool may_restamp = CanRestampVariantSet(pristine.meta);
       if (reference_fresh && may_restamp) {
-        PurgeDispatchGen restamp_gen = CapturePurgeGen(
-            notification.url, notification.hostname, notification.scheme);
-        PurgeCheck restamp_fence =
-            [this, url = notification.url, hostname = notification.hostname,
-             scheme = notification.scheme, restamp_gen]() {
-              return WasPurgedSinceDispatch(url, hostname, restamp_gen, scheme);
-            };
+        PurgeDispatchGen restamp_gen =
+            CapturePurgeGen(notification.url, notification.hostname,
+                            notification.scheme, notification.site);
+        PurgeCheck restamp_fence = [this, url = notification.url,
+                                    hostname = notification.hostname,
+                                    scheme = notification.scheme,
+                                    site = notification.site, restamp_gen]() {
+          return WasPurgedSinceDispatch(url, hostname, restamp_gen, scheme,
+                                        site);
+        };
         const size_t restamped = RestampVariantSetFreshness(
             cache_.get(), notification.url, notification.hostname,
-            notification.scheme, pristine.meta, pristine.id, restamp_fence);
+            notification.scheme, notification.site, pristine.meta, pristine.id,
+            restamp_fence);
         stats_.origin_refresh_unchanged.fetch_add(1, std::memory_order_relaxed);
         LogInfo(
             "Origin refresh for %s: content unchanged (hash match), "
@@ -7616,7 +8100,7 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
         // the content-hash check over the fresh bytes — restamping when
         // they match, purging + rebuilding when they genuinely differ.
         ClearUrlProcessingState(notification.url, notification.hostname,
-                                notification.scheme);
+                                notification.scheme, notification.site);
         stats_.origin_refresh_deferred.fetch_add(1, std::memory_order_relaxed);
         LogInfo(
             "Origin refresh for %s: pristine reference unchanged but not "
@@ -7648,7 +8132,7 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
         // re-decides over the re-recorded durable original (the 1.16
         // sender's re-record + notify always follows).
         ClearUrlProcessingState(notification.url, notification.hostname,
-                                notification.scheme);
+                                notification.scheme, notification.site);
         stats_.origin_refresh_deferred.fetch_add(1, std::memory_order_relaxed);
         LogInfo(
             "Origin refresh for %s: no readable pristine origin reference — "
@@ -7697,7 +8181,7 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   // markdown for URLs that had it (never render it for pages that never did).
   const bool had_markdown = cache_->AlternateExists(
       notification.url, notification.hostname, notification.scheme,
-      static_cast<AlternateId>(SentinelId::kAgentMarkdown));
+      static_cast<AlternateId>(SentinelId::kAgentMarkdown), notification.site);
 
   // Durability (#19) — D2: the origin-refresh sentinel fires on every
   // TTL expiry / 200 revalidation, INCLUDING when the re-fetched origin body is
@@ -7715,9 +8199,10 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   if (had_markdown) {
     auto md = cache_->ReadAlternate(
         notification.url, notification.hostname, notification.scheme,
-        static_cast<AlternateId>(SentinelId::kAgentMarkdown));
+        static_cast<AlternateId>(SentinelId::kAgentMarkdown),
+        notification.site);
     auto fresh = FreshOriginHash(notification.url, notification.hostname,
-                                 notification.scheme);
+                                 notification.scheme, notification.site);
     if (md.has_value() && fresh.has_value() &&
         md->metadata.origin_html_hash == *fresh) {
       keep_markdown = true;
@@ -7726,10 +8211,11 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
     // so a later churn that loses it mid-rebuild (had_markdown reads false)
     // still forces the rebuild instead of stranding the URL on HTML.
     RecordAgentMarkdownIntent(notification.url, notification.hostname,
-                              notification.scheme);
+                              notification.scheme, notification.site);
   }
-  const bool has_intent = HasAgentMarkdownIntent(
-      notification.url, notification.hostname, notification.scheme);
+  const bool has_intent =
+      HasAgentMarkdownIntent(notification.url, notification.hostname,
+                             notification.scheme, notification.site);
   if (keep_markdown) {
     stats_.agent_markdown_preserved.fetch_add(1, std::memory_order_relaxed);
   } else if (had_markdown) {
@@ -7785,10 +8271,11 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   std::expected<size_t, cyclone::CacheError> purged = 0;
   {
     cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
-                                       notification.scheme, identity_id);
-    auto identity =
-        cache_->ReadAlternate(notification.url, notification.hostname,
-                              notification.scheme, identity_id);
+                                       notification.scheme, identity_id,
+                                       notification.site);
+    auto identity = cache_->ReadAlternate(
+        notification.url, notification.hostname, notification.scheme,
+        identity_id, notification.site);
     if (identity.has_value() && identity->is_valid()) {
       identity_was_worker_processed =
           (identity->metadata.flags &
@@ -7796,8 +8283,9 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
     }
   }
   {
-    std::string gen_key = ComposeInternalKey(
-        notification.url, notification.hostname, notification.scheme);
+    std::string gen_key =
+        ComposeInternalKey(notification.url, notification.hostname,
+                           notification.scheme, notification.site);
     std::lock_guard<std::mutex> lock(purge_gen_mutex_);
     BumpPurgeGenerationLocked(gen_key);
     // D2: the markdown variant is still bound to the live (unchanged) origin —
@@ -7820,7 +8308,8 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
       preserve.push_back(static_cast<AlternateId>(SentinelId::kHeadersSidecar));
     }
     purged = cache_->RemoveAlternatesExcept(
-        notification.url, notification.hostname, notification.scheme, preserve);
+        notification.url, notification.hostname, notification.scheme, preserve,
+        notification.site);
     if (!purged.has_value()) {
       // Issue #1566: a purge whose outcome is never looked at is a purge that
       // can silently do nothing — and a variant set that survives it is
@@ -7837,7 +8326,7 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   // record+notify must be processed either way, and on a failed purge it is
   // what converges the URL.
   ClearUrlProcessingState(notification.url, notification.hostname,
-                          notification.scheme);
+                          notification.scheme, notification.site);
   if (purged.has_value()) {
     stats_.origin_refresh_purges.fetch_add(1, std::memory_order_relaxed);
   }
@@ -7850,7 +8339,8 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   // the identity from another process and the same stale-RAM read
   // happens).
   cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
-                                     notification.scheme, identity_id);
+                                     notification.scheme, identity_id,
+                                     notification.site);
 
   // Rebuild the variant set immediately from the preserved fresh identity
   // (issue #652 review): without this, the URL would serve the unoptimized
@@ -7881,7 +8371,8 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
   bool source_is_worker_processed = false;
   {
     auto source = cache_->ReadAlternate(notification.url, notification.hostname,
-                                        notification.scheme, identity_id);
+                                        notification.scheme, identity_id,
+                                        notification.site);
     if (source.has_value() && source->is_valid()) {
       source_is_worker_processed =
           (source->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) !=
@@ -7899,8 +8390,9 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
     }
     CacheNotification rebuild =
         MakeOriginRefreshRebuild(notification, had_markdown, has_intent);
-    PurgeDispatchGen rebuild_gen = CapturePurgeGen(
-        notification.url, notification.hostname, notification.scheme);
+    PurgeDispatchGen rebuild_gen =
+        CapturePurgeGen(notification.url, notification.hostname,
+                        notification.scheme, notification.site);
     HandleNotification(rebuild, rebuild_gen);
   } else if (identity_was_worker_processed || source_is_worker_processed) {
     // The trap this event must close: the identity slot held (or still
@@ -7942,13 +8434,14 @@ bool Worker::OriginNegotiatesByAccept(
   // evict it.  Same eviction as ReadPristineOrigin.
   cache_->EvictAlternateFromRamCache(
       notification.url, notification.hostname, notification.scheme,
-      static_cast<AlternateId>(SentinelId::kOriginalContent));
-  cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
-                                     notification.scheme,
-                                     MaskToId(CapabilityMask()));
-  auto identity =
-      cache_->ReadAlternate(notification.url, notification.hostname,
-                            notification.scheme, MaskToId(CapabilityMask()));
+      static_cast<AlternateId>(SentinelId::kOriginalContent),
+      notification.site);
+  cache_->EvictAlternateFromRamCache(
+      notification.url, notification.hostname, notification.scheme,
+      MaskToId(CapabilityMask()), notification.site);
+  auto identity = cache_->ReadAlternate(
+      notification.url, notification.hostname, notification.scheme,
+      MaskToId(CapabilityMask()), notification.site);
   // Only a genuine original carries the origin's marker.  The worker's own
   // variant in this slot (kFlagWorkerProcessed: the recompressed same-format
   // image, minified text) is derived and never inherits it, so answering from
@@ -7971,8 +8464,9 @@ bool Worker::OriginNegotiatesByAccept(
   // is the outcome this guard exists to prevent.  So ask the same question of
   // the entry the source read would actually use.  Still failure-open when
   // there is no original either: nothing to optimize from, as before.
-  auto original = cache_->ReadOriginalAlternate(
-      notification.url, notification.hostname, notification.scheme);
+  auto original =
+      cache_->ReadOriginalAlternate(notification.url, notification.hostname,
+                                    notification.scheme, notification.site);
   return original.has_value() && original->is_valid() &&
          (original->metadata.flags &
           AlternateMetadata::kFlagOriginVariesAccept) != 0;
@@ -7998,11 +8492,11 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
   const auto cfg = live_config_.load();
 
   // Purge guard for warmup writes (same as HandleNotification).
-  PurgeCheck purge_check = [this, url = notification.url,
-                            hostname = notification.hostname,
-                            scheme = notification.scheme, purge_gen]() {
-    return WasPurgedSinceDispatch(url, hostname, purge_gen, scheme);
-  };
+  PurgeCheck purge_check =
+      [this, url = notification.url, hostname = notification.hostname,
+       scheme = notification.scheme, site = notification.site, purge_gen]() {
+        return WasPurgedSinceDispatch(url, hostname, purge_gen, scheme, site);
+      };
 
   LogInfo("Warmup request for %s (type=%d)", notification.url.c_str(),
           static_cast<int>(notification.content_type));
@@ -8032,9 +8526,9 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
         CapabilityMask dedup_mask;  // Desktop/Identity default
         dedup_mask.set_image_format(CapabilityMask::ImageFormat::kOriginal);
         AlternateId dedup_id = MaskToAlternateId(dedup_mask.Encode() & 0xFF);
-        std::string dedup_key =
-            ComposeInternalKeyWithId(notification.url, notification.hostname,
-                                     notification.scheme, dedup_id);
+        std::string dedup_key = ComposeInternalKeyWithId(
+            notification.url, notification.hostname, notification.scheme,
+            notification.site, dedup_id);
         std::lock_guard<std::mutex> lock(processed_set_mutex_);
         if (processed_current_.contains(dedup_key) ||
             processed_previous_.contains(dedup_key)) {
@@ -8052,9 +8546,9 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
       // (non-retrying) form is kept on purpose: a warmup is speculative, and
       // sleeping out the cold-start backoff for one was never its behaviour.
       stats_.selector_invocations.fetch_add(1, std::memory_order_relaxed);
-      auto img_read =
-          ReadSourceOnce(cache_.get(), notification.url, notification.hostname,
-                         notification.scheme, stats_, handler_);
+      auto img_read = ReadSourceOnce(cache_.get(), notification.url,
+                                     notification.hostname, notification.scheme,
+                                     notification.site, stats_, handler_);
       if (!img_read.has_value()) return;
 
       // Skip unsupported image types in warmup path too.
@@ -8140,8 +8634,9 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
       std::unordered_set<uint8_t> existing_ids;
       std::optional<std::vector<cyclone::AlternateInfo>> warmup_listed;
       {
-        auto alts = cache_->ListAlternates(
-            notification.url, notification.hostname, notification.scheme);
+        auto alts =
+            cache_->ListAlternates(notification.url, notification.hostname,
+                                   notification.scheme, notification.site);
         if (alts.has_value()) {
           for (const auto& alt : *alts) {
             existing_ids.insert(static_cast<uint8_t>(alt.id));
@@ -8154,10 +8649,11 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
       const bool warmup_identity_raw =
           IdentityHoldsRawOriginal(cache_.get(), notification.url,
                                    notification.hostname, notification.scheme,
-                                   existing_ids) &&
+                                   notification.site, existing_ids) &&
           PreserveIdentityAsDurableOriginal(
               cache_.get(), notification.url, notification.hostname,
-              notification.scheme, cfg->read_lease_duration_ms > 0);
+              notification.scheme, notification.site,
+              cfg->read_lease_duration_ms > 0);
       if (warmup_identity_raw) {
         existing_ids.erase(static_cast<uint8_t>(MaskToId(CapabilityMask())));
       }
@@ -8186,13 +8682,13 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
         if (!replaces_raw_identity &&
             VariantExistsForMask(cache_.get(), notification.url,
                                  notification.hostname, notification.scheme,
-                                 wm)) {
+                                 notification.site, wm)) {
           return;
         }
         stats_.alternate_writes.fetch_add(1, std::memory_order_relaxed);
         bool wr = WriteVariant(
             cache_.get(), notification.url, notification.hostname,
-            notification.scheme, wm,
+            notification.scheme, notification.site, wm,
             std::span<const char>(tr.output_data.data(), tr.output_data.size()),
             warmup_img_meta, purge_check, this);
         if (wr) {
@@ -8215,7 +8711,7 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
         } else {
           if (VariantExistsForMask(cache_.get(), notification.url,
                                    notification.hostname, notification.scheme,
-                                   wm)) {
+                                   notification.site, wm)) {
             LogInfo(
                 "Warmup: skipped image variant %s (mask 0x%02X, "
                 "already written by concurrent thread)",
@@ -8317,15 +8813,27 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
             // Helper to set per-format SSIMULACRA2 score in metadata.
             auto set_warmup_ssim = [&](float score) {
               if (score >= 0.0f) {
-                warmup_img_meta.ssimulacra2_score_x100 =
-                    static_cast<uint16_t>(std::min(score * 100.0f, 10000.0f));
+                warmup_img_meta.SetQualityScoreX100(
+                    static_cast<uint16_t>(std::min(score * 100.0f, 10000.0f)));
               } else {
-                warmup_img_meta.ssimulacra2_score_x100 = 0xFFFF;  // N/A
+                warmup_img_meta.SetQualityScoreX100(std::nullopt);  // N/A
               }
             };
 
             warmup_gates.Apply(multi, vp, den, sd);
             RecordSizeGateStats(stats_, multi);
+
+            // One line per requested slot left unwritten, with the reason.
+            for (auto fmt : missing) {
+              const TranscodeResult& tr = ResultForFormat(multi, fmt);
+              if (tr.success) continue;
+              LogInfo(
+                  "Warmup: image variant not written for %s (slot 0x%02X): %s",
+                  notification.url.c_str(),
+                  static_cast<int>(VariantSlotId(fmt, vp, den, sd)),
+                  tr.error_message.empty() ? "no result from the transcoder"
+                                           : tr.error_message.c_str());
+            }
 
             set_warmup_ssim(multi.webp_ssimulacra2_score);
             write_warmup(multi.webp, CapabilityMask::ImageFormat::kWebP, vp,
@@ -8586,8 +9094,15 @@ void Worker::HandleMgmtCommand(uv_stream_t* client,
         if (url.size() > config_.max_url_length) {
           response = "ERR URL too long\n";
         } else {
-          int deleted = InvalidateUrl(url, hostname, "https");
-          deleted += InvalidateUrl(url, hostname, "http");
+          // Every keyspace the URL can live in: each known site, and the
+          // unsited one.
+          int deleted = 0;
+          std::vector<std::string> sites = url_registry_->KnownSites();
+          sites.emplace_back();
+          for (const std::string& site : sites) {
+            deleted += InvalidateUrl(url, hostname, "https", site);
+            deleted += InvalidateUrl(url, hostname, "http", site);
+          }
           response = "OK " + std::to_string(deleted) + " entries deleted";
           if (deleted == 0) {
             response +=
@@ -8677,8 +9192,7 @@ void Worker::HandleMgmtCommand(uv_stream_t* client,
         ",\"illustration\":",
         s.content_illustration.load(std::memory_order_relaxed),
         ",\"noisy\":", s.content_noisy.load(std::memory_order_relaxed),
-        ",\"denoised\":", s.images_denoised.load(std::memory_order_relaxed),
-        "}");
+        ",\"denoised\":0", "}");
     absl::StrAppend(
         &response, ",\"ssimulacra2\":{\"checks\":",
         s.ssimulacra2_checks.load(std::memory_order_relaxed), ",\"reencodes\":",
@@ -8723,7 +9237,9 @@ void Worker::HandleMgmtCommand(uv_stream_t* client,
         ",\"image_size_refused\":{\"webp\":",
         s.image_size_refused_webp.load(std::memory_order_relaxed),
         ",\"avif\":", s.image_size_refused_avif.load(std::memory_order_relaxed),
-        "},\"image_budget_rescued\":{\"webp\":",
+        "},\"image_savedata_refused\":",
+        s.image_savedata_refused.load(std::memory_order_relaxed),
+        ",\"image_budget_rescued\":{\"webp\":",
         s.image_budget_rescued_webp.load(std::memory_order_relaxed),
         ",\"avif\":",
         s.image_budget_rescued_avif.load(std::memory_order_relaxed), "}");
@@ -8827,11 +9343,13 @@ void Worker::HandleMgmtCommand(uv_stream_t* client,
 
 void Worker::PurgeDerivedCopiesAndBumpGeneration(const std::string& norm_url,
                                                  const std::string& norm_host,
-                                                 const std::string& scheme) {
-  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme);
+                                                 const std::string& scheme,
+                                                 std::string_view site) {
+  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme, site);
   std::lock_guard<std::mutex> lock(purge_gen_mutex_);
   BumpPurgeGenerationLocked(gen_key);
-  auto purged = cache_->RemoveDerivedAlternates(norm_url, norm_host, scheme);
+  auto purged =
+      cache_->RemoveDerivedAlternates(norm_url, norm_host, scheme, site);
   if (!purged.has_value()) {
     LogWarning(
         "Purge of derived copies for %s failed (%s): stale copies may remain "
@@ -8842,9 +9360,10 @@ void Worker::PurgeDerivedCopiesAndBumpGeneration(const std::string& norm_url,
 
 int Worker::PurgeUrlAndBumpGeneration(const std::string& norm_url,
                                       const std::string& norm_host,
-                                      const std::string& scheme) {
+                                      const std::string& scheme,
+                                      std::string_view site) {
   if (!cache_) return 0;
-  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme);
+  std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme, site);
   // Hold purge_gen_mutex_ ACROSS the generation bump and the Remove
   // (issue #652).  Dispatch-time baseline capture takes the same mutex,
   // so any notification that observes the new generation is guaranteed to
@@ -8857,7 +9376,7 @@ int Worker::PurgeUrlAndBumpGeneration(const std::string& norm_url,
   // Cyclone lock (see lock-ordering comment in worker.h).
   std::lock_guard<std::mutex> lock(purge_gen_mutex_);
   BumpPurgeGenerationLocked(gen_key);
-  auto result = cache_->Remove(norm_url, norm_host, scheme);
+  auto result = cache_->Remove(norm_url, norm_host, scheme, site);
   return result.has_value() ? 1 : 0;
 }
 
@@ -8887,7 +9406,8 @@ void Worker::BumpPurgeGenerationLocked(const std::string& gen_key) {
 }
 
 int Worker::InvalidateUrl(const std::string& url, const std::string& hostname,
-                          const std::string& scheme, bool clear_heal_state) {
+                          const std::string& scheme, std::string_view site,
+                          bool clear_heal_state) {
   (void)clear_heal_state;
   if (!cache_) return 0;
 
@@ -8898,11 +9418,11 @@ int Worker::InvalidateUrl(const std::string& url, const std::string& hostname,
   // Bump the purge generation and Remove atomically so in-flight workers
   // can neither re-add stale dedup entries nor re-insert purged content
   // after this purge completes (issue #652).
-  int deleted = PurgeUrlAndBumpGeneration(norm_url, norm_host, scheme);
+  int deleted = PurgeUrlAndBumpGeneration(norm_url, norm_host, scheme, site);
 
   // Clear dedup entries, retry tracking and cooldowns so the next
   // notification triggers re-processing.
-  ClearUrlProcessingState(norm_url, norm_host, scheme);
+  ClearUrlProcessingState(norm_url, norm_host, scheme, site);
 
   LogInfo("Purged variants for %s (%s)", norm_url.c_str(),
           (deleted != 0) ? "found" : "not found");
@@ -8912,7 +9432,8 @@ int Worker::InvalidateUrl(const std::string& url, const std::string& hostname,
 
 void Worker::ClearUrlProcessingState(const std::string& norm_url,
                                      const std::string& norm_host,
-                                     const std::string& scheme) {
+                                     const std::string& scheme,
+                                     std::string_view site) {
   // Remove all dedup entries for this URL so the next notification
   // triggers re-processing.  Deliberately does NOT touch the purge
   // generation maps (unlike ClearDedupAndCooldown): callers rely on the
@@ -8926,7 +9447,8 @@ void Worker::ClearUrlProcessingState(const std::string& norm_url,
 
   // Clear incomplete retry tracking for this URL.
   {
-    std::string retry_key = ComposeInternalKey(norm_url, norm_host, scheme);
+    std::string retry_key =
+        ComposeInternalKey(norm_url, norm_host, scheme, site);
     std::lock_guard<std::mutex> lock(incomplete_retries_mutex_);
     image_incomplete_retries_.erase(retry_key);
   }
@@ -9014,7 +9536,8 @@ std::string Worker::ResetCache() {
 
 void Worker::ClearDedupAndCooldown(const std::string& url,
                                    const std::string& hostname,
-                                   const std::string& scheme) {
+                                   const std::string& scheme,
+                                   std::string_view site) {
   std::string norm_url = NormalizeCacheUrl(url, url_norm_config_);
   std::string norm_host = NormalizeCacheHostname(hostname, url_norm_config_);
   {
@@ -9024,18 +9547,19 @@ void Worker::ClearDedupAndCooldown(const std::string& url,
     EraseUrlMarksLocked(prefix);
   }
   {
-    std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme);
+    std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme, site);
     std::lock_guard<std::mutex> lock(purge_gen_mutex_);
     purge_generation_.erase(gen_key);
     purge_generation_previous_.erase(gen_key);
   }
   {
-    std::string retry_key = ComposeInternalKey(norm_url, norm_host, scheme);
+    std::string retry_key =
+        ComposeInternalKey(norm_url, norm_host, scheme, site);
     std::lock_guard<std::mutex> lock(incomplete_retries_mutex_);
     image_incomplete_retries_.erase(retry_key);
   }
   {
-    std::string ck = ComposeInternalKey(norm_url, norm_host, scheme);
+    std::string ck = ComposeInternalKey(norm_url, norm_host, scheme, site);
     std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
     text_cooldown_expiry_.erase(ck);
   }
@@ -9047,8 +9571,8 @@ void Worker::ClearDedupAndCooldown(const std::string& url,
 
 std::optional<CooldownInfo> Worker::GetCooldownForUrl(
     const std::string& url, const std::string& hostname,
-    std::string_view scheme) const {
-  std::string key = ComposeInternalKey(url, hostname, scheme);
+    std::string_view scheme, std::string_view site) const {
+  std::string key = ComposeInternalKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
   auto it = text_cooldown_expiry_.find(key);
   if (it == text_cooldown_expiry_.end()) return std::nullopt;
@@ -9068,10 +9592,17 @@ std::vector<CooldownListEntry> Worker::ListActiveCooldowns() const {
   std::vector<CooldownListEntry> result;
   std::lock_guard<std::mutex> lock(write_cooldown_mutex_);
   auto now = std::chrono::steady_clock::now();
-  for (const auto& [key, entry] : text_cooldown_expiry_) {
+  for (const auto& [full_key, entry] : text_cooldown_expiry_) {
     if (now >= entry.expiry) continue;
-    // Key format: "url|hostname|scheme" — split on last two '|' separators
-    // (hostnames and schemes never contain '|').
+    // Key format: "url|hostname|scheme", followed by "|s=<site>" for a sited
+    // key (see ComposeInternalKey) — drop the site, then split on the last
+    // two '|' separators (hostnames and schemes never contain '|').
+    std::string_view key = full_key;
+    constexpr size_t kSiteSuffix = 3 + kSiteIdChars;  // "|s=" + site
+    if (key.size() > kSiteSuffix &&
+        key.substr(key.size() - kSiteSuffix, 3) == "|s=") {
+      key.remove_suffix(kSiteSuffix);
+    }
     auto scheme_sep = key.rfind('|');
     if (scheme_sep == std::string::npos) continue;
     auto host_sep = key.rfind('|', scheme_sep - 1);
@@ -9084,9 +9615,10 @@ std::vector<CooldownListEntry> Worker::ListActiveCooldowns() const {
                              entry.expiry - entry.created_at)
                              .count());
     result.push_back(CooldownListEntry{
-        .url = key.substr(0, host_sep),
-        .hostname = key.substr(host_sep + 1, scheme_sep - host_sep - 1),
-        .scheme = key.substr(scheme_sep + 1),
+        .url = std::string(key.substr(0, host_sep)),
+        .hostname =
+            std::string(key.substr(host_sep + 1, scheme_sep - host_sep - 1)),
+        .scheme = std::string(key.substr(scheme_sep + 1)),
         .reason = entry.reason,
         .remaining_seconds = remaining,
         .duration_seconds = duration,

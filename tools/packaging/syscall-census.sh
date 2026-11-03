@@ -279,7 +279,7 @@ run_posture() { # name extra-daemon-args...
   local log="$WORK/strace-${DISTRO}-${name}.log"
   local cdir="$CACHE_ROOT/$name/v3"
   local rdir="$RUN_ROOT/$name"
-  rm -rf "$CACHE_ROOT/$name" "$rdir"
+  rm -rf "${CACHE_ROOT:?}/${name:?}" "$rdir"
   mkdir -p "$cdir" "$rdir"
 
   echo "-- posture ${name}"

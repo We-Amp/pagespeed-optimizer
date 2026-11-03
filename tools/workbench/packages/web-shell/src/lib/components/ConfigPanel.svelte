@@ -27,7 +27,6 @@
     JS_FEATURE_TOGGLES,
     COMPRESSION_FIELDS,
     VIEWPORT_FIELDS,
-    DENOISE_FIELDS,
     LIMIT_FIELDS,
     GENERAL_FEATURE_TOGGLES,
     SVG_FIELDS,
@@ -716,7 +715,7 @@
         </svg>
         <h2 class="section-heading section-heading-toggle">Advanced</h2>
         <span class="section-count">
-          compression, viewports, denoising
+          compression, viewports
         </span>
       </button>
 
@@ -804,27 +803,6 @@
                     {/if}
                   </div>
                 </div>
-              {/each}
-            </div>
-          </div>
-
-          <!-- Denoise Settings -->
-          <div class="advanced-group">
-            <h3 class="toggle-group-heading">Denoising</h3>
-            <div class="advanced-fields">
-              {#each DENOISE_FIELDS as field}
-                <QualitySlider
-                  label={field.label}
-                  bind:value={config[field.key]}
-                  min={field.min}
-                  max={field.max}
-                  step={field.step}
-                  changed={isFieldChanged(field.key)}
-                  disabled={!connected}
-                  tooltip={field.tooltip}
-                  oninput={handleSliderInput}
-                  onchange={handleSliderChange}
-                />
               {/each}
             </div>
           </div>

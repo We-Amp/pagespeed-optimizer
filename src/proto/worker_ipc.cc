@@ -41,6 +41,14 @@ IpcScheme SchemeToWire(std::string_view scheme) {
   return IpcScheme::kHttps;
 }
 
+bool IsSiteId(std::string_view site) {
+  if (site.size() != kSiteIdChars) return false;
+  for (char c : site) {
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+  }
+  return true;
+}
+
 std::string_view SchemeFromWire(IpcScheme wire) {
   switch (wire) {
     case IpcScheme::kHttp:
@@ -87,6 +95,11 @@ std::vector<char> CacheNotification::Serialize() const {
   if (sig_len != 0 && sig_len != kOptionContextSignatureChars) {
     return {};
   }
+  // Site (v6): empty or a site id, nothing else.
+  const size_t site_len = site.size();
+  if (site_len != 0 && !IsSiteId(site)) {
+    return {};
+  }
 
   // total_length covers everything after itself: version + fields.
   size_t total_size = 1 +         // version
@@ -101,7 +114,10 @@ std::vector<char> CacheNotification::Serialize() const {
                       4 +         // option_context_length (v5)
                       ctx_len +   // option_context (v5)
                       1 +         // option_signature_length (v5)
-                      sig_len;    // option_signature (v5)
+                      sig_len +   // option_signature (v5)
+                      1 +         // site_length (v6)
+                      site_len +  // site (v6)
+                      1;          // flags (v6)
 
   std::vector<char> result;
   result.resize(4 + total_size);  // 4-byte total_length header + payload
@@ -155,7 +171,20 @@ std::vector<char> CacheNotification::Serialize() const {
   *ptr++ = static_cast<char>(sig_len);
   if (sig_len > 0) {
     std::memcpy(ptr, option_signature.data(), sig_len);
+    ptr += sig_len;
   }
+
+  // Site and flags (v6).
+  *ptr++ = static_cast<char>(site_len);
+  if (site_len > 0) {
+    std::memcpy(ptr, site.data(), site_len);
+    ptr += site_len;
+  }
+  uint8_t flags = 0;
+  if (host_vouched) flags |= kNotifyFlagHostVouched;
+  if (from_module) flags |= kNotifyFlagFromModule;
+  if (legacy_ex_caller) flags |= kNotifyFlagLegacyExCaller;
+  *ptr = static_cast<char>(flags);
 
   return result;
 }
@@ -300,9 +329,33 @@ bool CacheNotification::Deserialize(std::string_view data,
   }
   if (ptr + sig_len > end) return reject(IpcRejectReason::kMalformed, version);
   notification->option_signature.assign(ptr, sig_len);
-  // No `ptr += sig_len` here: the signature is the last field, and advancing
-  // past it would be a store nothing reads. If a field is ever appended after
-  // this one, the advance comes back with it.
+  ptr += sig_len;
+
+  // Site (v6): 0 or kSiteIdChars bytes of lowercase hex.  Any other length,
+  // or any other byte, is a malformed frame.
+  if (ptr + 1 > end) return reject(IpcRejectReason::kMalformed, version);
+  auto site_len = static_cast<uint8_t>(*ptr);
+  ptr += 1;
+  if (site_len != 0 && site_len != kSiteIdChars) {
+    return reject(IpcRejectReason::kMalformed, version);
+  }
+  if (ptr + site_len > end) return reject(IpcRejectReason::kMalformed, version);
+  notification->site.assign(ptr, site_len);
+  ptr += site_len;
+  if (site_len != 0 && !IsSiteId(notification->site)) {
+    return reject(IpcRejectReason::kMalformed, version);
+  }
+
+  // Flags (v6).  A reserved bit is a malformed frame.  The flags byte is the
+  // last field; nothing reads past it.
+  if (ptr + 1 > end) return reject(IpcRejectReason::kMalformed, version);
+  auto flags = static_cast<uint8_t>(*ptr);
+  if ((flags & ~kNotifyFlagsKnown) != 0) {
+    return reject(IpcRejectReason::kMalformed, version);
+  }
+  notification->host_vouched = (flags & kNotifyFlagHostVouched) != 0;
+  notification->from_module = (flags & kNotifyFlagFromModule) != 0;
+  notification->legacy_ex_caller = (flags & kNotifyFlagLegacyExCaller) != 0;
 
   // Both or neither, checked on the way in as well as on the way out: a sender
   // that never emits a half context does not make a receiver that would accept

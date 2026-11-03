@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""Generate an SPDX 2.3 JSON SBOM for mod_pagespeed 2.1.
+"""Generate an SPDX 2.3 JSON SBOM for mod_pagespeed.
 
 Parses MODULE.bazel to extract C++ dependencies, includes curated Rust,
 JavaScript, and .NET dependency tables, and optionally reads Cyclone's git

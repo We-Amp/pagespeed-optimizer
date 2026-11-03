@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <cstdarg>
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <memory>
@@ -27,6 +29,8 @@
 #include "lib/cache/cache_control_header.h"
 #include "lib/cache/freshness.h"
 #include "lib/cache/headers_sidecar.h"
+#include "lib/cache/html_cache_decision.h"
+#include "lib/cache/html_cache_policy.h"
 #include "lib/cache/origin_cache_control.h"
 #include "lib/cache/vary_storability.h"
 #include "lib/classify/alternate_id.h"
@@ -80,13 +84,15 @@ static_assert(
     "the constant at 48 and relax to the >= form (kWriteParamsSizeV1_1 "
     "is the pattern); if you did not intend growth, a field changed "
     "size or was inserted.");
-static_assert(
-    kHtmlConfigSizeV1_8 == sizeof(ps_html_config_t),
-    "ps_html_config_t's 1.8 size is 128 bytes. This equality is the "
-    "this-release proof; if it fires after you APPENDED a field, keep "
-    "the constant at 128 and relax to the >= form (kWriteParamsSizeV1_1 "
-    "is the pattern); if you did not intend growth, a field changed "
-    "size or was inserted.");
+// ps_html_config_t has grown past its 1.8 size (scheme, PS_API 1.12), so the
+// legacy initializer keeps writing and stamping the 128-byte prefix and the
+// new field is read only when struct_size covers it.
+static_assert(kHtmlConfigSizeV1_8 <= sizeof(ps_html_config_t),
+              "ps_html_config_t's 1.8 size is 128 bytes; fields are only ever "
+              "appended after it.");
+static_assert(offsetof(ps_html_config_t, scheme) >= kHtmlConfigSizeV1_8,
+              "ps_html_config_t.scheme must lie past the 1.8 prefix, or a "
+              "legacy caller's struct_size would claim it.");
 static_assert(
     kCriticalCssConfigSizeV1_8 == sizeof(ps_critical_css_config_t),
     "ps_critical_css_config_t's 1.8 size is 88 bytes. This equality is the "
@@ -332,9 +338,10 @@ extern "C" void ps_html_config_init_sized(ps_html_config_t* config,
   // The caller's struct_size is theirs, not ours: it describes the buffer
   // they actually allocated. Note what that buys and what it does not: it
   // bounds what THIS INITIALIZER writes, and nothing else. ps_html_process
-  // does not consult struct_size — it reads every field it knows about — so
-  // a caller whose struct is shorter than this library's must still own
-  // enough buffer for the process call, not just for the init.
+  // reads struct_size only to decide whether `scheme` (PS_API 1.12) is
+  // present, and reads every earlier field it knows about, so a caller whose
+  // struct is shorter must still own the 128-byte prefix for the process
+  // call, not just for the init.
   full.struct_size = size;
   const size_t copy = size < sizeof(full) ? size : sizeof(full);
   std::memcpy(config, &full, copy);
@@ -507,18 +514,35 @@ extern "C" void ps_cache_close(ps_cache_t* cache) { delete cache; }
 // Cache reads
 // ================================================================
 
-extern "C" ps_error_t ps_cache_read_best(ps_cache_t* cache, const char* url,
-                                         const char* hostname,
-                                         const char* scheme, uint32_t mask,
-                                         ps_read_result_t** out) {
-  ClearLastError();
+namespace {
+
+// A site argument of the _site entry points: NULL or "" is the unsited
+// keyspace (the same call, same key bytes, as the unsited entry point); 64
+// lowercase hex characters is that site's keyspace; anything else is refused.
+ps_error_t ParseSiteArg(const char* site, std::string_view* out) {
+  *out = {};
+  if (site == nullptr || site[0] == '\0') return PS_OK;
+  const std::string_view view(site);
+  if (!pagespeed::IsSiteId(view)) {
+    SetLastError("site must be NULL, empty, or PS_SITE_ID_CHARS lowercase hex");
+    return PS_ERR_INVALID_ARG;
+  }
+  *out = view;
+  return PS_OK;
+}
+
+ps_error_t CacheReadBest(ps_cache_t* cache, const char* url,
+                         const char* hostname, const char* scheme,
+                         std::string_view site, uint32_t mask,
+                         ps_read_result_t** out) {
   if ((cache == nullptr) || (out == nullptr)) return PS_ERR_INVALID_ARG;
   ps_error_t err = ValidateUrlHostname(url, hostname);
   if (err != PS_OK) return err;
 
   try {
     auto cap = CapabilityMask::Decode(mask);
-    auto result = cache->cache->ReadBestAlternate(url, hostname, scheme, cap);
+    auto result = cache->cache->ReadBestAlternate(
+        url, hostname, scheme, cap, /*agent_request_entitled=*/false, site);
     if (!result.has_value()) {
       return MapError(result.error());
     }
@@ -535,6 +559,29 @@ extern "C" ps_error_t ps_cache_read_best(ps_cache_t* cache, const char* url,
     SetLastError("Unknown exception in ps_cache_read_best");
     return PS_ERR_INTERNAL;
   }
+}
+
+}  // namespace
+
+extern "C" ps_error_t ps_cache_read_best(ps_cache_t* cache, const char* url,
+                                         const char* hostname,
+                                         const char* scheme, uint32_t mask,
+                                         ps_read_result_t** out) {
+  ClearLastError();
+  return CacheReadBest(cache, url, hostname, scheme, {}, mask, out);
+}
+
+extern "C" ps_error_t ps_cache_read_best_site(ps_cache_t* cache,
+                                              const char* url,
+                                              const char* hostname,
+                                              const char* scheme,
+                                              const char* site, uint32_t mask,
+                                              ps_read_result_t** out) {
+  ClearLastError();
+  std::string_view site_view;
+  ps_error_t err = ParseSiteArg(site, &site_view);
+  if (err != PS_OK) return err;
+  return CacheReadBest(cache, url, hostname, scheme, site_view, mask, out);
 }
 
 extern "C" ps_error_t ps_cache_read_best_agent(
@@ -630,17 +677,19 @@ extern "C" uint32_t ps_read_shared_config_generation(const char* cache_path) {
   }
 }
 
-extern "C" ps_error_t ps_cache_read_alternate(
-    ps_cache_t* cache, const char* url, const char* hostname,
-    const char* scheme, uint8_t alternate_id, ps_read_result_t** out) {
-  ClearLastError();
+namespace {
+
+ps_error_t CacheReadAlternate(ps_cache_t* cache, const char* url,
+                              const char* hostname, const char* scheme,
+                              std::string_view site, uint8_t alternate_id,
+                              ps_read_result_t** out) {
   if ((cache == nullptr) || (out == nullptr)) return PS_ERR_INVALID_ARG;
   ps_error_t err = ValidateUrlHostname(url, hostname);
   if (err != PS_OK) return err;
 
   try {
     auto result = cache->cache->ReadAlternate(
-        url, hostname, scheme, static_cast<AlternateId>(alternate_id));
+        url, hostname, scheme, static_cast<AlternateId>(alternate_id), site);
     if (!result.has_value()) {
       return MapError(result.error());
     }
@@ -657,6 +706,28 @@ extern "C" ps_error_t ps_cache_read_alternate(
     SetLastError("Unknown exception in ps_cache_read_alternate");
     return PS_ERR_INTERNAL;
   }
+}
+
+}  // namespace
+
+extern "C" ps_error_t ps_cache_read_alternate(
+    ps_cache_t* cache, const char* url, const char* hostname,
+    const char* scheme, uint8_t alternate_id, ps_read_result_t** out) {
+  ClearLastError();
+  return CacheReadAlternate(cache, url, hostname, scheme, {}, alternate_id,
+                            out);
+}
+
+extern "C" ps_error_t ps_cache_read_alternate_site(
+    ps_cache_t* cache, const char* url, const char* hostname,
+    const char* scheme, const char* site, uint8_t alternate_id,
+    ps_read_result_t** out) {
+  ClearLastError();
+  std::string_view site_view;
+  ps_error_t err = ParseSiteArg(site, &site_view);
+  if (err != PS_OK) return err;
+  return CacheReadAlternate(cache, url, hostname, scheme, site_view,
+                            alternate_id, out);
 }
 
 extern "C" ps_error_t ps_cache_read_early_hints(ps_cache_t* cache,
@@ -741,6 +812,15 @@ extern "C" uint32_t ps_read_origin_content_length(
     const ps_read_result_t* result) {
   if (result == nullptr) return 0;
   return result->result.metadata.origin_content_length;
+}
+
+extern "C" int ps_read_encoded_origin_length(const ps_read_result_t* result,
+                                             uint64_t* out) {
+  if (result == nullptr || out == nullptr) return 0;
+  const auto encoded = result->result.metadata.EncodedOriginLength();
+  if (!encoded.has_value()) return 0;
+  *out = *encoded;
+  return 1;
 }
 
 extern "C" uint32_t ps_read_origin_max_age(const ps_read_result_t* result) {
@@ -840,6 +920,21 @@ extern "C" void ps_serve_stats_record_hit_host(ps_serve_stats_t* h,
       host == nullptr ? std::string_view() : std::string_view(host, host_len);
   pagespeed::RecordServeHit(h->stats, static_cast<ContentType>(content_type),
                             original_bytes, optimized_bytes, mask, host_view);
+}
+
+extern "C" void ps_serve_stats_record_hit_split(ps_serve_stats_t* h,
+                                                ps_content_type_t content_type,
+                                                uint64_t original_bytes,
+                                                uint64_t encoded_origin_bytes,
+                                                uint64_t optimized_bytes,
+                                                uint32_t mask, const char* host,
+                                                size_t host_len) {
+  if (h == nullptr) return;
+  const std::string_view host_view =
+      host == nullptr ? std::string_view() : std::string_view(host, host_len);
+  pagespeed::RecordServeHitSplit(
+      h->stats, static_cast<ContentType>(content_type), original_bytes,
+      encoded_origin_bytes, optimized_bytes, mask, host_view);
 }
 
 extern "C" void ps_serve_stats_record_serve_class(ps_serve_stats_t* h,
@@ -1077,13 +1172,13 @@ extern "C" ps_error_t ps_cache_write_begin(ps_cache_t* cache, const char* url,
   }
 }
 
-extern "C" ps_error_t ps_cache_write_original(ps_cache_t* cache,
-                                              const char* url,
-                                              const char* hostname,
-                                              const char* scheme,
-                                              const ps_write_params_t* params,
-                                              ps_write_handle_t** out) {
-  ClearLastError();
+namespace {
+
+ps_error_t CacheWriteOriginal(ps_cache_t* cache, const char* url,
+                              const char* hostname, const char* scheme,
+                              std::string_view site,
+                              const ps_write_params_t* params,
+                              ps_write_handle_t** out) {
   if ((cache == nullptr) || (params == nullptr) || (out == nullptr))
     return PS_ERR_INVALID_ARG;
 
@@ -1124,8 +1219,8 @@ extern "C" ps_error_t ps_cache_write_original(ps_cache_t* cache,
     AlternateMetadata meta = MetadataFromParams(p);
     meta.full_mask = (p.full_mask & ~0xFFu) | kOriginalId;
 
-    auto wh = cache->cache->WriteOriginalAlternate(url, hostname, scheme,
-                                                   p.content_length, meta);
+    auto wh = cache->cache->WriteOriginalAlternate(
+        url, hostname, scheme, p.content_length, meta, site);
     if (!wh.has_value()) {
       // Name the cap when the cap is why. PS_ERR_NO_SPACE is shared with the
       // substrate's genuine out-of-space, and the two call for OPPOSITE
@@ -1158,6 +1253,30 @@ extern "C" ps_error_t ps_cache_write_original(ps_cache_t* cache,
   }
 }
 
+}  // namespace
+
+extern "C" ps_error_t ps_cache_write_original(ps_cache_t* cache,
+                                              const char* url,
+                                              const char* hostname,
+                                              const char* scheme,
+                                              const ps_write_params_t* params,
+                                              ps_write_handle_t** out) {
+  ClearLastError();
+  return CacheWriteOriginal(cache, url, hostname, scheme, {}, params, out);
+}
+
+extern "C" ps_error_t ps_cache_write_original_site(
+    ps_cache_t* cache, const char* url, const char* hostname,
+    const char* scheme, const char* site, const ps_write_params_t* params,
+    ps_write_handle_t** out) {
+  ClearLastError();
+  std::string_view site_view;
+  ps_error_t err = ParseSiteArg(site, &site_view);
+  if (err != PS_OK) return err;
+  return CacheWriteOriginal(cache, url, hostname, scheme, site_view, params,
+                            out);
+}
+
 namespace {
 
 // Build the C caller's parallel name/value arrays into the header list the
@@ -1185,6 +1304,132 @@ extern "C" int ps_headers_sidecar_classify(const char* const* names,
   std::vector<HeaderField> fields;
   if (!CollectHeaderFields(names, values, count, &fields)) return -1;
   return static_cast<int>(pagespeed::ClassifyForHeadersSidecar(fields).verdict);
+}
+
+// ---- HTML cacheability policy (PS_API 1.12) ----
+//
+// Thin adapters: the scalar and array arguments become the C++ request,
+// response and policy structs, and the verdict comes back through the
+// out-parameters.  Nothing here holds state, so nothing here touches the
+// last-error message.
+
+extern "C" int ps_html_store_classify(
+    int mode, const char* method, const char* url_path, uint32_t request_flags,
+    int status, const char* const* names, const char* const* values,
+    size_t count, uint64_t body_bytes, int body_complete,
+    const char* body_prefix, size_t body_prefix_len, uint64_t max_body_bytes,
+    uint32_t now_seconds, int* out_reason, uint32_t* out_lifetime_s,
+    uint32_t* out_flags, uint16_t* out_cc_flags, int* out_sidecar,
+    char* detail_buf, size_t detail_capacity, size_t* out_detail_len) {
+  try {
+    if (mode != PS_HTML_CACHE_OFF && mode != PS_HTML_CACHE_REPORT_ONLY) {
+      return -1;
+    }
+    if (method == nullptr || url_path == nullptr || out_reason == nullptr ||
+        out_lifetime_s == nullptr || out_flags == nullptr ||
+        out_cc_flags == nullptr || out_sidecar == nullptr ||
+        out_detail_len == nullptr) {
+      return -1;
+    }
+    if (body_prefix == nullptr && body_prefix_len != 0) return -1;
+    if (detail_buf == nullptr && detail_capacity != 0) return -1;
+    std::vector<HeaderField> fields;
+    if (!CollectHeaderFields(names, values, count, &fields)) return -1;
+
+    pagespeed::HtmlStoreRequest request;
+    request.method = method;
+    request.url_path = url_path;
+    request.has_authorization =
+        (request_flags & PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION) != 0;
+    request.authenticated_user =
+        (request_flags & PS_HTML_STORE_REQUEST_AUTHENTICATED_USER) != 0;
+    request.has_cookie =
+        (request_flags & PS_HTML_STORE_REQUEST_HAS_COOKIE) != 0;
+    request.request_no_store =
+        (request_flags & PS_HTML_STORE_REQUEST_NO_STORE) != 0;
+    pagespeed::HtmlStoreResponse response;
+    response.status = status;
+    response.headers = fields;
+    response.body_bytes = body_bytes;
+    response.body_complete = body_complete != 0;
+    if (body_prefix != nullptr) {
+      response.body_prefix = std::string_view(body_prefix, body_prefix_len);
+    }
+    pagespeed::HtmlStorePolicy policy;
+    policy.mode = static_cast<pagespeed::HtmlCacheMode>(mode);
+    policy.max_body_bytes = max_body_bytes;
+    policy.now_seconds = now_seconds;
+
+    const pagespeed::HtmlStoreVerdict v =
+        pagespeed::ClassifyHtmlForStore(request, response, policy);
+
+    *out_reason = static_cast<int>(v.reason);
+    *out_lifetime_s = v.lifetime_s;
+    uint32_t flags = 0;
+    if (v.lifetime_explicit) flags |= PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT;
+    if (v.needs_validation) flags |= PS_HTML_STORE_FLAG_NEEDS_VALIDATION;
+    if (v.has_validators) flags |= PS_HTML_STORE_FLAG_HAS_VALIDATORS;
+    if (v.explicit_shared) flags |= PS_HTML_STORE_FLAG_EXPLICIT_SHARED;
+    if (v.sidecar_evaluated) flags |= PS_HTML_STORE_FLAG_SIDECAR_EVALUATED;
+    if (v.cc_evaluated) flags |= PS_HTML_STORE_FLAG_CC_EVALUATED;
+    *out_flags = flags;
+    *out_cc_flags = v.cc_flags;
+    *out_sidecar =
+        v.sidecar_evaluated ? static_cast<int>(v.sidecar.verdict) : 0;
+    *out_detail_len = v.detail.size();
+    if (detail_capacity != 0) {
+      const size_t n = std::min(v.detail.size(), detail_capacity - 1);
+      std::memcpy(detail_buf, v.detail.data(), n);
+      detail_buf[n] = '\0';
+    }
+    return static_cast<int>(v.action);
+  } catch (...) {
+    return -1;
+  }
+}
+
+extern "C" int ps_html_decision_format(const char* const* keys,
+                                       const char* const* values, size_t count,
+                                       char* buf, size_t capacity,
+                                       size_t* out_len) {
+  try {
+    if (out_len == nullptr) return -1;
+    if (buf == nullptr && capacity != 0) return -1;
+    std::vector<pagespeed::HtmlCacheDecisionField> fields;
+    if (count != 0) {
+      if (keys == nullptr || values == nullptr) return -1;
+      fields.reserve(count);
+      for (size_t i = 0; i < count; ++i) {
+        if (keys[i] == nullptr || values[i] == nullptr) return -1;
+        fields.push_back(
+            {std::string_view(keys[i]), std::string_view(values[i])});
+      }
+    }
+    *out_len = 0;
+    if (!pagespeed::HtmlCacheDecisionIsStoreSide(fields)) return -2;
+    const std::optional<std::string> line =
+        pagespeed::FormatHtmlCacheDecisionLine(fields);
+    if (!line.has_value()) return -2;
+    *out_len = line->size();
+    if (line->size() + 1 > capacity) {
+      if (capacity != 0) buf[0] = '\0';
+      return -3;
+    }
+    std::memcpy(buf, line->data(), line->size());
+    buf[line->size()] = '\0';
+    return 0;
+  } catch (...) {
+    return -1;
+  }
+}
+
+// The names are string literals held in static tables, so the view's data
+// pointer is NUL-terminated and outlives the call.
+extern "C" const char* ps_html_store_reason_name(int reason) {
+  if (reason < 0 || reason >= pagespeed::kHtmlStoreReasonCount) return nullptr;
+  return pagespeed::HtmlStoreReasonName(
+             static_cast<pagespeed::HtmlStoreReason>(reason))
+      .data();
 }
 
 extern "C" ps_error_t ps_cache_write_headers_sidecar(
@@ -1906,6 +2151,45 @@ extern "C" ps_error_t ps_option_context_signature(const char* payload,
   }
 }
 
+static_assert(static_cast<size_t>(PS_SITE_ID_CHARS) == pagespeed::kSiteIdChars,
+              "PS_SITE_ID_CHARS and kSiteIdChars must agree");
+static_assert(PS_NOTIFY_FLAG_HOST_VOUCHED == pagespeed::kNotifyFlagHostVouched,
+              "the published flag and the wire bit must agree");
+static_assert(PS_NOTIFY_FLAG_FROM_MODULE == pagespeed::kNotifyFlagFromModule,
+              "the published flag and the wire bit must agree");
+
+namespace {
+
+// The size of ps_notify_params_t at PS_API 1.12, where `site` and
+// `notify_flags` were appended: the end of `notify_flags`, rounded up to the
+// struct's alignment (88 on LP64 and LLP64). A caller whose struct_size is
+// below this was built before the site fields existed.
+constexpr size_t kNotifyParamsSiteSize =
+    (offsetof(ps_notify_params_t, notify_flags) + sizeof(uint32_t) +
+     alignof(ps_notify_params_t) - 1) /
+    alignof(ps_notify_params_t) * alignof(ps_notify_params_t);
+static_assert(sizeof(void*) != 8 || kNotifyParamsSiteSize == 88,
+              "ps_notify_params_t at 1.12 is 88 bytes on 64-bit targets");
+
+// The flags a caller may set. Bit 0x4 is the library's own (the wire's
+// legacy-caller bit); every other bit is reserved.
+constexpr uint32_t kCallerNotifyFlags =
+    PS_NOTIFY_FLAG_HOST_VOUCHED | PS_NOTIFY_FLAG_FROM_MODULE;
+
+// Once per process: a caller of ps_notify_worker_ex whose parameters predate
+// the site fields. The notification is still sent, unsited and unvouched,
+// and the frame carries the legacy-caller bit so the worker counts it.
+void WarnLegacyNotifyCallerOnce() {
+  static std::once_flag once;
+  std::call_once(once, [] {
+    std::fprintf(stderr,
+                 "pagespeed: notification caller predates site identity; "
+                 "upgrade the module and reload\n");
+  });
+}
+
+}  // namespace
+
 extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
                                           const ps_notify_params_t* params) {
   ClearLastError();
@@ -1980,6 +2264,38 @@ extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
     return PS_ERR_INVALID_ARG;
   }
 
+  // Site and flags (1.12). A struct below the 1.12 size reads as no site and
+  // no flags: unsited, unvouched, not from the module.
+  const bool legacy_caller = params->struct_size < kNotifyParamsSiteSize;
+  const char* site = legacy_caller ? nullptr : params->site;
+  const uint32_t flags = legacy_caller ? 0u : params->notify_flags;
+  const bool site_empty = (site == nullptr || site[0] == '\0');
+  if (!site_empty && !pagespeed::IsSiteId(site)) {
+    SetLastError("site must be NULL, empty, or PS_SITE_ID_CHARS lowercase hex");
+    return PS_ERR_INVALID_ARG;
+  }
+  if ((flags & ~kCallerNotifyFlags) != 0) {
+    SetLastError("notify_flags carries a reserved bit");
+    return PS_ERR_INVALID_ARG;
+  }
+  const bool agent_request = has_agent_request && params->agent_request != 0;
+  if ((flags & PS_NOTIFY_FLAG_FROM_MODULE) != 0) {
+    // The module's notifications name a site, never ask for page rendering,
+    // and never vouch for a host.
+    if (site_empty) {
+      SetLastError("a notification from the module must carry a site");
+      return PS_ERR_INVALID_ARG;
+    }
+    if (params->content_type == PS_CONTENT_HTML || agent_request ||
+        params->mask == pagespeed::kLlmsTxtSentinel ||
+        (flags & PS_NOTIFY_FLAG_HOST_VOUCHED) != 0) {
+      SetLastError(
+          "a notification from the module may not carry HTML, an agent "
+          "request, the llms.txt mask or the host-vouched flag");
+      return PS_ERR_INVALID_ARG;
+    }
+  }
+
   try {
     pagespeed::CacheNotification notif;
     notif.url = params->url;
@@ -1987,7 +2303,11 @@ extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
     notif.scheme = params->scheme;
     notif.content_type = static_cast<ContentType>(params->content_type);
     notif.capability_mask = params->mask;
-    notif.agent_request = has_agent_request && params->agent_request != 0;
+    notif.agent_request = agent_request;
+    if (!site_empty) notif.site = site;
+    notif.host_vouched = (flags & PS_NOTIFY_FLAG_HOST_VOUCHED) != 0;
+    notif.from_module = (flags & PS_NOTIFY_FLAG_FROM_MODULE) != 0;
+    notif.legacy_ex_caller = legacy_caller;
     if (context != nullptr) {
       notif.option_context.assign(context, context_length);
       notif.option_signature.assign(signature);
@@ -2006,6 +2326,8 @@ extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
         return PS_ERR_INVALID_ARG;
       }
     }
+
+    if (legacy_caller) WarnLegacyNotifyCallerOnce();
 
     auto result = pagespeed::SendNotificationWithRetry(socket_path, notif);
     if (!result.success) {
@@ -2105,15 +2427,13 @@ static CapabilityMask::Viewport MapViewport(ps_viewport_t vp) {
 // ================================================================
 
 static bool CssContainsStyleClose(const char* css, size_t len) {
-  // Case-insensitive search for "</style".
-  if (len < 7) return false;
-  for (size_t i = 0; i <= len - 7; ++i) {
-    if (css[i] == '<' && css[i + 1] == '/' &&
-        (css[i + 2] == 's' || css[i + 2] == 'S') &&
-        (css[i + 3] == 't' || css[i + 3] == 'T') &&
-        (css[i + 4] == 'y' || css[i + 4] == 'Y') &&
-        (css[i + 5] == 'l' || css[i + 5] == 'L') &&
-        (css[i + 6] == 'e' || css[i + 6] == 'E')) {
+  // True when the CSS holds a `<` that could open markup: `<` then an ASCII
+  // letter, `/`, `!` or `?`.  A bare `<` (range media queries) is allowed.
+  for (size_t i = 0; i + 1 < len; ++i) {
+    if (css[i] != '<') continue;
+    const unsigned char next = static_cast<unsigned char>(css[i + 1]);
+    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+        next == '/' || next == '!' || next == '?') {
       return true;
     }
   }
@@ -2366,7 +2686,7 @@ extern "C" ps_error_t ps_css_validate(const char* css, size_t css_len) {
     return PS_ERR_INVALID_ARG;
   }
   if (CssContainsStyleClose(css, css_len)) {
-    SetLastError("CSS contains </style injection");
+    SetLastError("CSS contains a sequence that could open markup");
     return PS_ERR_INVALID_ARG;
   }
   return PS_OK;
@@ -2622,8 +2942,29 @@ extern "C" void ps_html_transform_free(ps_html_transform_t* transform) {
 // of silently corrupting the managed marshaling at runtime.
 static_assert(offsetof(ps_html_config_t, enable_async_css) == 120,
               ".NET NativeHtmlConfig FieldOffset(120) must match");
-static_assert(sizeof(ps_html_config_t) == 128,
-              ".NET NativeHtmlConfig Size=128 must match");
+// The mirror may stop at the 128-byte prefix (struct_size 128, scheme read as
+// "https") or carry the whole struct, with scheme at offset 128.
+static_assert(offsetof(ps_html_config_t, scheme) == 128,
+              ".NET NativeHtmlConfig scheme offset must match");
+static_assert(sizeof(ps_html_config_t) == 136,
+              ".NET NativeHtmlConfig full size must match");
+
+// The scheme ps_html_process reads the page's cached stylesheets under. A
+// config whose struct_size predates the field reads as "https", as every
+// caller did before it existed; so does NULL or "". Returns false for any
+// other value than "http" or "https".
+static bool HtmlConfigScheme(const ps_html_config_t* config,
+                             std::string_view* out) {
+  *out = "https";
+  constexpr size_t kSchemeEnd =
+      offsetof(ps_html_config_t, scheme) + sizeof(config->scheme);
+  if (config->struct_size < kSchemeEnd) return true;
+  const char* scheme = config->scheme;
+  if ((scheme == nullptr) || (scheme[0] == '\0')) return true;
+  if (!pagespeed::ValidateScheme(scheme)) return false;
+  *out = scheme;
+  return true;
+}
 
 extern "C" void ps_html_config_init(ps_html_config_t* config) {
   if (config == nullptr) return;
@@ -2674,6 +3015,11 @@ extern "C" ps_error_t ps_html_process(const char* html, size_t html_len,
     SetLastError("URL exceeds maximum length");
     return PS_ERR_INVALID_ARG;
   }
+  std::string_view scheme;
+  if (!HtmlConfigScheme(config, &scheme)) {
+    SetLastError("config->scheme must be \"http\" or \"https\"");
+    return PS_ERR_INVALID_ARG;
+  }
 
   try {
     EnsureHtmlKeywordsInit();
@@ -2692,17 +3038,36 @@ extern "C" ps_error_t ps_html_process(const char* html, size_t html_len,
         // Skip bare hrefs (matches the worker gather loop); an empty href is
         // not a real external sheet and must not poison external_css_missing.
         if (ss.href.empty()) continue;
+        // The sheet's rules join the combined sheet under its media, so a
+        // print sheet's rules stay print rules and never reach the screen
+        // block as unconditional ones. A media value that cannot be written
+        // safely as an @media prelude leaves the sheet out of the combined
+        // sheet and counts it as missing, so it stays render-blocking.
+        const std::optional<std::string_view> scope =
+            pagespeed::css::CombinedSheetMediaScope(
+                pagespeed::CombinedSheetMediaOf(ss));
+        if (!scope.has_value()) {
+          external_css_missing = true;
+          continue;
+        }
         auto read_result = cache->cache->ReadBestAlternate(
-            ss.href, hostname, "https", CapabilityMask());
+            ss.href, hostname, scheme, CapabilityMask());
         if (read_result.has_value()) {
           auto content = read_result->content();
-          if (combined_css.size() + content.size() > max_css) {
+          if (combined_css.size() +
+                  pagespeed::css::MediaScopedCssSize(*scope, content.size()) >
+              max_css) {
             external_css_missing = true;
             break;
           }
           std::string_view css_sv(reinterpret_cast<const char*>(content.data()),
                                   content.size());
-          combined_css += css_sv;
+          // A sheet that cannot be wrapped in its media safely counts as
+          // missing, like one with an unusable media value.
+          if (!pagespeed::css::AppendMediaScopedCss(*scope, css_sv,
+                                                    &combined_css)) {
+            external_css_missing = true;
+          }
         } else {
           external_css_missing = true;
         }
@@ -2728,7 +3093,7 @@ extern "C" ps_error_t ps_html_process(const char* html, size_t html_len,
         std::string& css = css_result.critical_css;
         // Strip null bytes.
         css.erase(std::remove(css.begin(), css.end(), '\0'), css.end());
-        // Reject if it contains </style.
+        // Reject if it holds a sequence that could open markup.
         if (!CssContainsStyleClose(css.c_str(), css.size())) {
           critical_css = std::move(css);
         }
@@ -2768,7 +3133,7 @@ extern "C" ps_error_t ps_html_process(const char* html, size_t html_len,
     pagespeed::HtmlTransformFilter filter(
         &parser, transform_config, critical_css,
         (cache != nullptr) ? cache->cache.get() : nullptr,
-        (hostname != nullptr) ? hostname : "", "https",
+        (hostname != nullptr) ? hostname : "", scheme,
         scan_result.lcp_candidate, scan_result.third_party_origins);
     parser.AddFilter(&filter);
 

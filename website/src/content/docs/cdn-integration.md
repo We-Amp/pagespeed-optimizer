@@ -136,6 +136,9 @@ If a non-browser client must receive the original format:
 
 ## Per-CDN recommendations
 
+Purge cached HTML in any CDN after upgrading. See
+[Hydrated pages](/docs/hydrated-pages/).
+
 ### Cloudflare
 
 Cloudflare does not key its cache on `Vary: Accept` or `Vary: User-Agent`

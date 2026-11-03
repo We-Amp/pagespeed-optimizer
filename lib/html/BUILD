@@ -49,6 +49,7 @@ cc_library(
         "//lib/base:printf_format",
         "//lib/base:string_util",
         "//lib/js:compat",
+        "@com_google_absl//absl/hash",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],

@@ -124,6 +124,20 @@ The middleware buffers HTML responses, passes them through the native
 `libpagespeed` library, and notifies the worker process to generate optimized
 asset variants asynchronously.
 
+**What is cached.** The middleware stores only responses to anonymous
+requests: a request without an `Authorization` or `Proxy-Authorization`
+header, without a signed-in user (`HttpContext.User`), to an endpoint without
+an authorization requirement such as `[Authorize]` or `RequireAuthorization()`
+(unless the endpoint also allows anonymous access). A page served to a
+signed-in client is still optimized for that response, and it is not stored.
+Responses that set a cookie or carry `Cache-Control: private` or `no-store`
+are not stored either. List paths that your app restricts by client address,
+such as IIS `ipSecurity` rules or your own middleware, in `ExcludePaths`.
+List paths whose access your app checks without setting `HttpContext.User`,
+such as its own session or login cookie, an API key in a custom header, or a
+client certificate checked by app code or required at the TLS listener, in
+`ExcludePaths` too.
+
 ## Platform Support
 
 | RID         | Status    | Notes                                                    |
@@ -176,7 +190,7 @@ containers without that path, point it somewhere writable (for example
 
 | Setting                  | Default                                               | Description                                                                                                          |
 | ------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `Enabled`                | `true`                                                | Enable/disable the middleware (supports hot-reload)                                                                  |
+| `Enabled`                | `true`                                                | Enable/disable the middleware (supports hot-reload). The cache volume is opened, and the worker launched, the first time it is `true`, at startup or through a hot reload; switching it off again leaves both in place. |
 | `ExcludePaths`           | `["/api/", "/signalr/", "/_blazor/", "/_framework/"]` | URL prefixes the middleware leaves untouched (supports hot-reload)                                                   |
 | `CacheMode`              | `Safe`                                                | `Safe`: `must-revalidate` on assets. `Aggressive`: `public` + `stale-if-error` on assets. HTML is always `no-cache`. |
 | `MaxResponseBufferBytes` | `5242880` (5 MB)                                      | Responses larger than this pass through unmodified                                                                   |
@@ -187,14 +201,14 @@ containers without that path, point it somewhere writable (for example
 
 | Setting                 | Default                           | Description                                              |
 | ----------------------- | --------------------------------- | -------------------------------------------------------- |
-| `Cache.VolumePath`      | `/var/cache/pagespeed/volume.dat` | Path to the Cyclone cache volume file (must be writable) |
+| `Cache.VolumePath`      | `/var/cache/pagespeed/volume.dat` | Path to the Cyclone cache volume file (must be writable). Not created until `Enabled` is first `true`. |
 | `Cache.VolumeSizeBytes` | `1073741824` (1 GB)               | Maximum cache volume size                                |
 
 **`Worker` section:**
 
 | Setting             | Default                   | Description                                                                                                                                                                                                                                                                         |
 | ------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Worker.AutoStart`  | `true`                    | Launch and manage the worker process on startup. Set `false` to run no worker.                                                                                                                                                                                                      |
+| `Worker.AutoStart`  | `true`                    | Launch and manage the worker process once the top-level `Enabled` is true. With `Enabled` false, no worker (and so no worker API or console data) runs until a hot reload sets it to true. Set `false` to run no child worker; pair it with a concrete `Worker.SocketPath` for an external worker. |
 | `Worker.SocketPath` | unset                     | Worker-coordination socket. **Leave it unset** (the default) for an auto-resolved per-process socket with coordination on. Set to a concrete path to share one socket with an out-of-process worker. Setting it to `null` or `""` disables coordination and logs a startup warning. |
 | `Worker.ApiPort`    | `0` (auto, loopback only) | Loopback port for the worker HTTP API. `0` picks a free loopback port; it does not disable the API. The API runs without authentication either way and is reachable through the console proxy.                                                                                    |
 
@@ -202,7 +216,7 @@ containers without that path, point it somewhere writable (for example
 
 | Setting                | Default    | Description                                                                                                         |
 | ---------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| `Console.Enabled`      | `true`     | Serve the console and proxy its `/v1/*` paths. `false` lets those requests fall through to your app.                |
+| `Console.Enabled`      | `true`     | Serve the console and proxy its `/v1/*` paths. `false` lets those requests fall through to your app. The console's data comes from the worker, so it also needs the top-level `Enabled` set to `true`. |
 | `Console.MountPath`    | `/console` | URL prefix for the in-app console. The proxied `/v1/*` paths do not move with it.                                   |
 | `Console.RequireHttps` | `false`    | Return `403` for console and `/v1/*` requests that are not HTTPS. Protects the traffic; it is not authentication. |
 
@@ -377,6 +391,24 @@ re-mounting does not move the `/v1/*` paths, and HTTPS does not authenticate
 anyone. With the console gated, also avoid loading untrusted third-party
 scripts into pages an authenticated admin visits, since a same-origin script
 can drive the console API with that admin's session.
+
+**Address-based rules and agent optimization.** With agent optimization on,
+the optimizer fetches the site's own pages from this host to build the
+markdown variant and `/llms.txt`. `UsePageSpeed()` presents those fetches to
+every middleware and endpoint after it as the client address `224.0.0.0`, so a
+rule that admits local clients (for example a check that
+`HttpContext.Connection.RemoteIpAddress` is loopback) does not admit them. A
+fetch is recognized by the optimizer's User-Agent together with a client
+address that is loopback or the address the request arrived on; a client
+connecting directly from elsewhere keeps its address. Register
+`UsePageSpeed()` before middleware that decides by client address, or call
+`app.UsePageSpeedAgentFetchLabel()` ahead of that middleware. When the app
+runs behind a proxy, `UseForwardedHeaders()` must come before `UsePageSpeed()`
+and before `UsePageSpeedAgentFetchLabel()`, so that a fetch is recognized by
+the forwarded client address. Pages under such a rule are then
+left out of the agent outputs. Rules evaluated before the ASP.NET Core
+pipeline, such as IIS `ipSecurity` or a front proxy's own access rules, are
+outside this change.
 
 ## License
 

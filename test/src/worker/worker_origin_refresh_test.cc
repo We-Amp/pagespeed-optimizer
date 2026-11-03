@@ -43,14 +43,16 @@
 namespace pagespeed {
 namespace {
 
-// ---- Headers sidecar: the worker carries the two reserved header
-// bits (kFlagHeadersClassified, kFlagHeadersSidecarRequired) from the entry
-// it optimizes into every variant it builds, and keeps the URL's headers
-// sidecar when it keeps the identity on an origin refresh.
+// ---- Headers sidecar: the worker carries the record-time bits
+// (kFlagHeadersClassified, kFlagHeadersSidecarRequired,
+// kFlagAnonymousRecorded) from the entry it optimizes into every variant it
+// builds, and keeps the URL's headers sidecar when it keeps the identity on
+// an origin refresh.
 
 namespace {
 constexpr uint8_t kHeaderBits = AlternateMetadata::kFlagHeadersClassified |
-                                AlternateMetadata::kFlagHeadersSidecarRequired;
+                                AlternateMetadata::kFlagHeadersSidecarRequired |
+                                AlternateMetadata::kFlagAnonymousRecorded;
 }  // namespace
 
 TEST_F(WorkerTest, CssVariantsCarryTheHeadersSidecarFlagBits) {
@@ -120,6 +122,8 @@ TEST_F(WorkerTest, HtmlVariantCarriesTheHeadersSidecarFlagBits) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 

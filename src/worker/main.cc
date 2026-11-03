@@ -129,7 +129,8 @@ void PrintUsage(const char* program) {
       << "  --no-preconnect-injection  Disable preconnect hint "
          "injection\n"
       << "  --no-async-css             Disable async CSS loading "
-         "(keep stylesheets render-blocking)\n"
+         "(keep stylesheets render-blocking and inline no above-the-fold "
+         "CSS)\n"
       << "  --async-css-min-coverage F Min critical/total CSS coverage to "
          "defer a stylesheet, 0-1 (default: 0.10; 0 disables the gate)\n"
       << "  --async-css-min-deferred-bytes N  Sheets below this size always "
@@ -142,12 +143,10 @@ void PrintUsage(const char* program) {
          "Credentials provenance preservation (on by default)\n"
       << "  --c2pa-carry               Recompress manifest-bearing PNGs and "
          "re-splice C2PA chunks (PNG only; default: off, serve original)\n"
-      << "  --denoise-threshold LEVEL  Noise level threshold "
-         "0.0-1.0 (default: 0.3, 0=disable)\n"
-      << "  --denoise-sigma-spatial F  Bilateral filter spatial "
-         "sigma, max 10.0 (default: 3.0)\n"
-      << "  --denoise-sigma-range F    Bilateral filter range "
-         "sigma (default: 25.0)\n"
+      << "  --denoise-threshold LEVEL  Deprecated and ignored "
+         "(accepted so existing command lines keep working)\n"
+      << "  --denoise-sigma-spatial F  Deprecated and ignored\n"
+      << "  --denoise-sigma-range F    Deprecated and ignored\n"
       << "  --no-quality-verify        Disable SSIMULACRA2 "
          "quality verification\n"
       << "  --target-ssimulacra2 SCORE Target SSIMULACRA2 score "
@@ -764,18 +763,14 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
         config.preserve_c2pa = false;
       } else if (arg == "--c2pa-carry") {
         config.c2pa_carry = true;
-      } else if (arg == "--denoise-threshold" && i + 1 < argc) {
-        if (!ParseFloat("--denoise-threshold", argv[++i], 0.0f, 1.0f,
-                        &config.denoise_threshold))
-          return 1;
-      } else if (arg == "--denoise-sigma-spatial" && i + 1 < argc) {
-        if (!ParseFloat("--denoise-sigma-spatial", argv[++i], 0.0f, 100.0f,
-                        &config.denoise_sigma_spatial))
-          return 1;
-      } else if (arg == "--denoise-sigma-range" && i + 1 < argc) {
-        if (!ParseFloat("--denoise-sigma-range", argv[++i], 0.0f, 255.0f,
-                        &config.denoise_sigma_range))
-          return 1;
+      } else if ((arg == "--denoise-threshold" ||
+                  arg == "--denoise-sigma-spatial" ||
+                  arg == "--denoise-sigma-range") &&
+                 i + 1 < argc) {
+        // Removed options, accepted and ignored so existing command lines
+        // keep working.
+        ++i;
+        std::cerr << "warning: " << arg << " is deprecated and ignored\n";
       } else if (arg == "--no-quality-verify") {
         config.quality_verify = false;
       } else if (arg == "--target-ssimulacra2" && i + 1 < argc) {

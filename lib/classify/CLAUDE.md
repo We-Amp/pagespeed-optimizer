@@ -52,11 +52,13 @@ Request flow: HTTP headers → `CapabilityMask::FromRequest()` → `AlternateId`
 version + full 32-bit mask + content type + flags + origin headers + SSIMULACRA2
 score + content class + ETag + Last-Modified + origin content length + v7
 content-binding hashes (origin HTML hash / render source hash) + v8
-per-URL epoch and raw origin Cache-Control string.
+per-URL epoch and raw origin Cache-Control string. v9 has the v8 layout.
 The format is **append-only**: each version's layout is a strict byte prefix of
 the next. Older versions are accepted on read with missing fields defaulted; a
 version ABOVE `kCurrentVersion` is refused outright, which the read path turns
-into a MISS. The current version (`kCurrentVersion`), exact byte offsets, and field
+into a MISS. Every HTML entry below v9, and Markdown versions of pages the
+worker wrote below v9, are refused the same way (`IsRetired`), so they are
+rebuilt. The current version (`kCurrentVersion`), exact byte offsets, and field
 semantics are defined in `alternate_metadata.h` — read it before touching the format.
 
 The header also carries the **prefix budget**: the worst-case serialized size,
@@ -70,7 +72,8 @@ serializers that shipped at v3-v7, not transcribed layout — regenerate it from
 commits it names rather than by hand.
 
 `PageSpeedSelector::select()` scores by: viewport (+2000), format (+1000), Original
-fallback (+100), encoding (+60 exact / +5 identity), density (+40), save-data (+20).
+fallback (+100), encoding (+60 exact / +5 identity), density (+40), save-data (+20; a
+stored Save-Data variant for a client without Save-Data takes -980, floored at 1).
 The viewport (size class) outranks format, so a client is served a variant at its
 own size before one in its negotiated format at another size.
 SVG gets universal +1200 bonus (resolution-independent).

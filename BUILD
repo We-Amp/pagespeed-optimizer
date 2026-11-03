@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# Root BUILD file for mod_pagespeed 2.1
+# Root BUILD file for mod_pagespeed
 
 load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
 
@@ -24,6 +24,7 @@ refresh_compile_commands(
     name = "refresh_all",
     targets = {
         "@//...": "",
+        "//lib/cache:html_cache_policy_fuzz": "",
         "//lib/css:css_minify_fuzz": "",
         "//lib/html:html_fuzz": "",
     },

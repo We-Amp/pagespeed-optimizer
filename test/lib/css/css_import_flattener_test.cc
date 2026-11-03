@@ -15,6 +15,101 @@
 namespace pagespeed::css {
 namespace {
 
+// ========== Media wrapping Tests ==========
+
+TEST(StructurallyBalancedTest, BalancedAndNested) {
+  EXPECT_TRUE(IsStructurallyBalanced(""));
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:c}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:c}d{e:f}"));
+  EXPECT_TRUE(
+      IsStructurallyBalanced("@media (min-width:1px){a{b:c}d{e:f}}x{y:z}"));
+  EXPECT_TRUE(IsStructurallyBalanced("@supports (a:b){@media print{a{b:c}}}"));
+}
+
+TEST(StructurallyBalancedTest, StrayOrUnclosedBraces) {
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:c}}"));
+  EXPECT_FALSE(IsStructurallyBalanced("}a{b:c}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:c}}d{e:f}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:c"));
+  EXPECT_FALSE(IsStructurallyBalanced("@media x{a{b:c}"));
+  EXPECT_FALSE(IsStructurallyBalanced("}{"));
+  // A trailing backslash would escape the wrapper's closing brace.
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:c}\\"));
+}
+
+TEST(StructurallyBalancedTest, BracesInCommentsStringsAndEscapesDoNotCount) {
+  EXPECT_TRUE(IsStructurallyBalanced("/* } */a{b:c}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a::before{content:\"}\"}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a::before{content:'{'}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a::before{content:\"\\\"}\"}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a\\}b{c:d}"));
+  // An unquoted url( ... ) is one token: a brace inside it is not a brace.
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:url(a}b)}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:URL( x{y )}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:url(\"}\")}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:url({)}}c{display:none}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:url(x"));
+  // A non-ASCII byte continues an ident, so this is a normal function and
+  // its brace counts.
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:\xc3\xa9url(})}c{x:y}"));
+  EXPECT_FALSE(IsStructurallyBalanced("/* unterminated a{b:c}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{content:\"unterminated}"));
+  // A comment cannot hide a real brace.
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:c}/* x */}"));
+}
+
+TEST(StructurallyBalancedTest, NewlineInAStringAndEscapedUrlName) {
+  // A string ends at an unescaped newline, so the quotes below do not pair
+  // up the way a scan that ignores newlines would pair them.
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:\"x\n}}c{display:none}d{e:\"}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:'x\r}}c{display:none}d{e:'}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:\"x\f}}c{display:none}d{e:\"}"));
+  // An escaped newline continues a string.
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:\"a\\\nb\"}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:\"a\\\r\nb\"}"));
+  // An escaped spelling of url( is still a url token with a raw body.
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:\\url({)}}c{display:none}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:\\75rl({)}}c{display:none}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:\\000075 rl({)}}c{display:none}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:u\\72l({)}}c{display:none}"));
+  EXPECT_FALSE(IsStructurallyBalanced("a{b:\\55RL({)}}c{display:none}"));
+  // Other escaped identifiers are ordinary names.
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:\\75rlx(c)}"));
+  EXPECT_TRUE(IsStructurallyBalanced("a{b:\\66oo(c)}"));
+  // An escaped selector is not a url token.
+  EXPECT_TRUE(IsStructurallyBalanced(".a\\:b{c:d}"));
+  // A name longer than any spelling of "url" cannot be one.
+  EXPECT_TRUE(
+      IsStructurallyBalanced("a{b:abcdefghijklmnopqrstuvwxyz0123\\75rl({)}}"));
+}
+
+TEST(StructurallyBalancedTest, LongRunOfEscapesIsHandled) {
+  std::string css = ".x";
+  for (int i = 0; i < 200000; ++i) css += "\\a";
+  css += "{b:c}";
+  EXPECT_TRUE(IsStructurallyBalanced(css));
+}
+
+TEST(AppendMediaScopedCssTest, WrapsABalancedSheet) {
+  std::string out = "x";
+  EXPECT_TRUE(AppendMediaScopedCss("print", "a{b:c}", &out));
+  EXPECT_EQ(out, "x@media print{a{b:c}}");
+  EXPECT_EQ(out.size(), 1 + MediaScopedCssSize("print", 6));
+}
+
+TEST(AppendMediaScopedCssTest, UnscopedSheetIsAppendedAsWritten) {
+  std::string out;
+  EXPECT_TRUE(AppendMediaScopedCss("", "a{b:c}}d{e:f}", &out));
+  EXPECT_EQ(out, "a{b:c}}d{e:f}");
+}
+
+TEST(AppendMediaScopedCssTest, SheetThatCannotBeWrappedAddsNothing) {
+  std::string out = "x";
+  EXPECT_FALSE(AppendMediaScopedCss("print", "a{b:c}}d{e:f}", &out));
+  EXPECT_FALSE(AppendMediaScopedCss("print", "a{b:c", &out));
+  EXPECT_EQ(out, "x");
+}
+
 // ========== ExtractImports Tests ==========
 
 TEST(ExtractImportsTest, NoImports) {
@@ -994,6 +1089,61 @@ TEST(FlattenImportsTest, ChildWithUnclosedBraceServesOriginal) {
   EXPECT_TRUE(result.skipped_unresolved_import);
   EXPECT_EQ(result.css, css);
   EXPECT_EQ(result.imports_resolved, 0);
+}
+
+TEST(FlattenImportsTest, ChildEndingInABackslashServesOriginal) {
+  // A trailing backslash would escape the wrapper's closing brace.
+  auto lookup = [](std::string_view url) -> std::optional<std::string> {
+    if (url == "/c.css") return ".p{color:red}\\";
+    return std::nullopt;
+  };
+  std::string css = "@import \"c.css\" print;\n.q { color: blue; }";
+  auto result = FlattenImports(css, "/style.css", lookup);
+
+  EXPECT_TRUE(result.skipped_unresolved_import);
+  EXPECT_EQ(result.css, css);
+  EXPECT_EQ(result.imports_resolved, 0);
+}
+
+TEST(FlattenImportsTest, ChildWithNewlineInStringServesOriginal) {
+  auto lookup = [](std::string_view url) -> std::optional<std::string> {
+    if (url == "/c.css") return "a{b:\"x\n}}c{display:none}d{e:\"}";
+    return std::nullopt;
+  };
+  std::string css = "@import \"c.css\" print;\n.q { color: blue; }";
+  auto result = FlattenImports(css, "/style.css", lookup);
+
+  EXPECT_TRUE(result.skipped_unresolved_import);
+  EXPECT_EQ(result.css, css);
+  EXPECT_EQ(result.imports_resolved, 0);
+}
+
+TEST(FlattenImportsTest, ChildWithEscapedUrlNameServesOriginal) {
+  for (const char* body :
+       {"a{b:\\url({)}}c{display:none}", "a{b:\\75rl({)}}c{display:none}"}) {
+    auto lookup = [body](std::string_view url) -> std::optional<std::string> {
+      if (url == "/c.css") return std::string(body);
+      return std::nullopt;
+    };
+    std::string css = "@import \"c.css\" print;\n.q { color: blue; }";
+    auto result = FlattenImports(css, "/style.css", lookup);
+
+    EXPECT_TRUE(result.skipped_unresolved_import) << body;
+    EXPECT_EQ(result.css, css) << body;
+    EXPECT_EQ(result.imports_resolved, 0) << body;
+  }
+}
+
+TEST(FlattenImportsTest, ChildWithEscapedNewlineInStringIsInlined) {
+  auto lookup = [](std::string_view url) -> std::optional<std::string> {
+    if (url == "/c.css") return "a{b:\"a\\\nb\"}";
+    return std::nullopt;
+  };
+  std::string css = "@import \"c.css\" print;\n.q { color: blue; }";
+  auto result = FlattenImports(css, "/style.css", lookup);
+
+  EXPECT_FALSE(result.skipped_unresolved_import);
+  EXPECT_EQ(result.imports_resolved, 1);
 }
 
 TEST(FlattenImportsTest, ChildWithStrayCloseBraceServesOriginal) {

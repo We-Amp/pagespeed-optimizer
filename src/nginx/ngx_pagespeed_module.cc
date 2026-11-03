@@ -34,6 +34,7 @@ extern "C" {
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -57,6 +58,7 @@ extern "C" {
 #include "src/crypto/webbotauth/rsl_cap_token.h"
 #include "src/crypto/webbotauth/rsl_cap_validator.h"
 #include "src/crypto/webbotauth/verifier.h"
+#include "src/nginx/agent_self_fetch.h"
 #include "src/nginx/authz_cache_gate.h"
 #include "src/nginx/cache_generation_check.h"
 #include "src/nginx/early_hints.h"
@@ -65,6 +67,7 @@ extern "C" {
 #include "src/nginx/header_key_util.h"
 #include "src/nginx/headers_sidecar_record.h"
 #include "src/nginx/headers_sidecar_replay.h"
+#include "src/nginx/host_vouch.h"
 #include "src/nginx/mime_util.h"
 #include "src/nginx/revalidation_storability.h"
 #include "src/nginx/zerocopy_barrier.h"
@@ -1022,15 +1025,15 @@ static std::shared_ptr<PageSpeedCache> CheckGenerationAndGetCache(
 // cache fall back to GetCache()).
 //
 // Single throttle point shared by BOTH request-path callers — the PREACCESS
-// RSL-CAP enforcement handler and the ACCESS optimization handler — so the
-// poll fires even when enforcement denials (401/402) finalize requests before
-// the ACCESS phase runs.  Without that, an enforcement-enabled nginx whose key
-// store was empty (cold start inside the worker's initial warm delay, or a
-// rotation transiently emptying the directory) would 401 every request in
-// PREACCESS, the ACCESS-phase poll would never fire, and the store could never
-// re-warm: a self-perpetuating lockout.  The atomic CAS makes the two callers
-// idempotent within one interval: whichever runs first does the work, the
-// other is a no-op.
+// RSL-CAP enforcement handler and the PRECONTENT optimization handler — so
+// the poll fires even when enforcement denials (401/402) finalize requests
+// before the PRECONTENT phase runs.  Without that, an enforcement-enabled
+// nginx whose key store was empty (cold start inside the worker's initial
+// warm delay, or a rotation transiently emptying the directory) would 401
+// every request in PREACCESS, the PRECONTENT-phase poll would never fire, and
+// the store could never re-warm: a self-perpetuating lockout.  The atomic CAS
+// makes the two callers idempotent within one interval: whichever runs first
+// does the work, the other is a no-op.
 static std::shared_ptr<PageSpeedCache> MaybePollSharedState(
     std::string_view cache_path, ngx_log_t* log) {
   if (cache_path.empty()) {
@@ -1104,6 +1107,16 @@ typedef struct {
   // stale-if-error directive synthesized downstream in aggressive mode).
   ngx_int_t stale_if_error_max_age;
 } ngx_http_pagespeed_loc_conf_t;
+
+// Per server block: a copy of the block's server names.  nginx keeps its own
+// list (ngx_http_core_srv_conf_t::server_names) in the configuration's
+// temporary pool, which is released once the configuration is read, so the
+// request path cannot use it.  The names and compiled regexes it points to
+// live in the configuration pool and stay valid.
+typedef struct {
+  ngx_http_server_name_t* server_names;
+  ngx_uint_t server_names_count;
+} ngx_http_pagespeed_srv_conf_t;
 
 // Maximum response body size to record to cache (10MB).  Responses
 // exceeding this limit are still served to the client but are not
@@ -1302,6 +1315,9 @@ typedef struct {
 // Forward declarations - these are nginx callbacks that need C linkage
 extern "C" {
 static ngx_int_t ngx_http_pagespeed_init(ngx_conf_t* cf);
+static void* ngx_http_pagespeed_create_srv_conf(ngx_conf_t* cf);
+static char* ngx_http_pagespeed_merge_srv_conf(ngx_conf_t* cf, void* parent,
+                                               void* child);
 static void* ngx_http_pagespeed_create_loc_conf(ngx_conf_t* cf);
 static char* ngx_http_pagespeed_merge_loc_conf(ngx_conf_t* cf, void* parent,
                                                void* child);
@@ -1472,8 +1488,8 @@ static ngx_http_module_t ngx_http_pagespeed_module_ctx = {
     ngx_http_pagespeed_init,             // postconfiguration
     nullptr,                             // create main configuration
     nullptr,                             // init main configuration
-    nullptr,                             // create server configuration
-    nullptr,                             // merge server configuration
+    ngx_http_pagespeed_create_srv_conf,  // create server configuration
+    ngx_http_pagespeed_merge_srv_conf,   // merge server configuration
     ngx_http_pagespeed_create_loc_conf,  // create location configuration
     ngx_http_pagespeed_merge_loc_conf    // merge location configuration
 };
@@ -1505,6 +1521,34 @@ char* ngx_module_order[] = {nullptr};
 }
 
 // Create location configuration
+static void* ngx_http_pagespeed_create_srv_conf(ngx_conf_t* cf) {
+  return ngx_pcalloc(cf->pool, sizeof(ngx_http_pagespeed_srv_conf_t));
+}
+
+// Runs after the core module's own merge, so the block's name list is
+// complete here (including the empty name nginx adds to a block without one).
+static char* ngx_http_pagespeed_merge_srv_conf(ngx_conf_t* cf, void* parent,
+                                               void* child) {
+  auto* conf = static_cast<ngx_http_pagespeed_srv_conf_t*>(child);
+  const auto* cscf = static_cast<const ngx_http_core_srv_conf_t*>(
+      ngx_http_conf_get_module_srv_conf(cf, ngx_http_core_module));
+  conf->server_names = nullptr;
+  conf->server_names_count = 0;
+  if (cscf == nullptr || cscf->server_names.nelts == 0) {
+    return NGX_CONF_OK;
+  }
+  const size_t bytes =
+      cscf->server_names.nelts * sizeof(ngx_http_server_name_t);
+  conf->server_names =
+      static_cast<ngx_http_server_name_t*>(ngx_palloc(cf->pool, bytes));
+  if (conf->server_names == nullptr) {
+    return static_cast<char*>(NGX_CONF_ERROR);
+  }
+  ngx_memcpy(conf->server_names, cscf->server_names.elts, bytes);
+  conf->server_names_count = cscf->server_names.nelts;
+  return NGX_CONF_OK;
+}
+
 static void* ngx_http_pagespeed_create_loc_conf(ngx_conf_t* cf) {
   ngx_http_pagespeed_loc_conf_t* conf;
 
@@ -2301,17 +2345,17 @@ static ngx_table_elt_t* add_response_header_cstr(ngx_http_request_t* r,
 // Experimental: RSL-CAP capability-token enforcement handler.
 // Runs in the PREACCESS phase (mirroring 1.15's ps_rsl_cap_preaccess_handler
 // intent within 2.0's module structure) so the token gate is applied before
-// any content is served, independent of the pagespeed optimization ACCESS
-// handler.  Default OFF: a single bool check and immediate NGX_DECLINED when
-// the operator has not enabled enforcement — zero token work, zero allocation,
-// structurally free.  When ON: validate the Authorization: License token
-// against the operator-required license/scope and return 401/402/pass.  It
-// emits STATUS CODES ONLY — plus the WWW-Authenticate challenge RFC 7235
-// requires on 401 — and never settles, meters, escrows, or custodies money,
-// nor modifies the response beyond that.
+// any content is served, independent of the pagespeed optimization
+// PRECONTENT handler.  Default OFF: a single bool check and immediate
+// NGX_DECLINED when the operator has not enabled enforcement — zero token
+// work, zero allocation, structurally free.  When ON: validate the
+// Authorization: License token against the operator-required license/scope
+// and return 401/402/pass.  It emits STATUS CODES ONLY — plus the
+// WWW-Authenticate challenge RFC 7235 requires on 401 — and never settles,
+// meters, escrows, or custodies money, nor modifies the response beyond that.
 static ngx_int_t ngx_http_pagespeed_rslcap_handler(ngx_http_request_t* r) {
   // Default OFF fast path: structurally zero-cost when disabled.  (The
-  // enforcement-on flip itself is picked up by the ACCESS-phase poll — no
+  // enforcement-on flip itself is picked up by the PRECONTENT-phase poll — no
   // refresh call here, so disabled stays a single bool check.)
   if (!g_shared_config.rsl_cap_enforcement) {
     return NGX_DECLINED;
@@ -2324,16 +2368,16 @@ static ngx_int_t ngx_http_pagespeed_rslcap_handler(ngx_http_request_t* r) {
   }
 
   // Poll the worker-published state BEFORE adjudicating.  This must live in
-  // THIS handler, not only in the ACCESS phase: a 401/402 returned here
-  // finalizes the request before ACCESS ever runs, so if this handler relied
-  // on the ACCESS-phase poll, an enforcement-enabled nginx with an empty key
-  // store (worker still inside its initial warm delay, or a rotation
-  // transiently emptying the directory) would deny every request and thereby
-  // starve the very poll that re-warms the store — a self-perpetuating
+  // THIS handler, not only in the PRECONTENT phase: a 401/402 returned here
+  // finalizes the request before PRECONTENT ever runs, so if this handler
+  // relied on the PRECONTENT-phase poll, an enforcement-enabled nginx with an
+  // empty key store (worker still inside its initial warm delay, or a
+  // rotation transiently emptying the directory) would deny every request and
+  // thereby starve the very poll that re-warms the store — a self-perpetuating
   // lockout.  Polling here also means the gate adjudicates against
   // this-interval-fresh config/keys instead of state one poll cycle behind.
-  // Throttled + idempotent with the ACCESS-phase call (same CAS slot); the
-  // per-request cost when enabled is exactly what ACCESS already pays.
+  // Throttled + idempotent with the PRECONTENT-phase call (same CAS slot);
+  // the per-request cost when enabled is exactly what PRECONTENT already pays.
   {
     auto* conf = static_cast<ngx_http_pagespeed_loc_conf_t*>(
         ngx_http_get_module_loc_conf(r, ngx_http_pagespeed_module));
@@ -2434,6 +2478,88 @@ static std::string ngx_http_pagespeed_cache_url(ngx_http_request_t* r) {
 static std::string ngx_http_pagespeed_cache_hostname(ngx_http_request_t* r) {
   return pagespeed::NormalizeCacheHostname(ngx_http_pagespeed_hostname(r),
                                            g_url_norm_config);
+}
+
+// Whether the server block that received `r` stands behind `hostname` (the
+// normalized cache hostname, which is also where the worker fetches from for
+// the /llms.txt build and the agent render): one of the block's server names
+// (exact, wildcard or regex) names it, or the operator's host alias table
+// does.  A catch-all block ("_", "") vouches for nothing.
+static bool ngx_http_pagespeed_host_vouched(ngx_http_request_t* r,
+                                            std::string_view hostname) {
+  if (hostname.empty()) {
+    return false;
+  }
+  if (pagespeed::HostAliasesName(g_url_norm_config.host_aliases, hostname)) {
+    return true;
+  }
+  // A port in the hostname is part of where the worker fetches from, so a
+  // listed name is vouched for only on the port the request arrived on.
+  // (The normalized hostname has no port for 80 and 443.)
+  std::string_view port;
+  if (hostname.front() == '[') {
+    const size_t close = hostname.find(']');
+    if (close != std::string_view::npos) {
+      port = hostname.substr(close + 1);
+    }
+  } else {
+    const size_t colon = hostname.find(':');
+    if (colon != std::string_view::npos) {
+      port = hostname.substr(colon);
+    }
+  }
+  if (!port.empty()) {
+    if (port.front() != ':') {
+      return false;
+    }
+    port.remove_prefix(1);
+    const in_port_t local_port =
+        ngx_inet_get_port(r->connection->local_sockaddr);
+    if (local_port == 0 || port != std::to_string(local_port)) {
+      return false;
+    }
+  }
+  std::string host = pagespeed::AuthorityHost(hostname);
+  if (host.empty()) {
+    return false;
+  }
+  const auto* sconf = static_cast<const ngx_http_pagespeed_srv_conf_t*>(
+      ngx_http_get_module_srv_conf(r, ngx_http_pagespeed_module));
+  if (sconf == nullptr) {
+    return false;
+  }
+  const ngx_http_server_name_t* names = sconf->server_names;
+  for (ngx_uint_t i = 0; i < sconf->server_names_count; ++i) {
+#if (NGX_PCRE)
+    if (names[i].regex != nullptr) {
+      // Match only: no captures, so the request's $1.. stay untouched.
+      ngx_str_t subject;
+      subject.data = reinterpret_cast<u_char*>(host.data());
+      subject.len = host.size();
+      if (ngx_regex_exec(names[i].regex->regex, &subject, nullptr, 0) >= 0) {
+        return true;
+      }
+      continue;
+    }
+#endif
+    std::string_view name(reinterpret_cast<const char*>(names[i].name.data),
+                          names[i].name.len);
+    if (pagespeed::ServerNameMatchesHost(name, host)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// While agent optimization is on, an HTML notification can make the worker
+// render the page and fetch its subresources from the notification's
+// hostname.  Withhold it for a hostname this block does not vouch for
+// (`host_vouched`, from ngx_http_pagespeed_host_vouched); the response itself
+// is served as usual, just not optimized.
+static bool ngx_http_pagespeed_withhold_html_notify(ContentType ct,
+                                                    bool host_vouched) {
+  return ct == ContentType::kHtml && g_shared_config.agent_optimize_entitled &&
+         !host_vouched;
 }
 
 // Extract the request scheme ("http" or "https").
@@ -3294,14 +3420,26 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
   // in preference to it.  The worker splits the two halves: it purges, then
   // declines to rebuild for a marked identity (worker.cc HandleNotification),
   // which is what turns this into the purge-only event that case needs.
+  // Every notification below carries this verdict, so the worker runs the
+  // work that fetches from the hostname (the agent render, the llms.txt
+  // build) only for a hostname this block vouches for.
+  const bool host_vouched = ngx_http_pagespeed_host_vouched(r, hostname);
   if (ctx->origin_refreshed && !g_shared_config.socket_path.empty() &&
       r->headers_out.status >= 200 && r->headers_out.status < 300) {
+    if (ngx_http_pagespeed_withhold_html_notify(ct, host_vouched)) {
+      // No notification for this hostname (see the helper).  Without it
+      // nothing purges the URL's older variants, so drop the URL here; the
+      // next request records the fresh body again.
+      (void)cache->Remove(url, hostname, scheme);
+      return;
+    }
     CacheNotification refresh;
     refresh.url = std::string(url);
     refresh.hostname = std::string(hostname);
     refresh.scheme = std::string(scheme);
     refresh.content_type = ct;
     refresh.capability_mask = pagespeed::kOriginRefreshedSentinel;
+    refresh.host_vouched = host_vouched;
     std::string_view socket_path(g_shared_config.socket_path);
     auto send_result = SendNotificationPersistent(socket_path, refresh);
     if (!send_result.success) {
@@ -3328,7 +3466,8 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
   bool skip_notification =
       ctx->no_transform || ctx->origin_varies_accept ||
       (ct == ContentType::kHtml && g_shared_config.disable_html) ||
-      r->headers_out.status < 200 || r->headers_out.status >= 300;
+      r->headers_out.status < 200 || r->headers_out.status >= 300 ||
+      ngx_http_pagespeed_withhold_html_notify(ct, host_vouched);
   if (!g_shared_config.socket_path.empty() && !skip_notification) {
     CacheNotification notification;
     notification.url = std::string(url);
@@ -3341,6 +3480,7 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
     // would render markdown for every browser-touched warm-template URL).
     notification.agent_request =
         ctx->agent_wants_markdown && g_shared_config.agent_optimize_entitled;
+    notification.host_vouched = host_vouched;
 
     std::string_view socket_path(g_shared_config.socket_path);
 
@@ -4968,7 +5108,7 @@ void RenderCounterDoc(bool exact, std::string* out) {
 
 }  // namespace
 
-// Main request handler (access phase)
+// Main request handler (PRECONTENT phase, after the access checks)
 static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
   ngx_http_pagespeed_loc_conf_t* conf;
   ngx_http_pagespeed_ctx_t* ctx;
@@ -5298,6 +5438,13 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
     if (!g_shared_config.agent_optimize_llms_txt_enabled) {
       return NGX_DECLINED;  // off: origin serves its own (or 404)
     }
+    // Built from, and served for, only a hostname this block vouches for: the
+    // build fetches from the hostname, so any other name is left to the
+    // origin, including an index stored under it by an earlier version.
+    const bool llms_host_vouched = ngx_http_pagespeed_host_vouched(r, hostname);
+    if (!llms_host_vouched) {
+      return NGX_DECLINED;
+    }
     // The serve below reuses stored-response data (the kLlmsTxt sentinel),
     // so it takes the same §3.5 gate as any other serve.  Sentinels store
     // no Cache-Control metadata, so there is no permit signal — the gate
@@ -5345,6 +5492,7 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
       n.capability_mask = pagespeed::kLlmsTxtSentinel;
       n.content_type =
           ContentType::kHtml;  // unused by the builder; must be valid
+      n.host_vouched = llms_host_vouched;
       std::string_view socket_path(g_shared_config.socket_path);
       (void)SendNotificationPersistent(socket_path, n);
     }
@@ -5443,8 +5591,11 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
   // HERE (not in the selector) and gates ONLY the kAgentMarkdown sentinel — any
   // other request transparently gets the normal best variant (never a hard
   // decline).
-  bool agent_request_entitled =
-      ctx->agent_wants_markdown && g_shared_config.agent_optimize_entitled;
+  // The rendered markdown was fetched from the hostname, so it is served only
+  // under a hostname this block vouches for.
+  bool agent_request_entitled = ctx->agent_wants_markdown &&
+                                g_shared_config.agent_optimize_entitled &&
+                                ngx_http_pagespeed_host_vouched(r, hostname);
   // The serve gate (the flag + the content-hash equality
   // check) lives in the shared cache primitive — a stale/unbound markdown is
   // refused there (returns NotFound), so this falls through to the miss path
@@ -6131,9 +6282,16 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
       if (g_serve_stats != nullptr &&
           (meta.flags & AlternateMetadata::kFlagWorkerProcessed) &&
           meta.origin_content_length > 0) {
-        pagespeed::RecordServeHit(g_serve_stats, meta.content_type,
-                                  meta.origin_content_length,
-                                  cached_data.size(), meta.full_mask);
+        if (const auto encoded = meta.EncodedOriginLength();
+            encoded.has_value()) {
+          pagespeed::RecordServeHitSplit(
+              g_serve_stats, meta.content_type, meta.origin_content_length,
+              *encoded, cached_data.size(), meta.full_mask, std::string_view());
+        } else {
+          pagespeed::RecordServeHit(g_serve_stats, meta.content_type,
+                                    meta.origin_content_length,
+                                    cached_data.size(), meta.full_mask);
+        }
       }
 
       // Generate weak ETag for cache HIT responses (see etag_util.h).
@@ -6190,7 +6348,7 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
         r->allow_ranges = 1;
       }
 
-      // Send headers.  This handler runs in the ACCESS phase, not the
+      // Send headers.  This handler runs in the PRECONTENT phase, not the
       // CONTENT phase. We must finalize the request and return NGX_DONE
       // to prevent the phase engine from continuing to the CONTENT
       // phase (proxy_pass), which would attempt to send headers again.
@@ -6375,6 +6533,12 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
                             needs_revalidation) &&
                            !html_disabled && !ctx->served_agent_markdown &&
                            !origin_negotiates_accept;
+      // Carried by the notification and the warmup below (see the record
+      // path).
+      const bool host_vouched =
+          should_notify && ngx_http_pagespeed_host_vouched(r, hostname);
+      should_notify = should_notify && !ngx_http_pagespeed_withhold_html_notify(
+                                           meta.content_type, host_vouched);
       if (should_notify && !g_shared_config.socket_path.empty()) {
         CacheNotification notification;
         notification.url = std::string(url);
@@ -6388,6 +6552,7 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
         // URL's markdown.
         notification.agent_request = ctx->agent_wants_markdown &&
                                      g_shared_config.agent_optimize_entitled;
+        notification.host_vouched = host_vouched;
         std::string_view socket_path(g_shared_config.socket_path);
         auto send_result =
             SendNotificationPersistent(socket_path, notification);
@@ -6413,6 +6578,7 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
               warmup.scheme = std::string(scheme);
               warmup.capability_mask = pagespeed::kWarmupSentinel;
               warmup.content_type = notification.content_type;
+              warmup.host_vouched = host_vouched;
               // Warmup hint is best-effort; failure is non-fatal.
               (void)SendNotificationPersistent(socket_path, warmup);
               entry.count.store(0, std::memory_order_relaxed);
@@ -6678,6 +6844,109 @@ static void ngx_http_pagespeed_exit_process(ngx_cycle_t* cycle) {
                 "pagespeed: process exit — cache released");
 }
 
+// The worker's agent fetches (agent_optimize render, llms.txt synthesis)
+// reach this server from loopback or from the address they connect to when
+// the worker shares the host, so an access rule that admits local clients
+// (`allow 127.0.0.1`) would admit them whoever asked for the page being
+// rendered, and the restricted content could reach a remote client through
+// the agent markdown variant or /llms.txt.  POST_READ runs before every access
+// rule, and this handler runs before realip's (handlers of one phase run in
+// reverse order of registration, and this module's postconfiguration runs
+// after the built-in modules'), so a recognized agent fetch is presented as
+// the reserved address 224.0.0.0 to allow/deny, $remote_addr, the access log
+// and realip for the whole request, internal redirects included; the request
+// pool's cleanup puts the real address back for the connection's next
+// request.  Recognition takes both the worker's User-Agent marker and a peer
+// that is this server (loopback, or the address the connection arrived on),
+// so a remote client that connects directly keeps its own address whatever
+// User-Agent it sends.  Behind a proxy on the same host every request
+// arrives from this host, so the peer test cannot tell the worker's fetch
+// from a proxied client; recognition there rests on the User-Agent alone.
+// See src/nginx/agent_self_fetch.h.
+struct ngx_http_pagespeed_agent_relabel_t {
+  struct sockaddr_in addr;
+  u_char text[sizeof("224.0.0.0")];
+  ngx_connection_t* connection;
+  struct sockaddr* saved_sockaddr;
+  socklen_t saved_socklen;
+  ngx_str_t saved_addr_text;
+};
+
+// The address bytes of `sa` (4 for IPv4, 16 for IPv6), empty otherwise.
+static std::span<const unsigned char> ngx_http_pagespeed_addr_bytes(
+    const struct sockaddr* sa) {
+  if (sa == nullptr) {
+    return {};
+  }
+  if (sa->sa_family == AF_INET) {
+    const auto* in4 = reinterpret_cast<const struct sockaddr_in*>(sa);
+    return {reinterpret_cast<const unsigned char*>(&in4->sin_addr.s_addr), 4};
+  }
+#if (NGX_HAVE_INET6)
+  if (sa->sa_family == AF_INET6) {
+    const auto* in6 = reinterpret_cast<const struct sockaddr_in6*>(sa);
+    return {in6->sin6_addr.s6_addr, 16};
+  }
+#endif
+  return {};
+}
+
+static void ngx_http_pagespeed_agent_relabel_restore(void* data) {
+  auto* rl = static_cast<ngx_http_pagespeed_agent_relabel_t*>(data);
+  if (rl->connection == nullptr) {
+    return;
+  }
+  rl->connection->sockaddr = rl->saved_sockaddr;
+  rl->connection->socklen = rl->saved_socklen;
+  rl->connection->addr_text = rl->saved_addr_text;
+}
+
+static ngx_int_t ngx_http_pagespeed_agent_fetch_post_read_handler(
+    ngx_http_request_t* r) {
+  if (r != r->main || r->headers_in.user_agent == nullptr) {
+    return NGX_DECLINED;
+  }
+  const ngx_str_t& ua = r->headers_in.user_agent->value;
+  if (!pagespeed::IsAgentFetchUserAgent(
+          std::string_view(reinterpret_cast<const char*>(ua.data), ua.len))) {
+    return NGX_DECLINED;
+  }
+  ngx_connection_t* c = r->connection;
+  // Resolves the address a wildcard listener accepted the connection on.
+  const struct sockaddr* local =
+      ngx_connection_local_sockaddr(c, nullptr, 0) == NGX_OK ? c->local_sockaddr
+                                                             : nullptr;
+  if (!pagespeed::AgentFetchPeerIsThisServer(
+          ngx_http_pagespeed_addr_bytes(c->sockaddr),
+          ngx_http_pagespeed_addr_bytes(local))) {
+    return NGX_DECLINED;
+  }
+  ngx_pool_cleanup_t* cln =
+      ngx_pool_cleanup_add(r->pool, sizeof(ngx_http_pagespeed_agent_relabel_t));
+  if (cln == nullptr) {
+    return NGX_HTTP_INTERNAL_SERVER_ERROR;
+  }
+  auto* rl = static_cast<ngx_http_pagespeed_agent_relabel_t*>(cln->data);
+  ngx_memzero(rl, sizeof(*rl));
+  rl->connection = c;
+  rl->saved_sockaddr = c->sockaddr;
+  rl->saved_socklen = c->socklen;
+  rl->saved_addr_text = c->addr_text;
+  rl->addr.sin_family = AF_INET;
+  ngx_memcpy(&rl->addr.sin_addr.s_addr, pagespeed::kAgentSelfFetchLabelBytes,
+             sizeof(pagespeed::kAgentSelfFetchLabelBytes));
+  static_assert(sizeof(rl->text) == pagespeed::kAgentSelfFetchLabel.size() + 1,
+                "label text buffer matches the label");
+  ngx_memcpy(rl->text, pagespeed::kAgentSelfFetchLabel.data(),
+             pagespeed::kAgentSelfFetchLabel.size());
+  c->sockaddr = reinterpret_cast<struct sockaddr*>(&rl->addr);
+  c->socklen = sizeof(rl->addr);
+  c->addr_text.data = rl->text;
+  c->addr_text.len = pagespeed::kAgentSelfFetchLabel.size();
+  cln->handler = ngx_http_pagespeed_agent_relabel_restore;
+  return NGX_DECLINED;
+}
+
 // Module initialization
 static ngx_int_t ngx_http_pagespeed_init(ngx_conf_t* cf) {
   ngx_http_handler_pt* h;
@@ -6686,24 +6955,39 @@ static ngx_int_t ngx_http_pagespeed_init(ngx_conf_t* cf) {
   cmcf = static_cast<ngx_http_core_main_conf_t*>(
       ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module));
 
-  // Install handler in ACCESS phase
+  // Install the handler in the PRECONTENT phase, which runs after the ACCESS
+  // phase: the server's access decisions (allow/deny, auth_basic,
+  // auth_request and any other access module) are made before anything is
+  // served from the cache.  nginx added this phase in 1.13.4; every supported
+  // nginx has it.
   h = static_cast<ngx_http_handler_pt*>(
-      ngx_array_push(&cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers));
+      ngx_array_push(&cmcf->phases[NGX_HTTP_PRECONTENT_PHASE].handlers));
   if (h == nullptr) {
     return NGX_ERROR;
   }
   *h = ngx_http_pagespeed_handler;
 
   // Experimental: install the RSL-CAP enforcement handler in the
-  // PREACCESS phase so the token gate runs before the ACCESS optimization
-  // handler and before content is served.  Default OFF — the handler is a
-  // single bool check and NGX_DECLINED until the operator enables enforcement.
+  // PREACCESS phase so the token gate runs before the PRECONTENT
+  // optimization handler and before content is served.  Default OFF — the
+  // handler is a single bool check and NGX_DECLINED until the operator enables
+  // enforcement.
   h = static_cast<ngx_http_handler_pt*>(
       ngx_array_push(&cmcf->phases[NGX_HTTP_PREACCESS_PHASE].handlers));
   if (h == nullptr) {
     return NGX_ERROR;
   }
   *h = ngx_http_pagespeed_rslcap_handler;
+
+  // The worker's agent fetches arriving from this server present as a
+  // non-local client to every access rule; see
+  // ngx_http_pagespeed_agent_fetch_post_read_handler.
+  h = static_cast<ngx_http_handler_pt*>(
+      ngx_array_push(&cmcf->phases[NGX_HTTP_POST_READ_PHASE].handlers));
+  if (h == nullptr) {
+    return NGX_ERROR;
+  }
+  *h = ngx_http_pagespeed_agent_fetch_post_read_handler;
 
   // Install header filter (for X-PageSpeed: MISS on proxied responses)
   ngx_http_next_header_filter = ngx_http_top_header_filter;
