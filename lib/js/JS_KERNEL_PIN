@@ -13,5 +13,5 @@
 # changes arriving via PR, the floor only moves forward.
 # Convention: on a routine pin bump, move the floor to the new pin in the
 # same commit. See lib/js/CLAUDE.md.
-ebec6ede6af085369d4e8d8fa5f90b0811091576  mod_pagespeed master: ES-module let destructuring in for loops, corpus fixture (public repository)
-floor ebec6ede6af085369d4e8d8fa5f90b0811091576
+8447fa07a6d9153c24d1a473be35c6651d7f0aa4  module: 2.8.0 part 2/2: cache integrity, input provenance, HTML parsing
+floor 8447fa07a6d9153c24d1a473be35c6651d7f0aa4
