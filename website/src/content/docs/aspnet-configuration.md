@@ -51,7 +51,7 @@ The middleware binds to a `PageSpeedOptions` instance with four nested sections:
 
 | Option                   | Type     | Default                                               | Description                                                                                                                                                                                                  |
 | ------------------------ | -------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Enabled`                | bool     | `true`                                                | Master switch. When false, the middleware passes through all responses unchanged.                                                                                                                            |
+| `Enabled`                | bool     | `true`                                                | Master switch. When false, the middleware passes through all responses unchanged and the cache volume is not created.                                                                                        |
 | `CacheMode`              | enum     | `Safe`                                                | Cache-Control header strategy on cache HIT. `Safe` adds `must-revalidate` on assets; `Aggressive` adds `public, stale-if-error`. HTML always gets `no-cache`. See [Choose a cache mode](/docs/cache-modes/). |
 | `CssMaxAgeSeconds`       | int      | `300`                                                 | Max-age for CSS and JS cache HIT responses, in seconds.                                                                                                                                                      |
 | `ImageMaxAgeSeconds`     | int      | `1800`                                                | Max-age for image cache HIT responses, in seconds.                                                                                                                                                           |
@@ -66,7 +66,7 @@ The cache is a single mmap'd Cyclone volume file — not a directory of fragment
 
 | Option                 | Type   | Default                           | Description                                                             |
 | ---------------------- | ------ | --------------------------------- | ----------------------------------------------------------------------- |
-| `VolumePath`           | string | `/var/cache/pagespeed/volume.dat` | Required. Path to the Cyclone cache volume file (created on first run). |
+| `VolumePath`           | string | `/var/cache/pagespeed/volume.dat` | Required. Path to the Cyclone cache volume file. Created on first run when `Enabled` is true. |
 | `VolumeSizeBytes`      | ulong  | `1073741824` (1 GiB)              | Volume size in bytes.                                                   |
 | `EnableChecksum`       | bool   | `true`                            | Verify checksums on cache reads.                                        |
 | `RamCacheSizeBytes`    | long   | `67108864` (64 MiB)               | In-process RAM cache size in bytes. Set to `0` to disable.              |
@@ -411,6 +411,10 @@ The parent directory must exist and be writable by the application process. The
 volume file is created on first run and grown to `VolumeSizeBytes`. Reusing the
 same file across restarts preserves the cache; pointing at a fresh path starts
 cold.
+
+When `Enabled` is `false` at startup, the volume file is not created. Turning
+`Enabled` on later does not create it until the process restarts. Turning it
+off later leaves an existing volume in place.
 
 ## Health checks
 

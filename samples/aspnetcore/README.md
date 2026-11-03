@@ -176,7 +176,7 @@ containers without that path, point it somewhere writable (for example
 
 | Setting                  | Default                                               | Description                                                                                                          |
 | ------------------------ | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `Enabled`                | `true`                                                | Enable/disable the middleware (supports hot-reload)                                                                  |
+| `Enabled`                | `true`                                                | Enable/disable the middleware (supports hot-reload). When `false` at startup, the cache volume is not created. |
 | `ExcludePaths`           | `["/api/", "/signalr/", "/_blazor/", "/_framework/"]` | URL prefixes the middleware leaves untouched (supports hot-reload)                                                   |
 | `CacheMode`              | `Safe`                                                | `Safe`: `must-revalidate` on assets. `Aggressive`: `public` + `stale-if-error` on assets. HTML is always `no-cache`. |
 | `MaxResponseBufferBytes` | `5242880` (5 MB)                                      | Responses larger than this pass through unmodified                                                                   |
@@ -187,7 +187,7 @@ containers without that path, point it somewhere writable (for example
 
 | Setting                 | Default                           | Description                                              |
 | ----------------------- | --------------------------------- | -------------------------------------------------------- |
-| `Cache.VolumePath`      | `/var/cache/pagespeed/volume.dat` | Path to the Cyclone cache volume file (must be writable) |
+| `Cache.VolumePath`      | `/var/cache/pagespeed/volume.dat` | Path to the Cyclone cache volume file (must be writable). Not created when `Enabled` is false at startup. |
 | `Cache.VolumeSizeBytes` | `1073741824` (1 GB)               | Maximum cache volume size                                |
 
 **`Worker` section:**

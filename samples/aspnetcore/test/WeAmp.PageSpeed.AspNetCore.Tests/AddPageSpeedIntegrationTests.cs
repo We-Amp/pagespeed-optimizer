@@ -66,6 +66,45 @@ public class AddPageSpeedIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task AddPageSpeed_EnabledFalse_DoesNotCreateCacheVolume()
+    {
+        var baseDir = MakeTempDir();
+        var cachePath = Path.Combine(baseDir, "deep", "volume.dat");
+        Assert.False(Directory.Exists(Path.Combine(baseDir, "deep")));
+
+        try
+        {
+            var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+            builder.WebHost.UseTestServer();
+            builder.Logging.SetMinimumLevel(LogLevel.Warning);
+            builder.Services.AddPageSpeed(opts =>
+            {
+                opts.Enabled = false;
+                opts.Cache.VolumePath = cachePath;
+                opts.Cache.VolumeSizeBytes = 16 * 1024 * 1024;
+                opts.Worker.AutoStart = false;
+            });
+
+            var app = builder.Build();
+            app.UsePageSpeed();
+            await app.StartAsync();
+
+            var cache = app.Services.GetService<IPageSpeedCache>();
+            Assert.NotNull(cache);
+            var stats = cache!.GetStats();
+            Assert.Equal(0ul, stats.CurrentEntries);
+            Assert.False(Directory.Exists(Path.Combine(baseDir, "deep")));
+            Assert.False(File.Exists(cachePath));
+
+            await app.StopAsync();
+        }
+        catch (DllNotFoundException)
+        {
+            // Native library not available — skip gracefully
+        }
+    }
+
+    [Fact]
     public async Task AddPageSpeed_ExistingCacheDirectory_StartsSuccessfully()
     {
         var dir = MakeTempDir();

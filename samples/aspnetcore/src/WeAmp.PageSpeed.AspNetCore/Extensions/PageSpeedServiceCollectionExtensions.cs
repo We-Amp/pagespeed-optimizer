@@ -50,6 +50,18 @@ public static class PageSpeedServiceCollectionExtensions
         services.AddSingleton<IPageSpeedCache>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<PageSpeedOptions>>().Value;
+            var loggerFactory = sp.GetService<ILoggerFactory>();
+            // Enabled is read once, when this singleton is first created.
+            // A later hot-reload changes the middleware only: it does not
+            // open a volume that was skipped, and it does not delete one
+            // that was already opened.
+            if (!opts.Enabled)
+            {
+                loggerFactory?.CreateLogger<DisabledPageSpeedCache>().LogInformation(
+                    "PageSpeed is disabled; cache volume will not be created");
+                return new DisabledPageSpeedCache();
+            }
+
             var cacheOpts = new WeAmp.PageSpeed.PageSpeedCacheOptions
             {
                 VolumePath = opts.Cache.VolumePath,
@@ -58,8 +70,7 @@ public static class PageSpeedServiceCollectionExtensions
                 RamCacheSizeBytes = opts.Cache.RamCacheSizeBytes,
                 MaxMetadataSizeBytes = opts.Cache.MaxMetadataSizeBytes,
             };
-            var logger = sp.GetService<ILoggerFactory>()
-                ?.CreateLogger<GenerationAwarePageSpeedCache>();
+            var logger = loggerFactory?.CreateLogger<GenerationAwarePageSpeedCache>();
             return new GenerationAwarePageSpeedCache(
                 () => new PageSpeedCache(cacheOpts),
                 cacheOpts.VolumePath + ".gen",

@@ -2,6 +2,16 @@
 
 Entries for 2.0.x predate the relicensing of the product under the Apache License 2.0; their license and trial wording describes the behavior of those releases.
 
+## Unreleased
+
+### Cache
+
+`AddPageSpeed` no longer opens the Cyclone cache volume when `PageSpeed:Enabled`
+is `false`. Previously the 1 GiB volume file was created at startup even while
+the middleware passed every response through. The decision is read once, when
+the cache singleton is created. A later hot-reload does not create a skipped
+volume and does not delete one that was already opened.
+
 ## 2.0.20
 
 ### Middleware read-back
