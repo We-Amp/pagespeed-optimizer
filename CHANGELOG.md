@@ -2,7 +2,10 @@
 
 All notable changes to mod_pagespeed are documented in this file.
 
-## Unreleased
+## 2.8.0 - 2026-11-05
+
+Changed: the Helm chart 0.3.14 is published with this release; its default
+image version is 2.8.0.
 
 Security: an optimized page could carry content from a stylesheet, image or other page that the server serves only to some clients. Page variants are now built only from content the site serves to any client. Affected: 2.7.0 and earlier. Update recommended.
 
