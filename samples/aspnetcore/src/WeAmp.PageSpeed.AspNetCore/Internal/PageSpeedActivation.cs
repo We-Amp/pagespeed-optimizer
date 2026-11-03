@@ -52,7 +52,9 @@ internal sealed class PageSpeedActivation : IDisposable
     // 1 once the "cache is not open" write skip was reported for the current
     // failure state; reset by every new failure.
     private int _notOpenReported;
-    private bool _disposed;
+    // Set before _cache is cleared, so a reader that finds no cache after
+    // dispose also sees this.
+    private volatile bool _disposed;
 
     /// <param name="monitor">The options whose <c>Enabled</c> switch is followed.</param>
     /// <param name="openCache">
@@ -130,16 +132,22 @@ internal sealed class PageSpeedActivation : IDisposable
     /// happened yet. Returns the real cache, or <c>null</c> while inactive.
     /// Cheap once active, and cheap while disabled.
     /// </summary>
+    /// <exception cref="ObjectDisposedException">
+    /// This activation was disposed: the cache is closed for good, whether it
+    /// was ever opened or not, and is never opened again.
+    /// </exception>
     internal IPageSpeedCache? TryActivateFromRequest()
     {
         var cache = _cache;
-        if (cache != null || _openFailed) return cache;
-        return TryActivate();
+        if (cache == null && !_openFailed) cache = TryActivate();
+        if (cache == null && _disposed)
+            throw new ObjectDisposedException(nameof(IPageSpeedCache));
+        return cache;
     }
 
     private IPageSpeedCache? TryActivate()
     {
-        if (_activated.Task.IsCompleted) return _cache;
+        if (_disposed || _activated.Task.IsCompleted) return _cache;
         if (!_monitor.CurrentValue.Enabled) return null;
         return Activate(throwOnFailure: false);
     }
