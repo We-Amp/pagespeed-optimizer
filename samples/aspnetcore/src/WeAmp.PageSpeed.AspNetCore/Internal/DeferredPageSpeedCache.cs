@@ -101,6 +101,10 @@ internal sealed class DeferredPageSpeedCache : IPageSpeedCache
     /// </summary>
     SafeCacheHandle IPageSpeedCache.Handle => Target.Handle;
 
-    /// <summary>Disposes the real cache, if open (the activation owns it).</summary>
+    /// <summary>
+    /// Disposes the real cache, if open (the activation owns it). Every later
+    /// call throws <see cref="ObjectDisposedException"/>, and no cache is
+    /// opened again.
+    /// </summary>
     public void Dispose() => _activation.Dispose();
 }
