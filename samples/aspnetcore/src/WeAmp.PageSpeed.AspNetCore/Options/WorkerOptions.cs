@@ -11,7 +11,10 @@ public sealed class WorkerOptions
     /// <summary>
     /// Automatically start and manage the factory_worker process.
     /// When true, the worker binary is resolved from the NuGet package
-    /// and launched as a child process on app startup.
+    /// and launched as a child process on app startup, but only when
+    /// <see cref="PageSpeedOptions.Enabled"/> is also true. When that
+    /// switch is false, no child is launched.
+    /// Set false to run no child worker (for example an external worker).
     /// Default: true.
     /// </summary>
     public bool AutoStart { get; set; } = true;

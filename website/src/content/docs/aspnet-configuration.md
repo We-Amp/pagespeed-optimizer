@@ -106,7 +106,7 @@ diagnostic console.
 
 | Option       | Type    | Default | Description                                                                                                                                                                                                                                                                                                                                                            |
 | ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process on startup. Set `false` to launch no worker process at all.                                                                                                                                                                                                                |
+| `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process on startup, but only when the top-level `Enabled` switch is true. When `Enabled` is false, no worker is launched. Set `false` to launch no child process (pair it with a concrete `SocketPath` for an external worker). |
 | `SocketPath` | string? | unset   | Worker-coordination socket. **Leave it unset** (the default) and the middleware auto-resolves a per-process socket with coordination on — no configuration needed. Set it to a concrete path to share one socket with an out-of-process worker (split-process deployments). Setting it to `null` or `""` disables worker coordination and logs a loud startup warning. |
 | `ApiPort`    | int     | `0`     | Loopback TCP port for the worker's HTTP management API. `0` does not disable the API: the middleware picks a free loopback port. Either way the worker runs with API authentication off, and the console proxies its `/v1/*` paths from your site (see [Console](#console-pagespeedconsole)). **Never publish this port.**                                               |
 | `LogLevel`   | string? | `null`  | Worker log level: `debug`, `info`, `warning`, or `error`. `null` keeps the worker's default (`info`).                                                                                                                                                                                                                                                                  |
@@ -292,9 +292,13 @@ the answer of a fresh install.
 ### Worker coordination and `SocketPath`
 
 For the default in-process deployment, leave the `Worker` section empty. With
-`AutoStart` `true` and `SocketPath` unset, the middleware launches the worker
-and connects to it over an auto-resolved per-process socket — image and
-critical-CSS optimization are on with no extra configuration.
+`Enabled` `true`, `AutoStart` `true` and `SocketPath` unset, the middleware
+launches the worker and connects to it over an auto-resolved per-process
+socket — image and critical-CSS optimization are on with no extra
+configuration. When `Enabled` is `false`, the middleware does not launch
+`factory_worker` and publishes no coordination socket. That decision is made
+when the host starts; a later hot-reload of `Enabled` changes the middleware
+only. `AutoStart` `false` still means this host does not launch a child.
 
 There are two reasons to set `SocketPath` explicitly:
 

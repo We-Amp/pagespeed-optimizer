@@ -14,6 +14,8 @@ namespace WeAmp.PageSpeed.AspNetCore;
 /// BackgroundService that auto-starts and manages the factory_worker
 /// process as a child process. Resolves the worker binary from the
 /// NuGet native assets layout (runtimes/{rid}/native/).
+/// The process is launched only when <see cref="PageSpeedOptions.Enabled"/>
+/// is true and <see cref="WorkerOptions.AutoStart"/> is true.
 /// </summary>
 public sealed class WorkerProcessHost : BackgroundService
 {
@@ -47,6 +49,20 @@ public sealed class WorkerProcessHost : BackgroundService
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Enabled is read once, from IOptions, when this host starts. A later
+        // hot-reload of PageSpeed:Enabled changes the middleware only; it does
+        // not start or stop a worker that this method already decided on.
+        if (!_options.Value.Enabled)
+        {
+            _logger.LogInformation(
+                "PageSpeed is disabled; factory_worker will not start");
+            // No worker means no IPC endpoint. Publish null so the
+            // notification service stops waiting and disables itself instead
+            // of blocking forever on SocketPathReady.
+            _endpoint.SetSocketPath(null);
+            return;
+        }
+
         var workerOpts = _options.Value.Worker;
         if (!workerOpts.AutoStart)
         {

@@ -2,6 +2,16 @@
 
 Entries for 2.0.x predate the relicensing of the product under the Apache License 2.0; their license and trial wording describes the behavior of those releases.
 
+## Unreleased
+
+### Worker
+
+`WorkerProcessHost` no longer launches `factory_worker` when `PageSpeed:Enabled`
+is `false`. Previously the child process started whenever `Worker:AutoStart`
+was `true`, including while the middleware was turned off. `Worker:AutoStart`
+`false` still means "do not launch a child" (an external worker, or tests).
+The launch decision is read once at host start and is not hot-reloaded.
+
 ## 2.0.20
 
 ### Middleware read-back
