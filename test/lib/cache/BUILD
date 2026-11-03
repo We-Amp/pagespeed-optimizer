@@ -53,6 +53,22 @@ gtest_test(
 )
 
 gtest_test(
+    name = "key_namespace_test",
+    size = "large",  # same volume/temp-dir shape as cache_test
+    srcs = ["key_namespace_test.cc"],
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_id",
+        "//lib/classify:alternate_metadata",
+        "//lib/classify:capability_mask",
+        "//test/test_util:cache_test_peer",
+        "//test/test_util:temp_dir",
+        "@cyclone",
+    ],
+)
+
+gtest_test(
     name = "option_context_key_test",
     size = "large",  # same volume/temp-dir shape as cache_test
     srcs = ["option_context_key_test.cc"],
@@ -161,5 +177,53 @@ gtest_test(
         "//lib/classify:alternate_metadata",
         "//lib/classify:capability_mask",
         "//test/test_util:temp_dir",
+    ],
+)
+
+gtest_test(
+    name = "html_cache_policy_test",
+    srcs = ["html_cache_policy_test.cc"],
+    deps = [
+        "//lib/cache:html_cache_policy",
+        "//lib/classify:alternate_metadata",
+    ],
+)
+
+gtest_test(
+    name = "html_cache_decision_test",
+    srcs = ["html_cache_decision_test.cc"],
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:html_cache_decision",
+        "//lib/cache:html_cache_policy",
+    ],
+)
+
+gtest_test(
+    name = "html_cache_policy_fuzz_seeds_test",
+    srcs = ["html_cache_policy_fuzz_seeds_test.cc"],
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:html_cache_policy",
+        "//lib/cache:html_cache_policy_fuzz_harness",
+        "//lib/cache:origin_cache_control",
+        "//lib/cache:vary_storability",
+        "//lib/classify:alternate_metadata",
+        "//test/test_util:temp_dir",
+    ],
+)
+
+gtest_test(
+    name = "cache_key_test",
+    size = "large",  # same volume/temp-dir shape as cache_test
+    srcs = ["cache_key_test.cc"],
+    deps = [
+        "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_id",
+        "//lib/classify:alternate_metadata",
+        "//lib/classify:capability_mask",
+        "//lib/classify:option_context",
+        "//test/test_util:temp_dir",
+        "@cyclone",
     ],
 )

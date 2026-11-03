@@ -217,6 +217,8 @@ TEST_F(PipelineTest, HtmlPipelineEndToEnd) {
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler_);
   auto thread = StartWorker(worker);
   // Pre-populate cache with HTML containing inline CSS.
@@ -661,8 +663,9 @@ TEST_F(PipelineTest, HtmlPipelineStoresHints) {
   std::string variant = PollVariant(worker.cache(), cache_url, mask);
   EXPECT_FALSE(variant.empty()) << "HTML variant not written";
   if (!variant.empty()) {
-    EXPECT_NE(variant.find("data-pagespeed-critical"), std::string::npos);
-    // Refusing to defer must not cost the page its inline block.
+    // Refusing to defer leaves the sheets blocking, and no block is inlined
+    // next to them.
+    EXPECT_EQ(variant.find("data-pagespeed-critical"), std::string::npos);
     EXPECT_EQ(variant.find("data-pagespeed-async"), std::string::npos);
   }
 

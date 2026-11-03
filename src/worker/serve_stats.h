@@ -453,12 +453,42 @@ struct ServeStats {
   // Identity, NOT a counter — PRESERVED across reuse and ZeroCounters.  Kept
   // LAST in the struct.
   uint8_t boot_id[16];
+
+  // ---- split block: the saving divided into encoding and rewrite ----
+  // Appended AFTER boot_id, inside the same kFileSize and WITHOUT a version
+  // bump: no existing field moves, so a peer built before it keeps reading and
+  // writing every field it knew, and a file created by such a peer simply has
+  // this block all zero.  (The identity/epoch pair used to be the last two
+  // fields as a convention; nothing depends on that -- readers address
+  // boot_id by member -- and the assert below keeps both ahead of this block.)
+  //
+  // For the serves of each counted type whose encoded-origin size was known
+  // (RecordServeHitSplit), the sum of their origin bytes, of those bytes
+  // encoded the way the serve was encoded, and of the bytes served:
+  //   encoding saved = original - compressed_original
+  //   rewrite saved  = compressed_original - optimized
+  // The two add up to original - optimized for exactly those serves.  A serve
+  // recorded without the encoded size counts in the per-type totals above but
+  // not here, so split_original / original is the share the split covers; 0
+  // means the writer predates this block or no entry carried the size.
+  // WRITER: the front end, with the bytes/hits group, through
+  // RecordServeHitSplit().
+  struct SplitCounters {
+    uint64_t original_bytes;
+    uint64_t compressed_original_bytes;
+    uint64_t optimized_bytes;
+  };
+  SplitCounters split_html;
+  SplitCounters split_css;
+  SplitCounters split_js;
+  SplitCounters split_image;
+  // ---- end split block (96 bytes) ----
 };
 static_assert(sizeof(ServeStats) <= ServeStats::kFileSize);
-// Pin the EXACT size (v11).  The <= assert above only catches an overflow; it
+// Pin the EXACT size (v11 plus the split block).  The <= assert above only catches an overflow; it
 // would happily accept a field silently dropped or re-typed.  Anything that
 // changes the layout must change this number and the version together.
-static_assert(sizeof(ServeStats) == 11496,
+static_assert(sizeof(ServeStats) == 11592,
               "ServeStats layout changed: bump kVersion and update this pin");
 static_assert(alignof(ServeStats) == 8);
 // The v8 block must stay 8-byte aligned so every u64 in it can be updated with
@@ -472,6 +502,11 @@ static_assert(offsetof(ServeStats, saturation_hwm) <
               offsetof(ServeStats, counting_since_unix_day));
 static_assert(offsetof(ServeStats, counting_since_unix_day) <
               offsetof(ServeStats, boot_id));
+// The split block follows the identity pair, so every offset a pre-split peer
+// knows is unchanged.
+static_assert(offsetof(ServeStats, split_html) >=
+              offsetof(ServeStats, boot_id) + sizeof(ServeStats::boot_id));
+static_assert(offsetof(ServeStats, split_html) % 8 == 0);
 static_assert(offsetof(ServeStats, serve_hits_by_encoding) % 8 == 0);
 static_assert(offsetof(ServeStats, serve_bytes_by_encoding) % 8 == 0);
 static_assert(offsetof(ServeStats, serve_bytes_by_encoding) <
@@ -551,6 +586,22 @@ void CloseServeStats(ServeStats* stats);
 void RecordServeHit(ServeStats* stats, ContentType content_type,
                     uint64_t original_bytes, uint64_t optimized_bytes,
                     uint32_t mask = 0);
+
+// RecordServeHit() with the host, plus the split of the saving: the serve's
+// origin bytes encoded the way it was served (see the split block).  Counts
+// exactly what the host form counts and, for the four counted content types,
+// adds the serve to that type's split counters.  A front end that does not
+// know the encoded size calls the host form instead.
+void RecordServeHitSplit(ServeStats* stats, ContentType content_type,
+                         uint64_t original_bytes,
+                         uint64_t compressed_original_bytes,
+                         uint64_t optimized_bytes, uint32_t mask,
+                         std::string_view host);
+
+// One counted type's split counters as a reader sees them.  Zero for any
+// other type and for stats == nullptr.
+ServeStats::SplitCounters ReadServeSplit(const ServeStats* stats,
+                                         ContentType content_type);
 
 // One host's share of the serve savings, as ReadServeSavingsByHost reports it.
 struct ServeHostRow {

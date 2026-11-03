@@ -58,8 +58,8 @@ void AccumulateOriginCacheControl(std::string_view header_value,
                                   OriginCacheControl* out);
 
 // Parse a Cache-Control delta-seconds argument, saturating at UINT32_MAX.
-// Leading SP and a surrounding pair of double quotes are tolerated (both
-// occur in the wild); anything non-numeric after that yields 0, which is
+// Surrounding optional whitespace and a surrounding pair of double quotes are
+// tolerated (both occur in the wild); anything non-numeric after that yields 0, which is
 // how a malformed lifetime becomes "no lifetime" rather than a huge one.
 uint32_t ParseCacheControlSeconds(std::string_view value);
 

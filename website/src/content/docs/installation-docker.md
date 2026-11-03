@@ -13,6 +13,10 @@ with the single combined container below.
 
 Machine-readable recipe for coding agents: [modpagespeed.com/recipes/docker.md](https://modpagespeed.com/recipes/docker.md) (see [Install with a coding agent](/docs/agent-install/)).
 
+Already running the official `nginx` image? The native module installs into it
+from the signed repository: see
+[nginx.org's nginx and the nginx Docker image](/docs/installation-module/#nginxorgs-nginx-and-the-nginx-docker-image).
+
 ## Quick try (one container)
 
 The fastest way to see mod_pagespeed against your own site is the combined

@@ -8,7 +8,7 @@ Heritage: mod_pagespeed, the open-source optimization core this product continue
 
 What it does:
 
-- Image optimization in the optimizer worker: WebP, AVIF and SVG transcoding, viewport-aware resizing, learned per-format quality prediction with SSIMULACRA2 verification, content-aware classification and denoising, up to 37 variants per image (36 raster plus one SVG)
+- Image optimization in the optimizer worker: WebP, AVIF and SVG transcoding, viewport-aware resizing, learned per-format quality prediction with SSIMULACRA2 verification, content-aware classification, up to 37 variants per image (36 raster plus one SVG)
 - CSS optimization: minification, heuristic critical-CSS extraction with an optional headless-browser pipeline, non-blocking stylesheet loading
 - JavaScript optimization: safe minification and browser-analysis-driven script deferral, no AST transforms
 - HTML optimization: critical CSS injection, 103 Early Hints, lazy-loading attributes, image dimensions, LCP image preload, font preloading, preconnect hints
@@ -74,6 +74,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
 - [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
 - [Rule packs](https://modpagespeed.com/docs/rule-packs/): Rule packs for Apache, nginx and IIS: JSON rules for the canonical, title, description, hreflang and JSON-LD of your pages, in report mode first.
+- [Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/): How mod_pagespeed handles hydrated React, Next.js, Vue, Nuxt and Svelte pages, what to do when recognition misses one, and the DetectHydratedPages option.
 - [Collapse whitespace (collapse_whitespace)](https://modpagespeed.com/docs/filters/collapse_whitespace/): Removes excess whitespace from HTML.
 - [Combine CSS (combine_css)](https://modpagespeed.com/docs/filters/combine_css/): Combines multiple CSS files into one.
 - [Combine heads (combine_heads)](https://modpagespeed.com/docs/filters/combine_heads/): Merges multiple <head> elements.
@@ -749,7 +750,7 @@ module (`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses �
 for Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9
 and 10. It is the ngx_pagespeed port of mod_pagespeed, built from the
 mod_pagespeed source, and it loads into the nginx your distribution ships.
-Each build is pinned to that distribution's stock nginx (1.18 through 1.26),
+Each build is pinned to that distribution's stock nginx (1.18 through 1.28),
 so there is no version to match by hand.
 
 > **Two nginx modules, one file name**
@@ -925,6 +926,80 @@ signed packages also sidestep the
 [ngx_pagespeed build failures on modern nginx](https://modpagespeed.com/blog/ngx-pagespeed-wont-build-modern-nginx/)
 that come from compiling the old module from source.
 
+### nginx.org's nginx and the nginx Docker image
+
+The `nginx-module-pagespeed-nginxorg` package is the same native module, built
+for nginx.org's stable nginx on Debian 13 and Ubuntu 24.04 and on Enterprise
+Linux 9, amd64 (x86_64) only. Each build is pinned to one nginx version, which
+the package version names (`<version>+ngx1.30.6~trixie`; on Enterprise Linux
+the package requires `nginx = 2:1.30.6`), so it must match the nginx you run,
+and it cannot be installed alongside `nginx-module-pagespeed`. There is no
+build for nginx.org's mainline, and none for Enterprise Linux 10.
+
+nginx.org's `nginx.conf` does not read the module directory, so add its
+include at the top of `/etc/nginx/nginx.conf`:
+`include /etc/nginx/modules-enabled/*.conf;` on Debian and Ubuntu (Enterprise
+Linux below).
+The package ships its `load_module` line there and takes it away when removed,
+so removing the package leaves nginx able to start.
+
+**On a Debian or Ubuntu host** that runs nginx.org's repository, install the
+package as in the steps above, with the other package name:
+`sudo apt-get install nginx-module-pagespeed-nginxorg`. It takes the newest
+build and, when nginx.org carries it, the nginx that build is for.
+
+**On AlmaLinux, Rocky Linux or RHEL 9** with nginx.org's repository, install
+the package with dnf:
+`sudo dnf install nginx-module-pagespeed-nginxorg`, and add
+`include /usr/share/nginx/modules/*.conf;` at the top of
+`/etc/nginx/nginx.conf`. The package installs a dnf plugin that keeps a plain
+`dnf update` working while nginx.org is ahead of the matching build: it holds
+nginx back until that build is available, and `dnf check-update` still lists
+the pending nginx. To take an nginx security fix first, run
+`sudo dnf upgrade nginx --allowerasing`; that removes the module package, so
+reinstall it when its build is available.
+
+Not yet tested on Enterprise Linux:
+
+- PackageKit and Cockpit updates likely bypass dnf plugins, so a plain update
+  through them may still fail while nginx.org is ahead of the matching build.
+  Use `dnf update` on the command line.
+- dnf5 (Enterprise Linux 10) is untested; the package is for Enterprise
+  Linux 9.
+- Only AlmaLinux 9 has been exercised. Rocky Linux 9 and RHEL 9 are expected to
+  behave the same but are untested.
+
+**In the nginx Docker image**, install the build for the image's nginx by its
+version: `apt-cache madison` lists the builds, the one whose version carries
+`+ngx<nginx version>~` is the match, and the image build fails at `test -n`
+rather than moving nginx when no package exists for that version yet.
+`NGINX_VERSION` is set by the image. Pin the tag to the exact stable version:
+`nginx:latest` follows mainline and the `alpine` variants use another package
+format, so neither works with this package.
+
+```dockerfile
+FROM nginx:1.30.6
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg \
+ && curl -fsSL https://packages.modpagespeed.com/install.sh | sh \
+ && apt-get update \
+ && v="$(apt-cache madison nginx-module-pagespeed-nginxorg \
+        | awk -v n="+ngx${NGINX_VERSION}~" 'index($3, n) { print $3; exit }')" \
+ && test -n "$v" \
+ && apt-get install -y "nginx-module-pagespeed-nginxorg=$v" \
+ && sed -i '1i include /etc/nginx/modules-enabled/*.conf;' /etc/nginx/nginx.conf \
+ && mkdir -p /var/cache/ngx_pagespeed && chown nginx /var/cache/ngx_pagespeed
+```
+
+Then set the shared settings as in step 4 above.
+
+**When nginx moves.** A new nginx version needs a matching module package,
+which follows nginx.org's stable releases. Until it is available, `apt upgrade`
+holds nginx back, and `apt full-upgrade` removes the module. If nginx ships a
+security fix first, take the fix: remove the module, upgrade nginx, and
+reinstall the module when its package is available. On Enterprise Linux the
+dnf plugin holds nginx back the same way (see above). In Docker, move the image
+tag only once the package for that version exists.
+
 ## nginx compatibility
 
 Two shapes, two nginx stories. The native module runs inside the nginx your
@@ -937,14 +1012,17 @@ proxy brings its own nginx inside the image.
 | Native module on Debian 13 trixie                                              | 1.26.3                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on Ubuntu 22.04 jammy                                            | 1.18.0                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on Ubuntu 24.04 noble                                            | 1.24.0                          | the distribution's stock nginx (amd64 + arm64)     |
+| Native module on Ubuntu 26.04 resolute                                         | 1.28.3                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on AlmaLinux / RHEL / Rocky 9                                    | 1.20.1                          | the distribution's stock nginx (x86_64 + aarch64)  |
 | Native module on AlmaLinux / RHEL / Rocky 10                                   | the distribution's stock nginx  | the distribution's stock nginx (x86_64)            |
+| Native module for nginx.org's stable nginx (`nginx-module-pagespeed-nginxorg`) on Debian 13, Ubuntu 24.04 and AlmaLinux / RHEL / Rocky 9 | 1.30.6 (nginx.org's stable; one nginx version per build) | nginx.org's repository (amd64 / x86_64) or the nginx Docker image (amd64) |
 | Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.6                        | bundled in the image                               |
 
 nginx refuses to load a module built for a different version, and
 `--with-compat` does not relax that check, so the native module follows your
-distribution's nginx package, not nginx.org's. Running an nginx we do not
-package? [Contact us](https://modpagespeed.com/contact/) for a matching pinned build. Debian 11
+distribution's nginx package, or nginx.org's stable with the
+[separate package](https://modpagespeed.com/docs/installation-module/#nginxorgs-nginx-and-the-nginx-docker-image). Running an
+nginx we do not package? [Contact us](https://modpagespeed.com/contact/) for a matching pinned build. Debian 11
 (bullseye) stays on the repository's final 1.15.0 module packages.
 
 ## Using the optimizer worker with nginx
@@ -1103,7 +1181,7 @@ Yes. The native Apache and nginx module ships from the signed packages.modpagesp
 
 **How do I run mod_pagespeed on nginx today?**
 
-Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.
+Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.28). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.
 
 ---
 
@@ -1119,6 +1197,10 @@ Cyclone cache volume. To try it against your own site in seconds first, start
 with the single combined container below.
 
 Machine-readable recipe for coding agents: [modpagespeed.com/recipes/docker.md](https://modpagespeed.com/recipes/docker.md) (see [Install with a coding agent](https://modpagespeed.com/docs/agent-install/)).
+
+Already running the official `nginx` image? The native module installs into it
+from the signed repository: see
+[nginx.org's nginx and the nginx Docker image](https://modpagespeed.com/docs/installation-module/#nginxorgs-nginx-and-the-nginx-docker-image).
 
 ## Quick try (one container)
 
@@ -2863,6 +2945,8 @@ Coming from another line or project? See
   directory needs free space at least equal to the configured cache size on
   top of what the current volume occupies.
 - **Pick a quiet hour** if your origin is sensitive to the refill.
+- **Plan to purge cached HTML in your CDN** once the upgrade is done. See
+  [Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/).
 - **Move both parts together, optimizer first.** A module and an optimizer on
   different cache formats do not share a cache: the Apache module refuses to
   attach and says so; the native nginx module turns in-place optimization
@@ -5946,6 +6030,11 @@ Makes prioritize_critical_css inline only the rules for content in the first scr
 
 Number of bytes below which stylesheets will be flattened.
 
+Set it in the server or directory configuration. After 2.7.0 it can no longer
+be set on a single request: a `PageSpeedCssFlattenMaxBytes` query parameter,
+request or response header, or cookie has no effect. In 2.7.0 and earlier it
+could also be set per request.
+
 #### CssInlineMaxBytes
 
 - **Syntax:** `ModPagespeedCssInlineMaxBytes number` (Apache) · `pagespeed CssInlineMaxBytes number;` (nginx)
@@ -8322,7 +8411,7 @@ See [Preconnect injection](https://modpagespeed.com/docs/worker-configuration/#p
 - **Syntax:** `--no-async-css`
 - **Default:** —
 
-Disable async CSS loading (keep stylesheets render-blocking)
+Disable async CSS loading (keep stylesheets render-blocking and inline no above-the-fold CSS)
 
 Enabled does not mean applied: see [Async CSS](https://modpagespeed.com/docs/worker-configuration/#async-css) for the per-page
 conditions deferral requires.
@@ -8362,7 +8451,7 @@ Enable speculation rules injection (default: off)
 Disable content-aware quality presets
 
 Falls back to the `Unknown` content class for every image. See
-[Content analysis and denoising](https://modpagespeed.com/docs/worker-configuration/#content-analysis-and-denoising).
+[Content analysis](https://modpagespeed.com/docs/worker-configuration/#content-analysis-and-denoising).
 
 #### --no-preserve-c2pa
 
@@ -8381,28 +8470,28 @@ Recompress manifest-bearing PNGs and re-splice C2PA chunks (PNG only; default: o
 #### --denoise-threshold
 
 - **Syntax:** `--denoise-threshold LEVEL`
-- **Default:** `0.3`
+- **Default:** —
 
-Noise level threshold 0.0-1.0 (default: 0.3, 0=disable)
+Deprecated and ignored (accepted so existing command lines keep working)
 
-Range 0.0-1.0; `0` disables denoising. See
-[Content analysis and denoising](https://modpagespeed.com/docs/worker-configuration/#content-analysis-and-denoising).
+Removed: noisy images are no longer smoothed before encoding. The flag is
+still accepted and ignored.
 
 #### --denoise-sigma-spatial
 
 - **Syntax:** `--denoise-sigma-spatial F`
-- **Default:** `3.0`
+- **Default:** —
 
-Bilateral filter spatial sigma, max 10.0 (default: 3.0)
+Deprecated and ignored
 
-Range 0.0-10.0.
+Removed. Still accepted and ignored.
 
 #### --denoise-sigma-range
 
 - **Syntax:** `--denoise-sigma-range F`
-- **Default:** `25.0`
+- **Default:** —
 
-Bilateral filter range sigma (default: 25.0)
+Deprecated and ignored
 
 #### --no-quality-verify
 
@@ -9284,18 +9373,15 @@ Disabling verification ([`--no-quality-verify`](https://modpagespeed.com/docs/wo
 SSIMULACRA2 measurement pass entirely, reducing CPU cost at the risk of
 inconsistent visual quality.
 
-## Content analysis and denoising
+## Content analysis
 
 The worker classifies image content (photo, screenshot, illustration, noisy) and
-applies content-aware encoding presets. A bilateral filter denoises images that
-exceed the noise threshold before encoding, improving compression efficiency.
-The flags are [`--no-content-analysis`](https://modpagespeed.com/docs/worker-configuration/#--no-content-analysis),
-[`--denoise-threshold`](https://modpagespeed.com/docs/worker-configuration/#--denoise-threshold),
-[`--denoise-sigma-spatial`](https://modpagespeed.com/docs/worker-configuration/#--denoise-sigma-spatial) and
-[`--denoise-sigma-range`](https://modpagespeed.com/docs/worker-configuration/#--denoise-sigma-range).
+applies content-aware encoding presets. Images are not smoothed before
+encoding. The flag is [`--no-content-analysis`](https://modpagespeed.com/docs/worker-configuration/#--no-content-analysis); the
+`--denoise-*` flags are deprecated and ignored.
 
 Content analysis is fast (runs on the already-decoded pixel buffer) and feeds
-into both the learned quality model and the denoising decision. Disabling it
+into the learned quality model. Disabling it
 falls back to the `Unknown` content class for all images.
 
 ## HTML transforms
@@ -9350,7 +9436,7 @@ with the stylesheet deferred, and only while that page still serves the exact
 stylesheet the confirmation was made against — publish new styles and the check
 runs again before deferral resumes. Everywhere the confirmation does not apply,
 including a page whose browser analysis has not completed, the stylesheet stays
-render-blocking and the above-the-fold CSS is still inlined. Disable the
+render-blocking and no above-the-fold CSS is inlined next to it. Disable the
 transform entirely with `--no-async-css`.
 
 Under a nonce-only or `strict-dynamic` CSP, host allowlists including `'self'`
@@ -9378,7 +9464,7 @@ suppress them is the coarse `--disable-html` / `--disable-css` /
 
 ### Image pipeline
 
-Decodes source images, applies content-aware quality and denoising, and
+Decodes source images, applies content-aware quality, and
 re-encodes to modern formats (WebP, AVIF). Emits viewport, density, and
 Save-Data variants. Metadata (EXIF, ICC profiles other than sRGB) is
 stripped. Always-on baseline under `pagespeed on;`; there is no
@@ -11073,6 +11159,9 @@ If a non-browser client must receive the original format:
 
 ## Per-CDN recommendations
 
+Purge cached HTML in any CDN after upgrading. See
+[Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/).
+
 ### Cloudflare
 
 Cloudflare does not key its cache on `Vary: Accept` or `Vary: User-Agent`
@@ -11944,7 +12033,7 @@ The middleware binds to a `PageSpeedOptions` instance with four nested sections:
 
 | Option                   | Type     | Default                                               | Description                                                                                                                                                                                                  |
 | ------------------------ | -------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Enabled`                | bool     | `true`                                                | Master switch. When false, the middleware passes through all responses unchanged.                                                                                                                            |
+| `Enabled`                | bool     | `true`                                                | Master switch. When false, the middleware passes through all responses unchanged. The cache volume is opened, and the worker launched, the first time it is true, at startup or through a hot reload; switching it off again leaves both in place. |
 | `CacheMode`              | enum     | `Safe`                                                | Cache-Control header strategy on cache HIT. `Safe` adds `must-revalidate` on assets; `Aggressive` adds `public, stale-if-error`. HTML always gets `no-cache`. See [Choose a cache mode](https://modpagespeed.com/docs/cache-modes/). |
 | `CssMaxAgeSeconds`       | int      | `300`                                                 | Max-age for CSS and JS cache HIT responses, in seconds.                                                                                                                                                      |
 | `ImageMaxAgeSeconds`     | int      | `1800`                                                | Max-age for image cache HIT responses, in seconds.                                                                                                                                                           |
@@ -11959,7 +12048,7 @@ The cache is a single mmap'd Cyclone volume file — not a directory of fragment
 
 | Option                 | Type   | Default                           | Description                                                             |
 | ---------------------- | ------ | --------------------------------- | ----------------------------------------------------------------------- |
-| `VolumePath`           | string | `/var/cache/pagespeed/volume.dat` | Required. Path to the Cyclone cache volume file (created on first run). |
+| `VolumePath`           | string | `/var/cache/pagespeed/volume.dat` | Required. Path to the Cyclone cache volume file. Created the first time `Enabled` is true. |
 | `VolumeSizeBytes`      | ulong  | `1073741824` (1 GiB)              | Volume size in bytes.                                                   |
 | `EnableChecksum`       | bool   | `true`                            | Verify checksums on cache reads.                                        |
 | `RamCacheSizeBytes`    | long   | `67108864` (64 MiB)               | In-process RAM cache size in bytes. Set to `0` to disable.              |
@@ -11999,17 +12088,18 @@ diagnostic console.
 
 | Option       | Type    | Default | Description                                                                                                                                                                                                                                                                                                                                                            |
 | ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process on startup. Set `false` to launch no worker process at all.                                                                                                                                                                                                                |
+| `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process, but only while the top-level `Enabled` switch is true. With `Enabled` false, no worker runs until a hot reload sets it to true. Set `false` to launch no child process; pair it with a concrete `SocketPath` for an external worker, which is used whatever `Enabled` says. |
 | `SocketPath` | string? | unset   | Worker-coordination socket. **Leave it unset** (the default) and the middleware auto-resolves a per-process socket with coordination on — no configuration needed. Set it to a concrete path to share one socket with an out-of-process worker (split-process deployments). Setting it to `null` or `""` disables worker coordination and logs a loud startup warning. |
 | `ApiPort`    | int     | `0`     | Loopback TCP port for the worker's HTTP management API. `0` does not disable the API: the middleware picks a free loopback port. Either way the worker runs with API authentication off, and the console proxies its `/v1/*` paths from your site (see [Console](https://modpagespeed.com/docs/aspnet-configuration/#console-pagespeedconsole)). **Never publish this port.**                                               |
 | `LogLevel`   | string? | `null`  | Worker log level: `debug`, `info`, `warning`, or `error`. `null` keeps the worker's default (`info`).                                                                                                                                                                                                                                                                  |
 | `ConsoleDir` | string? | `null`  | Filesystem path to the diagnostic-console SPA assets. When `null` and `AutoStart` is true, the middleware auto-discovers a `console` directory next to `factory_worker`. Set to `""` to disable. This only stops the worker's own loopback copy of the console, not the middleware's `/console/`; use [`Console.Enabled`](https://modpagespeed.com/docs/aspnet-configuration/#console-pagespeedconsole) for that.                                    |
 
-The worker's management API always runs, bound to loopback, with
-authentication off. You do not need to set `Worker.ApiPort` to use the
-console: the middleware serves it on your app's own port and proxies its API
-calls to the worker. That proxy is what the [Console](https://modpagespeed.com/docs/aspnet-configuration/#console-pagespeedconsole)
-section is about.
+Whenever the worker runs, its management API runs too, bound to loopback,
+with authentication off. With the top-level `Enabled` set to `false`, no worker
+is launched, so its management API is not running either. You do not need to
+set `Worker.ApiPort` to use the console: the middleware serves it on your
+app's own port and proxies its API calls to the worker. That proxy is what
+the [Console](https://modpagespeed.com/docs/aspnet-configuration/#console-pagespeedconsole) section is about.
 
 ### Console (`PageSpeed:Console`)
 
@@ -12020,7 +12110,7 @@ The `/v1/*` paths are fixed; `MountPath` does not move them.
 
 | Option         | Type   | Default    | Description                                                                                                                                                         |
 | -------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Enabled`      | bool   | `true`     | Serve the console and proxy its `/v1/*` paths. When `false`, those requests fall through to your app. The top-level `Enabled` switch does not turn the console off. |
+| `Enabled`      | bool   | `true`     | Serve the console and proxy its `/v1/*` paths. When `false`, those requests fall through to your app. The top-level `Enabled` switch does not turn the console off, but the console's data comes from the worker, which is launched only once the top-level `Enabled` is `true`; until then its `/v1/*` paths answer `503`. |
 | `MountPath`    | string | `/console` | Path the console is served at, for example `/_pagespeed/console`. Must start with `/` and must not be `/`; an invalid value disables the console with a warning.    |
 | `RequireHttps` | bool   | `false`    | Return `403` for console and `/v1/*` requests that do not arrive over HTTPS. This protects the traffic, not the access: it is not authentication.                   |
 
@@ -12185,9 +12275,15 @@ the answer of a fresh install.
 ### Worker coordination and `SocketPath`
 
 For the default in-process deployment, leave the `Worker` section empty. With
-`AutoStart` `true` and `SocketPath` unset, the middleware launches the worker
-and connects to it over an auto-resolved per-process socket — image and
-critical-CSS optimization are on with no extra configuration.
+`Enabled` `true`, `AutoStart` `true` and `SocketPath` unset, the middleware
+launches the worker and connects to it over an auto-resolved per-process
+socket — image and critical-CSS optimization are on with no extra
+configuration. While `Enabled` is `false`, the middleware does not launch
+`factory_worker`. When a hot reload sets `Enabled` to `true`, the worker is
+launched then, together with the cache volume, with no restart needed; setting
+`Enabled` back to `false` leaves the running worker and the open cache in
+place. `AutoStart` `false` means this host never launches a
+child, whatever `Enabled` says.
 
 There are two reasons to set `SocketPath` explicitly:
 
@@ -12203,7 +12299,8 @@ There are two reasons to set `SocketPath` explicitly:
 
 To run the worker as a fully separate process, pair a concrete `SocketPath`
 with `AutoStart` `false` so the middleware connects to your externally managed
-worker instead of launching its own.
+worker instead of launching its own. The middleware uses that socket whatever
+the top-level `Enabled` says.
 
 The application and the worker then share the cache volume, so they must run
 on one host, and should run in one PID namespace. The cache is safe across PID
@@ -12225,7 +12322,10 @@ required.
 This includes toggling the master switch, flipping any `Html.Enable*` toggle,
 adjusting cache TTLs, and switching cache modes. Cache contents are preserved
 across configuration changes. Worker-process options (`AutoStart`, `SocketPath`,
-`ApiPort`) apply at the next worker (re)start.
+`ApiPort`) apply at the next worker (re)start. The first time the master switch
+is on, at startup or through a reload, PageSpeed opens the cache volume and
+launches the worker; switching it off later leaves both in place, so switching
+it on again needs no restart either.
 
 Validation runs on startup and on every reload via `IValidateOptions<PageSpeedOptions>`.
 Negative TTLs or unknown `CacheMode` values cause the application to fail fast
@@ -12305,6 +12405,11 @@ volume file is created on first run and grown to `VolumeSizeBytes`. Reusing the
 same file across restarts preserves the cache; pointing at a fresh path starts
 cold.
 
+While `Enabled` is `false`, the volume file and its directory are not created.
+The first time `Enabled` is `true`, at startup or through a hot reload, the
+volume is opened (and created when it does not exist yet), with no restart
+needed. Turning `Enabled` off later leaves the open volume in place.
+
 ## Health checks
 
 The middleware participates in ASP.NET Core health checks. Expose the standard
@@ -12316,7 +12421,8 @@ app.MapHealthChecks("/healthz");
 
 The check reports `Healthy`, with the cache entry count and the middleware
 version, while the cache is operational, and `Unhealthy` when the cache cannot
-be opened. Use this endpoint for container orchestration liveness and readiness
+be opened. Before PageSpeed has been enabled, no cache is open: the check then
+reports `Healthy` with the description `PageSpeed is disabled`. Use this endpoint for container orchestration liveness and readiness
 probes.
 
 ## Common patterns
@@ -12601,6 +12707,9 @@ ModPagespeedForbidAllDisabledFilters on
 ```text
 pagespeed ForbidAllDisabledFilters on
 ```
+
+On pages mod_pagespeed recognizes as hydrated, some filters do not run. See
+[Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/).
 
 ## Checking your filter configuration
 
@@ -13560,6 +13669,8 @@ Canonical URL: https://modpagespeed.com/docs/css-filters/
 
 mod_pagespeed includes filters for CSS minification, combining, inlining, import flattening, and critical CSS extraction. Several CSS filters are CoreFilters and run by default. The remaining filters can be enabled individually or through OptimizeForBandwidth mode.
 
+On pages mod_pagespeed recognizes as hydrated, some of these filters do not run. See [Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/).
+
 ## IIS syntax
 
 On IIS, use the same filter names with the `pagespeed` prefix in `pagespeed.config` (no semicolons):
@@ -14068,6 +14179,8 @@ Canonical URL: https://modpagespeed.com/docs/javascript-filters/
 
 mod_pagespeed includes filters for JavaScript minification, combining, inlining, and deferring execution. Three JS filters are CoreFilters: `rewrite_javascript`, `combine_javascript`, and `inline_javascript`.
 
+On pages mod_pagespeed recognizes as hydrated, some of these filters do not run. See [Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/).
+
 ## Quick reference
 
 | Filter                                                                    | Core | OFB | Description                                          | Safe          |
@@ -14455,6 +14568,8 @@ Canonical URL: https://modpagespeed.com/docs/html-filters/
 ## Overview
 
 mod_pagespeed includes filters that optimize HTML structure, cut unnecessary bytes, and add performance hints. Two of them (`add_head`, `convert_meta_tags`) are CoreFilters and run by default; the rest are opt-in — see [Filter selection](https://modpagespeed.com/docs/filter-selection/) to turn them on. For resources rather than markup, see the [CSS filters](https://modpagespeed.com/docs/css-filters/), [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/), and [Image filters](https://modpagespeed.com/docs/image-filters/) pages.
+
+On pages mod_pagespeed recognizes as hydrated, some of these filters do not run. See [Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/).
 
 ## Quick reference
 
@@ -15296,6 +15411,121 @@ The key above is an example, not a real key. The signing tool is `tools/rule-pac
 **`headers_flushed`.** The first part of the response left before the head ended, so the `Link` header could no longer be changed. Other changes are not affected.
 
 **`skipped_malformed_head`.** An inert element (for example `svg`) was left unclosed in the head and swallowed the rest of it, so the page was skipped.
+
+---
+
+# Hydrated pages
+
+How mod_pagespeed handles hydrated React, Next.js, Vue, Nuxt and Svelte pages, what to do when recognition misses one, and the DetectHydratedPages option.
+
+Canonical URL: https://modpagespeed.com/docs/hydrated-pages/
+
+## Overview
+
+Server-rendered React, Next.js, Vue, Nuxt and Svelte pages no longer break
+hydration because of mod_pagespeed's HTML rewrites. On a page mod_pagespeed
+recognizes as hydrated, stylesheet and script URLs, inline styles, comments,
+whitespace and script deferral are left unchanged and images are still
+optimized, so CSS and script savings may drop on those pages.
+
+## What is left unchanged
+
+On a page mod_pagespeed recognizes as hydrated:
+
+- Stylesheet and script URLs are left unchanged.
+- Inline styles are left unchanged.
+- Comments are left unchanged.
+- Whitespace is left unchanged.
+- Script deferral is left unchanged.
+
+mod_pagespeed still optimizes images on these pages. CSS and script savings
+may drop on those pages.
+
+## The filters that do not run
+
+These filters do not run on a page mod_pagespeed recognizes as hydrated:
+
+- **CSS:** [`rewrite_css`](https://modpagespeed.com/docs/filters/rewrite_css/), [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/), [`rewrite_style_attributes`](https://modpagespeed.com/docs/filters/rewrite_style_attributes/), [`rewrite_style_attributes_with_url`](https://modpagespeed.com/docs/filters/rewrite_style_attributes_with_url/), [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/), [`combine_css`](https://modpagespeed.com/docs/filters/combine_css/), [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/), [`inline_google_font_css`](https://modpagespeed.com/docs/filters/inline_google_font_css/), [`inline_import_to_link`](https://modpagespeed.com/docs/filters/inline_import_to_link/), [`outline_css`](https://modpagespeed.com/docs/filters/outline_css/), [`move_css_to_head`](https://modpagespeed.com/docs/filters/move_css_to_head/), [`move_css_above_scripts`](https://modpagespeed.com/docs/filters/move_css_above_scripts/), [`prioritize_critical_css`](https://modpagespeed.com/docs/filters/prioritize_critical_css/)
+- **JavaScript:** [`rewrite_javascript`](https://modpagespeed.com/docs/filters/rewrite_javascript/), [`combine_javascript`](https://modpagespeed.com/docs/filters/combine_javascript/), [`inline_javascript`](https://modpagespeed.com/docs/filters/inline_javascript/), [`outline_javascript`](https://modpagespeed.com/docs/filters/outline_javascript/)
+- **HTML:** [`remove_comments`](https://modpagespeed.com/docs/filters/remove_comments/), [`collapse_whitespace`](https://modpagespeed.com/docs/filters/collapse_whitespace/)
+
+[`defer_javascript`](https://modpagespeed.com/docs/filters/defer_javascript/) does not run on these
+pages either.
+
+[`extend_cache`](https://modpagespeed.com/docs/filters/extend_cache/), [`rewrite_domains`](https://modpagespeed.com/docs/filters/rewrite_domains/)
+and [`trim_urls`](https://modpagespeed.com/docs/filters/trim_urls/) skip stylesheets and scripts on
+these pages.
+
+The critical image beacon is not added on these pages, because its script
+would land inside the framework's markup. Preload hints for stylesheets and
+scripts stay; image preload hints are removed as on any other page, since the
+images they name are rewritten.
+
+## If recognition misses a page
+
+Recognition can miss a page. On such a page, disable the listed filters with
+[`DisableFilters`](https://modpagespeed.com/docs/filter-selection/#disablefilters) and also set
+[`CriticalImagesBeaconEnabled`](https://modpagespeed.com/docs/configuration/#criticalimagesbeaconenabled)
+to `false`:
+
+**Apache:**
+
+```apache
+ModPagespeedDisableFilters rewrite_css,flatten_css_imports,rewrite_style_attributes,rewrite_style_attributes_with_url,fallback_rewrite_css_urls,combine_css,inline_css,inline_google_font_css,inline_import_to_link,outline_css,move_css_to_head,move_css_above_scripts,prioritize_critical_css,rewrite_javascript,combine_javascript,inline_javascript,outline_javascript,remove_comments,collapse_whitespace
+ModPagespeedCriticalImagesBeaconEnabled false
+```
+
+**Nginx:**
+
+```nginx
+pagespeed DisableFilters rewrite_css,flatten_css_imports,rewrite_style_attributes,rewrite_style_attributes_with_url,fallback_rewrite_css_urls,combine_css,inline_css,inline_google_font_css,inline_import_to_link,outline_css,move_css_to_head,move_css_above_scripts,prioritize_critical_css,rewrite_javascript,combine_javascript,inline_javascript,outline_javascript,remove_comments,collapse_whitespace;
+pagespeed CriticalImagesBeaconEnabled false;
+```
+
+On IIS, use the same filter names with the `pagespeed` prefix in
+`pagespeed.config` (no semicolons):
+
+```text
+pagespeed DisableFilters rewrite_css,flatten_css_imports,rewrite_style_attributes,rewrite_style_attributes_with_url,fallback_rewrite_css_urls,combine_css,inline_css,inline_google_font_css,inline_import_to_link,outline_css,move_css_to_head,move_css_above_scripts,prioritize_critical_css,rewrite_javascript,combine_javascript,inline_javascript,outline_javascript,remove_comments,collapse_whitespace
+pagespeed CriticalImagesBeaconEnabled false
+```
+
+See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for the full file format
+reference.
+
+## After upgrading
+
+Purge cached HTML in any CDN after upgrading, because pages rewritten by an
+earlier version can still carry the changed stylesheet and script URLs that
+make hydration fall back or load a second copy. See
+[CDN integration](https://modpagespeed.com/docs/cdn-integration/) for CDN-level caching guidance.
+
+## DetectHydratedPages
+
+A server-wide option, `DetectHydratedPages`, turns recognition off. The
+directive is rejected inside a virtual host or server block, so set it in the
+server-wide configuration.
+
+On Apache and nginx, use one of the forms below. On IIS, set it in the
+machine-wide `pagespeed.config`; see [IIS configuration](https://modpagespeed.com/docs/iis-configuration/).
+
+```apache
+# Apache, global server configuration
+ModPagespeedDetectHydratedPages off
+```
+
+```nginx
+# nginx, http block
+pagespeed DetectHydratedPages off;
+```
+
+## See also
+
+- [Filter selection](https://modpagespeed.com/docs/filter-selection/)
+- [CSS filters](https://modpagespeed.com/docs/css-filters/)
+- [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/)
+- [HTML filters](https://modpagespeed.com/docs/html-filters/)
+- [CDN integration](https://modpagespeed.com/docs/cdn-integration/)
 
 ---
 
@@ -16351,7 +16581,7 @@ A one-line health summary sits at the top: "All systems healthy", or "N issue(s)
 
 Both cards link to their detail page (All statistics, Optimizer status).
 
-The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. The console does not yet report the optimizer's two parts separately.
+The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. For responses served from the optimizer's cache, the console splits the saving into "Saved by mod_pagespeed compression" and "Saved by optimization", both measured against the compressed original, and shows the part it could not attribute as "Not yet attributed"; the three add up to the total. The split appears once the optimizer records it and covers at least 90% of the served bytes; until then, and with an optimizer version that does not report it, the console shows the combined figure. See [Admin console savings total reads lower after updating](https://modpagespeed.com/docs/troubleshooting/#admin-console-savings-total-reads-lower-after-updating).
 
 ### Alerts
 
@@ -16437,11 +16667,13 @@ Per-vhost statistics are enabled by default on IIS. Each website gets its own se
 
 The caches page (`/pagespeed_admin/cache`) reports cache observability counters for each Cyclone cache:
 
+- **Scope** — hit, read and eviction counts are for the server process that answered, since it started; entries, size and write buffer wraps are for the whole cache file. The statistics page shows totals for all processes.
 - **Current entries / Current size bytes** — how full the cache is.
 - **RAM cache bytes / RAM cache hits / RAM cache misses** — activity of the optional RAM tier (`CycloneRamCacheKb`).
-- **Disk cache hits / Disk cache misses** — hit rate of the memory-mapped volume.
-- **Evictions / Tag collision evictions** — entries displaced by capacity pressure or key collisions.
+- **Reads served (RAM + disk)** — every read the cache served, whether the RAM tier or the disk volume answered; the cache does not count misses, so no misses row is shown.
+- **Evictions / Tag collision evictions / Bucket full evictions** — entries displaced by capacity pressure, by a key colliding with another entry's, or by the directory bucket the entry maps to being full.
 - **Write buffer wraps / Wraps deferred by lease / Writes dropped by lease / Wraps forced past lease** — write-buffer turnover and how zero-copy serving interacts with it; sustained deferred or dropped counts indicate a cache that is too small for its write rate.
+- **Resets under degraded gate / Resets gate verified** — times the cache was reset, split by whether the cache could confirm that no other process still had it open.
 
 The statistics page also has counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](https://modpagespeed.com/docs/cache-modes/#zero-copy-serving) for the zero-copy options.
 
@@ -17045,8 +17277,10 @@ the page is rendered twice at each viewport — once with its whole stylesheet,
 once with only the above-the-fold block that would be inlined — and the two
 above-the-fold regions are compared. The stylesheet is made non-render-blocking
 only when they match. If the check does not run, or does not pass, the
-stylesheet stays render-blocking and the above-the-fold CSS is still inlined,
-so the page loses the deferral and keeps everything else.
+stylesheet stays render-blocking and no above-the-fold CSS is inlined next to
+it (a stylesheet applied by script, or placed after the page content, keeps the
+inlined block, because first paint does not wait for it), so the page loses the
+deferral and keeps everything else.
 
 The check is tied to the exact stylesheet it was made against, so publishing new
 CSS re-checks before deferring again, and a page whose analysis has not finished
@@ -17933,6 +18167,25 @@ curl -sI http://localhost:5050/hero.jpg -H 'Accept: image/webp'
 A full walkthrough is in the
 [getting-started guide](https://modpagespeed.com/docs/aspnet-getting-started/#verify-the-install).
 
+## Admin console savings total reads lower after updating
+
+**Symptom:** After updating, the [admin console](https://modpagespeed.com/docs/admin-console/)'s
+savings total reads lower than before, or the console shows only a total with
+no split.
+
+**Cause:** Expected, not a regression. The console now shows how much of the
+saving on responses served from the optimizer's cache came from compression
+applied by mod_pagespeed and how much from its optimization; your web server's
+own compression on other responses is not counted. The two parts, plus a share
+not yet attributed, add up to the total saving. The total now counts HTML that
+the optimizer makes larger, for example by inlining above-the-fold CSS or
+adding preload hints; earlier versions counted that as zero, so the total can
+read lower than before without anything optimizing less.
+
+**Fix:** Nothing to fix. After the update the caches start cold, so the split
+fills in as pages are re-optimized; until then the console shows the total
+only.
+
 ## Images not converting to WebP/AVIF
 
 **Symptom:** Image requests with `Accept: image/webp` still return the original
@@ -18503,6 +18756,8 @@ Verify that the configuration options match between the HTML-serving VHost and t
 - [Web Console](https://modpagespeed.com/docs/workbench/) — Visual cache inspector, debug console, and
   real-time metrics
 - [Deployment Guide](https://modpagespeed.com/docs/deployment/) — Production setup and monitoring
+- [Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/) — What is left unchanged on hydrated
+  React, Next.js, Vue, Nuxt and Svelte pages, and what to do when one is missed
 
 ---
 
@@ -20360,7 +20615,7 @@ curl http://localhost:9880/v1/stats
     "screenshot": 120,
     "illustration": 300,
     "noisy": 50,
-    "denoised": 30
+    "denoised": 0
   },
   "ssimulacra2": {
     "checks": 1200,
@@ -20455,6 +20710,8 @@ curl http://localhost:9880/v1/stats
 }
 ```
 
+The `content_analysis.denoised` field is deprecated and always `0`; the worker no longer smooths images before encoding.
+
 Key fields:
 
 | Field                            | Description                                                   |
@@ -20471,6 +20728,7 @@ Key fields:
 | `errors.origin_misconfiguration` | Origin responses that prevent optimization (e.g., no-store)   |
 | `by_type.*.time_us`              | Cumulative processing time in microseconds                    |
 | `ssimulacra2.avg_score_x100`     | Average visual quality score (7200 = 72.00)                   |
+| `image_savedata_refused` | Save-Data images that were not smaller than the same image without Save-Data and so were not stored; clients with and without Save-Data are then served the same image |
 | `image_size_refused.webp` / `.avif` | WebP or AVIF images that were not smaller than the original-format image of the same size, including refusals against an already stored image, which get no recovery attempt |
 | `image_budget_rescued.webp` / `.avif` | Of those, the ones a smaller encode at the same quality floor recovered; refused minus rescued is what was dropped |
 | `learned_quality.predictions`    | ML model quality predictions made                             |
@@ -20483,6 +20741,7 @@ Key fields:
 | `serve_savings.*.optimized_bytes` | Bytes served from cache for those HITs                  |
 | `serve_savings.*.hits`            | Optimized HITs served, per content type                 |
 | `serve_savings.*.by_encoding.<enc>.hits` / `.bytes` | The same serves split by the transfer encoding actually served: `identity`, `gzip`, `br` |
+| `serve_savings.*.split.original_bytes` / `.compressed_original_bytes` / `.optimized_bytes` | For the HITs whose entry recorded how large the origin bytes are in the encoding they were served in: the origin bytes, those bytes encoded the same way, and the bytes served. `original_bytes - compressed_original_bytes` is what the encoding saved and `compressed_original_bytes - optimized_bytes` what the rewrite saved (negative when the rewritten response is larger than the encoded origin); the two add up to `original_bytes - optimized_bytes` of those HITs. All three are 0 until entries written by this version are served; `split.original_bytes` divided by `original_bytes` is the share of HITs the split covers |
 | `serve_savings_by_host.hosts[]`  | Up to `limit` (32) hosts, drawn from the first 64 distinct hosts seen since the optimizer started, ordered by optimized HITs (most first): `host`, `hits`, `original_bytes`, `optimized_bytes` |
 | `serve_savings_by_host.other`    | Every other HIT: the remaining hosts, and HITs the front end recorded without a host |
 | `verdicts.*.already_optimal.count` / `.bytes` | Entries judged already optimal (no smaller variant produced) and their original bytes; counted once per entry, per worker restart |

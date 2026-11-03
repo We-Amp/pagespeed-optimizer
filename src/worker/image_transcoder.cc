@@ -17,7 +17,6 @@
 
 #include "avif/avif.h"
 #include "lib/base/message_handler.h"
-#include "lib/image/bilateral_filter.h"
 #include "lib/image/content_analyzer.h"
 #include "lib/image/exif_orientation.h"
 #include "lib/image/image_converter.h"
@@ -381,11 +380,12 @@ TranscodeResult ImageTranscoder::ConvertToWebp(std::string_view input_data) {
   // to lossless, under which photos either exceed the size gate below
   // and lose their WebP variant, or pass it and serve an oversized
   // lossless variant). This matches EncodeWebpFromPixels, the
-  // multi-transcode WebP path.
+  // multi-transcode WebP path, including the encoder effort (webp_method).
   auto cfg = config();
   WebpConfiguration webp_config;
   webp_config.lossless = 0;
   webp_config.quality = cfg.webp_quality;
+  webp_config.method = cfg.webp_method;
   webp_config.alpha_quality = cfg.webp_alpha_quality;
 
   std::string output;
@@ -815,6 +815,7 @@ TranscodeResult ImageTranscoder::EncodeWebpFromPixels(
   WebpConfiguration webp_config;
   webp_config.lossless = 0;  // Lossy encoding for quality control.
   webp_config.quality = cfg.webp_quality;
+  webp_config.method = cfg.webp_method;
   webp_config.alpha_quality = cfg.webp_alpha_quality;
 
   image_compression::PixelFormat pf = image_compression::RGB_888;
@@ -2109,40 +2110,7 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
     return fast;
   }
 
-  // Noise-adaptive denoising: apply bilateral filter after resize,
-  // before encode.  Only for images classified as kNoisy with
-  // noise_level above threshold and width >= 640 (noise survives
-  // downscale at this resolution).
-  DecodedImage denoised;
-  if (local_config.denoise_threshold > 0.0f &&
-      result.applied_preset.noise_level > local_config.denoise_threshold &&
-      encode_src->width >= 640) {
-    denoised.width = encode_src->width;
-    denoised.height = encode_src->height;
-    denoised.bytes_per_pixel = encode_src->bytes_per_pixel;
-    denoised.has_alpha = encode_src->has_alpha;
-    size_t buf_size = static_cast<size_t>(encode_src->width) *
-                      encode_src->height * encode_src->bytes_per_pixel;
-    denoised.pixel_buffer.resize(buf_size);
-
-    BilateralFilterConfig bf_config;
-    bf_config.sigma_spatial = local_config.denoise_sigma_spatial;
-    // Scale range sigma by noise_level: noisier images get more
-    // aggressive smoothing.
-    bf_config.sigma_range =
-        local_config.denoise_sigma_range * result.applied_preset.noise_level;
-
-    if (ApplyBilateralFilter(
-            reinterpret_cast<const uint8_t*>(encode_src->pixel_buffer.data()),
-            reinterpret_cast<uint8_t*>(denoised.pixel_buffer.data()),
-            encode_src->width, encode_src->height, encode_src->bytes_per_pixel,
-            bf_config, handler_)) {
-      encode_src = &denoised;
-      result.denoised = true;
-    }
-  }
-
-  // Encode each requested format from the (possibly resized/denoised) pixels,
+  // Encode each requested format from the (possibly resized) pixels,
   // using the adjusted local_config for quality settings.
   // Process kOriginal first so we have a resized-original baseline for the
   // WebP/AVIF size gate (otherwise the gate compares against the full original
@@ -2216,12 +2184,14 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
         // verified re-encode while the slot holds the initial encode.  The
         // carve-out keys on the slot's produced MIME type, not byte
         // identity, so the origin-bytes baseline holds either way.)
-        size_t webp_baseline =
+        // Never larger than the source itself: the original wins.
+        size_t webp_baseline = std::min(
             (result.optimized_original.success &&
              !result.optimized_original.output_data.empty() &&
              result.optimized_original.output_mime_type != "image/webp")
                 ? result.optimized_original.output_data.size()
-                : input_data.size();
+                : input_data.size(),
+            input_data.size());
         if (webp.success && webp.output_data.size() >= webp_baseline) {
           // Only the cross-format gate gets a second try (#406): a WebP
           // origin's baseline is its own bytes, and a missing optimized
@@ -2277,10 +2247,11 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
         // Use the optimized original (resized JPEG) as the size gate
         // baseline when available, instead of the full original input.
         size_t avif_baseline =
-            (result.optimized_original.success &&
-             !result.optimized_original.output_data.empty())
-                ? result.optimized_original.output_data.size()
-                : input_data.size();
+            std::min((result.optimized_original.success &&
+                      !result.optimized_original.output_data.empty())
+                         ? result.optimized_original.output_data.size()
+                         : input_data.size(),
+                     input_data.size());
         if (avif.success && avif.output_data.size() >= avif_baseline) {
           if (result.optimized_original.success &&
               !result.optimized_original.output_data.empty()) {
@@ -2297,7 +2268,7 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
       }
       case CapabilityMask::ImageFormat::kOriginal: {
         // Early exit: if source JPEG is already at or below the target
-        // quality and the image was not resized/denoised, skip the full
+        // quality and the image was not resized, skip the full
         // pixel decode→encode round-trip.  Use stream-based Transcode()
         // for lightweight optimization (lossless Huffman, progressive).
         if (source_jpeg_quality > 0 &&
@@ -2319,7 +2290,7 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
 
         if (image_type == net_instaweb::IMAGE_JPEG) {
           if (encode_src != &decoded) {
-            // Pixels were resized or denoised — encode from the modified
+            // Pixels were resized: encode from the modified
             // pixel buffer.  This ensures resized variants get correct
             // dimensions, unlike OptimizeJpeg(input_data) which re-encodes
             // the full-size original.
@@ -2333,7 +2304,7 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
             }
             // Fall through to the verify loop and size gate below.
           } else {
-            // No resize/denoise (and the early exit above did not fire):
+            // No resize (and the early exit above did not fire):
             // stream-based optimization of the original bytes, at THIS
             // call's local_config.  This is the full-size Save-Data JPEG
             // (or one carrying a quality hint; the fast path above takes
@@ -2488,10 +2459,11 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
           }
         }
 
-        // Size gate: reject pixel-based JPEG if larger than input.
-        // Only for non-resized path — resized images are expected to be
-        // smaller than the full-size original by virtue of fewer pixels.
-        if (encode_src == &decoded && result.optimized_original.success &&
+        // Size gate: a pixel-based JPEG that is not smaller than the source
+        // is not stored; the original is served unchanged.  This holds for
+        // resized encodes too: the quality search above never trades the
+        // size rule for the score band.
+        if (result.optimized_original.success &&
             result.optimized_original.output_data.size() >= input_data.size()) {
           result.optimized_original = {
               false, {}, {}, "JPEG re-encode produced no size savings"};

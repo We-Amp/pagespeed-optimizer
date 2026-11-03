@@ -101,25 +101,48 @@ this clones):
   there is a hard compile error. Identical-alias headers (`string.h`) may
   stand alone; function-defining headers may not. `compat/logging.h`
   macros are per-name `#ifndef`-guarded like D1's.
-- **Ratchet / drift / behavior gates:** the REQUIRED
-  `html-kernel-differential` job in `ci.yml` runs
-  `tools/ci/check-floor-ratchet.sh --main-pin-path lib/html/HTML_KERNEL_PIN`
-  (floor validity + forward-only vs origin/main, failing closed when a
-  floor move cannot verify ancestry) and — once the first sync has landed —
-  the membership gate; CI's HTML-kernel drift check
-  re-runs the sync from the pin on PRs touching `lib/html/**`, pushes to
-  main, weekly, and on dispatch (with the same mirror-ladder canonical
-  access, hotfix valve, and staleness ladder as the JS workflow). Behavior
-  stays gated by the vendored-goldens manifest check in the same
-  differential job.
-- **Availability dependency (#1117):** a floor MOVE (any pin bump) in the
-  required job fails closed when the canonical 1.15 repo is unreachable
-  from the runner — with a broken deploy key or an upstream outage,
-  pin-bump PRs are unmergeable until reachability is restored. Equality
-  (no-bump PRs) needs no canonical access and is unaffected. Scope: the
-  required layer verifies floor/pin LINEAGE only, never the vendored
-  bytes; byte-vs-canonical verification lives in the advisory drift
-  workflow.
+- **Ratchet / byte / behavior gates:** the REQUIRED
+  `html-kernel-differential` job in `pipeline-pr.yml` (called from `ci.yml`)
+  runs on every pull request, merge queue run and dispatch, and on a push to
+  main unless the merge queue already proved that commit (`CI_SCOPE`,
+  `docs/ci/pipelines.md`). There is no path filter. It runs, in order: the
+  membership gate; `tools/ci/check-floor-ratchet.sh --main-pin-path
+  lib/html/HTML_KERNEL_PIN` (floor validity + forward-only vs origin/main,
+  failing closed when a floor move cannot verify ancestry); the byte check,
+  `tools/ci/check-kernel-bytes.sh`, which runs `tools/sync-html-kernel.sh
+  --check` against a full clone of the canonical repository and compares
+  the vendored files with the PINNED commit (never the canonical head, so a
+  change landing in mod_pagespeed cannot fail an optimizer PR); and the
+  vendored-goldens manifest check (behavior). Any byte difference, planted
+  file or pin/floor/ancestry problem is RED, and the error repeats up to six
+  of the sync tool's `DRIFT`, `RED` and `ERROR` lines. Network: the clone is
+  retried a bounded number of times, with a per-attempt timeout where
+  `timeout` is available, and its log is kept in the job output. After a
+  successful clone the compare makes no network call, so a git fatal error
+  there (exit 128) fails like any other tool failure. If the clone fails
+  after the retries, the byte check only WARNS on a pull request that
+  leaves the pin unchanged relative to origin/main; on a pin bump, on any
+  other event (push, merge queue, dispatch), or when the pin or the
+  origin/main pin cannot be read, it fails closed.
+- **Availability dependency (#1117):** when the canonical 1.15 repo is
+  unreachable from the runner, the byte check fails closed on every merge
+  queue run and on any pin change, and the floor ratchet fails closed on
+  any floor move. No pull request can land through the queue until
+  reachability is restored. On the pull request run itself, a PR that
+  leaves the pin alone only gets a warning. Scope: the required job
+  verifies lineage (floor), membership, bytes against the pin, and
+  behavior. It does not constrain an actor who edits the workflow or the
+  check scripts themselves (the same trust class as the workflow files), or
+  an admin pushing directly to main. `.github/CODEOWNERS` names
+  `tools/ci/check-kernel-bytes.sh`, the sync and membership scripts and the
+  pin files, so a change to them requests the owner's review; whether
+  that review must complete before a merge is a repository setting, not
+  something this job enforces. A diff
+  touching these files is a stop for reviewers.
+  `tools/ci/check-floor-ratchet.sh` and the workflow files are not listed.
+- **Pin rule:** the pin must be a MERGED commit of the canonical 1.15
+  master. The sync tool refuses a commit on an unmerged branch (exit 4) and
+  one the canonical does not have (exit 3). There is no override.
 
 ## Carve-outs (and their limits)
 

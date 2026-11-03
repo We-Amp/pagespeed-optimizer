@@ -282,16 +282,16 @@ inconsistent visual quality.
 ## --no-content-analysis
 
 Falls back to the `Unknown` content class for every image. See
-[Content analysis and denoising](#content-analysis-and-denoising).
+[Content analysis](#content-analysis-and-denoising).
 
 ## --denoise-threshold
 
-Range 0.0-1.0; `0` disables denoising. See
-[Content analysis and denoising](#content-analysis-and-denoising).
+Removed: noisy images are no longer smoothed before encoding. The flag is
+still accepted and ignored.
 
 ## --denoise-sigma-spatial
 
-Range 0.0-10.0.
+Removed. Still accepted and ignored.
 
 ## --gzip-level
 

@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -900,6 +901,31 @@ TEST(PageSpeedCApi, CssValidateStyleCloseCaseInsensitive) {
   EXPECT_EQ(ps_css_validate(css, std::strlen(css)), PS_ERR_INVALID_ARG);
 }
 
+TEST(PageSpeedCApi, CssValidateRefusesMarkupOpeningSequences) {
+  const char* const refused[] = {
+      "a[title=\"<b\"] { }",    "a { content: \"<A\"; }", "a { } </x",
+      "a { content: \"<!\"; }", "a { content: \"<?\"; }",
+  };
+  for (const char* css : refused) {
+    SCOPED_TRACE(css);
+    EXPECT_EQ(ps_css_validate(css, std::strlen(css)), PS_ERR_INVALID_ARG);
+  }
+}
+
+TEST(PageSpeedCApi, CssValidateKeepsRangeMediaQueries) {
+  const char* const kept[] = {
+      "@media (width<900px) { a { color: red; } }",
+      "@media (width<=900px) { a { color: red; } }",
+      "@media (400px < width < 900px) { a { color: red; } }",
+      "a { --x: 1 < 2; }",
+      "a { }<",
+  };
+  for (const char* css : kept) {
+    SCOPED_TRACE(css);
+    EXPECT_EQ(ps_css_validate(css, std::strlen(css)), PS_OK);
+  }
+}
+
 TEST(PageSpeedCApi, CssValidateNull) {
   EXPECT_EQ(ps_css_validate(nullptr, 0), PS_ERR_INVALID_ARG);
 }
@@ -955,7 +981,8 @@ TEST(PageSpeedCApi, FreeNull) {
 TEST(PageSpeedCApi, HtmlConfigInit) {
   ps_html_config_t config;
   ps_html_config_init(&config);
-  EXPECT_EQ(config.struct_size, sizeof(ps_html_config_t));
+  // The legacy initializer stamps the 1.8 size; the struct has grown since.
+  EXPECT_EQ(config.struct_size, 128u);
   EXPECT_EQ(config.enable_critical_css, 1);
   EXPECT_EQ(config.enable_lazy_load, 1);
   EXPECT_EQ(config.enable_speculation_rules, 0);
@@ -3135,6 +3162,361 @@ TEST_F(PageSpeedCacheApiTest, HtmlProcessWithCacheAndExternalCss) {
 }
 
 // ================================================================
+// ps_html_process: print-only rules never style the screen
+// ================================================================
+//
+// The page the critical block is inlined into keeps its stylesheets, so a
+// rule in the block applies on screen. A print stylesheet's rules (a <link>
+// or <style> with media="print", an `@media print` block, an
+// `@import ... print`) must therefore stay out of the block or stay scoped
+// to print inside it. Before the fix the gather appended a print <link>'s
+// sheet and a print <style>'s body to the combined sheet as if they had no
+// media, and `header,footer{display:none}` from a print sheet hid the
+// header and footer on screen.
+
+namespace {
+
+// The body of the inlined critical <style>, or "" when there is none.
+std::string CriticalBlockOf(std::string_view html) {
+  const size_t tag = html.find("data-pagespeed-critical");
+  if (tag == std::string_view::npos) return "";
+  const size_t open_end = html.find('>', tag);
+  if (open_end == std::string_view::npos) return "";
+  const size_t close = html.find("</style>", open_end);
+  if (close == std::string_view::npos) return "";
+  return std::string(html.substr(open_end + 1, close - open_end - 1));
+}
+
+// `css` with whitespace removed and every `@media print...{...}` block (the
+// rules that apply only in print) cut out: what a screen applies.
+std::string ScreenRulesOf(std::string_view css) {
+  std::string compact;
+  for (char c : css) {
+    if (c != ' ' && c != '\n' && c != '\t' && c != '\r') compact += c;
+  }
+  std::string out;
+  size_t i = 0;
+  while (i < compact.size()) {
+    if (compact.compare(i, 11, "@mediaprint") == 0) {
+      const size_t open = compact.find('{', i);
+      if (open == std::string::npos) break;
+      int depth = 0;
+      size_t j = open;
+      for (; j < compact.size(); ++j) {
+        if (compact[j] == '{') ++depth;
+        if (compact[j] == '}' && --depth == 0) break;
+      }
+      i = j + 1;
+      continue;
+    }
+    out += compact[i++];
+  }
+  return out;
+}
+
+class PrintStylesheetTest : public PageSpeedCacheApiTest {
+ protected:
+  void CacheCss(const char* path, std::string_view css) {
+    ps_write_params_t params;
+    ps_write_params_init_auto(&params);
+    params.alternate_id = 0x08;
+    params.content_length = css.size();
+    params.full_mask = 0x08;
+    params.content_type = PS_CONTENT_CSS;
+    params.origin_ct = "text/css";
+    ps_write_handle_t* wh = nullptr;
+    ASSERT_EQ(ps_cache_write_begin(cache_, path, "example.com", "https",
+                                   &params, &wh),
+              PS_OK);
+    ASSERT_EQ(ps_write_data(wh, css.data(), css.size()), PS_OK);
+    ASSERT_EQ(ps_write_close(wh), PS_OK);
+  }
+
+  // Processes a page whose <head> is `head` and whose body has a header, a
+  // paragraph and a footer, with critical CSS on (the default), and returns
+  // the inlined critical block.
+  std::string CriticalBlockFor(const std::string& head,
+                               int* needs_revalidation = nullptr) {
+    const std::string html = "<html><head>" + head +
+                             "</head><body>"
+                             "<header class=\"site-header\">Top</header>"
+                             "<main><p>Hello</p></main>"
+                             "<footer class=\"site-footer\">Bottom</footer>"
+                             "</body></html>";
+    ps_html_config_t config;
+    ps_html_config_init(&config);
+    ps_html_result_t* result = nullptr;
+    EXPECT_EQ(
+        ps_html_process(html.data(), html.size(), "https://example.com/page",
+                        "example.com", &config, cache_, &result),
+        PS_OK);
+    if (result == nullptr) return "";
+    size_t out_len = 0;
+    const char* output = ps_html_result_output(result, &out_len);
+    std::string block;
+    if (output != nullptr) block = CriticalBlockOf({output, out_len});
+    if (needs_revalidation != nullptr) {
+      *needs_revalidation = ps_html_result_needs_revalidation(result);
+    }
+    ps_html_result_free(result);
+    return block;
+  }
+
+  static constexpr const char* kScreenCss =
+      "header{display:block;background:#eee}"
+      "footer{display:block;color:#333}"
+      "p{margin:0}";
+  static constexpr const char* kPrintCss = "header,footer{display:none}";
+};
+
+TEST_F(PrintStylesheetTest, PrintLinkRulesStayOffScreen) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/print.css", kPrintCss);
+  const std::string block = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\">"
+      "<link rel=\"stylesheet\" href=\"/print.css\" media=\"print\">");
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+}
+
+TEST_F(PrintStylesheetTest, PrintLinkMediaIsCaseInsensitive) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/print.css", kPrintCss);
+  const std::string block = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\">"
+      "<link rel=\"stylesheet\" href=\"/print.css\" media=\"PRINT\">");
+  ASSERT_FALSE(block.empty());
+  EXPECT_EQ(ScreenRulesOf(block).find("display:none"), std::string::npos)
+      << block;
+}
+
+TEST_F(PrintStylesheetTest, PrintStyleElementRulesStayOffScreen) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  const std::string block = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\">"
+      "<style media=\"print\">header,footer{display:none}</style>");
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+}
+
+TEST_F(PrintStylesheetTest, MediaPrintBlockInAScreenSheetStaysOffScreen) {
+  OpenCache();
+  CacheCss("/screen.css", std::string(kScreenCss) +
+                              "@media print{header,footer{display:none}}");
+  const std::string block =
+      CriticalBlockFor("<link rel=\"stylesheet\" href=\"/screen.css\">");
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+}
+
+TEST_F(PrintStylesheetTest, PrintImportStaysScopedToPrint) {
+  OpenCache();
+  CacheCss("/screen.css",
+           std::string("@import url(/print.css) print;") + kScreenCss);
+  CacheCss("/print.css", kPrintCss);
+  const std::string block =
+      CriticalBlockFor("<link rel=\"stylesheet\" href=\"/screen.css\">");
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+  // An @import the block keeps keeps its media: it must not load the print
+  // sheet for every medium.
+  const size_t import = screen.find("@import");
+  if (import != std::string::npos) {
+    EXPECT_NE(screen.find("print", import), std::string::npos) << block;
+  }
+}
+
+TEST_F(PrintStylesheetTest, PrintImportInAStyleElementStaysScopedToPrint) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/print.css", kPrintCss);
+  const std::string block = CriticalBlockFor(
+      "<style>@import url(/print.css) print;</style>"
+      "<link rel=\"stylesheet\" href=\"/screen.css\">");
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+  const size_t import = screen.find("@import");
+  if (import != std::string::npos) {
+    EXPECT_NE(screen.find("print", import), std::string::npos) << block;
+  }
+}
+
+TEST_F(PrintStylesheetTest, UnusableMediaValueLeavesTheSheetOut) {
+  // A media value that cannot be written as an @media prelude safely
+  // contributes nothing to the block, however it is spelled.
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/hostile.css", ".hostile{display:none}");
+  const char* const kMedia[] = {
+      "print}body{display:none}",
+      "screen;x",
+      "print{",
+      "print\\7d b",
+      "print/*",
+      "(min-width:1px",
+      "screen)",
+      "print&quot;x",
+      "@import",
+      "print<b>",
+  };
+  for (const char* media : kMedia) {
+    int needs_revalidation = 0;
+    const std::string block = CriticalBlockFor(
+        "<link rel=\"stylesheet\" href=\"/screen.css\">"
+        "<link rel=\"stylesheet\" href=\"/hostile.css\" media=\"" +
+            std::string(media) + "\">",
+        &needs_revalidation);
+    ASSERT_FALSE(block.empty()) << media;
+    // The sheet is counted as missing, so the page stays render-blocking.
+    EXPECT_EQ(needs_revalidation, 1) << media;
+    EXPECT_NE(ScreenRulesOf(block).find("display:block"), std::string::npos)
+        << media << ": " << block;
+    EXPECT_EQ(block.find("hostile"), std::string::npos)
+        << media << ": " << block;
+    EXPECT_EQ(ScreenRulesOf(block).find("display:none"), std::string::npos)
+        << media << ": " << block;
+  }
+}
+
+TEST_F(PrintStylesheetTest, StrayBraceInAPrintSheetDoesNotLeakLaterRules) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  // The `}` after the first rule must not close the print block early.
+  CacheCss("/print.css", "p{color:red}}header,footer{display:none}");
+  int needs_revalidation = 0;
+  const std::string block = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\">"
+      "<link rel=\"stylesheet\" href=\"/print.css\" media=\"print\">",
+      &needs_revalidation);
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("color:red"), std::string::npos) << block;
+  // The sheet that cannot be wrapped counts as missing.
+  EXPECT_EQ(needs_revalidation, 1);
+}
+
+TEST_F(PrintStylesheetTest, UnclosedBlockInAPrintSheetStaysOffScreen) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/print.css", "header,footer{display:none");
+  int needs_revalidation = 0;
+  const std::string block = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/print.css\" media=\"print\">"
+      "<link rel=\"stylesheet\" href=\"/screen.css\">",
+      &needs_revalidation);
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+  // The screen sheet after it is not swallowed into the print block.
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(needs_revalidation, 1);
+}
+
+TEST_F(PrintStylesheetTest, StrayBraceInAPrintStyleDoesNotLeakLaterRules) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  const std::string block = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\">"
+      "<style media=\"print\">p{color:red}}header,footer{display:none}"
+      "</style>");
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+}
+
+TEST_F(PrintStylesheetTest, NestedBlocksInAPrintSheetStayOffScreen) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  // Balanced nesting, and braces inside a string and a comment, are fine to
+  // wrap: every rule stays inside the print block.
+  CacheCss("/print.css",
+           "@supports (display:block){header{display:none}}"
+           "footer::before{content:\"}\"}/* } */footer{display:none}");
+  int needs_revalidation = 0;
+  const std::string block = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\">"
+      "<link rel=\"stylesheet\" href=\"/print.css\" media=\"print\">",
+      &needs_revalidation);
+  ASSERT_FALSE(block.empty());
+  const std::string screen = ScreenRulesOf(block);
+  EXPECT_NE(screen.find("display:block"), std::string::npos) << block;
+  EXPECT_EQ(screen.find("display:none"), std::string::npos) << block;
+  EXPECT_EQ(needs_revalidation, 0);
+}
+
+TEST_F(PrintStylesheetTest,
+       OnloadThatDoesNotChangeMediaKeepsTheSheetPrintOnly) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/print.css", kPrintCss);
+  for (const char* handler :
+       {"track()", "this.rel='stylesheet'", "console.log(this.media)",
+        "this.media=='print'", "this.onload=null"}) {
+    const std::string block = CriticalBlockFor(
+        "<link rel=\"stylesheet\" href=\"/screen.css\">"
+        "<link rel=\"stylesheet\" href=\"/print.css\" media=\"print\" "
+        "onload=\"" +
+        std::string(handler) + "\">");
+    ASSERT_FALSE(block.empty()) << handler;
+    EXPECT_EQ(ScreenRulesOf(block).find("display:none"), std::string::npos)
+        << handler << ": " << block;
+  }
+}
+
+TEST_F(PrintStylesheetTest, OnloadThatChangesMediaMakesTheSheetAScreenSheet) {
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/print.css", kPrintCss);
+  for (const char* handler :
+       {"this.media='all'", "this.media = \"all\"",
+        "this.onload=null;this.media='all'", "this['media']='all'",
+        "this.setAttribute('media','all')", "this.removeAttribute('media')"}) {
+    const std::string block = CriticalBlockFor(
+        "<link rel=\"stylesheet\" href=\"/screen.css\">"
+        "<link rel=\"stylesheet\" href=\"/print.css\" media=\"print\" "
+        "onload=\"" +
+        std::string(handler) + "\">");
+    ASSERT_FALSE(block.empty()) << handler;
+    EXPECT_NE(ScreenRulesOf(block).find("display:none"), std::string::npos)
+        << handler << ": " << block;
+  }
+}
+
+TEST_F(PrintStylesheetTest, ScreenAndAllMediaSheetsAreUnchanged) {
+  // No wrapper for the media values that apply on every screen: the block
+  // is what it was before print scoping existed.
+  OpenCache();
+  CacheCss("/screen.css", kScreenCss);
+  CacheCss("/all.css", "main{padding:1px}");
+  const std::string with_media = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\" media=\"screen\">"
+      "<link rel=\"stylesheet\" href=\"/all.css\" media=\"all\">");
+  const std::string without_media = CriticalBlockFor(
+      "<link rel=\"stylesheet\" href=\"/screen.css\">"
+      "<link rel=\"stylesheet\" href=\"/all.css\">");
+  ASSERT_FALSE(with_media.empty());
+  EXPECT_EQ(with_media, without_media);
+  EXPECT_EQ(with_media.find("@media"), std::string::npos) << with_media;
+}
+
+}  // namespace
+
+// ================================================================
 // ps_html_process with cache: external CSS partially missing
 // ================================================================
 
@@ -4413,6 +4795,464 @@ TEST(PageSpeedCApi, HeadersSidecarClassifyIsTheGateWithoutACache) {
   EXPECT_EQ(ps_headers_sidecar_classify(names, nullptr, 3), -1);
   const char* holed[] = {nullptr};
   EXPECT_EQ(ps_headers_sidecar_classify(holed, cookie_values, 1), -1);
+}
+
+// ================================================================
+// The HTML cacheability policy on the C surface (PS_API 1.12)
+// ================================================================
+
+namespace {
+
+// One ps_html_store_classify call with every out-parameter captured.
+struct StoreResult {
+  int action = -99;
+  int reason = -99;
+  uint32_t lifetime_s = 0;
+  uint32_t flags = 0;
+  uint16_t cc_flags = 0;
+  int sidecar = -99;
+  char detail[64] = {};
+  size_t detail_len = 0;
+};
+
+StoreResult ClassifyStore(
+    const std::vector<std::pair<const char*, const char*>>& headers,
+    const char* method = "GET", const char* path = "/index.html",
+    uint32_t request_flags = 0, int status = 200,
+    const char* body = "<p>hi</p>", int mode = PS_HTML_CACHE_REPORT_ONLY) {
+  std::vector<const char*> names;
+  std::vector<const char*> values;
+  for (const auto& [n, v] : headers) {
+    names.push_back(n);
+    values.push_back(v);
+  }
+  StoreResult r;
+  r.action = ps_html_store_classify(
+      mode, method, path, request_flags, status,
+      names.empty() ? nullptr : names.data(),
+      values.empty() ? nullptr : values.data(), names.size(),
+      /*body_bytes=*/std::strlen(body),
+      /*body_complete=*/1, body, std::strlen(body),
+      /*max_body_bytes=*/1 << 20, /*now_seconds=*/784111777, &r.reason,
+      &r.lifetime_s, &r.flags, &r.cc_flags, &r.sidecar, r.detail,
+      sizeof(r.detail), &r.detail_len);
+  return r;
+}
+
+const std::vector<std::pair<const char*, const char*>> kStorableHeaders = {
+    {"Content-Type", "text/html; charset=utf-8"},
+    {"Cache-Control", "public, max-age=300"},
+    {"ETag", "\"v1\""}};
+
+}  // namespace
+
+TEST(PageSpeedCApi, HtmlStoreClassifyRoundTrip) {
+  const StoreResult ok = ClassifyStore(kStorableHeaders);
+  EXPECT_EQ(ok.action, PS_HTML_STORE_ACTION_WOULD_STORE);
+  EXPECT_STREQ(ps_html_store_reason_name(ok.reason), "none");
+  EXPECT_EQ(ok.lifetime_s, 300u);
+  EXPECT_EQ(ok.flags, PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT |
+                          PS_HTML_STORE_FLAG_HAS_VALIDATORS |
+                          PS_HTML_STORE_FLAG_EXPLICIT_SHARED |
+                          PS_HTML_STORE_FLAG_SIDECAR_EVALUATED |
+                          PS_HTML_STORE_FLAG_CC_EVALUATED);
+  EXPECT_NE(ok.cc_flags & PS_CC_ORIGIN_PUBLIC, 0u);
+  EXPECT_EQ(ok.sidecar, PS_SIDECAR_SWAP_ELIGIBLE);
+  EXPECT_EQ(ok.detail_len, 0u);
+  EXPECT_STREQ(ok.detail, "");
+
+  // A refusal names its reason and carries the detail.
+  const StoreResult vary = ClassifyStore({{"Content-Type", "text/html"},
+                                          {"Cache-Control", "max-age=60"},
+                                          {"Vary", "Accept-Encoding, Cookie"}});
+  EXPECT_EQ(vary.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(vary.reason), "vary");
+  EXPECT_STREQ(vary.detail, "cookie");
+  EXPECT_EQ(vary.detail_len, 6u);
+
+  const StoreResult method = ClassifyStore(kStorableHeaders, "HEAD");
+  EXPECT_EQ(method.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(method.reason), "method");
+  // Refused before either check ran: the flags say so, because a sidecar value
+  // of 0 is a real verdict.
+  EXPECT_EQ(method.flags & PS_HTML_STORE_FLAG_SIDECAR_EVALUATED, 0u);
+  EXPECT_EQ(method.flags & PS_HTML_STORE_FLAG_CC_EVALUATED, 0u);
+  const StoreResult priv = ClassifyStore(
+      {{"Content-Type", "text/html"}, {"Cache-Control", "private"}});
+  EXPECT_EQ(priv.flags & PS_HTML_STORE_FLAG_SIDECAR_EVALUATED, 0u);
+  EXPECT_NE(priv.flags & PS_HTML_STORE_FLAG_CC_EVALUATED, 0u);
+
+  const StoreResult cookie = ClassifyStore(
+      {{"Content-Type", "text/html"}, {"Cache-Control", "max-age=60"}}, "GET",
+      "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_EQ(cookie.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie.reason), "cookie_request");
+
+  const StoreResult signal =
+      ClassifyStore(kStorableHeaders, "GET", "/", 0, 200,
+                    "<meta name=\"csrf-token\" content=\"x\">");
+  EXPECT_EQ(signal.action, PS_HTML_STORE_ACTION_REFUSE);
+  EXPECT_STREQ(ps_html_store_reason_name(signal.reason),
+               "personalisation_signal");
+  EXPECT_STREQ(signal.detail, "meta_csrf_token");
+
+  const StoreResult no_transform =
+      ClassifyStore({{"Content-Type", "text/html"},
+                     {"Cache-Control", "max-age=60, no-transform"}});
+  EXPECT_EQ(no_transform.action, PS_HTML_STORE_ACTION_WOULD_STORE_NO_NOTIFY);
+  EXPECT_STREQ(ps_html_store_reason_name(no_transform.reason), "no_transform");
+
+  const StoreResult headers = ClassifyStore({{"Content-Type", "text/html"},
+                                             {"Cache-Control", "max-age=60"},
+                                             {"X-Request-Id", "x"}});
+  EXPECT_EQ(headers.action, 0);
+  EXPECT_STREQ(headers.detail, "x-request-id");
+  EXPECT_EQ(headers.sidecar, PS_SIDECAR_FALL_THROUGH);
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyRequestFlags) {
+  const std::vector<std::pair<const char*, const char*>> plain = {
+      {"Content-Type", "text/html"}, {"Cache-Control", "max-age=60"}};
+  const std::vector<std::pair<const char*, const char*>> shared = {
+      {"Content-Type", "text/html"}, {"Cache-Control", "public, max-age=60"}};
+  const StoreResult auth =
+      ClassifyStore(plain, "GET", "/", PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION);
+  EXPECT_STREQ(ps_html_store_reason_name(auth.reason), "auth_request");
+  const StoreResult user = ClassifyStore(
+      plain, "GET", "/", PS_HTML_STORE_REQUEST_AUTHENTICATED_USER);
+  EXPECT_STREQ(ps_html_store_reason_name(user.reason), "auth_request");
+  const StoreResult cookie =
+      ClassifyStore(plain, "GET", "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie.reason), "cookie_request");
+  const StoreResult cookie_public =
+      ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_EQ(cookie_public.action, PS_HTML_STORE_ACTION_WOULD_STORE);
+  // The bits are what a front end derives from the request headers:
+  // Proxy-Authorization is the authorization bit, Cookie2 the cookie bit.
+  auto flags_for = [](const std::vector<const char*>& request_headers) {
+    uint32_t flags = 0;
+    for (const char* name : request_headers) {
+      const std::string lower = [&] {
+        std::string s(name);
+        for (char& c : s) c = static_cast<char>(std::tolower(c));
+        return s;
+      }();
+      if (lower == "authorization" || lower == "proxy-authorization") {
+        flags |= PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION;
+      }
+      if (lower == "cookie" || lower == "cookie2") {
+        flags |= PS_HTML_STORE_REQUEST_HAS_COOKIE;
+      }
+    }
+    return flags;
+  };
+  const StoreResult proxy_auth =
+      ClassifyStore(shared, "GET", "/", flags_for({"Proxy-Authorization"}));
+  EXPECT_EQ(proxy_auth.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(proxy_auth.reason), "auth_request");
+  const StoreResult cookie2 =
+      ClassifyStore(plain, "GET", "/", flags_for({"Cookie2"}));
+  EXPECT_EQ(cookie2.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie2.reason), "cookie_request");
+  EXPECT_EQ(ClassifyStore(plain, "GET", "/", flags_for({"Accept"})).action,
+            PS_HTML_STORE_ACTION_WOULD_STORE);
+  const StoreResult no_store =
+      ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_NO_STORE);
+  EXPECT_EQ(no_store.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(no_store.reason), "no_store");
+  EXPECT_STREQ(no_store.detail, "request");
+  // Unknown bits are ignored.
+  EXPECT_EQ(ClassifyStore(plain, "GET", "/", 0x80000000u).action,
+            PS_HTML_STORE_ACTION_WOULD_STORE);
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyDetailBufferTruncates) {
+  const char* names[] = {"Content-Type", "Cache-Control", "X-Request-Id"};
+  const char* values[] = {"text/html", "max-age=60", "x"};
+  int reason = 0, sidecar = 0;
+  uint32_t lifetime = 0, flags = 0;
+  uint16_t cc = 0;
+  size_t detail_len = 0;
+  char small[5];
+  std::memset(small, 'z', sizeof(small));
+  EXPECT_EQ(ps_html_store_classify(PS_HTML_CACHE_REPORT_ONLY, "GET", "/", 0,
+                                   200, names, values, 3, 10, 1, "", 0, 1 << 20,
+                                   0, &reason, &lifetime, &flags, &cc, &sidecar,
+                                   small, sizeof(small), &detail_len),
+            0);
+  EXPECT_EQ(detail_len, 12u);  // "x-request-id", untruncated
+  EXPECT_STREQ(small, "x-re");
+  // Capacity 1 holds only the terminator; capacity 0 may pass NULL.
+  char one[1] = {'z'};
+  EXPECT_EQ(ps_html_store_classify(PS_HTML_CACHE_REPORT_ONLY, "GET", "/", 0,
+                                   200, names, values, 3, 10, 1, "", 0, 1 << 20,
+                                   0, &reason, &lifetime, &flags, &cc, &sidecar,
+                                   one, 1, &detail_len),
+            0);
+  EXPECT_EQ(one[0], '\0');
+  EXPECT_EQ(detail_len, 12u);
+  EXPECT_EQ(ps_html_store_classify(PS_HTML_CACHE_REPORT_ONLY, "GET", "/", 0,
+                                   200, names, values, 3, 10, 1, nullptr, 0,
+                                   1 << 20, 0, &reason, &lifetime, &flags, &cc,
+                                   &sidecar, nullptr, 0, &detail_len),
+            0);
+  EXPECT_EQ(detail_len, 12u);
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyRejectsMalformedCalls) {
+  const char* names[] = {"Content-Type"};
+  const char* values[] = {"text/html"};
+  int reason = 7, sidecar = 7;
+  uint32_t lifetime = 7, flags = 7;
+  uint16_t cc = 7;
+  size_t detail_len = 7;
+  char buf[8];
+  auto call = [&](const char* method, const char* path, const char* const* n,
+                  const char* const* v, size_t count, const char* body,
+                  size_t body_len, int* r, uint32_t* l, uint32_t* f,
+                  uint16_t* c, int* sc, char* d, size_t dcap, size_t* dl) {
+    return ps_html_store_classify(PS_HTML_CACHE_REPORT_ONLY, method, path, 0,
+                                  200, n, v, count, 10, 1, body, body_len,
+                                  1 << 20, 0, r, l, f, c, sc, d, dcap, dl);
+  };
+  // The good call, to prove the harness around the bad ones.
+  EXPECT_NE(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  reason = sidecar = 7;
+  lifetime = flags = 7;
+  cc = 7;
+  detail_len = 7;
+
+  EXPECT_EQ(call(nullptr, "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", nullptr, names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", nullptr, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, nullptr, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  const char* holed[] = {nullptr};
+  EXPECT_EQ(call("GET", "/", holed, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, holed, 1, "", 0, &reason, &lifetime, &flags,
+                 &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, nullptr, 5, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, nullptr, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, nullptr, &flags,
+                 &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 nullptr, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, nullptr, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, nullptr, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), nullptr),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, nullptr, 8, &detail_len),
+            -1);
+  // No out-parameter was written by any of them.
+  EXPECT_EQ(reason, 7);
+  EXPECT_EQ(sidecar, 7);
+  EXPECT_EQ(lifetime, 7u);
+  EXPECT_EQ(flags, 7u);
+  EXPECT_EQ(cc, 7u);
+  EXPECT_EQ(detail_len, 7u);
+
+  // count == 0 with NULL arrays is a well-formed question: no Content-Type.
+  const StoreResult none = ClassifyStore({});
+  EXPECT_EQ(none.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(none.reason), "content_type");
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyModes) {
+  // Off refuses a response report-only would store.
+  const StoreResult off = ClassifyStore(kStorableHeaders, "GET", "/", 0, 200,
+                                        "<p>hi</p>", PS_HTML_CACHE_OFF);
+  EXPECT_EQ(off.action, PS_HTML_STORE_ACTION_REFUSE);
+  EXPECT_STREQ(ps_html_store_reason_name(off.reason), "mode");
+  // The values that would act are not accepted, and report-only never
+  // answers with one.
+  for (int mode : {-1, 2, 3, 4}) {
+    EXPECT_EQ(
+        ClassifyStore(kStorableHeaders, "GET", "/", 0, 200, "<p>hi</p>", mode)
+            .action,
+        -1)
+        << mode;
+  }
+  EXPECT_NE(ClassifyStore(kStorableHeaders).action, 1);
+  EXPECT_NE(ClassifyStore(kStorableHeaders).action, 2);
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyShortPrefixIsRefused) {
+  const char* names[] = {"Content-Type", "Cache-Control"};
+  const char* values[] = {"text/html", "max-age=60"};
+  int reason = 0, sidecar = 0;
+  uint32_t lifetime = 0, flags = 0;
+  uint16_t cc = 0;
+  size_t detail_len = 0;
+  char detail[32];
+  EXPECT_EQ(ps_html_store_classify(
+                PS_HTML_CACHE_REPORT_ONLY, "GET", "/", 0, 200, names, values, 2,
+                4096, 1, nullptr, 0, 1 << 20, 0, &reason, &lifetime, &flags,
+                &cc, &sidecar, detail, sizeof(detail), &detail_len),
+            PS_HTML_STORE_ACTION_REFUSE);
+  EXPECT_STREQ(ps_html_store_reason_name(reason), "incomplete");
+  EXPECT_STREQ(detail, "body_prefix");
+}
+
+TEST(PageSpeedCApi, HtmlDecisionFormatRefusesServeFacts) {
+  char buf[256];
+  size_t len = 99;
+  const char* action_key[] = {"action"};
+  const char* would_serve[] = {"would_serve"};
+  EXPECT_EQ(ps_html_decision_format(action_key, would_serve, 1, buf,
+                                    sizeof(buf), &len),
+            -2);
+  const char* mode_key[] = {"mode"};
+  const char* serving[] = {"serve-variants"};
+  EXPECT_EQ(
+      ps_html_decision_format(mode_key, serving, 1, buf, sizeof(buf), &len),
+      -2);
+  const char* reason_key[] = {"reason"};
+  const char* fresh[] = {"fresh"};
+  EXPECT_EQ(
+      ps_html_decision_format(reason_key, fresh, 1, buf, sizeof(buf), &len),
+      -2);
+  const char* request_key[] = {"request"};
+  const char* markdown[] = {"accept_markdown"};
+  EXPECT_EQ(
+      ps_html_decision_format(request_key, markdown, 1, buf, sizeof(buf), &len),
+      -2);
+  const char* age_key[] = {"age_s"};
+  const char* age[] = {"1"};
+  EXPECT_EQ(ps_html_decision_format(age_key, age, 1, buf, sizeof(buf), &len),
+            -2);
+}
+
+TEST(PageSpeedCApi, HtmlStoreReasonNames) {
+  EXPECT_STREQ(ps_html_store_reason_name(0), "none");
+  EXPECT_STREQ(ps_html_store_reason_name(19), "no_transform");
+  EXPECT_STREQ(ps_html_store_reason_name(20), "mode");
+  EXPECT_EQ(ps_html_store_reason_name(21), nullptr);
+  EXPECT_EQ(ps_html_store_reason_name(-1), nullptr);
+}
+
+TEST(PageSpeedCApi, HtmlDecisionFormatRoundTrip) {
+  const char* keys[] = {"reason", "host", "ts_ms", "action"};
+  const char* values[] = {"vary:accept", "a.example", "1700000000000",
+                          "refuse"};
+  char buf[256];
+  size_t len = 0;
+  EXPECT_EQ(ps_html_decision_format(keys, values, 4, buf, sizeof(buf), &len),
+            0);
+  const std::string expected =
+      "{\"ts_ms\":1700000000000,\"host\":\"a.example\",\"action\":\"refuse\","
+      "\"reason\":\"vary:accept\"}";
+  EXPECT_EQ(std::string(buf), expected);
+  EXPECT_EQ(len, expected.size());
+}
+
+TEST(PageSpeedCApi, HtmlDecisionFormatErrorDirections) {
+  const char* keys[] = {"host", "path"};
+  const char* values[] = {"a.example", "/p"};
+  char buf[256];
+  size_t len = 99;
+
+  // Too small: -3, the needed length, an empty string left behind.
+  char tiny[8];
+  std::memset(tiny, 'z', sizeof(tiny));
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, tiny, sizeof(tiny), &len),
+            -3);
+  EXPECT_EQ(len, std::strlen("{\"host\":\"a.example\",\"path\":\"/p\"}"));
+  EXPECT_STREQ(tiny, "");
+  // The exact fit (length + NUL) succeeds; one byte less does not.
+  const size_t need = len;
+  std::vector<char> exact(need + 1);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, exact.data(), exact.size(),
+                                    &len),
+            0);
+  EXPECT_EQ(len, need);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, exact.data(),
+                                    exact.size() - 1, &len),
+            -3);
+  // Capacity 0 with a NULL buffer asks only for the length.
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, nullptr, 0, &len), -3);
+  EXPECT_EQ(len, need);
+
+  // Refused fields: -2 and a zero length.
+  const char* bad_keys[] = {"host", "body"};
+  const char* bad_values[] = {"a.example", "x"};
+  len = 99;
+  EXPECT_EQ(
+      ps_html_decision_format(bad_keys, bad_values, 2, buf, sizeof(buf), &len),
+      -2);
+  EXPECT_EQ(len, 0u);
+  const char* empty_host[] = {""};
+  const char* host_key[] = {"host"};
+  EXPECT_EQ(
+      ps_html_decision_format(host_key, empty_host, 1, buf, sizeof(buf), &len),
+      -2);
+  const char* nl_values[] = {"a\nb"};
+  EXPECT_EQ(
+      ps_html_decision_format(host_key, nl_values, 1, buf, sizeof(buf), &len),
+      -2);
+  const char* dup_keys[] = {"host", "host"};
+  EXPECT_EQ(
+      ps_html_decision_format(dup_keys, values, 2, buf, sizeof(buf), &len), -2);
+  // A legitimate key with a value outside its grammar: free text in `cc`, a
+  // query in `path`, a non-count in `size`.
+  const char* cc_keys[] = {"host", "cc"};
+  const char* cc_values[] = {"a.example", "max-age=60, x-session=abc"};
+  EXPECT_EQ(
+      ps_html_decision_format(cc_keys, cc_values, 2, buf, sizeof(buf), &len),
+      -2);
+  const char* query_values[] = {"a.example", "/p?token=1"};
+  EXPECT_EQ(
+      ps_html_decision_format(keys, query_values, 2, buf, sizeof(buf), &len),
+      -2);
+  const char* size_keys[] = {"host", "size"};
+  const char* size_values[] = {"a.example", "12 KiB"};
+  EXPECT_EQ(ps_html_decision_format(size_keys, size_values, 2, buf, sizeof(buf),
+                                    &len),
+            -2);
+  EXPECT_EQ(len, 0u);
+
+  // count == 0: well formed, and the formatter's own rules decide (an empty
+  // object is a valid line).
+  EXPECT_EQ(
+      ps_html_decision_format(nullptr, nullptr, 0, buf, sizeof(buf), &len), 0);
+  EXPECT_STREQ(buf, "{}");
+
+  // Malformed calls: -1.
+  EXPECT_EQ(ps_html_decision_format(nullptr, values, 2, buf, sizeof(buf), &len),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(keys, nullptr, 2, buf, sizeof(buf), &len),
+            -1);
+  const char* holed[] = {"host", nullptr};
+  EXPECT_EQ(ps_html_decision_format(keys, holed, 2, buf, sizeof(buf), &len),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(holed, values, 2, buf, sizeof(buf), &len),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, buf, sizeof(buf), nullptr),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, nullptr, 16, &len), -1);
 }
 
 TEST_F(PageSpeedCacheApiTest, WriteHeadersSidecarStoresAndReadsBackByExactId) {
@@ -6928,6 +7768,42 @@ TEST_F(PageSpeedServeStatsApiTest, RecordHitAccumulatesPerTypeBytesAndHits) {
   EXPECT_EQ(stats_->js_optimized_hits, 0u);
 }
 
+TEST_F(PageSpeedServeStatsApiTest, RecordHitSplitCountsTheServeAndTheSplit) {
+  ps_serve_stats_record_hit_split(handle_, PS_CONTENT_CSS, 1000, 300, 250,
+                                  /*mask=*/0x40, "Shop.Example.com", 16);
+  EXPECT_EQ(stats_->css_optimized_hits, 1u);
+  EXPECT_EQ(stats_->css_original_bytes, 1000u);
+  EXPECT_EQ(stats_->css_optimized_bytes, 250u);
+  const auto split =
+      pagespeed::ReadServeSplit(stats_, pagespeed::ContentType::kCss);
+  EXPECT_EQ(split.original_bytes, 1000u);
+  EXPECT_EQ(split.compressed_original_bytes, 300u);
+  EXPECT_EQ(split.optimized_bytes, 250u);
+  const pagespeed::ServeSavingsByHost by_host =
+      pagespeed::ReadServeSavingsByHost(stats_,
+                                        pagespeed::kServeHostReportLimit);
+  ASSERT_EQ(by_host.hosts.size(), 1u);
+  EXPECT_EQ(by_host.hosts[0].host, "shop.example.com");
+}
+
+TEST_F(PageSpeedServeStatsApiTest, RecordHitSplitNullAndOtherTypeAreNoOps) {
+  ps_serve_stats_record_hit_split(nullptr, PS_CONTENT_CSS, 1, 1, 1, 0, nullptr,
+                                  0);
+  ps_serve_stats_record_hit_split(handle_, PS_CONTENT_OTHER, 1, 1, 1, 0,
+                                  nullptr, 0);
+  EXPECT_EQ(stats_->css_optimized_hits, 0u);
+  EXPECT_EQ(pagespeed::ReadServeSplit(stats_, pagespeed::ContentType::kCss)
+                .original_bytes,
+            0u);
+}
+
+TEST(PageSpeedCApi, ReadEncodedOriginLengthRejectsNullArguments) {
+  uint64_t out = 7;
+  EXPECT_EQ(ps_read_encoded_origin_length(nullptr, &out), 0);
+  EXPECT_EQ(out, 7u);
+  EXPECT_EQ(ps_read_encoded_origin_length(nullptr, nullptr), 0);
+}
+
 TEST_F(PageSpeedServeStatsApiTest, RecordHitWithSvgMaskAlsoCountsSvgServed) {
   // Image-format bits (0-1) == kSvg on an image hit bump svg_optimized_hits in
   // addition to the image counters (#455); mask 0 skips
@@ -7101,7 +7977,11 @@ TEST(PageSpeedCApi, HtmlConfigInitSizedAtFullSizeMatchesTheUnsizedForm) {
 
   // Compared FIELD BY FIELD, not with memcmp. ps_html_config_t may have
   // padding, and we want to verify functional equivalence, not byte identity.
-  EXPECT_EQ(sized.struct_size, plain.struct_size);
+  // struct_size differs by design: the unsized form stamps the 1.8 size, the
+  // sized one the size it was given, and only the sized one sets scheme.
+  EXPECT_EQ(sized.struct_size, sizeof(sized));
+  EXPECT_EQ(plain.struct_size, 128u);
+  EXPECT_EQ(sized.scheme, nullptr);
   EXPECT_EQ(sized.enable_critical_css, plain.enable_critical_css);
   EXPECT_EQ(sized.enable_lazy_load, plain.enable_lazy_load);
   EXPECT_EQ(sized.enable_image_dimensions, plain.enable_image_dimensions);
@@ -7149,6 +8029,129 @@ TEST(PageSpeedCApi, HtmlConfigInitLegacyPinsStructSizeToV1_8) {
   ps_html_config_t config;
   ps_html_config_init(&config);
   EXPECT_EQ(config.struct_size, 128u);  // kHtmlConfigSizeV1_8
+}
+
+// ================================================================
+// ps_html_config_t.scheme (PS_API 1.12)
+// ================================================================
+//
+// An embedder records a page's stylesheets under the request's scheme and may
+// hand ps_html_process a path-only page URL, which names no scheme. The
+// stylesheet lookup reads under config->scheme; a config whose struct_size
+// predates the field reads under "https", as before.
+
+class HtmlProcessSchemeTest : public PageSpeedCacheApiTest {
+ protected:
+  struct Outcome {
+    int has_critical_css = -1;
+    int needs_revalidation = -1;
+  };
+
+  void SetUp() override {
+    PageSpeedCacheApiTest::SetUp();
+    OpenCache();
+  }
+
+  // Records "/style.css" on example.com under `scheme`.
+  void WriteSheet(const char* scheme) {
+    static constexpr char kCss[] =
+        ".hero { color: red; } .unused { margin: 0; }";
+    ps_write_params_t params;
+    ps_write_params_init_auto(&params);
+    params.alternate_id = 0x08;
+    params.content_length = sizeof(kCss) - 1;
+    params.full_mask = 0x08;
+    params.content_type = PS_CONTENT_CSS;
+    params.origin_ct = "text/css";
+    ps_write_handle_t* wh = nullptr;
+    ASSERT_EQ(ps_cache_write_begin(cache_, "/style.css", "example.com", scheme,
+                                   &params, &wh),
+              PS_OK);
+    ASSERT_EQ(ps_write_data(wh, kCss, sizeof(kCss) - 1), PS_OK);
+    ASSERT_EQ(ps_write_close(wh), PS_OK);
+  }
+
+  // A full-size config reading under `scheme`.
+  static ps_html_config_t FullConfig(const char* scheme) {
+    ps_html_config_t config;
+    ps_html_config_init_auto(&config);
+    config.enable_critical_css = 1;
+    config.scheme = scheme;
+    return config;
+  }
+
+  // Processes a page linking "/style.css" at the path-only URL "/page".
+  ps_error_t Process(const ps_html_config_t& config, Outcome* out) {
+    static constexpr char kPage[] =
+        "<html><head><link rel=\"stylesheet\" href=\"/style.css\"></head>"
+        "<body><div class=\"hero\">Hello</div></body></html>";
+    ps_html_result_t* result = nullptr;
+    const ps_error_t err =
+        ps_html_process(kPage, sizeof(kPage) - 1, "/page", "example.com",
+                        &config, cache_, &result);
+    if (err == PS_OK) {
+      out->has_critical_css = ps_html_result_has_critical_css(result);
+      out->needs_revalidation = ps_html_result_needs_revalidation(result);
+      ps_html_result_free(result);
+    }
+    return err;
+  }
+};
+
+TEST_F(HtmlProcessSchemeTest, PathOnlyHttpPageReadsTheSheetRecordedUnderHttp) {
+  WriteSheet("http");
+  Outcome out;
+  ASSERT_EQ(Process(FullConfig("http"), &out), PS_OK);
+  EXPECT_EQ(out.has_critical_css, 1);
+  EXPECT_EQ(out.needs_revalidation, 0);
+}
+
+TEST_F(HtmlProcessSchemeTest, HttpsAndUnsetReadTheSheetRecordedUnderHttps) {
+  WriteSheet("https");
+  for (const char* scheme : {"https", "", static_cast<const char*>(nullptr)}) {
+    SCOPED_TRACE(scheme == nullptr ? "NULL" : scheme);
+    Outcome out;
+    ASSERT_EQ(Process(FullConfig(scheme), &out), PS_OK);
+    EXPECT_EQ(out.has_critical_css, 1);
+    EXPECT_EQ(out.needs_revalidation, 0);
+  }
+}
+
+TEST_F(HtmlProcessSchemeTest, TheSchemeSelectsWhichEntryIsRead) {
+  WriteSheet("https");
+  Outcome out;
+  ASSERT_EQ(Process(FullConfig("http"), &out), PS_OK);
+  EXPECT_EQ(out.has_critical_css, 0);
+  EXPECT_EQ(out.needs_revalidation, 1);
+}
+
+TEST_F(HtmlProcessSchemeTest, AConfigOlderThanTheFieldKeepsReadingHttps) {
+  // struct_size 128 is what ps_html_config_init stamps and what a caller
+  // built before the field passes. The bytes past it are not read, whatever
+  // they hold.
+  ps_html_config_t config = FullConfig("http");
+  config.struct_size = offsetof(ps_html_config_t, scheme);
+  ASSERT_EQ(config.struct_size, 128u);
+
+  WriteSheet("http");
+  Outcome out;
+  ASSERT_EQ(Process(config, &out), PS_OK);
+  EXPECT_EQ(out.has_critical_css, 0);
+  EXPECT_EQ(out.needs_revalidation, 1);
+
+  WriteSheet("https");
+  ASSERT_EQ(Process(config, &out), PS_OK);
+  EXPECT_EQ(out.has_critical_css, 1);
+  EXPECT_EQ(out.needs_revalidation, 0);
+}
+
+TEST_F(HtmlProcessSchemeTest, AnySchemeButHttpOrHttpsIsRefused) {
+  WriteSheet("https");
+  for (const char* scheme : {"ftp", "HTTP", "https:", " http"}) {
+    SCOPED_TRACE(scheme);
+    Outcome out;
+    EXPECT_EQ(Process(FullConfig(scheme), &out), PS_ERR_INVALID_ARG);
+  }
 }
 
 // ps_critical_css_config_init_sized (PS_API 1.9)

@@ -12,7 +12,12 @@ public sealed class PageSpeedOptions
     /// <summary>Configuration section name for IConfiguration binding.</summary>
     public const string SectionName = "PageSpeed";
 
-    /// <summary>Whether the middleware is active. Supports hot-reload.</summary>
+    /// <summary>
+    /// Whether the middleware is active. Supports hot-reload.
+    /// The cache volume is opened, and the worker launched, the first time
+    /// this is true, at startup or through a later hot reload. Switching it
+    /// back to false leaves both in place.
+    /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>Cache volume configuration.</summary>

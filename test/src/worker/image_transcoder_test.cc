@@ -8,6 +8,7 @@
 #include "src/worker/image_transcoder.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -27,6 +28,7 @@
 #include "lib/image/exif_orientation.h"
 #include "lib/image/image_util.h"
 #include "lib/image/jpeg_optimizer.h"
+#include "lib/image/quality_verifier.h"
 #include "lib/image/read_image.h"
 #include "src/webp/encode.h"
 
@@ -975,7 +977,7 @@ TEST_F(ImageTranscoderTest, DesktopOriginalOnlyWebpFastPathDecodesOnce) {
   // after confirming the codec bump is the only change.
   const uint64_t original_hash =
       GoldenFnv1a64(multi.optimized_original.output_data);
-  EXPECT_EQ(0x52884b1d2fc4b479ull, original_hash)
+  EXPECT_EQ(0xa1cce5ec9ba09775ull, original_hash)
       << "original-slot produced bytes changed (#1412); if this is a "
          "legitimate codec update, refresh the golden to 0x"
       << std::hex << original_hash;
@@ -1018,13 +1020,13 @@ TEST_F(ImageTranscoderTest, DesktopMultiFormatFastPathDecodesOnce) {
   // the handed-over frame, so corrupting it must change both outputs.  See
   // the kOriginal-only test above for the refresh policy.
   const uint64_t webp_hash = GoldenFnv1a64(multi.webp.output_data);
-  EXPECT_EQ(0x52884b1d2fc4b479ull, webp_hash)
+  EXPECT_EQ(0xa1cce5ec9ba09775ull, webp_hash)
       << "WebP-slot produced bytes changed (#1412); if this is a legitimate "
          "codec update, refresh the golden to 0x"
       << std::hex << webp_hash;
   const uint64_t original_hash =
       GoldenFnv1a64(multi.optimized_original.output_data);
-  EXPECT_EQ(0x52884b1d2fc4b479ull, original_hash)
+  EXPECT_EQ(0xa1cce5ec9ba09775ull, original_hash)
       << "original-slot produced bytes changed (#1412); if this is a "
          "legitimate codec update, refresh the golden to 0x"
       << std::hex << original_hash;
@@ -1695,6 +1697,75 @@ TEST_F(ImageTranscoderTest, SaveDataAvifProducesDifferentOutput) {
 
   // Save-Data AVIF output should differ from normal.
   EXPECT_NE(savedata.avif.output_data, normal.avif.output_data);
+}
+
+// At shipped defaults every Save-Data tier is strictly smaller than the
+// normal tier of the same format and viewport.  Guards the encoder side of
+// the Save-Data pair: when a Save-Data response equals the normal one, the
+// cause is a missing variant, not the two tiers collapsing to one quality.
+TEST(ImageTranscoderSaveDataTest, SaveDataIsSmallerPerFormatAndViewport) {
+  pagespeed::NullMessageHandler handler;
+  pagespeed::ImageTranscoder transcoder(pagespeed::ImageTranscoderConfig{},
+                                        &handler);
+  std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const std::vector<CapabilityMask::ImageFormat> formats = {
+      CapabilityMask::ImageFormat::kOriginal,
+      CapabilityMask::ImageFormat::kWebP,
+      CapabilityMask::ImageFormat::kAvif,
+  };
+  const CapabilityMask::Viewport viewports[] = {
+      CapabilityMask::Viewport::kMobile,
+      CapabilityMask::Viewport::kTablet,
+      CapabilityMask::Viewport::kDesktop,
+  };
+  for (auto vp : viewports) {
+    auto normal = transcoder.TranscodeMultiResized(
+        jpeg, formats, vp, CapabilityMask::PixelDensity::k1x,
+        CapabilityMask::SaveData::kOff);
+    auto saved = transcoder.TranscodeMultiResized(
+        jpeg, formats, vp, CapabilityMask::PixelDensity::k1x,
+        CapabilityMask::SaveData::kOn);
+    const std::pair<const pagespeed::TranscodeResult*,
+                    const pagespeed::TranscodeResult*>
+        pairs[] = {{&normal.optimized_original, &saved.optimized_original},
+                   {&normal.webp, &saved.webp},
+                   {&normal.avif, &saved.avif}};
+    for (const auto& [n, sd] : pairs) {
+      ASSERT_TRUE(n->success) << n->error_message;
+      ASSERT_TRUE(sd->success) << sd->error_message;
+      EXPECT_LT(sd->output_data.size(), n->output_data.size())
+          << n->output_mime_type << " at viewport " << static_cast<int>(vp);
+    }
+  }
+}
+
+// A source already at or below the normal JPEG quality leaves nothing for the
+// normal tier to save, so that tier may decline while the Save-Data tier
+// still re-encodes.  The Save-Data tier must then be smaller than the source;
+// the worker's gate additionally compares it with the stored normal variant.
+TEST(ImageTranscoderSaveDataTest, LowQualityJpegSourceSaveDataTierIsSmaller) {
+  pagespeed::NullMessageHandler handler;
+  pagespeed::ImageTranscoder transcoder(pagespeed::ImageTranscoderConfig{},
+                                        &handler);
+  std::string jpeg = ReadTestFile("jpeg/q20_512x512.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const std::vector<CapabilityMask::ImageFormat> formats = {
+      CapabilityMask::ImageFormat::kOriginal};
+  auto normal = transcoder.TranscodeMultiResized(
+      jpeg, formats, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      {.source_quality = 20});
+  auto saved = transcoder.TranscodeMultiResized(
+      jpeg, formats, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOn,
+      {.source_quality = 20});
+  // For this fixture the normal tier has nothing to save and declines,
+  // while the Save-Data tier re-encodes below the source.
+  EXPECT_FALSE(normal.optimized_original.success);
+  ASSERT_TRUE(saved.optimized_original.success)
+      << saved.optimized_original.error_message;
+  EXPECT_LT(saved.optimized_original.output_data.size(), jpeg.size());
 }
 
 // =================================================================
@@ -2930,34 +3001,6 @@ TEST_F(ImageTranscoderTest, TranscodeMultiResizedPngAlpha) {
   } else {
     EXPECT_TRUE(result.optimized_original.output_data.empty());
   }
-}
-
-// =================================================================
-// Additional coverage: Denoising path
-// =================================================================
-
-TEST(ImageTranscoderDenoiseTest, DenoiseThresholdZeroDisablesDenoise) {
-  // With denoise_threshold = 0, denoising should never trigger.
-  NullMessageHandler handler;
-  ImageTranscoderConfig config;
-  config.denoise_threshold = 0.0f;
-  config.quality_verify = false;
-  config.learned_quality = false;
-
-  ImageTranscoder transcoder(config, &handler);
-
-  std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
-  ASSERT_FALSE(jpeg.empty());
-
-  std::vector<CapabilityMask::ImageFormat> formats = {
-      CapabilityMask::ImageFormat::kWebP,
-  };
-
-  auto result = transcoder.TranscodeMultiResized(
-      jpeg, formats, CapabilityMask::Viewport::kDesktop);
-
-  EXPECT_FALSE(result.denoised)
-      << "Denoise should be disabled with threshold 0";
 }
 
 // =================================================================
@@ -6129,79 +6172,6 @@ TEST(ImageTranscoderSaveDataCoverageTest,
   // Content analysis should still classify the image.
   EXPECT_FALSE(savedata.used_learned_quality)
       << "learned_quality=false should not use ML prediction";
-}
-
-// =================================================================
-// Coverage: Denoising path. Use a noisy image with low denoise
-// threshold to exercise the bilateral filter path in
-// TranscodeMultiResized (lines 1057-1083).
-// =================================================================
-
-TEST(ImageTranscoderDenoiseCoverageTest, DenoisingAppliedForNoisyImage) {
-  NullMessageHandler handler;
-  ImageTranscoderConfig config;
-  config.content_analysis = true;
-  config.learned_quality = false;
-  config.quality_verify = false;
-  config.viewport_widths.mobile = 100;
-  // Very low denoise threshold to increase chance of denoising being applied.
-  config.denoise_threshold = 0.01f;
-  config.denoise_sigma_spatial = 3.0f;
-  config.denoise_sigma_range = 25.0f;
-
-  ImageTranscoder transcoder(config, &handler);
-
-  // sjpeg6.jpg (512x512) — after resize to 100px wide, width=100 < 640.
-  // Use a wider target to keep width >= 640.
-  config.viewport_widths.mobile = 480;
-  ImageTranscoder transcoder2(config, &handler);
-
-  std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
-  ASSERT_FALSE(jpeg.empty());
-
-  std::vector<CapabilityMask::ImageFormat> formats = {
-      CapabilityMask::ImageFormat::kOriginal,
-  };
-
-  auto result = transcoder2.TranscodeMultiResized(
-      jpeg, formats, CapabilityMask::Viewport::kMobile);
-
-  EXPECT_TRUE(result.optimized_original.success)
-      << result.optimized_original.error_message;
-  // Denoising may or may not be applied depending on the image's noise_level.
-  // If it was applied, result.denoised will be true.
-  // Either way, the path through the denoising code was exercised.
-}
-
-// =================================================================
-// Coverage: Denoising threshold disabled (0.0).
-// =================================================================
-
-TEST(ImageTranscoderDenoiseCoverageTest, DenoisingDisabledWhenThresholdZero) {
-  NullMessageHandler handler;
-  ImageTranscoderConfig config;
-  config.content_analysis = true;
-  config.learned_quality = false;
-  config.quality_verify = false;
-  config.viewport_widths.mobile = 100;
-  config.denoise_threshold = 0.0f;  // Denoising disabled
-
-  ImageTranscoder transcoder(config, &handler);
-
-  std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
-  ASSERT_FALSE(jpeg.empty());
-
-  std::vector<CapabilityMask::ImageFormat> formats = {
-      CapabilityMask::ImageFormat::kOriginal,
-  };
-
-  auto result = transcoder.TranscodeMultiResized(
-      jpeg, formats, CapabilityMask::Viewport::kMobile);
-
-  EXPECT_TRUE(result.optimized_original.success)
-      << result.optimized_original.error_message;
-  EXPECT_FALSE(result.denoised)
-      << "Denoising should not be applied when threshold is 0";
 }
 
 // =================================================================
@@ -10404,4 +10374,236 @@ TEST(BudgetRescueTest, StopsEarlyWhenAProbeIsOverBudgetAndBelowTheFloor) {
   EXPECT_EQ(1, r.encodes);
   EXPECT_EQ(1, probe.encodes);
   EXPECT_EQ(75, quality);
+}
+
+// #406: the lossy WebP encodes use the strongest libwebp effort by default,
+// which yields smaller output than the old effort level at the SAME quality,
+// so fewer photos lose their WebP variant to the size gate. Verification and
+// learned quality are off so no quality search can change the comparison.
+TEST_F(ImageTranscoderTest, DefaultWebpEffortBeatsLowEffort) {
+  EXPECT_EQ(6, ImageTranscoderConfig{}.webp_method);
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const std::vector<CapabilityMask::ImageFormat> formats = {
+      CapabilityMask::ImageFormat::kWebP};
+
+  ImageTranscoderConfig fixed;
+  fixed.quality_verify = false;
+  fixed.learned_quality_webp = false;
+  ImageTranscoderConfig low = fixed;
+  low.webp_method = 3;
+  ImageTranscoder fixed_transcoder(fixed, &handler_);
+  ImageTranscoder low_transcoder(low, &handler_);
+
+  // Multi-format path.
+  auto low_result = low_transcoder.TranscodeMulti(jpeg, formats, -1);
+  auto default_result = fixed_transcoder.TranscodeMulti(jpeg, formats, -1);
+  ASSERT_TRUE(low_result.webp.success);
+  ASSERT_TRUE(default_result.webp.success);
+  EXPECT_LT(default_result.webp.output_data.size(),
+            low_result.webp.output_data.size());
+
+  // Single-format path (ConvertToWebp) honours the same setting.
+  CapabilityMask mask;
+  mask.set_image_format(CapabilityMask::ImageFormat::kWebP);
+  auto low_single = low_transcoder.Transcode(jpeg, mask);
+  auto default_single = fixed_transcoder.Transcode(jpeg, mask);
+  ASSERT_TRUE(low_single.success) << low_single.error_message;
+  ASSERT_TRUE(default_single.success) << default_single.error_message;
+  EXPECT_LT(default_single.output_data.size(), low_single.output_data.size());
+}
+
+// =================================================================
+// Quality checks measure against the original, not a filtered copy
+// =================================================================
+
+namespace {
+
+// Deterministic noise (sum of uniforms, roughly Gaussian) so the fixture is
+// the same on every standard library.
+class NoiseSource {
+ public:
+  explicit NoiseSource(uint32_t seed) : state_(seed * 2654435761u + 12345u) {}
+  float Next() {  // approx N(0, 1)
+    float sum = 0.0f;
+    for (int i = 0; i < 6; ++i) {
+      state_ = state_ * 1664525u + 1013904223u;
+      sum += static_cast<float>((state_ >> 8) & 0xFFFF) / 65535.0f;
+    }
+    return (sum - 3.0f) * 1.4142f;
+  }
+
+ private:
+  uint32_t state_;
+};
+
+// A generated photo-like RGB image: smooth gradients, a few soft shapes and
+// fine texture, plus per-channel noise of the given strength.  |content|
+// selects the base pattern so callers can vary it.
+DecodedImage MakeNoisyImage(int width, int height, float noise_sigma,
+                            int content, uint32_t seed) {
+  DecodedImage img;
+  img.width = width;
+  img.height = height;
+  img.bytes_per_pixel = 3;
+  img.has_alpha = false;
+  img.pixel_buffer.resize(static_cast<size_t>(width) * height * 3);
+  NoiseSource noise(seed);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      const float fx = static_cast<float>(x) / width;
+      const float fy = static_cast<float>(y) / height;
+      float r = 60.0f + 120.0f * fx;
+      float g = 80.0f + 100.0f * fy;
+      float b = 140.0f - 60.0f * fx * fy;
+      if (content == 1) {  // soft blobs
+        const float dx = fx - 0.5f, dy = fy - 0.45f;
+        const float d = dx * dx + dy * dy;
+        r += d < 0.06f ? 50.0f : 0.0f;
+        g -= d < 0.03f ? 40.0f : 0.0f;
+      } else if (content == 2) {  // banded stripes with edges
+        r += ((x / 40 + y / 40) % 2) ? 45.0f : -20.0f;
+        b += (x / 90 % 2) ? 25.0f : 0.0f;
+      }
+      char* p = &img.pixel_buffer[(static_cast<size_t>(y) * width + x) * 3];
+      const float vals[3] = {r, g, b};
+      for (int c = 0; c < 3; ++c) {
+        float v = vals[c] + noise_sigma * noise.Next();
+        v = std::min(255.0f, std::max(0.0f, v));
+        p[c] = static_cast<char>(static_cast<uint8_t>(std::lround(v)));
+      }
+    }
+  }
+  return img;
+}
+
+std::string EncodeRgbJpeg(const DecodedImage& img, int quality) {
+  pagespeed::NullMessageHandler handler;
+  JpegCompressionOptions options;
+  options.lossy = true;
+  options.lossy_options.quality = quality;
+  std::string out;
+  std::unique_ptr<net_instaweb::ScanlineWriterInterface> writer(
+      CreateScanlineWriter(
+          pagespeed::image_compression::IMAGE_JPEG,
+          pagespeed::image_compression::RGB_888, static_cast<size_t>(img.width),
+          static_cast<size_t>(img.height), &options, &out, &handler));
+  if (writer == nullptr) return {};
+  const size_t stride = static_cast<size_t>(img.width) * 3;
+  for (uint32_t y = 0; y < img.height; ++y) {
+    if (!writer->WriteNextScanline(const_cast<char*>(
+            img.pixel_buffer.data() + static_cast<size_t>(y) * stride))) {
+      return {};
+    }
+  }
+  if (!writer->FinalizeWrite()) return {};
+  return out;
+}
+
+// SSIMULACRA2 of |encoded| (an image file) against |reference| pixels;
+// -1000 when it cannot be measured.
+float ScoreAgainst(ImageTranscoder& tc, const DecodedImage& reference,
+                   const std::string& encoded) {
+  DecodedImage out = tc.DecodeToPixels(encoded);
+  if (out.pixel_buffer.empty() || out.width != reference.width ||
+      out.height != reference.height ||
+      out.bytes_per_pixel != reference.bytes_per_pixel) {
+    return -1000.0f;
+  }
+  NullMessageHandler handler;
+  auto score = pagespeed::ComputeSSIMULACRA2(
+      reinterpret_cast<const uint8_t*>(reference.pixel_buffer.data()),
+      reinterpret_cast<const uint8_t*>(out.pixel_buffer.data()),
+      reference.width, reference.height, reference.bytes_per_pixel, &handler);
+  return score.has_value() ? *score : -1000.0f;
+}
+
+ImageTranscoderConfig VerifyConfig() {
+  ImageTranscoderConfig config;
+  config.content_analysis = true;
+  config.learned_quality = false;
+  config.learned_quality_webp = false;
+  config.quality_verify = true;
+  config.viewport_widths.mobile = 800;
+  return config;
+}
+
+}  // namespace
+
+// The stored score describes the encode against the (resized) ORIGINAL.
+TEST(ImageQualityReferenceTest, StoredScoreIsAgainstTheResizedOriginal) {
+  NullMessageHandler handler;
+  ImageTranscoderConfig config = VerifyConfig();
+  ImageTranscoder tc(config, &handler);
+
+  const std::string jpeg =
+      EncodeRgbJpeg(MakeNoisyImage(1600, 1000, 8.0f, 1, 11), 95);
+  ASSERT_FALSE(jpeg.empty());
+  DecodedImage reference = tc.ResizeForViewport(
+      tc.DecodeToPixels(jpeg), CapabilityMask::Viewport::kMobile);
+  ASSERT_EQ(800u, reference.width);
+
+  auto result =
+      tc.TranscodeMultiResized(jpeg,
+                               {CapabilityMask::ImageFormat::kOriginal,
+                                CapabilityMask::ImageFormat::kWebP},
+                               CapabilityMask::Viewport::kMobile);
+  ASSERT_TRUE(result.webp.success) << result.webp.error_message;
+  const float floor = pagespeed::BandFloor(config.target_ssimulacra2,
+                                           config.ssimulacra2_tolerance);
+  {
+    const float truth = ScoreAgainst(tc, reference, result.webp.output_data);
+    EXPECT_GE(truth, floor);
+    EXPECT_NEAR(result.webp_ssimulacra2_score, truth, 1.0f);
+  }
+  if (result.optimized_original.success) {
+    const float truth =
+        ScoreAgainst(tc, reference, result.optimized_original.output_data);
+    EXPECT_NEAR(result.ssimulacra2_score, truth, 1.0f);
+  }
+}
+
+// The size rule: a variant is stored only when it is smaller than the source.
+// A very noisy, heavily compressed source cannot be matched against the
+// original by a smaller file, so the original is served (no variant).
+TEST(ImageQualityReferenceTest, NoisySourceNeverGetsLargerVariant) {
+  NullMessageHandler handler;
+  ImageTranscoderConfig config = VerifyConfig();
+  config.no_quality_cap = true;       // let the search climb as far as it can
+  config.target_ssimulacra2 = 95.0f;  // a bar the encode cannot meet small
+  ImageTranscoder tc(config, &handler);
+
+  // Heavily compressed noisy source, a little wider than the viewport.
+  const std::string jpeg =
+      EncodeRgbJpeg(MakeNoisyImage(1000, 750, 14.0f, 0, 5), 70);
+  ASSERT_FALSE(jpeg.empty());
+  auto result = tc.TranscodeMultiResized(
+      jpeg,
+      {CapabilityMask::ImageFormat::kOriginal,
+       CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif},
+      CapabilityMask::Viewport::kMobile);
+  EXPECT_FALSE(result.optimized_original.success);
+  if (result.webp.success) {
+    EXPECT_LT(result.webp.output_data.size(), jpeg.size());
+  }
+  if (result.avif.success) {
+    EXPECT_LT(result.avif.output_data.size(), jpeg.size());
+  }
+}
+
+// A clean photo keeps its converted variants, each smaller than the source.
+TEST(ImageQualityReferenceTest, CleanPhotoKeepsItsVariants) {
+  NullMessageHandler handler;
+  ImageTranscoderConfig config = VerifyConfig();
+  ImageTranscoder tc(config, &handler);
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  auto result = tc.TranscodeMultiResized(
+      jpeg,
+      {CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif},
+      CapabilityMask::Viewport::kMobile);
+  ASSERT_TRUE(result.webp.success) << result.webp.error_message;
+  ASSERT_TRUE(result.avif.success) << result.avif.error_message;
+  EXPECT_LT(result.webp.output_data.size(), jpeg.size());
+  EXPECT_LT(result.avif.output_data.size(), jpeg.size());
 }

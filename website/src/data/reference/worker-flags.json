@@ -209,7 +209,7 @@
       "name": "--no-async-css",
       "arg": null,
       "default": null,
-      "description": "Disable async CSS loading (keep stylesheets render-blocking)",
+      "description": "Disable async CSS loading (keep stylesheets render-blocking and inline no above-the-fold CSS)",
       "section": "Options",
       "platform": null
     },
@@ -264,24 +264,24 @@
     {
       "name": "--denoise-threshold",
       "arg": "LEVEL",
-      "default": "0.3",
-      "description": "Noise level threshold 0.0-1.0 (default: 0.3, 0=disable)",
+      "default": null,
+      "description": "Deprecated and ignored (accepted so existing command lines keep working)",
       "section": "Options",
       "platform": null
     },
     {
       "name": "--denoise-sigma-spatial",
       "arg": "F",
-      "default": "3.0",
-      "description": "Bilateral filter spatial sigma, max 10.0 (default: 3.0)",
+      "default": null,
+      "description": "Deprecated and ignored",
       "section": "Options",
       "platform": null
     },
     {
       "name": "--denoise-sigma-range",
       "arg": "F",
-      "default": "25.0",
-      "description": "Bilateral filter range sigma (default: 25.0)",
+      "default": null,
+      "description": "Deprecated and ignored",
       "section": "Options",
       "platform": null
     },

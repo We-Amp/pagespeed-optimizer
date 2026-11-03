@@ -624,6 +624,74 @@ TEST(BuildValidationDocumentsTest, ALayeredCandidateWithAProvenOrderGoesFirst) {
             "</head><body>x</body></html>");
 }
 
+// The serve path's parser reads inline SVG and MathML as browsers do: a <style>
+// or <link> there is an SVG or MathML element, not a stylesheet source, and
+// stays in both documents as it stands in the served page.
+TEST(BuildValidationDocumentsTest, SvgStyleAndLinkStayInBothDocuments) {
+  const std::string foreign =
+      "<svg><style>.s{fill:red}</style>"
+      "<link rel=\"stylesheet\" href=\"/svg.css\"></svg>";
+  auto docs =
+      BuildValidationDocuments("<html><head><title>T</title></head><body>" +
+                                   foreign + "<p>x</p></body></html>",
+                               ".a{color:red}", ".a{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_NE(docs.reference.find(foreign), std::string::npos) << docs.reference;
+  EXPECT_NE(docs.candidate.find(foreign), std::string::npos) << docs.candidate;
+  EXPECT_EQ(docs.style_blocks_removed, 0u);
+  EXPECT_EQ(docs.stylesheet_links_removed, 0u);
+}
+
+TEST(BuildValidationDocumentsTest, MathStyleStaysInBothDocuments) {
+  const std::string foreign =
+      "<math><style>.m{}</style><mi><mglyph><style>.g{}</style></mglyph></mi>"
+      "<annotation-xml><style>.x{}</style></annotation-xml></math>";
+  auto docs =
+      BuildValidationDocuments("<html><head><title>T</title></head><body>" +
+                                   foreign + "<p>x</p></body></html>",
+                               ".a{color:red}", ".a{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_NE(docs.candidate.find(foreign), std::string::npos) << docs.candidate;
+  EXPECT_EQ(docs.style_blocks_removed, 0u);
+}
+
+// Inside an integration point (SVG foreignObject or title, MathML mi) the
+// parser reads HTML again: an HTML <style> or stylesheet <link> there is a
+// source and is removed like any other.
+TEST(BuildValidationDocumentsTest, HtmlStyleInsideAnIntegrationPointIsRemoved) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title></head><body>"
+      "<svg><foreignObject><style>.fo{}</style>"
+      "<link rel=\"stylesheet\" href=\"/fo.css\"></foreignObject>"
+      "<title><style>.t{}</style></title></svg>"
+      "<math><mi><style>.mi{}</style></mi></math><p>x</p></body></html>",
+      ".a{color:red}", ".a{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.style_blocks_removed, 3u);
+  EXPECT_EQ(docs.stylesheet_links_removed, 1u);
+  EXPECT_NE(docs.candidate.find("<svg><foreignObject></foreignObject><title>"
+                                "</title></svg><math><mi></mi></math>"),
+            std::string::npos)
+      << docs.candidate;
+}
+
+// An SVG <style> is not raw text: its content is markup, so a tag that ends
+// SVG content ends the style too, and an HTML <style> after it is a source.
+// A CDATA section in SVG content is text.
+TEST(BuildValidationDocumentsTest, SvgStyleContentIsMarkup) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title></head><body>"
+      "<svg><style><div><style>.x{}</style></div></style></svg>"
+      "<svg><![CDATA[<style>.c{}</style>]]></svg><p>x</p></body></html>",
+      ".a{color:red}", ".a{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.style_blocks_removed, 1u);
+  EXPECT_NE(docs.candidate.find("<svg><style><div></div></style></svg>"
+                                "<svg><![CDATA[<style>.c{}</style>]]></svg>"),
+            std::string::npos)
+      << docs.candidate;
+}
+
 TEST(BuildValidationDocumentsTest, FullCssContainsStyleTerminatorFailsClosed) {
   // InjectCriticalCss refuses CSS containing `</style` — and reports that
   // refusal as success=TRUE with an EMPTY document. A caller checking only

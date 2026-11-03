@@ -26,15 +26,26 @@ bool AsciiEqualsIgnoreCase(std::string_view token, std::string_view name) {
   return true;
 }
 
+// HTTP optional whitespace (RFC 9110 section 5.6.3).  The field syntax allows
+// it around each list element; it is also tolerated around '=' and inside the
+// quotes of a value, which the grammar does not allow.
+bool IsOws(char c) { return c == ' ' || c == '\t'; }
+
+std::string_view TrimOws(std::string_view s) {
+  while (!s.empty() && IsOws(s.front())) s.remove_prefix(1);
+  while (!s.empty() && IsOws(s.back())) s.remove_suffix(1);
+  return s;
+}
+
 }  // namespace
 
 uint32_t ParseCacheControlSeconds(std::string_view val) {
-  // Skip leading whitespace.
-  while (!val.empty() && val.front() == ' ') val.remove_prefix(1);
+  // Skip surrounding optional whitespace.
+  val = TrimOws(val);
   // Strip quotes.
   if (!val.empty() && val.front() == '"') val.remove_prefix(1);
   if (!val.empty() && val.back() == '"') val.remove_suffix(1);
-  while (!val.empty() && val.front() == ' ') val.remove_prefix(1);
+  val = TrimOws(val);
   if (val.empty()) return 0;
   uint64_t result = 0;
   for (char c : val) {
@@ -66,9 +77,8 @@ void AccumulateOriginCacheControl(std::string_view header_value,
       token = val.substr(0, comma);
       val.remove_prefix(comma + 1);
     }
-    // Trim whitespace.
-    while (!token.empty() && token.front() == ' ') token.remove_prefix(1);
-    while (!token.empty() && token.back() == ' ') token.remove_suffix(1);
+    // Trim optional whitespace.
+    token = TrimOws(token);
     if (token.empty()) continue;
 
     // Split name=value.
@@ -78,7 +88,7 @@ void AccumulateOriginCacheControl(std::string_view header_value,
     if (eq != std::string_view::npos) {
       name = token.substr(0, eq);
       value = token.substr(eq + 1);
-      while (!name.empty() && name.back() == ' ') name.remove_suffix(1);
+      name = TrimOws(name);
     }
 
     // Table-driven Cache-Control directive lookup.

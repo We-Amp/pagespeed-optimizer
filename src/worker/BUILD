@@ -84,6 +84,7 @@ cc_library(
         "//lib/base:string_util",
         "//lib/base:url_util",
         "//lib/classify:url_normalizer",
+        "//lib/css:css_import_flattener",
         "//lib/html:compat",
         "//lib/html:empty_html_filter",
         "//lib/html:html_keywords",
@@ -227,7 +228,6 @@ cc_library(
     deps = [
         "//lib/base:message_handler",
         "//lib/classify:capability_mask",
-        "//lib/image:bilateral_filter",
         "//lib/image:content_analyzer",
         "//lib/image:exif_orientation",
         "//lib/image:gif",
@@ -253,6 +253,22 @@ cc_library(
     visibility = ["//visibility:public"],
 )
 
+# Subresource gate - whether a cached sub-resource is served to an anonymous
+# client before another URL's output is built from it
+cc_library(
+    name = "subresource_gate",
+    srcs = ["subresource_gate.cc"],
+    hdrs = ["subresource_gate.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/classify:alternate_metadata",
+        "//lib/classify:hostname",
+        "//lib/net:fetch_policy",
+        "//lib/net:upstream_pin",
+        "//src/browser:agent_fetcher",
+    ],
+)
+
 # HTML Transform Filter - unified HTML modifications (lazy load, dimensions,
 # critical CSS)
 cc_library(
@@ -270,8 +286,10 @@ cc_library(
         ":async_css_loader",
         ":cascade_layer_order",
         ":html_scanner",
+        ":subresource_gate",
         "//lib/base:string_util",
         "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_metadata",
         "//lib/classify:capability_mask",
         "//lib/html:csp_inline_policy",
         "//lib/html:empty_html_filter",
@@ -312,6 +330,7 @@ cc_library(
         ":css_cache_inliner",
         ":html_scanner",
         ":noscript_strip",
+        ":subresource_gate",
         ":uv_helpers",
         "//lib/base:message_handler",
         "//lib/cache:pagespeed_cache",
@@ -381,13 +400,28 @@ filegroup(
     visibility = ["//test/src/worker:__pkg__"],
 )
 
+# Known-sites file (site ids the worker has stored work for)
+cc_library(
+    name = "known_sites",
+    srcs = ["known_sites.cc"],
+    hdrs = ["known_sites.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/base:atomic_file_writer",
+        "//src/proto:worker_ipc",
+    ],
+)
+
 # In-memory URL registry for cache URL enumeration
 cc_library(
     name = "url_registry",
     srcs = ["url_registry.cc"],
     hdrs = ["url_registry.h"],
     visibility = ["//visibility:public"],
-    deps = ["//lib/classify:hostname"],
+    deps = [
+        ":known_sites",
+        "//lib/classify:hostname",
+    ],
 )
 
 # Cache inspection & mutation API handlers (/v1/cache/*)
@@ -407,6 +441,7 @@ cc_library(
         "//lib/classify:content_type",
         "//lib/classify:pagespeed_selector",
         "//lib/classify:url_normalizer",
+        "//src/proto:worker_ipc",
         "@com_google_absl//absl/strings",
         "@nlohmann_json//:json",
     ],
@@ -692,6 +727,7 @@ cc_library(
         ":html_transform_filter",
         ":http_server",
         ":image_transcoder",
+        ":known_sites",
         ":layer_order_sources",
         ":llms_txt_builder",
         ":optimization_policy",
@@ -699,6 +735,7 @@ cc_library(
         ":posix_compat",
         ":shared_config",
         ":static_file_handler",
+        ":subresource_gate",
         ":syscall_filter",
         ":text_compressor",
         ":unsafe_force_async_css",

@@ -146,11 +146,6 @@ test.describe('Configuration Panel', () => {
       page.getByText(/viewport breakpoints/i).first(),
     ).toBeVisible();
 
-    // Should show denoising
-    await expect(
-      page.getByText(/denoising/i).first(),
-    ).toBeVisible();
-
     // Should show size limits
     await expect(
       page.getByText(/size limits/i).first(),

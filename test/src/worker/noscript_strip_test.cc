@@ -148,6 +148,61 @@ TEST(NoscriptStripTest, KeepsNoscriptInForeignContent) {
             "<svg><svg></svg><noscript>y</noscript></svg>");
 }
 
+// The foreign content lists are the HTML parser's, as the vendored HtmlLexer
+// has them: each breakout start tag (and <font> with color, face or size, and
+// the end tags </p> and </br>) ends SVG and MathML content, so a <noscript>
+// after it is an HTML one and goes; any other tag keeps the content foreign,
+// and so does a <noscript> in it. Inside an integration point it goes too.
+TEST(NoscriptStripTest, FollowsTheParsersForeignContentLists) {
+  const char* const kNoscript = "<noscript>N</noscript>";
+  auto removed = [&](const std::string& before) {
+    return Strip(absl::StrCat(before, kNoscript)) == before;
+  };
+  auto kept = [&](const std::string& before) {
+    const std::string html = absl::StrCat(before, kNoscript);
+    return Strip(html) == html;
+  };
+  for (const char* name :
+       {"b",      "big",    "blockquote", "body",    "br",    "center", "code",
+        "dd",     "div",    "dl",         "dt",      "em",    "embed",  "h1",
+        "h2",     "h3",     "h4",         "h5",      "h6",    "head",   "hr",
+        "i",      "img",    "li",         "listing", "menu",  "meta",   "nobr",
+        "ol",     "p",      "pre",        "ruby",    "s",     "small",  "span",
+        "strong", "strike", "sub",        "sup",     "table", "tt",     "u",
+        "ul",     "var",    "DIV"}) {
+    EXPECT_TRUE(removed(absl::StrCat("<svg><g><", name, ">"))) << name;
+    EXPECT_TRUE(removed(absl::StrCat("<math><mrow><", name, ">"))) << name;
+  }
+  for (const char* font :
+       {"<font color=red>", "<font face=x>", "<font x=1 SIZE=2>"}) {
+    EXPECT_TRUE(removed(absl::StrCat("<svg>", font))) << font;
+  }
+  for (const char* name : {"a", "link", "input", "form", "select", "option",
+                           "td", "tr", "font", "article", "section"}) {
+    EXPECT_TRUE(kept(absl::StrCat("<svg><", name, ">"))) << name;
+  }
+  EXPECT_TRUE(kept("<svg><font x=1>"));
+  EXPECT_TRUE(removed("<svg><g></p>"));
+  EXPECT_TRUE(removed("<math><mrow></BR>"));
+  for (const char* point :
+       {"<svg><foreignObject>", "<svg><desc>", "<svg><title>",
+        "<svg><FOREIGNOBJECT>", "<math><mi>", "<math><mo>", "<math><mn>",
+        "<math><ms>", "<math><mtext>",
+        "<math><annotation-xml encoding=\"text/html\">",
+        "<math><annotation-xml encoding='APPLICATION/XHTML+XML'>",
+        "<math><annotation-xml><svg><desc>",
+        "<svg><foreignObject><math><mi>"}) {
+    EXPECT_TRUE(removed(point)) << point;
+  }
+  for (const char* foreign :
+       {"<math><mi><mglyph>", "<math><mi><malignmark>", "<math><title>",
+        "<math><annotation-xml>",
+        "<math><annotation-xml encoding=\"image/svg+xml\">",
+        "<math><svg><desc>", "<svg><math><mi>", "<svg><mi>"}) {
+    EXPECT_TRUE(kept(foreign)) << foreign;
+  }
+}
+
 TEST(NoscriptStripTest, RemovesTheWorkersOwnAsyncFallbackCopy) {
   EXPECT_EQ(Strip("<head><link rel=preload as=style href=/a.css "
                   "data-pagespeed-async>"

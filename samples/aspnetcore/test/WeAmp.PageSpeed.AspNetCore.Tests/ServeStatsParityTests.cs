@@ -44,11 +44,13 @@ namespace WeAmp.PageSpeed.AspNetCore.Tests;
 /// subprocess. <c>await using var app</c> ensures <c>WorkerProcessHost</c>
 /// kills the worker child on dispose (no zombie-worker leak on CI runners).
 ///
-/// Inputs (the test SKIPS without them):
+/// Inputs (without them the test is reported as skipped, or fails when
+/// <c>PAGESPEED_E2E_REQUIRE_NATIVE=1</c>):
 /// <list type="bullet">
-/// <item><c>PAGESPEED_E2E_NATIVE_DIR</c> (or the restored NuGet native-assets
-/// layout) providing <c>factory_worker</c> + <c>libpagespeed</c> — staged via
-/// <see cref="NativeAssetsFixture"/>.</item>
+/// <item><c>factory_worker</c> from <c>PAGESPEED_E2E_NATIVE_DIR</c>, the test
+/// output or the restored NuGet native-assets layout, staged via
+/// <see cref="NativeAssetsFixture"/>, and <c>libpagespeed</c> in the test
+/// output (a build with <c>PageSpeedNativeAssetsDir</c>).</item>
 /// </list>
 /// </summary>
 [Collection(WorkerSubprocessCollection.Name)]
@@ -61,14 +63,10 @@ public sealed class ServeStatsParityTests
         _output = output;
     }
 
-    [Fact]
+    [WorkerFact]
     public async Task WorkerProcessedImageHit_RecordsServeSavings_InSharedMmap()
     {
-        if (!NativeAssetsFixture.TryStage(_output, out var skipReason))
-        {
-            _output.WriteLine($"SKIP: {skipReason}");
-            return;
-        }
+        Assert.True(NativeAssetsFixture.TryStage(_output, out var skipReason), skipReason);
 
         var jpegBytes = LoadJpegFixture();
         Assert.True(jpegBytes.Length > 10_000,
@@ -85,25 +83,16 @@ public sealed class ServeStatsParityTests
             builder.WebHost.UseTestServer();
             builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
-            try
+            // AddPageSpeed's version check P/Invokes libpagespeed; the
+            // [WorkerFact] gate only runs this test when it is in place.
+            builder.Services.AddPageSpeed(opts =>
             {
-                builder.Services.AddPageSpeed(opts =>
-                {
-                    opts.Cache.VolumePath = cachePath;
-                    opts.Cache.VolumeSizeBytes = 64 * 1024 * 1024;
-                    // Production default: AutoStart=true, no explicit SocketPath
-                    // — WorkerProcessHost auto-resolves + publishes the IPC
-                    // endpoint the notifier rendezvouses on. (AutoStart=false
-                    // would make WorkerProcessHost publish a null socket path
-                    // and the notifier would drop every notification.)
-                });
-            }
-            catch (DllNotFoundException)
-            {
-                _output.WriteLine(
-                    "SKIP: libpagespeed not available (no NativeAssets in test output).");
-                return;
-            }
+                opts.Cache.VolumePath = cachePath;
+                opts.Cache.VolumeSizeBytes = 64 * 1024 * 1024;
+                // Production default: AutoStart=true, no explicit SocketPath.
+                // WorkerProcessHost auto-resolves + publishes the IPC
+                // endpoint the notifier rendezvouses on.
+            });
 
             // await using: WorkerProcessHost kills the factory_worker child in
             // Dispose() (not StopAsync), so disposal prevents a worker leak.
@@ -159,10 +148,12 @@ public sealed class ServeStatsParityTests
                 string? variantCt = null;
                 bool variantServed = false;
                 // Image transcoding (WebP/AVIF + ssimulacra2 quality search) is
-                // CPU-intensive, especially in a Debug build, so allow a generous
-                // ceiling. The worker reports thread_pool.inflight>0 while it's
-                // still transcoding; the variant lands once it finishes.
-                const int maxPolls = 240;         // ~120s ceiling
+                // CPU-intensive. The 180 s bound covers native assets built
+                // without optimization, where it takes over a minute; an
+                // optimized build produces the variant within seconds. The
+                // worker reports thread_pool.inflight>0 while it's still
+                // transcoding; the variant lands once it finishes.
+                const int maxPolls = 360;         // ~180s ceiling
                 for (int i = 0; i < maxPolls; i++)
                 {
                     using var resp = await GetImageAsync(
@@ -200,7 +191,7 @@ public sealed class ServeStatsParityTests
 
                 Assert.True(
                     variantServed,
-                    $"worker never served an optimized image variant within ~30s; "
+                    $"worker never served an optimized image variant within ~180s; "
                     + $"cannot exercise the serve-stats write path. last body="
                     + $"{variantBody.Length} bytes, ct={variantCt ?? "<none>"}");
 

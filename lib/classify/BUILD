@@ -26,7 +26,11 @@ cc_library(
     srcs = ["alternate_metadata.cc"],
     hdrs = ["alternate_metadata.h"],
     visibility = ["//:internal"],
-    deps = [":content_type"],
+    deps = [
+        ":alternate_id",
+        ":capability_mask",
+        ":content_type",
+    ],
 )
 
 cc_library(

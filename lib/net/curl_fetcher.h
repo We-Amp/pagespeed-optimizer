@@ -23,11 +23,19 @@
 //   * `--proto =http,https` + `--proto-redir =http,https` — scheme allowlist.
 //   * `--max-redirs 0` and NO `-L` — curl never auto-follows; the fetcher follows
 //     manually so each redirect hop is re-adjudicated (G1/G2) before egress.
-//   * GET only; NO cookies / Authorization / request body / forwarded page headers
-//     (anonymous view, §3.4) — only a fixed neutral UA + Accept are sent.
+//   * GET only (or HEAD when CurlFetchOptions::head is set); NO cookies / Authorization / request body / forwarded page headers
+//     (anonymous view, §3.4); only a fixed neutral UA + Accept + curl's own
+//     Accept-Encoding are sent (--compressed: curl decodes the body).
 //   * `--url <url>` passes the URL as an explicit option value so a `-`-leading URL
 //     can never be interpreted as a curl flag (argv-injection guard).
-//   * `--max-time` + `--max-filesize` bound time and response size.
+//   * `--max-time` bounds time. `--max-filesize` bounds the ENCODED transfer only;
+//     the cap on DECODED bytes is the spawner's limit on curl's stdout (the
+//     caller passes max_response_bytes), which kills curl when it is exceeded.
+//
+// Minimum curl: a build with at least one decoder (zlib, brotli or zstd).
+// `--compressed` advertises only the encodings the build can decode, and a
+// build with none rejects the option, so every fetch fails closed. Checked
+// with curl 8.11 and 8.21 (zlib only) against a gzip origin.
 
 namespace pagespeed {
 
@@ -37,6 +45,9 @@ struct CurlFetchOptions {
   std::string user_agent =                    // fixed, anonymous (no page UA)
       "Mozilla/5.0 (compatible; mod_pagespeed agent_optimize)";
   std::string accept = "text/html,application/xhtml+xml,*/*";
+  // Send HEAD instead of GET: the status and headers only, no body.  Used to
+  // ask whether the server serves a URL to an anonymous client.
+  bool head = false;
 };
 
 // Build the argv (argv[0] == "curl") to fetch `url`, pinning `pinned_ip` for the

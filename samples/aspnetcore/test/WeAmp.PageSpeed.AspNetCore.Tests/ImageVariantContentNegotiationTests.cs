@@ -46,10 +46,11 @@ namespace WeAmp.PageSpeed.AspNetCore.Tests;
 /// PageSpeed middleware + the real native cache (P/Invoke into
 /// libpagespeed) + a REAL <c>factory_worker</c> subprocess wired over the
 /// same Unix-domain socket the production middleware uses. It spawns the
-/// worker subprocess directly and SKIPs gracefully when the native inputs
-/// are absent.
+/// worker subprocess directly, as a deployment that runs the worker as a
+/// separate process does (<c>AutoStart</c> off, a concrete <c>SocketPath</c>).
 ///
-/// Inputs (the test SKIPS without them — see <see cref="ResolveNativeDir"/>):
+/// Inputs (without them the test is reported as skipped, or fails when
+/// <c>PAGESPEED_E2E_REQUIRE_NATIVE=1</c>; see <see cref="ResolveNativeDir"/>):
 /// <list type="bullet">
 /// <item><c>PAGESPEED_E2E_NATIVE_DIR</c>: directory containing both
 /// <c>factory_worker</c>(.exe) and the matching <c>libpagespeed</c> shared
@@ -68,25 +69,13 @@ public sealed class ImageVariantContentNegotiationTests
         _output = output;
     }
 
-    [Fact]
+    [ImageVariantFact]
     public async Task WebpAvifAccept_ServesSmallerVariant_JpegAccept_ServesOriginal()
     {
-        var nativeDir = ResolveNativeDir();
-        if (nativeDir is null)
-        {
-            _output.WriteLine(
-                "SKIP: native dir not found. Set PAGESPEED_E2E_NATIVE_DIR to a "
-                + "directory holding factory_worker + libpagespeed, or restore a "
-                + "WeAmp.PageSpeed.NativeAssets.* package.");
-            return;
-        }
+        var nativeDir = ResolveNativeDir(_output.WriteLine);
+        Assert.True(nativeDir is not null, NativeDirMissing);
 
-        var workerPath = Path.Combine(nativeDir, WorkerBinaryName());
-        if (!File.Exists(workerPath))
-        {
-            _output.WriteLine($"SKIP: factory_worker not at {workerPath}");
-            return;
-        }
+        var workerPath = Path.Combine(nativeDir!, WorkerBinaryName());
 
         // Ensure the P/Invoke resolver can load libpagespeed from nativeDir
         // even when the test-output runtimes/<rid>/native/ layout is absent.
@@ -143,12 +132,16 @@ public sealed class ImageVariantContentNegotiationTests
             // variant to materialize. The worker transcodes asynchronously
             // after notification, so distinguish "slow to warm" from
             // "never optimizes" with a retry loop rather than concluding
-            // breakage on the first all-passthrough read.
+            // breakage on the first all-passthrough read. The 180 s bound
+            // covers native assets built without optimization, where the
+            // WebP/AVIF quality search takes over a minute; an optimized
+            // build produces the variant within seconds.
             HttpResponseMessage? variantResp = null;
             byte[] variantBody = Array.Empty<byte>();
             string? variantCt = null;
-            const int maxPolls = 40;          // ~20s ceiling
-            for (int i = 0; i < maxPolls; i++)
+            var pollTimer = Stopwatch.StartNew();
+            var pollDeadline = TimeSpan.FromSeconds(180);
+            for (int i = 0; pollTimer.Elapsed < pollDeadline; i++)
             {
                 variantResp?.Dispose();
                 variantResp = await GetImageAsync(
@@ -161,7 +154,8 @@ public sealed class ImageVariantContentNegotiationTests
                     (variantCt == "image/webp" || variantCt == "image/avif"))
                 {
                     _output.WriteLine(
-                        $"variant ready after poll #{i + 1}: {variantBody.Length} bytes, ct={variantCt}");
+                        $"variant ready after poll #{i + 1} ({pollTimer.Elapsed.TotalSeconds:F1}s): "
+                        + $"{variantBody.Length} bytes, ct={variantCt}");
                     break;
                 }
 
@@ -253,10 +247,10 @@ public sealed class ImageVariantContentNegotiationTests
                             o.Enabled = true;
                             o.Cache.VolumePath = cacheVolume;
                             o.Cache.VolumeSizeBytes = 64L * 1024 * 1024;
-                            // External-worker management mode: we spawn the
-                            // worker ourselves, so WorkerProcessHost must not
-                            // (AutoStart=false). The notifier only needs
-                            // SocketPath, which is independent of ApiPort.
+                            // A worker run as a separate process: we spawn it
+                            // ourselves, so WorkerProcessHost must not
+                            // (AutoStart=false), and the middleware notifies
+                            // it at the configured SocketPath.
                             o.Worker.AutoStart = false;
                             o.Worker.SocketPath = socketPath;
                             o.Worker.ApiPort = 0;
@@ -395,10 +389,31 @@ public sealed class ImageVariantContentNegotiationTests
     private static string WorkerBinaryName() =>
         OperatingSystem.IsWindows() ? "factory_worker.exe" : "factory_worker";
 
-    private static string NativeLibName() =>
+    internal static string NativeLibName() =>
         OperatingSystem.IsWindows() ? "pagespeed.dll"
         : OperatingSystem.IsMacOS() ? "libpagespeed.dylib"
         : "libpagespeed.so";
+
+    private const string NativeDirMissing =
+        "native dir not found. Set PAGESPEED_E2E_NATIVE_DIR to a directory "
+        + "holding factory_worker + libpagespeed, build with "
+        + "PageSpeedNativeAssetsDir, or restore a "
+        + "WeAmp.PageSpeed.NativeAssets.* package.";
+
+    /// <summary>
+    /// Skipped (never reported as passed) when <see cref="ResolveNativeDir"/>
+    /// finds no worker, unless <c>PAGESPEED_E2E_REQUIRE_NATIVE=1</c> requires
+    /// the native assets, in which case the test runs and fails.
+    /// </summary>
+    public sealed class ImageVariantFactAttribute : FactAttribute
+    {
+        public ImageVariantFactAttribute()
+        {
+            if (NativeAssetsRequirement.Required) return;
+            if (ResolveNativeDir(null) is null)
+                Skip = NativeAssetsRequirement.SkipReason(NativeDirMissing);
+        }
+    }
 
     /// <summary>
     /// Resolves a directory holding both factory_worker and libpagespeed:
@@ -408,7 +423,7 @@ public sealed class ImageVariantContentNegotiationTests
     ///      matching the loaded WeAmp.PageSpeed.AspNetCore assembly.
     /// Returns null when none contain a worker binary.
     /// </summary>
-    private string? ResolveNativeDir()
+    internal static string? ResolveNativeDir(Action<string>? log)
     {
         var candidates = new List<string>();
 
@@ -449,7 +464,7 @@ public sealed class ImageVariantContentNegotiationTests
             if (dir is null) continue;
             if (File.Exists(Path.Combine(dir, WorkerBinaryName())))
             {
-                _output.WriteLine($"resolved native dir: {dir}");
+                log?.Invoke($"resolved native dir: {dir}");
                 return dir;
             }
         }

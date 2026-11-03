@@ -2,6 +2,85 @@
 
 All notable changes to mod_pagespeed are documented in this file.
 
+## Unreleased
+
+Security: an optimized page could carry content from a stylesheet, image or other page that the server serves only to some clients. Page variants are now built only from content the site serves to any client. Affected: 2.7.0 and earlier. Update recommended.
+
+Changed: before the optimizer first uses a cached stylesheet, image or page to build another page's optimized version or `/llms.txt`, it makes one request for it to confirm that the site serves it to any client, and confirms it again every few minutes. Content it cannot confirm is left out, and a stylesheet left out stays render-blocking. Pages served under a host name the web server has not confirmed for the site can lose more. In the nginx module, that includes every page of a catch-all block such as `server_name _;`: until the name is confirmed, those pages are optimized without other cached files, so they get no critical CSS from external stylesheets and no image dimensions, and their stylesheets keep their `@import` rules. To confirm a name, list it in the server block's `server_name` or in the optimizer's host alias file (`pagespeed-hosts.conf`). With the ASP.NET Core package, an app whose `AllowedHosts` is `*` (the project template default) or not set confirms no host name, but its pages still use a stylesheet or image the package cached for a visitor who was not signed in, so they keep these optimizations as long as those files are served to visitors who are not signed in; a stylesheet or image cached only for signed-in requests is still not used. Setting `AllowedHosts` to the site's host names confirms them. Stylesheets that mod_pagespeed passes to the optimizer keep their `@import` rules.
+
+Security: with agent optimization on, pages that the server's address rules restrict to local clients could appear in the outputs for agents, in the nginx module and the ASP.NET Core package. Affected: 2.7.0 and earlier. Update recommended for sites with agent optimization on.
+
+Changed: the optimizer's own agent fetches (for the markdown variant and `/llms.txt`) now appear as the client address `224.0.0.0` to access rules when they arrive from the server's own host: in the nginx module to `allow` and `deny`, `$remote_addr` and the access log, and with the ASP.NET Core package in `HttpContext.Connection.RemoteIpAddress` for middleware after `UsePageSpeed()` (or after `UsePageSpeedAgentFetchLabel()`, for middleware that must run earlier). Pages under a rule that admits only local clients are no longer included in the agent outputs. Behind a proxy, the ASP.NET Core package needs `UseForwardedHeaders()` before `UsePageSpeed()`.
+
+Changed: image variants are now checked against the original image. Large noisy photos are no longer smoothed before encoding; their variants keep the original's detail and are larger than before, in some cases much larger, though still always smaller than the source. Some noisy photos no longer get an AVIF variant and are served the JPEG variant instead, and when no smaller variant meets the quality bar the original is served. The `--denoise-*` options and their config keys are deprecated and ignored, and the statistics field `content_analysis.denoised` and the metric `pagespeed_images_denoised_total` are deprecated and always 0.
+
+Security: in the nginx module, a client that the server's access rules refuse could still receive responses served from the optimizer's cache. Affected: 2.7.0 and earlier. Update recommended.
+
+Changed: in the nginx module, a response from the optimizer's cache is now served only after nginx's access checks (`allow` and `deny`, `auth_basic`, `auth_request` and other access modules) have admitted the request, whatever caching the origin allowed. The async-CSS loader script and the Web Bot Auth public counter now follow the same access rules; in a location that requires credentials, exempt their paths for clients that should reach them. As before, `limit_req` and `limit_conn` count cache hits.
+
+Changed: when a page's stylesheet stays render-blocking, because the page has
+not been confirmed for deferral, the browser sandbox is off, or async CSS is
+turned off with `--no-async-css`, the worker no longer also inlines a copy of
+the above-the-fold CSS next to it. Those pages are served smaller, and the
+stylesheet link is unchanged; first paint still waits for the full
+stylesheet, as before. A page whose stylesheet is applied by script, or
+sits after the page content, keeps the inlined block. Pages confirmed for
+deferral are unchanged, and a page that becomes confirmed gets the inlined
+block and the deferred stylesheet together. If you set `--no-async-css`,
+pages no longer get an inline above-the-fold CSS block while stylesheets stay
+render-blocking, so check your pages look right; inlining without deferral is
+no longer available.
+
+Security: in the nginx module, some responses the origin marks as not storable could enter the shared cache and be served to other visitors. Affected: 2.7.0 and earlier. Update recommended.
+
+Security: in the nginx module with agent optimization on, a client could make the optimizer fetch pages from hosts the site does not serve, including internal ones, and read parts of them back. Affected: 2.7.0 and earlier. Update recommended for sites with agent optimization on.
+
+Changed: in the nginx module, agent optimization (the synthesized `/llms.txt` and the markdown variant for agents) now applies only to host names that the server block lists in `server_name` (exact, wildcard or regular-expression names) or that the optimizer's host alias file names. A listed name with a port other than the one nginx itself listens on counts as unlisted, unless the host alias file names that host and port; behind a port mapping or a proxy the port visitors use is not nginx's listen port, so list that host and port in the alias file to keep agent optimization. Under any other name, for example on a catch-all `server_name _;` block or when a site is reached by its address, `/llms.txt` comes from the origin, agents get the normal page, and while agent optimization is on HTML is cached but not optimized. List every name a site is reached by in its `server_name` to keep agent optimization for it.
+
+Security: with the ASP.NET Core package and agent optimization on, a client could make the optimizer fetch from hosts the site does not serve, including internal ones. Affected: 2.7.0 and earlier. Update recommended for ASP.NET Core sites with agent optimization on.
+
+Changed: with the ASP.NET Core package, agent optimization now applies only to host names listed in the application's `AllowedHosts`. When `AllowedHosts` is `*` or not set, agents get the normal page, and while agent optimization is on HTML is cached but not optimized; list the site's host names in `AllowedHosts` to keep both.
+
+Security: the ASP.NET Core package no longer stores responses to signed-in requests in its cache, so they cannot be served to other clients. Affected: 2.7.0 and earlier. Update recommended.
+
+Changed: with the ASP.NET Core package, a response is cached only when the request was anonymous: no `Authorization` or `Proxy-Authorization` header, no signed-in user, and no authorization requirement on the endpoint (endpoints that allow anonymous access are still cached). Pages and assets requested only by signed-in clients are no longer cached across clients; a page served to a signed-in client is still optimized for that response. Existing cache entries are rebuilt with the cache cold start of this version.
+
+Security: reduced differences between the HTML parser and browsers in where some elements end. Affected: 2.7.0 and earlier. Update recommended.
+
+Security: hardened HTML parsing so that inline SVG and MathML are read as browsers read them, and optimizations no longer treat their content as page styles or scripts. Affected: 2.7.0 and earlier. Update recommended.
+
+Security: critical CSS is no longer written into a page when it contains text that a browser could read as markup. Affected: 2.7.0 and earlier. Update recommended.
+
+Changed: the cache starts cold once, in every component and for every kind of stored entry, at the update. This version stores everything under new cache keys, so every page, stylesheet, script and image is fetched from the origin once more and optimized again on its first request, and Markdown versions for agents, Early Hints, browser analysis results and llms.txt are built again; entries stored by earlier versions are not used and stay in the cache file until they are evicted. Update the worker, the nginx module and the ASP.NET Core package together: while earlier and current versions share one cache, neither uses the other's entries, so responses are served from the origin or without optimization until every server runs this version. No purge is needed when updating; before a rollback, see the Upgrade entry below. The configuration files beside the cache file are kept.
+
+Upgrade: no cache purge is needed when updating the optimizer; the update starts its cache cold. Before downgrading the optimizer to an earlier release, purge its cache fully through the cache API (`POST /v1/cache/purge` with `{"scope": "all", "confirm": "purge-all"}`), or stop the worker and remove its cache volume, because an older optimizer would read entries stored before the update.
+
+Changed: a page whose critical CSS contains text that a browser could read as markup is served without the inline critical CSS, and its stylesheets stay render-blocking. Range media queries are not affected when a space follows each `<`.
+
+Changed: the optimizer now keeps the work of each site that records into it apart. A notification can name the site it belongs to, and everything the optimizer stores, reads, deduplicates or purges for it stays within that site. Notifications without a site behave as before. `POST /v1/cache/purge`, `/v1/cache/reprocess`, `/v1/cache/content` and `/v1/cache/urls` take an optional `site`; a purge without one covers every site the optimizer has stored work for, and its response lists the count per site. The optimizer remembers those sites in `pagespeed-sites.conf` beside `pagespeed-hosts.conf`.
+
+Changed: agent optimization (the markdown variant for agents and the synthesized `/llms.txt`) now runs only for notifications whose sender has checked the host name against the names the site serves: the nginx module checks `server_name` and the host alias file, and the ASP.NET Core package checks `AllowedHosts`, as described above. For a notification without that check, for example a reprocess requested through the API, the optimizer builds no markdown variant and no `/llms.txt`, and still optimizes the page itself.
+
+Upgrade: the worker notification protocol is now version 6. Reload nginx, Apache or IIS after upgrading the optimizer. Until the web server reloads, its notifications are refused and counted, and nothing new is optimized; serving is not affected.
+
+Added: the C API (PS_API 1.12) gains site identity: `PS_SITE_ID_CHARS`, the `PS_NOTIFY_FLAG_HOST_VOUCHED` and `PS_NOTIFY_FLAG_FROM_MODULE` flags, the `site` and `notify_flags` fields of `ps_notify_params_t`, and `ps_cache_read_best_site`, `ps_cache_read_alternate_site` and `ps_cache_write_original_site`. A caller of `ps_notify_worker_ex` built against an earlier header is still served, without a site, and the library logs that once per process.
+
+Changed: CSS minification keeps `/*! … */` comments and comments containing `@license` or `@preserve`.
+
+Fixed: plain http ASP.NET Core sites now get critical CSS from their external stylesheets. For C API embedders, `ps_html_config_t` gains a `scheme` field (PS_API 1.12): initialize with `ps_html_config_init_auto` and set it to the page's scheme; a config from `ps_html_config_init` keeps reading under `https`.
+
+Fixed: print stylesheets no longer change how the page looks on screen when critical CSS is on. Rules from a stylesheet or `<style>` element with `media="print"` could be inlined as screen rules, so a print layout that hides the header and footer also hid them on screen. The inlined CSS now keeps each stylesheet's media. Affects the ASP.NET Core package and, for pages that get inlined critical CSS, the worker.
+
+Fixed: ASP.NET Core: a separately run optimizer worker configured with `Worker.SocketPath` and `AutoStart` off now receives notifications from the middleware. Before, the middleware dropped every notification in this setup, so the worker built no optimized variants (images, critical CSS) for the site.
+
+Fixed: a visitor whose browser did not ask for reduced data no longer receives the reduced-quality Save-Data image when the normal image for that screen is not ready yet; it gets a normal image instead. This is a fix to how existing variants are chosen. It adds no new variant.
+
+Changed: lazy-loaded images now also get `decoding="async"`, unless the page already sets a decoding attribute; the LCP candidate image and the first iframe are left as they are.
+
+Changed: fetches for agent-ready copies ask the origin for a compressed response, using less origin bandwidth; requires a curl build with compression support, as standard builds have.
+
+Added: the admin console now shows how much of the saving on responses served from the optimizer's cache came from compression applied by mod_pagespeed and how much from its optimization; your web server's own compression on other responses is not counted. The two parts, plus a share not yet attributed, add up to the total saving. The total now counts HTML that the optimizer makes larger, for example by inlining above-the-fold CSS or adding preload hints; earlier versions counted that as zero, so the total can read lower than before without anything optimizing less. After the update the caches start cold, so the split fills in as pages are re-optimized; until then the console shows the total only.
+
 ## 2.7.0 - 2026-10-31
 
 Changed: the Helm chart 0.3.13 is published with this release; its default

@@ -51,7 +51,7 @@ The middleware binds to a `PageSpeedOptions` instance with four nested sections:
 
 | Option                   | Type     | Default                                               | Description                                                                                                                                                                                                  |
 | ------------------------ | -------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Enabled`                | bool     | `true`                                                | Master switch. When false, the middleware passes through all responses unchanged.                                                                                                                            |
+| `Enabled`                | bool     | `true`                                                | Master switch. When false, the middleware passes through all responses unchanged. The cache volume is opened, and the worker launched, the first time it is true, at startup or through a hot reload; switching it off again leaves both in place. |
 | `CacheMode`              | enum     | `Safe`                                                | Cache-Control header strategy on cache HIT. `Safe` adds `must-revalidate` on assets; `Aggressive` adds `public, stale-if-error`. HTML always gets `no-cache`. See [Choose a cache mode](/docs/cache-modes/). |
 | `CssMaxAgeSeconds`       | int      | `300`                                                 | Max-age for CSS and JS cache HIT responses, in seconds.                                                                                                                                                      |
 | `ImageMaxAgeSeconds`     | int      | `1800`                                                | Max-age for image cache HIT responses, in seconds.                                                                                                                                                           |
@@ -66,7 +66,7 @@ The cache is a single mmap'd Cyclone volume file — not a directory of fragment
 
 | Option                 | Type   | Default                           | Description                                                             |
 | ---------------------- | ------ | --------------------------------- | ----------------------------------------------------------------------- |
-| `VolumePath`           | string | `/var/cache/pagespeed/volume.dat` | Required. Path to the Cyclone cache volume file (created on first run). |
+| `VolumePath`           | string | `/var/cache/pagespeed/volume.dat` | Required. Path to the Cyclone cache volume file. Created the first time `Enabled` is true. |
 | `VolumeSizeBytes`      | ulong  | `1073741824` (1 GiB)              | Volume size in bytes.                                                   |
 | `EnableChecksum`       | bool   | `true`                            | Verify checksums on cache reads.                                        |
 | `RamCacheSizeBytes`    | long   | `67108864` (64 MiB)               | In-process RAM cache size in bytes. Set to `0` to disable.              |
@@ -106,17 +106,18 @@ diagnostic console.
 
 | Option       | Type    | Default | Description                                                                                                                                                                                                                                                                                                                                                            |
 | ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process on startup. Set `false` to launch no worker process at all.                                                                                                                                                                                                                |
+| `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process, but only while the top-level `Enabled` switch is true. With `Enabled` false, no worker runs until a hot reload sets it to true. Set `false` to launch no child process; pair it with a concrete `SocketPath` for an external worker, which is used whatever `Enabled` says. |
 | `SocketPath` | string? | unset   | Worker-coordination socket. **Leave it unset** (the default) and the middleware auto-resolves a per-process socket with coordination on — no configuration needed. Set it to a concrete path to share one socket with an out-of-process worker (split-process deployments). Setting it to `null` or `""` disables worker coordination and logs a loud startup warning. |
 | `ApiPort`    | int     | `0`     | Loopback TCP port for the worker's HTTP management API. `0` does not disable the API: the middleware picks a free loopback port. Either way the worker runs with API authentication off, and the console proxies its `/v1/*` paths from your site (see [Console](#console-pagespeedconsole)). **Never publish this port.**                                               |
 | `LogLevel`   | string? | `null`  | Worker log level: `debug`, `info`, `warning`, or `error`. `null` keeps the worker's default (`info`).                                                                                                                                                                                                                                                                  |
 | `ConsoleDir` | string? | `null`  | Filesystem path to the diagnostic-console SPA assets. When `null` and `AutoStart` is true, the middleware auto-discovers a `console` directory next to `factory_worker`. Set to `""` to disable. This only stops the worker's own loopback copy of the console, not the middleware's `/console/`; use [`Console.Enabled`](#console-pagespeedconsole) for that.                                    |
 
-The worker's management API always runs, bound to loopback, with
-authentication off. You do not need to set `Worker.ApiPort` to use the
-console: the middleware serves it on your app's own port and proxies its API
-calls to the worker. That proxy is what the [Console](#console-pagespeedconsole)
-section is about.
+Whenever the worker runs, its management API runs too, bound to loopback,
+with authentication off. With the top-level `Enabled` set to `false`, no worker
+is launched, so its management API is not running either. You do not need to
+set `Worker.ApiPort` to use the console: the middleware serves it on your
+app's own port and proxies its API calls to the worker. That proxy is what
+the [Console](#console-pagespeedconsole) section is about.
 
 ### Console (`PageSpeed:Console`)
 
@@ -127,7 +128,7 @@ The `/v1/*` paths are fixed; `MountPath` does not move them.
 
 | Option         | Type   | Default    | Description                                                                                                                                                         |
 | -------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Enabled`      | bool   | `true`     | Serve the console and proxy its `/v1/*` paths. When `false`, those requests fall through to your app. The top-level `Enabled` switch does not turn the console off. |
+| `Enabled`      | bool   | `true`     | Serve the console and proxy its `/v1/*` paths. When `false`, those requests fall through to your app. The top-level `Enabled` switch does not turn the console off, but the console's data comes from the worker, which is launched only once the top-level `Enabled` is `true`; until then its `/v1/*` paths answer `503`. |
 | `MountPath`    | string | `/console` | Path the console is served at, for example `/_pagespeed/console`. Must start with `/` and must not be `/`; an invalid value disables the console with a warning.    |
 | `RequireHttps` | bool   | `false`    | Return `403` for console and `/v1/*` requests that do not arrive over HTTPS. This protects the traffic, not the access: it is not authentication.                   |
 
@@ -292,9 +293,15 @@ the answer of a fresh install.
 ### Worker coordination and `SocketPath`
 
 For the default in-process deployment, leave the `Worker` section empty. With
-`AutoStart` `true` and `SocketPath` unset, the middleware launches the worker
-and connects to it over an auto-resolved per-process socket — image and
-critical-CSS optimization are on with no extra configuration.
+`Enabled` `true`, `AutoStart` `true` and `SocketPath` unset, the middleware
+launches the worker and connects to it over an auto-resolved per-process
+socket — image and critical-CSS optimization are on with no extra
+configuration. While `Enabled` is `false`, the middleware does not launch
+`factory_worker`. When a hot reload sets `Enabled` to `true`, the worker is
+launched then, together with the cache volume, with no restart needed; setting
+`Enabled` back to `false` leaves the running worker and the open cache in
+place. `AutoStart` `false` means this host never launches a
+child, whatever `Enabled` says.
 
 There are two reasons to set `SocketPath` explicitly:
 
@@ -310,7 +317,8 @@ There are two reasons to set `SocketPath` explicitly:
 
 To run the worker as a fully separate process, pair a concrete `SocketPath`
 with `AutoStart` `false` so the middleware connects to your externally managed
-worker instead of launching its own.
+worker instead of launching its own. The middleware uses that socket whatever
+the top-level `Enabled` says.
 
 The application and the worker then share the cache volume, so they must run
 on one host, and should run in one PID namespace. The cache is safe across PID
@@ -332,7 +340,10 @@ required.
 This includes toggling the master switch, flipping any `Html.Enable*` toggle,
 adjusting cache TTLs, and switching cache modes. Cache contents are preserved
 across configuration changes. Worker-process options (`AutoStart`, `SocketPath`,
-`ApiPort`) apply at the next worker (re)start.
+`ApiPort`) apply at the next worker (re)start. The first time the master switch
+is on, at startup or through a reload, PageSpeed opens the cache volume and
+launches the worker; switching it off later leaves both in place, so switching
+it on again needs no restart either.
 
 Validation runs on startup and on every reload via `IValidateOptions<PageSpeedOptions>`.
 Negative TTLs or unknown `CacheMode` values cause the application to fail fast
@@ -412,6 +423,11 @@ volume file is created on first run and grown to `VolumeSizeBytes`. Reusing the
 same file across restarts preserves the cache; pointing at a fresh path starts
 cold.
 
+While `Enabled` is `false`, the volume file and its directory are not created.
+The first time `Enabled` is `true`, at startup or through a hot reload, the
+volume is opened (and created when it does not exist yet), with no restart
+needed. Turning `Enabled` off later leaves the open volume in place.
+
 ## Health checks
 
 The middleware participates in ASP.NET Core health checks. Expose the standard
@@ -423,7 +439,8 @@ app.MapHealthChecks("/healthz");
 
 The check reports `Healthy`, with the cache entry count and the middleware
 version, while the cache is operational, and `Unhealthy` when the cache cannot
-be opened. Use this endpoint for container orchestration liveness and readiness
+be opened. Before PageSpeed has been enabled, no cache is open: the check then
+reports `Healthy` with the description `PageSpeed is disabled`. Use this endpoint for container orchestration liveness and readiness
 probes.
 
 ## Common patterns

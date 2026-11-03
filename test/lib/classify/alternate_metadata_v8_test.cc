@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "test/lib/classify/testdata/alternate_metadata_fixtures.h"
 
@@ -199,14 +200,14 @@ TEST(AlternateMetadataV8Test, UnknownFutureVersionIsRejected) {
   }
 }
 
-TEST(AlternateMetadataV8Test, VersionNineIsRejectedEvenWhenLongEnough) {
-  // A v9 blob would be at least as long as a v8 one, so length alone cannot
+TEST(AlternateMetadataV8Test, VersionTenIsRejectedEvenWhenLongEnough) {
+  // A v10 blob would be at least as long as a v9 one, so length alone cannot
   // be what rejects it.
   AlternateMetadata meta;
   meta.origin_cache_control = "public, max-age=600";
   auto serialized = meta.Serialize();
   serialized.resize(serialized.size() + 64, std::byte{0xAB});
-  serialized[0] = std::byte{9};
+  serialized[0] = std::byte{10};
   EXPECT_FALSE(AlternateMetadata::Deserialize(serialized).has_value());
 }
 
@@ -214,12 +215,128 @@ TEST(AlternateMetadataV8Test, VersionNineIsRejectedEvenWhenLongEnough) {
 // v8 fields.
 // ===========================================================================
 
-TEST(AlternateMetadataV8Test, SerializesAtVersionEight) {
+TEST(AlternateMetadataV8Test, SerializesAtVersionNine) {
   AlternateMetadata meta;
   auto serialized = meta.Serialize();
   ASSERT_FALSE(serialized.empty());
-  EXPECT_EQ(static_cast<uint8_t>(serialized[0]), 8);
-  EXPECT_EQ(AlternateMetadata::kCurrentVersion, 8);
+  EXPECT_EQ(static_cast<uint8_t>(serialized[0]), 9);
+  EXPECT_EQ(AlternateMetadata::kCurrentVersion, 9);
+}
+
+// Version 9 moved no byte: a version 8 blob is the version 9 blob with the
+// first byte changed.
+TEST(AlternateMetadataV8Test, VersionNineHasTheVersionEightLayout) {
+  AlternateMetadata meta;
+  meta.content_type = ContentType::kCss;
+  meta.origin_content_type = "text/css";
+  meta.origin_etag = "\"abc\"";
+  meta.origin_cache_control = "public, max-age=60";
+  auto nine = meta.Serialize();
+  auto eight = nine;
+  eight[0] = std::byte{8};
+  auto from_nine = AlternateMetadata::Deserialize(nine);
+  auto from_eight = AlternateMetadata::Deserialize(eight);
+  ASSERT_TRUE(from_nine.has_value());
+  ASSERT_TRUE(from_eight.has_value());
+  EXPECT_EQ(from_eight->consumed_size, from_nine->consumed_size);
+  EXPECT_EQ(from_eight->consumed_size, nine.size());
+  EXPECT_EQ(from_eight->origin_etag, from_nine->origin_etag);
+  EXPECT_EQ(from_eight->origin_cache_control, from_nine->origin_cache_control);
+}
+
+// ===========================================================================
+// Worker-written HTML below version 9 reads as a MISS.
+// ===========================================================================
+
+namespace {
+std::vector<std::byte> StoredAt(uint8_t version, ContentType type,
+                                uint8_t flags) {
+  AlternateMetadata meta;
+  meta.content_type = type;
+  meta.flags = flags;
+  meta.origin_content_type = "text/html";
+  auto blob = meta.Serialize();
+  blob[0] = static_cast<std::byte>(version);
+  return blob;
+}
+}  // namespace
+
+TEST(AlternateMetadataV8Test, WorkerWrittenHtmlBelowVersionNineIsRefused) {
+  EXPECT_FALSE(AlternateMetadata::Deserialize(
+                   StoredAt(8, ContentType::kHtml,
+                            AlternateMetadata::kFlagWorkerProcessed))
+                   .has_value());
+  EXPECT_FALSE(AlternateMetadata::Deserialize(
+                   StoredAt(8, ContentType::kHtml,
+                            AlternateMetadata::kFlagWorkerProcessed |
+                                AlternateMetadata::kFlagNeedsRevalidation))
+                   .has_value());
+}
+
+TEST(AlternateMetadataV8Test, EveryOlderVersionOfHtmlIsRefused) {
+  // The corpus blobs are images; re-type each one as HTML, written by the
+  // worker or not.
+  const std::span<const std::byte> blobs[] = {
+      AsBytes(kV3Full), AsBytes(kV4Full), AsBytes(kV5Full),
+      AsBytes(kV6Full), AsBytes(kV7Full),
+  };
+  for (const auto& blob : blobs) {
+    std::vector<std::byte> html(blob.begin(), blob.end());
+    ASSERT_TRUE(AlternateMetadata::Deserialize(html).has_value());
+    html[5] = static_cast<std::byte>(ContentType::kHtml);
+    html[6] |= std::byte{AlternateMetadata::kFlagWorkerProcessed};
+    EXPECT_FALSE(AlternateMetadata::Deserialize(html).has_value())
+        << "version " << static_cast<int>(static_cast<uint8_t>(html[0]));
+    html[6] &= ~std::byte{AlternateMetadata::kFlagWorkerProcessed};
+    EXPECT_FALSE(AlternateMetadata::Deserialize(html).has_value())
+        << "version " << static_cast<int>(static_cast<uint8_t>(html[0]));
+  }
+}
+
+TEST(AlternateMetadataV8Test, WorkerWrittenMarkdownBelowVersionNineIsRefused) {
+  // The Markdown version of a page is stored as kOther under its own
+  // sentinel mask.
+  AlternateMetadata meta;
+  meta.full_mask = static_cast<uint32_t>(SentinelId::kAgentMarkdown);
+  meta.content_type = ContentType::kOther;
+  meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+  meta.origin_content_type = "text/markdown";
+  auto blob = meta.Serialize();
+  EXPECT_TRUE(AlternateMetadata::Deserialize(blob).has_value());
+  blob[0] = std::byte{8};
+  EXPECT_FALSE(AlternateMetadata::Deserialize(blob).has_value());
+  EXPECT_TRUE(AlternateMetadata::IsRetired(blob));
+  blob[6] = std::byte{0};
+  EXPECT_TRUE(AlternateMetadata::Deserialize(blob).has_value());
+  EXPECT_FALSE(AlternateMetadata::IsRetired(blob));
+}
+
+TEST(AlternateMetadataV8Test, IsRetiredNeedsTheWholeHead) {
+  auto blob =
+      StoredAt(8, ContentType::kHtml, AlternateMetadata::kFlagWorkerProcessed);
+  EXPECT_TRUE(AlternateMetadata::IsRetired(blob));
+  EXPECT_FALSE(AlternateMetadata::IsRetired(std::span(blob).first(6)));
+  EXPECT_FALSE(AlternateMetadata::IsRetired({}));
+}
+
+TEST(AlternateMetadataV8Test, OtherEntriesBelowVersionNineStayReadable) {
+  // Worker-written CSS, JS, images and other types.
+  for (ContentType t : {ContentType::kCss, ContentType::kJs,
+                        ContentType::kImage, ContentType::kOther}) {
+    EXPECT_TRUE(AlternateMetadata::Deserialize(
+                    StoredAt(8, t, AlternateMetadata::kFlagWorkerProcessed))
+                    .has_value())
+        << static_cast<int>(t);
+  }
+}
+
+TEST(AlternateMetadataV8Test, WorkerWrittenHtmlAtVersionNineIsReadable) {
+  AlternateMetadata meta;
+  meta.content_type = ContentType::kHtml;
+  meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+  auto read = AlternateMetadata::Deserialize(meta.Serialize());
+  ASSERT_TRUE(read.has_value());
+  EXPECT_EQ(read->version, 9);
 }
 
 TEST(AlternateMetadataV8Test, EpochRoundTrip) {
@@ -437,7 +554,7 @@ TEST(AlternateMetadataV8Test, OriginVariesAcceptBitDoesNotCollide) {
   EXPECT_EQ(AlternateMetadata::kFlagOriginVariesAccept &
                 AlternateMetadata::kFlagWorkerProcessed,
             0);
-  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x3F);
+  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x7F);
 }
 
 TEST(AlternateMetadataV8Test, OriginHeadersNotReproducibleBitDoesNotCollide) {
@@ -457,13 +574,34 @@ TEST(AlternateMetadataV8Test, OriginHeadersNotReproducibleBitDoesNotCollide) {
 TEST(AlternateMetadataV8Test, HeadersSidecarBitsAreDistinctAndAssigned) {
   EXPECT_EQ(AlternateMetadata::kFlagHeadersClassified, 0x10);
   EXPECT_EQ(AlternateMetadata::kFlagHeadersSidecarRequired, 0x20);
-  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x3F);
+  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x7F);
   EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
                 AlternateMetadata::kFlagHeadersClassified,
             0);
   EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
                 AlternateMetadata::kFlagHeadersSidecarRequired,
             0);
+}
+
+TEST(AlternateMetadataV8Test, AnonymousRecordedBitIsDistinctAndAssigned) {
+  EXPECT_EQ(AlternateMetadata::kFlagAnonymousRecorded, 0x40);
+  EXPECT_EQ(AlternateMetadata::kFlagAnonymousRecorded &
+                (AlternateMetadata::kFlagNeedsRevalidation |
+                 AlternateMetadata::kFlagWorkerProcessed |
+                 AlternateMetadata::kFlagOriginVariesAccept |
+                 AlternateMetadata::kFlagOriginHeadersNotReproducible |
+                 AlternateMetadata::kFlagHeadersClassified |
+                 AlternateMetadata::kFlagHeadersSidecarRequired),
+            0);
+  EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
+                AlternateMetadata::kFlagAnonymousRecorded,
+            0);
+  AlternateMetadata meta;
+  meta.flags = AlternateMetadata::kFlagWorkerProcessed |
+               AlternateMetadata::kFlagAnonymousRecorded;
+  auto result = AlternateMetadata::Deserialize(meta.Serialize());
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->flags, meta.flags);
 }
 
 TEST(AlternateMetadataV8Test, HeadersSidecarBitsSetClearAndRoundTrip) {
@@ -506,7 +644,7 @@ TEST(AlternateMetadataV8Test, UnknownFlagBitsSurviveReadAndRewrite) {
   // other side.  Clearing it is indistinguishable, downstream, from never
   // having been told — and this is the contract v7 already had.
   const uint8_t unknown = static_cast<uint8_t>(
-      ~AlternateMetadata::kFlagsAssignedMask & 0xFF);  // 0xC0
+      ~AlternateMetadata::kFlagsAssignedMask & 0xFF);  // 0x80
   AlternateMetadata meta;
   meta.flags =
       static_cast<uint8_t>(AlternateMetadata::kFlagWorkerProcessed | unknown);
@@ -631,6 +769,150 @@ TEST(AlternateMetadataV8Test, LongEtagStillSerializesUncapped) {
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->origin_etag.size(), 4096u);
   EXPECT_GT(serialized.size(), AlternateMetadata::kRecommendedMaxMetadataSize);
+}
+
+// ===========================================================================
+// The score field on gzip/brotli coded entries: the encoded origin size.
+// ===========================================================================
+
+constexpr uint32_t kGzipMask = 1u << 6;
+constexpr uint32_t kBrotliMask = 2u << 6;
+
+AlternateMetadata CodedMeta(ContentType type, uint32_t mask,
+                            uint32_t origin_length) {
+  AlternateMetadata meta;
+  meta.content_type = type;
+  meta.full_mask = mask;
+  meta.origin_content_length = origin_length;
+  return meta;
+}
+
+TEST(AlternateMetadataEncodedLengthTest, RoundTripsThroughTheV8Wire) {
+  for (const ContentType type :
+       {ContentType::kHtml, ContentType::kCss, ContentType::kJs}) {
+    for (const uint32_t mask : {kGzipMask, kBrotliMask}) {
+      for (const uint32_t origin : {1u, 37u, 1000u, 54321u, 3000000u}) {
+        for (const double ratio : {0.0, 0.0004, 0.2, 0.5, 1.0, 1.1}) {
+          const uint64_t encoded = static_cast<uint64_t>(ratio * origin);
+          AlternateMetadata meta = CodedMeta(type, mask, origin);
+          meta.SetEncodedOriginLength(encoded);
+          const auto wire = meta.Serialize();
+          const auto parsed = AlternateMetadata::Deserialize(wire);
+          ASSERT_TRUE(parsed.has_value());
+          // The current version keeps the version 8 layout.
+          EXPECT_EQ(parsed->version, AlternateMetadata::kCurrentVersion);
+          const auto got = parsed->EncodedOriginLength();
+          ASSERT_TRUE(got.has_value()) << ratio << " of " << origin;
+          // One part in 50000 of the origin, plus rounding.
+          const double tolerance = origin / 50000.0 + 1.0;
+          EXPECT_NEAR(static_cast<double>(*got), static_cast<double>(encoded),
+                      tolerance)
+              << ratio << " of " << origin;
+        }
+      }
+    }
+  }
+}
+
+TEST(AlternateMetadataEncodedLengthTest,
+     IdentityAndImagesMeasureAgainstOrigin) {
+  const AlternateMetadata css = CodedMeta(ContentType::kCss, 0, 4000);
+  EXPECT_EQ(css.EncodedOriginLength(), 4000u);
+  const AlternateMetadata image = CodedMeta(ContentType::kImage, 0, 9000);
+  EXPECT_EQ(image.EncodedOriginLength(), 9000u);
+  // Setting on an identity entry is a no-op; the score is not disturbed.
+  AlternateMetadata scored = CodedMeta(ContentType::kImage, 0, 9000);
+  scored.SetQualityScoreX100(8123);
+  scored.SetEncodedOriginLength(10);
+  EXPECT_EQ(scored.QualityScoreX100(), 8123);
+  EXPECT_EQ(scored.EncodedOriginLength(), 9000u);
+}
+
+TEST(AlternateMetadataEncodedLengthTest, AbsentWhenNotRecorded) {
+  // A coded entry that never carried the value (written by an earlier build).
+  EXPECT_FALSE(CodedMeta(ContentType::kCss, kGzipMask, 4000)
+                   .EncodedOriginLength()
+                   .has_value());
+  // Unknown origin length.
+  AlternateMetadata no_origin = CodedMeta(ContentType::kCss, kGzipMask, 0);
+  no_origin.SetEncodedOriginLength(10);
+  EXPECT_FALSE(no_origin.EncodedOriginLength().has_value());
+  // Larger than the field can express (more than 1.11 times the origin).
+  AlternateMetadata big = CodedMeta(ContentType::kCss, kBrotliMask, 100);
+  big.SetEncodedOriginLength(112);
+  EXPECT_FALSE(big.EncodedOriginLength().has_value());
+  big.SetEncodedOriginLength(110);
+  EXPECT_EQ(big.EncodedOriginLength(), 110u);
+  // Clearing drops an inherited value.
+  big.ClearEncodedOriginLength();
+  EXPECT_FALSE(big.EncodedOriginLength().has_value());
+}
+
+TEST(AlternateMetadataEncodedLengthTest, AValueAboveTheFourByteRangeIsAbsent) {
+  AlternateMetadata big = CodedMeta(ContentType::kCss, kGzipMask, 4000000000u);
+  big.SetEncodedOriginLength(4400000000ull);  // 1.1 x the origin
+  EXPECT_FALSE(big.EncodedOriginLength().has_value());
+  big.SetEncodedOriginLength(2000000000ull);
+  EXPECT_NEAR(static_cast<double>(*big.EncodedOriginLength()), 2.0e9, 1.0e5);
+}
+
+TEST(AlternateMetadataEncodedLengthTest, TheTwoMeaningsDoNotMix) {
+  AlternateMetadata coded = CodedMeta(ContentType::kCss, kGzipMask, 5000);
+  coded.SetEncodedOriginLength(1200);
+  EXPECT_FALSE(coded.QualityScoreX100().has_value());
+  AlternateMetadata image = CodedMeta(ContentType::kImage, 0, 5000);
+  image.SetQualityScoreX100(9500);
+  EXPECT_EQ(image.QualityScoreX100(), 9500);
+  image.SetQualityScoreX100(std::nullopt);
+  EXPECT_FALSE(image.QualityScoreX100().has_value());
+  image.SetQualityScoreX100(10001);
+  EXPECT_FALSE(image.QualityScoreX100().has_value());
+  // An identity entry whose field holds a code (hand-built wire) is read as
+  // "score not available" and the code is dropped on parse.
+  AlternateMetadata identity = CodedMeta(ContentType::kCss, 0, 5000);
+  identity.ssimulacra2_score_x100 = 12000;
+  const auto parsed = AlternateMetadata::Deserialize(identity.Serialize());
+  ASSERT_TRUE(parsed.has_value());
+  EXPECT_EQ(parsed->ssimulacra2_score_x100, AlternateMetadata::kScoreNA);
+}
+
+// What an entry carrying the value looks like to a reader built before it
+// existed: same version, same length, and a score field that reader's parse
+// clamps to "not available".  Only the two score bytes differ from an entry
+// without the value.
+TEST(AlternateMetadataEncodedLengthTest, ReleasedReadersSeeScoreNotAvailable) {
+  AlternateMetadata without = CodedMeta(ContentType::kCss, kBrotliMask, 7777);
+  without.origin_content_type = "text/css";
+  without.origin_etag = "\"abc\"";
+  without.origin_cache_control = "max-age=60";
+  const auto plain = without.Serialize();
+  for (const uint64_t encoded : {0ull, 1ull, 2500ull, 7777ull, 8600ull}) {
+    AlternateMetadata with = without;
+    with.SetEncodedOriginLength(encoded);
+    const auto wire = with.Serialize();
+    ASSERT_EQ(wire.size(), plain.size());
+    ASSERT_EQ(wire[0], plain[0]);
+    EXPECT_EQ(static_cast<uint8_t>(wire[0]),
+              AlternateMetadata::kCurrentVersion);
+    // Fixed prefix 9 + content type + the cache-control block (14) -> score.
+    const size_t score_at = AlternateMetadata::kFixedPrefixSize +
+                            without.origin_content_type.size() + 14;
+    size_t differing = 0;
+    for (size_t i = 0; i < wire.size(); ++i) {
+      if (wire[i] != plain[i]) {
+        ++differing;
+        EXPECT_TRUE(i == score_at || i == score_at + 1) << i;
+      }
+    }
+    EXPECT_LE(differing, 2u);
+    uint16_t raw = 0;
+    std::memcpy(&raw, &wire[score_at], 2);
+    EXPECT_GT(raw, 10000);
+    EXPECT_NE(raw, AlternateMetadata::kScoreNA);
+    // The released reader's rule, verbatim: above 10000 and not 0xFFFF -> NA.
+    const uint16_t released = (raw > 10000 && raw != 0xFFFF) ? 0xFFFF : raw;
+    EXPECT_EQ(released, AlternateMetadata::kScoreNA);
+  }
 }
 
 }  // namespace

@@ -44,6 +44,14 @@ struct ImageTranscoderConfig {
   // WebP output quality (0-100). 75 is a good default for lossy.
   int webp_quality = 75;
 
+  // libwebp lossy encoder effort (0 = fastest, 6 = smallest output at the
+  // same quality). Used by the pixel-path lossy encodes in the quality
+  // search. 6 trades extra encode time for about 5 percent smaller WebP at
+  // the same SSIMULACRA2 target, which keeps more photos below the size of
+  // their optimized original-format image (#406). Not exposed as a config
+  // option (command line or PATCH /v1/config).
+  int webp_method = 6;
+
   // WebP alpha quality (0-100). 100 for lossless alpha.
   int webp_alpha_quality = 100;
 
@@ -70,18 +78,6 @@ struct ImageTranscoderConfig {
   // Content-aware quality presets: analyze decoded pixels to adjust
   // quality per content class (photo, screenshot, illustration, noisy).
   bool content_analysis = true;
-
-  // Noise-adaptive denoising: apply bilateral filter to images
-  // classified as kNoisy before encoding.
-  // noise_level (from content analyzer) must exceed this threshold.
-  // 0.0 = disabled, 0.3 = conservative default.
-  float denoise_threshold = 0.3f;
-
-  // Bilateral filter spatial sigma (kernel size). Clamped to [0.5, 10].
-  float denoise_sigma_spatial = 3.0f;
-
-  // Bilateral filter range sigma (edge sensitivity).
-  float denoise_sigma_range = 25.0f;
 
   // SSIMULACRA2 perceptual quality verification for all image encodings.
   // When enabled, checks encoded output quality and re-encodes if outside
@@ -221,6 +217,10 @@ struct MultiTranscodeResult {
   // as refused too.
   uint8_t size_refused_webp = 0;
   uint8_t size_refused_avif = 0;
+  // Save-Data arms refused by the worker's gate because they were not smaller
+  // than the same variant without Save-Data. Set by the worker, not by the
+  // transcoder; counts arms of any format, so it can reach 3.
+  uint8_t size_refused_savedata = 0;
   uint8_t size_rescued_webp = 0;
   uint8_t size_rescued_avif = 0;
   // SSIMULACRA2 score of the original-format image the converted arm lost
@@ -229,9 +229,6 @@ struct MultiTranscodeResult {
 
   // Content analysis result (populated when content_analysis is enabled).
   QualityPreset applied_preset;
-
-  // Whether bilateral filter denoising was applied.
-  bool denoised = false;
 
   // Learned quality prediction tracking.
   bool used_learned_quality = false;  // At least one format used ML prediction

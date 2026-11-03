@@ -33,17 +33,18 @@
 namespace {
 
 // ---------------------------------------------------------------------------
-// ps_notify_params_t -- added whole at 1.5.
+// ps_notify_params_t -- added whole at 1.5; `site` and `notify_flags`
+// appended at 1.12.
 //
 // The 4-byte hole after agent_request (44..47) is alignment padding ahead of
 // the pointer at 48, not a reserved field: it is the compiler's, it is
 // identical on every LP64 target, and ps_notify_params_init_sized zeroes the
-// whole struct, so nothing is ever read out of it. There is no TAIL padding to
-// pin against compiler choice -- the struct ends on a pointer and is already
-// 8-aligned -- which is why this one needs no explicit _reserved member the
-// way ps_write_params_t does.
+// whole struct, so nothing is ever read out of it. Since 1.12 the struct ends
+// on the 4-byte notify_flags at 80, followed by 4 bytes of tail padding up to
+// the pointer alignment; the library reads the site fields only when
+// struct_size is at least 88, so the padding is never read either.
 // ---------------------------------------------------------------------------
-static_assert(sizeof(ps_notify_params_t) == 72);
+static_assert(sizeof(ps_notify_params_t) == 88);
 static_assert(offsetof(ps_notify_params_t, struct_size) == 0);
 static_assert(offsetof(ps_notify_params_t, url) == 8);
 static_assert(offsetof(ps_notify_params_t, hostname) == 16);
@@ -54,6 +55,8 @@ static_assert(offsetof(ps_notify_params_t, agent_request) == 40);
 static_assert(offsetof(ps_notify_params_t, option_context) == 48);
 static_assert(offsetof(ps_notify_params_t, option_context_length) == 56);
 static_assert(offsetof(ps_notify_params_t, option_signature) == 64);
+static_assert(offsetof(ps_notify_params_t, site) == 72);
+static_assert(offsetof(ps_notify_params_t, notify_flags) == 80);
 
 // ---------------------------------------------------------------------------
 // ps_write_params_t -- 1.1 prefix through origin_ct, origin state appended
@@ -140,9 +143,10 @@ static_assert(offsetof(ps_serve_stats_snapshot_t, saturation_hwm) == 92);
 
 // ---------------------------------------------------------------------------
 // HTML configuration structs. ps_html_config_t is the one that has already
-// grown once (enable_async_css, appended), which is why its size is pinned.
+// grown (enable_async_css, then scheme, appended), which is why its size is
+// pinned.
 // ---------------------------------------------------------------------------
-static_assert(sizeof(ps_html_config_t) == 128);
+static_assert(sizeof(ps_html_config_t) == 136);
 static_assert(offsetof(ps_html_config_t, struct_size) == 0);
 static_assert(offsetof(ps_html_config_t, enable_critical_css) == 8);
 static_assert(offsetof(ps_html_config_t, viewport) == 44);
@@ -151,6 +155,7 @@ static_assert(offsetof(ps_html_config_t, max_css_size) == 56);
 static_assert(offsetof(ps_html_config_t, always_include_selectors) == 64);
 static_assert(offsetof(ps_html_config_t, exclude_tag_patterns) == 112);
 static_assert(offsetof(ps_html_config_t, enable_async_css) == 120);
+static_assert(offsetof(ps_html_config_t, scheme) == 128);
 
 static_assert(sizeof(ps_critical_css_config_t) == 88);
 static_assert(offsetof(ps_critical_css_config_t, struct_size) == 0);

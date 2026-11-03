@@ -107,6 +107,33 @@ TEST(OriginCacheControl, DeltaSecondsToleratesQuotesAndLeadingSpace) {
   EXPECT_EQ(ParseCacheControlSeconds("  600"), 600u);
 }
 
+// --- optional whitespace (RFC 9110 section 5.6.3) ----------------------
+
+TEST(OriginCacheControl, OptionalWhitespaceAroundDirectivesIsIgnored) {
+  EXPECT_TRUE(Parse("max-age=60,\tprivate").cc_flags & AM::kCCOriginPrivate);
+  EXPECT_TRUE(Parse("max-age=60,\tno-store").cc_flags & AM::kCCOriginNoStore);
+  EXPECT_TRUE(Parse("max-age=60,private\t").cc_flags & AM::kCCOriginPrivate);
+  EXPECT_TRUE(Parse("\tno-store").cc_flags & AM::kCCOriginNoStore);
+  EXPECT_TRUE(Parse("public, max-age=60\t, no-cache").cc_flags &
+              AM::kCCOriginNoCache);
+  EXPECT_TRUE(Parse(" \t no-store \t ").cc_flags & AM::kCCOriginNoStore);
+}
+
+TEST(OriginCacheControl, OptionalWhitespaceAroundNameAndValueIsIgnored) {
+  const OriginCacheControl cc = Parse("max-age\t=\t60\t,\ts-maxage=\t30\t");
+  EXPECT_EQ(cc.max_age, 60u);
+  EXPECT_EQ(cc.s_maxage, 30u);
+  EXPECT_TRUE(cc.cc_flags & AM::kCCOriginSMaxagePresent);
+  EXPECT_TRUE(Parse("private\t=\t\"Set-Cookie\"").cc_flags &
+              AM::kCCOriginPrivateQualified);
+}
+
+TEST(OriginCacheControl, DeltaSecondsToleratesSurroundingWhitespace) {
+  EXPECT_EQ(ParseCacheControlSeconds("\t600\t"), 600u);
+  EXPECT_EQ(ParseCacheControlSeconds("\"600\"\t"), 600u);
+  EXPECT_EQ(ParseCacheControlSeconds("\t\"\t600\""), 600u);
+}
+
 // --- the qualified forms (RFC 9111 §5.2.2.4 / §5.2.2.7) ------------------
 
 TEST(OriginCacheControl, BarePrivateIsBlanket) {

@@ -45,7 +45,14 @@ extern "C" {
  * publishes PS_FLAG_ORIGIN_HEADERS_NOT_REPRODUCIBLE. 1.9 adds
  * ps_html_config_init_sized and ps_critical_css_config_init_sized. 1.10
  * adds ps_read_shared_config_generation. 1.11 adds
- * ps_serve_stats_record_hit_host.
+ * ps_serve_stats_record_hit_host. 1.12 adds the HTML cacheability report:
+ * ps_html_store_classify, ps_html_decision_format and
+ * ps_html_store_reason_name; the split of the serve saving by encoding:
+ * ps_read_encoded_origin_length and ps_serve_stats_record_hit_split; and
+ * site identity: PS_SITE_ID_CHARS, the PS_NOTIFY_FLAG_* bits, the `site`
+ * and `notify_flags` fields of ps_notify_params_t, and
+ * ps_cache_read_best_site, ps_cache_read_alternate_site and
+ * ps_cache_write_original_site; and the `scheme` field of ps_html_config_t.
  *
  * A published constant is ABI surface too (see ABI.md), so a minor that adds
  * only one still moves the number: it is what a consumer compiles against to
@@ -59,7 +66,7 @@ extern "C" {
  * checked-in record of the current surface and is what the gate compares
  * against. */
 #define PS_API_VERSION_MAJOR 1
-#define PS_API_VERSION_MINOR 11
+#define PS_API_VERSION_MINOR 12
 #define PS_API_VERSION_PATCH 0
 
 PS_EXPORT int ps_version_major(void);
@@ -336,6 +343,29 @@ PS_EXPORT PS_NODISCARD ps_error_t
 ps_cache_read_best(ps_cache_t* cache, const char* url, const char* hostname,
                    const char* scheme, uint32_t mask, ps_read_result_t** out);
 
+/* ---------- site identity (PS_API 1.12) ---------- */
+
+/* Number of characters in a site id, not counting a terminating NUL. A site
+ * id is the SHA-256 of a front end's server-scope cache fragment, written as
+ * this many lowercase hex characters ([0-9a-f]). It names one server block or
+ * virtual host, and scopes every cache key and notification for it. */
+#define PS_SITE_ID_CHARS 64
+
+/* The _site entry points: the same as the function without the suffix, in
+ * the keyspace of one site.
+ *
+ * `site` NULL or "" is exactly the function without the suffix: the same
+ * keys, byte for byte. A site id (PS_SITE_ID_CHARS lowercase hex) reads or
+ * writes only that site's entries, which no other site and no unsited caller
+ * can see. Any other value is PS_ERR_INVALID_ARG, and nothing is read or
+ * written.
+ *
+ * Available from PS_API 1.12. */
+PS_EXPORT PS_NODISCARD ps_error_t ps_cache_read_best_site(
+    ps_cache_t* cache, const char* url, const char* hostname,
+    const char* scheme, const char* site, uint32_t mask,
+    ps_read_result_t** out);
+
 /* Agent-aware best read.  Routes through the SINGLE audited
  * agent serve gate (the operator's agent_optimize flag + the content-hash
  * binding check), so a stale/unbound markdown variant is refused (returns
@@ -408,6 +438,13 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_read_alternate(
     ps_cache_t* cache, const char* url, const char* hostname,
     const char* scheme, uint8_t alternate_id, ps_read_result_t** out);
 
+/* ps_cache_read_alternate in the keyspace of one site; see
+ * ps_cache_read_best_site. Available from PS_API 1.12. */
+PS_EXPORT PS_NODISCARD ps_error_t ps_cache_read_alternate_site(
+    ps_cache_t* cache, const char* url, const char* hostname,
+    const char* scheme, const char* site, uint8_t alternate_id,
+    ps_read_result_t** out);
+
 PS_EXPORT PS_NODISCARD ps_error_t ps_cache_read_early_hints(
     ps_cache_t* cache, const char* url, const char* hostname,
     const char* scheme, ps_read_result_t** out);
@@ -446,6 +483,18 @@ PS_EXPORT uint32_t ps_read_cache_inserted_at(const ps_read_result_t* result);
  * originals). Used by the serve-stats gate. */
 PS_EXPORT uint32_t
 ps_read_origin_content_length(const ps_read_result_t* result);
+
+/* The size of the origin bytes encoded the way the entry is served (1.12):
+ * the entry's own transfer encoding at the level the worker used, so a front
+ * end can tell what the served encoding saves apart from what the rewrite
+ * saves. For an identity-encoded entry it is the origin content length. On
+ * success writes it to *out and returns 1. Returns 0 (and leaves *out alone)
+ * when the entry does not carry it (written before this existed, or too large
+ * to represent), when the origin length is unknown, or when an argument is
+ * NULL. A front end passes a 0 result on as "not known" and must not use a
+ * guess in its place. */
+PS_EXPORT int ps_read_encoded_origin_length(const ps_read_result_t* result,
+                                            uint64_t* out);
 
 /* ---------- stored origin cache state ----------
  *
@@ -541,6 +590,19 @@ PS_EXPORT void ps_serve_stats_record_hit_host(ps_serve_stats_t* h,
                                               uint64_t optimized_bytes,
                                               uint32_t mask, const char* host,
                                               size_t host_len);
+
+/* Record ONE worker-processed serve HIT exactly as
+ * ps_serve_stats_record_hit_host does, and also account it in the split of the
+ * saving into what the served encoding saves (original_bytes minus
+ * encoded_origin_bytes) and what the rewrite saves (encoded_origin_bytes minus
+ * optimized_bytes) (1.12). encoded_origin_bytes is the value
+ * ps_read_encoded_origin_length returned; a front end that did not get one
+ * calls ps_serve_stats_record_hit_host instead, and the serve then counts in
+ * the totals but not in the split. No-op if h==NULL. */
+PS_EXPORT void ps_serve_stats_record_hit_split(
+    ps_serve_stats_t* h, ps_content_type_t content_type,
+    uint64_t original_bytes, uint64_t encoded_origin_bytes,
+    uint64_t optimized_bytes, uint32_t mask, const char* host, size_t host_len);
 
 /* Serve-class outcome for ONE response the front end judged optimizable.
  * Exactly one class per response: an optimized serve, or origin bytes for one
@@ -898,6 +960,13 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_write_original(
     const char* scheme, const ps_write_params_t* params,
     ps_write_handle_t** out);
 
+/* ps_cache_write_original in the keyspace of one site; see
+ * ps_cache_read_best_site. Available from PS_API 1.12. */
+PS_EXPORT PS_NODISCARD ps_error_t ps_cache_write_original_site(
+    ps_cache_t* cache, const char* url, const char* hostname,
+    const char* scheme, const char* site, const ps_write_params_t* params,
+    ps_write_handle_t** out);
+
 /* ---------- response-header sidecar ---------- */
 
 /* What the sidecar's admission gate decided about a response. */
@@ -1010,6 +1079,155 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_write_headers_sidecar(
     ps_cache_t* cache, const char* url, const char* hostname,
     const char* scheme, const char* const* names, const char* const* values,
     size_t count, int* out_verdict, int* out_stored);
+
+/* ---------- HTML cacheability policy ---------- */
+
+/* The `mode` ps_html_store_classify takes. Any other value is a malformed call.
+ * Nothing in this API writes or serves cached HTML. */
+typedef enum ps_html_cache_mode_t {
+  PS_HTML_CACHE_OFF = 0,         /* refuse every response */
+  PS_HTML_CACHE_REPORT_ONLY = 1, /* decide and report, never act */
+  /* Pins the enum to int width, like every other published enum here.
+     Published C API identifier: the double underscore is regrettable,
+     but it matches ps_error_t / ps_content_type_t above.
+     NOLINTNEXTLINE(bugprone-reserved-identifier) */
+  PS_HTML_CACHE__FORCE_INT = 0x7FFFFFFF
+} ps_html_cache_mode_t;
+
+/* What ps_html_store_classify returns. The values 1 and 2 are reserved. */
+#define PS_HTML_STORE_ACTION_REFUSE 0
+#define PS_HTML_STORE_ACTION_WOULD_STORE 3
+#define PS_HTML_STORE_ACTION_WOULD_STORE_NO_NOTIFY 4
+
+/* Flag bits ps_html_store_classify writes to `*out_flags`. */
+#define PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT 1u
+#define PS_HTML_STORE_FLAG_NEEDS_VALIDATION 2u
+#define PS_HTML_STORE_FLAG_HAS_VALIDATORS 4u
+#define PS_HTML_STORE_FLAG_EXPLICIT_SHARED 8u
+#define PS_HTML_STORE_FLAG_SIDECAR_EVALUATED 16u
+#define PS_HTML_STORE_FLAG_CC_EVALUATED 32u
+
+/* Bits of the `request_flags` argument of ps_html_store_classify. */
+#define PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION 1u
+#define PS_HTML_STORE_REQUEST_AUTHENTICATED_USER 2u
+#define PS_HTML_STORE_REQUEST_HAS_COOKIE 4u
+#define PS_HTML_STORE_REQUEST_NO_STORE 8u
+
+/* Report whether a text/html response would be stored. Available from
+ * PS_API 1.12. A pure function of its arguments: no cache handle, no I/O, no
+ * clock read (the caller passes `now_seconds`, the receipt time), no global
+ * state. It does NOT touch the last-error message, for the reason
+ * ps_headers_sidecar_classify does not.
+ *
+ * `mode` is a ps_html_cache_mode_t value. `method` and `url_path` are
+ * NUL-terminated. `request_flags` carries the
+ * PS_HTML_STORE_REQUEST_* bits: the request carried Authorization or
+ * Proxy-Authorization (1), the server authenticated the request (2), the
+ * request carried a Cookie or Cookie2 header (4), the request's Cache-Control
+ * carried no-store (8, RFC 9111 section 5.2.1.5). Unknown bits are ignored.
+ * `names[i]` / `values[i]` are the
+ * origin's response header lines AS RECEIVED, one entry per line, before any
+ * header your server adds, in the form ps_headers_sidecar_classify takes (the
+ * header set is run through that gate). `body_prefix` is the first
+ * `body_prefix_len` bytes of the body (at most 65536 are examined; NULL with
+ * length 0 means none), which is scanned for markers of a per-client page; it
+ * must hold the whole body or its first 65536 bytes, whichever is less, or the
+ * response is refused with the reason `incomplete` and the detail
+ * `body_prefix`.
+ * `max_body_bytes` is the operator's size cap, clamped to a 16 MiB ceiling.
+ *
+ * Returns a PS_HTML_STORE_ACTION_* value: refuse, would store, or would store
+ * without notifying the optimizer (the response said no-transform). No value
+ * means "store", and the caller must not write anything. A body with a
+ * per-client marker is refused with the reason `personalisation_signal`, whose
+ * detail names the marker. In the off mode every response is refused with the
+ * reason `mode`. Returns -1 for a malformed call (a `mode` outside the
+ * enumerated set, a NULL `method`, `url_path` or out-parameter other than the detail buffer;
+ * NULL arrays or elements with `count` > 0; a NULL `body_prefix` with a
+ * non-zero length; a NULL `detail_buf` with a non-zero capacity); no
+ * out-parameter is written then.
+ *
+ * `*out_reason` receives the reason as an integer; ps_html_store_reason_name
+ * turns it into the closed set of names (none, method, status, incomplete,
+ * auth_request, cookie_request, set_cookie, private, no_store, no_lifetime,
+ * vary, headers, nonce_csp, nonce_link, content_type, encoding, size, url,
+ * personalisation_signal, no_transform, mode). The detail (the header name for
+ * `headers`, the Vary token for `vary`, `request` for a no_store caused
+ * by the request, the signal name for `personalisation_signal`) is copied into `detail_buf`, NUL-terminated and
+ * truncated to `detail_capacity`; `*out_detail_len` is the untruncated length
+ * (the detail is RFC 9110 token characters only, anything else having become `_`, at most 128 bytes, so a reason code built from it always fits the `reason` grammar of ps_html_decision_format). `detail_buf` may be NULL
+ * with `detail_capacity` 0. `*out_lifetime_s` is the explicit freshness
+ * lifetime (0 when none), `*out_flags` carries the PS_HTML_STORE_FLAG_* bits,
+ * `*out_cc_flags` the parsed Cache-Control bits (PS_CC_ORIGIN_*), meaningful
+ * only with PS_HTML_STORE_FLAG_CC_EVALUATED, and `*out_sidecar` the header-set
+ * verdict as ps_headers_sidecar_classify reports it, meaningful only with
+ * PS_HTML_STORE_FLAG_SIDECAR_EVALUATED (0 is a real verdict, so an earlier
+ * refusal must not be read as one).
+ *
+ * The policy is strict on purpose: a response is stored only when it states
+ * its own lifetime or carries a validator, never on a guessed one (two
+ * max-age or two s-maxage directives conflict and count as lifetime 0); the
+ * request and the response must show no sign of being personalised (a
+ * request with a cookie is stored only when the response is explicitly
+ * public or carries a valid s-maxage); and the only Vary
+ * it admits is Accept-Encoding. Those rules are not configurable. */
+PS_EXPORT int ps_html_store_classify(
+    int mode, const char* method, const char* url_path, uint32_t request_flags,
+    int status, const char* const* names, const char* const* values,
+    size_t count, uint64_t body_bytes, int body_complete,
+    const char* body_prefix, size_t body_prefix_len, uint64_t max_body_bytes,
+    uint32_t now_seconds, int* out_reason, uint32_t* out_lifetime_s,
+    uint32_t* out_flags, uint16_t* out_cc_flags, int* out_sidecar,
+    char* detail_buf, size_t detail_capacity, size_t* out_detail_len);
+
+/* Format one HTML cache decision as a single JSON line. Available from
+ * PS_API 1.12. `keys[i]` / `values[i]` are parallel arrays of NUL-terminated
+ * strings. The key set is closed (ts_ms, host, path, mode, action, reason,
+ * status, size, lifetime_s, validators, cc, vary, sidecar, request,
+ * personalisation, before) and has no key for a body,
+ * a header value, a cookie, a client address or a user agent; the keys come out
+ * in that order whatever order they are given in.
+ *
+ * Every value is checked against its key's grammar, which admits fixed codes
+ * and counts only: ts_ms, status, size and lifetime_s take a canonical
+ * decimal integer (written as a number); mode takes off or report-only; action
+ * takes would_store, would_store_no_notify, skipped or refuse; reason takes a
+ * name from ps_html_store_reason_name, sidecar_write_failed, or
+ * `headers:<name>` /
+ * `vary:<token>` with an RFC 9110 token of at most 128 bytes; validators takes
+ * none or an ordered subset of etag, last_modified; request takes none or an
+ * ordered subset of authorization, cookie; cc takes
+ * response directive names, each at most once, with `=<integer>` only on
+ * max-age, s-maxage, stale-while-revalidate and stale-if-error; vary takes a
+ * comma-separated list of tokens (in cc and vary, spaces around a comma are
+ * allowed, and a vary value is at most 1024 bytes); sidecar takes eligible_block,
+ * eligible_empty, fall_through, fall_through:<header-name> or
+ * never:nonce_csp or never:nonce_link; personalisation takes a signal name;
+ * before takes a hash in decimal or lowercase hex digits; host takes hostname characters (at most 255 bytes);
+ * path takes the path the cache key was built from (at most 300 bytes, never
+ * `?`, `#`, `%` or `;`). A value is never empty: a fact that is absent is a key that is
+ * left out.
+ *
+ * The line (no trailing newline) is written to `buf` NUL-terminated, and
+ * `*out_len` receives its length. Returns 0 on success; -1 for a malformed
+ * call (NULL arrays or elements with `count` > 0, a NULL `out_len`, a NULL
+ * `buf` with a non-zero capacity); -2 when the formatter refused the fields (an
+ * unknown or duplicate key, or a value outside its key's grammar, which
+ * includes any control byte, an empty value, a `path` over 300 bytes or with a
+ * query, an empty `host`), with `*out_len` 0; -3 when `buf` is too small,
+ * with `*out_len` the length needed excluding the NUL and `buf` left holding an
+ * empty string. A capacity of 0 may pass a NULL `buf` to ask only for the
+ * length. Pure: it opens nothing and does not touch the last-error message. */
+PS_EXPORT int ps_html_decision_format(const char* const* keys,
+                                      const char* const* values, size_t count,
+                                      char* buf, size_t capacity,
+                                      size_t* out_len);
+
+/* The closed-set name for a reason value ps_html_store_classify wrote, for
+ * callers that log or count by name.
+ * Available from PS_API 1.12. Returns a static NUL-terminated string that must
+ * not be freed, or NULL for a value outside the enumerated set. */
+PS_EXPORT const char* ps_html_store_reason_name(int reason);
 
 PS_EXPORT PS_NODISCARD ps_error_t ps_write_data(ps_write_handle_t* handle,
                                                 const void* data,
@@ -1460,7 +1678,29 @@ typedef struct {
   const char* option_context;
   size_t option_context_length;
   const char* option_signature;
+
+  /* PS_API 1.12. The site the notification belongs to: NULL or "" for a
+   * caller with no site (its work stays in the unsited keyspace), or
+   * PS_SITE_ID_CHARS lowercase hex. Any other value is PS_ERR_INVALID_ARG. */
+  const char* site;
+
+  /* PS_API 1.12. PS_NOTIFY_FLAG_* bits; zero is unvouched and not from the
+   * module. Any other bit is reserved and is PS_ERR_INVALID_ARG.
+   *
+   * A caller whose struct_size predates these two fields reads as site NULL
+   * and notify_flags 0. */
+  uint32_t notify_flags;
 } ps_notify_params_t;
+
+/* The sender checked `hostname` against the names the site serves. Work that
+ * fetches from that host (page rendering for agents, /llms.txt) runs only for
+ * a vouched notification. */
+#define PS_NOTIFY_FLAG_HOST_VOUCHED 0x1u
+
+/* The sender is the mod_pagespeed in-place arm. Such a notification must
+ * carry a site, and must not carry PS_CONTENT_HTML, an agent request, the
+ * llms.txt mask or PS_NOTIFY_FLAG_HOST_VOUCHED; each is PS_ERR_INVALID_ARG. */
+#define PS_NOTIFY_FLAG_FROM_MODULE 0x2u
 
 /* Zero `size` bytes at `params` and stamp struct_size = size. Always pass
  * sizeof(ps_notify_params_t) as YOUR build sees it — use the _auto spelling
@@ -1472,14 +1712,18 @@ PS_EXPORT void ps_notify_params_init_sized(ps_notify_params_t* params,
   ps_notify_params_init_sized((params), sizeof *(params))
 
 /* Send a notification carrying everything ps_notify_worker sends plus the
- * agent-request bit and the per-request options context.
+ * agent-request bit, the per-request options context, and (1.12) the site
+ * and flags.
  *
  * Returns PS_ERR_INVALID_ARG if `socket_path` or `params` is NULL, if
  * `params->struct_size` is unset or smaller than its first field, if url,
  * hostname or scheme is NULL, if scheme is neither "http" nor "https", if the
  * content type is out of range, if the options context violates any of the
- * rules documented on the struct, or if the notification cannot be
- * serialized; no connection is attempted in any of those cases. PS_ERR_IO if
+ * rules documented on the struct, if the site or flags violate the rules
+ * documented on the struct and on PS_NOTIFY_FLAG_FROM_MODULE, or if the
+ * notification cannot be serialized; no connection is attempted in any of
+ * those cases. A caller whose struct_size predates the site fields is still
+ * served, unsited and unvouched; the library logs that once per process. PS_ERR_IO if
  * the notification could not be delivered. */
 PS_EXPORT PS_NODISCARD ps_error_t
 ps_notify_worker_ex(const char* socket_path, const ps_notify_params_t* params);
@@ -1537,16 +1781,25 @@ typedef struct {
   // cannot make that judgement at all; that path always keeps stylesheets
   // render-blocking, and still inlines the critical CSS it is given.
   int enable_async_css;
+
+  /* PS_API 1.12. The scheme of the page being processed, "http" or "https":
+   * the scheme its stylesheets were written to the cache under, which
+   * ps_html_process reads them back with. NULL or "" means "https". Any other
+   * value makes ps_html_process fail with PS_ERR_INVALID_ARG.
+   *
+   * Read only when struct_size covers it. A caller whose struct_size predates
+   * this field (ps_html_config_init stamps 128) reads as "https", which is
+   * what every caller got before the field existed. ps_html_transform_create
+   * ignores it: that entry point reads nothing from the cache by scheme. */
+  const char* scheme;
 } ps_html_config_t;
 
-/* Legacy initializer — writes the PS_API 1.8 prefix (128 bytes) of defaults.
- * NOT SIZE-AWARE: it writes sizeof(ps_html_config_t) AS THIS LIBRARY DEFINES
- * IT, and every field that library knows about, before the caller can inspect
- * anything.  A caller compiled against an older, SHORTER ps_html_config_t
- * therefore has its buffer overrun by a newer library — the struct_size field
- * this writes reports the damage, it does not prevent it.  Callers that may
- * meet a newer library must use ps_html_config_init_sized, or pass a buffer
- * large enough to absorb growth. */
+/* Legacy initializer: writes the defaults of exactly the PS_API 1.8 prefix
+ * (128 bytes) and stamps struct_size = 128, however large this library's
+ * ps_html_config_t has grown since.  It never touches `scheme` (PS_API 1.12)
+ * or any later field, so ps_html_process does not read them from a config it
+ * initialized.  To have `scheme` read, initialize with ps_html_config_init_auto
+ * or ps_html_config_init_sized, which stamp the full size, then set it. */
 PS_EXPORT void ps_html_config_init(ps_html_config_t* config);
 
 #define ps_html_config_init_auto(config) \
@@ -1567,10 +1820,10 @@ PS_EXPORT void ps_html_config_init(ps_html_config_t* config);
  * rule ps_write_params_init_sized and ps_notify_params_init_sized follow.
  *
  * SCOPE: this bounds what the INITIALIZER writes, nothing more.
- * ps_html_process does not consult struct_size and reads every field this
- * library defines, so a caller compiled against a shorter struct must still
- * hand ps_html_process a buffer large enough for THIS library's layout (an
- * over-allocated buffer is the portable spelling).
+ * ps_html_process consults struct_size only for `scheme` (PS_API 1.12) and
+ * reads every earlier field this library defines, so a caller compiled against
+ * a shorter struct must still hand ps_html_process a buffer large enough for
+ * the 128-byte layout (an over-allocated buffer is the portable spelling).
  *
  * Available from PS_API 1.9. */
 PS_EXPORT void ps_html_config_init_sized(ps_html_config_t* config, size_t size);
@@ -1579,6 +1832,10 @@ PS_EXPORT void ps_html_config_init_sized(ps_html_config_t* config, size_t size);
 
 typedef struct ps_html_result ps_html_result_t;
 
+/* Optimizes one HTML document.  The input is read, and the output written,
+ * as text/html; XHTML and other XML documents are not supported.  The page's
+ * external stylesheets are read from `cache` under `hostname` and the config's
+ * `scheme` ("https" when the config predates that field). */
 PS_EXPORT PS_NODISCARD ps_error_t ps_html_process(
     const char* html, size_t html_len, const char* url, const char* hostname,
     const ps_html_config_t* config, ps_cache_t* cache, ps_html_result_t** out);
@@ -1739,7 +1996,9 @@ PS_EXPORT void ps_free(void* ptr);
 
 typedef struct ps_html_transform ps_html_transform_t;
 
-/* Build a transform from a caller-supplied critical CSS block.
+/* Build a transform from a caller-supplied critical CSS block.  The page it
+ * runs on is read and written as text/html; XHTML and other XML documents
+ * are not supported.
  *
  * config->enable_async_css is IGNORED here: this entry point has no view of
  * the page's stylesheets and no browser, so it cannot establish that deferring

@@ -4,12 +4,12 @@ seoTitle: 'Install mod_pagespeed on Apache and nginx: signed packages'
 description: 'Install the native mod_pagespeed module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
 order: 3
 group: 'Install'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-02
 faq:
   - q: 'Is there a native nginx module for mod_pagespeed?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
   - q: 'How do I run mod_pagespeed on nginx today?'
-    a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.'
+    a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.28). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.'
 ---
 
 mod_pagespeed ships a native module for Apache and nginx. You have three
@@ -61,7 +61,7 @@ module (`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses �
 for Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9
 and 10. It is the ngx_pagespeed port of mod_pagespeed, built from the
 mod_pagespeed source, and it loads into the nginx your distribution ships.
-Each build is pinned to that distribution's stock nginx (1.18 through 1.26),
+Each build is pinned to that distribution's stock nginx (1.18 through 1.28),
 so there is no version to match by hand.
 
 :::note[Two nginx modules, one file name]
@@ -237,6 +237,80 @@ signed packages also sidestep the
 [ngx_pagespeed build failures on modern nginx](/blog/ngx-pagespeed-wont-build-modern-nginx/)
 that come from compiling the old module from source.
 
+### nginx.org's nginx and the nginx Docker image
+
+The `nginx-module-pagespeed-nginxorg` package is the same native module, built
+for nginx.org's stable nginx on Debian 13 and Ubuntu 24.04 and on Enterprise
+Linux 9, amd64 (x86_64) only. Each build is pinned to one nginx version, which
+the package version names (`<version>+ngx1.30.6~trixie`; on Enterprise Linux
+the package requires `nginx = 2:1.30.6`), so it must match the nginx you run,
+and it cannot be installed alongside `nginx-module-pagespeed`. There is no
+build for nginx.org's mainline, and none for Enterprise Linux 10.
+
+nginx.org's `nginx.conf` does not read the module directory, so add its
+include at the top of `/etc/nginx/nginx.conf`:
+`include /etc/nginx/modules-enabled/*.conf;` on Debian and Ubuntu (Enterprise
+Linux below).
+The package ships its `load_module` line there and takes it away when removed,
+so removing the package leaves nginx able to start.
+
+**On a Debian or Ubuntu host** that runs nginx.org's repository, install the
+package as in the steps above, with the other package name:
+`sudo apt-get install nginx-module-pagespeed-nginxorg`. It takes the newest
+build and, when nginx.org carries it, the nginx that build is for.
+
+**On AlmaLinux, Rocky Linux or RHEL 9** with nginx.org's repository, install
+the package with dnf:
+`sudo dnf install nginx-module-pagespeed-nginxorg`, and add
+`include /usr/share/nginx/modules/*.conf;` at the top of
+`/etc/nginx/nginx.conf`. The package installs a dnf plugin that keeps a plain
+`dnf update` working while nginx.org is ahead of the matching build: it holds
+nginx back until that build is available, and `dnf check-update` still lists
+the pending nginx. To take an nginx security fix first, run
+`sudo dnf upgrade nginx --allowerasing`; that removes the module package, so
+reinstall it when its build is available.
+
+Not yet tested on Enterprise Linux:
+
+- PackageKit and Cockpit updates likely bypass dnf plugins, so a plain update
+  through them may still fail while nginx.org is ahead of the matching build.
+  Use `dnf update` on the command line.
+- dnf5 (Enterprise Linux 10) is untested; the package is for Enterprise
+  Linux 9.
+- Only AlmaLinux 9 has been exercised. Rocky Linux 9 and RHEL 9 are expected to
+  behave the same but are untested.
+
+**In the nginx Docker image**, install the build for the image's nginx by its
+version: `apt-cache madison` lists the builds, the one whose version carries
+`+ngx<nginx version>~` is the match, and the image build fails at `test -n`
+rather than moving nginx when no package exists for that version yet.
+`NGINX_VERSION` is set by the image. Pin the tag to the exact stable version:
+`nginx:latest` follows mainline and the `alpine` variants use another package
+format, so neither works with this package.
+
+```dockerfile
+FROM nginx:1.30.6
+RUN apt-get update && apt-get install -y curl ca-certificates gnupg \
+ && curl -fsSL https://packages.modpagespeed.com/install.sh | sh \
+ && apt-get update \
+ && v="$(apt-cache madison nginx-module-pagespeed-nginxorg \
+        | awk -v n="+ngx${NGINX_VERSION}~" 'index($3, n) { print $3; exit }')" \
+ && test -n "$v" \
+ && apt-get install -y "nginx-module-pagespeed-nginxorg=$v" \
+ && sed -i '1i include /etc/nginx/modules-enabled/*.conf;' /etc/nginx/nginx.conf \
+ && mkdir -p /var/cache/ngx_pagespeed && chown nginx /var/cache/ngx_pagespeed
+```
+
+Then set the shared settings as in step 4 above.
+
+**When nginx moves.** A new nginx version needs a matching module package,
+which follows nginx.org's stable releases. Until it is available, `apt upgrade`
+holds nginx back, and `apt full-upgrade` removes the module. If nginx ships a
+security fix first, take the fix: remove the module, upgrade nginx, and
+reinstall the module when its package is available. On Enterprise Linux the
+dnf plugin holds nginx back the same way (see above). In Docker, move the image
+tag only once the package for that version exists.
+
 ## nginx compatibility
 
 Two shapes, two nginx stories. The native module runs inside the nginx your
@@ -249,14 +323,17 @@ proxy brings its own nginx inside the image.
 | Native module on Debian 13 trixie                                              | 1.26.3                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on Ubuntu 22.04 jammy                                            | 1.18.0                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on Ubuntu 24.04 noble                                            | 1.24.0                          | the distribution's stock nginx (amd64 + arm64)     |
+| Native module on Ubuntu 26.04 resolute                                         | 1.28.3                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on AlmaLinux / RHEL / Rocky 9                                    | 1.20.1                          | the distribution's stock nginx (x86_64 + aarch64)  |
 | Native module on AlmaLinux / RHEL / Rocky 10                                   | the distribution's stock nginx  | the distribution's stock nginx (x86_64)            |
+| Native module for nginx.org's stable nginx (`nginx-module-pagespeed-nginxorg`) on Debian 13, Ubuntu 24.04 and AlmaLinux / RHEL / Rocky 9 | 1.30.6 (nginx.org's stable; one nginx version per build) | nginx.org's repository (amd64 / x86_64) or the nginx Docker image (amd64) |
 | Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.6                        | bundled in the image                               |
 
 nginx refuses to load a module built for a different version, and
 `--with-compat` does not relax that check, so the native module follows your
-distribution's nginx package, not nginx.org's. Running an nginx we do not
-package? [Contact us](/contact/) for a matching pinned build. Debian 11
+distribution's nginx package, or nginx.org's stable with the
+[separate package](#nginxorgs-nginx-and-the-nginx-docker-image). Running an
+nginx we do not package? [Contact us](/contact/) for a matching pinned build. Debian 11
 (bullseye) stays on the repository's final 1.15.0 module packages.
 
 ## Using the optimizer worker with nginx {#using-the-optimizer-daemon-with-nginx}

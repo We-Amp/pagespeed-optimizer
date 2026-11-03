@@ -155,6 +155,48 @@ that reads it the documented way. It costs the class one spare version value
 (2); a class that needs a third takes a new id, which is cheaper than the
 alternative.
 
+The HTML cacheability report entry points (`ps_html_store_classify`,
+`ps_html_decision_format`, `ps_html_store_reason_name`, PS_API 1.12) are pure
+functions of their arguments, and that is part of the contract: they take no
+cache handle, perform no I/O, read no clock (the caller passes the time), keep
+no state, and never touch the last-error message. No struct crosses the
+boundary, so there is no layout to pin: inputs are scalars and the same
+parallel `names`/`values` arrays the sidecar takes, outputs are out-parameters
+and caller buffers. They decide and report; nothing in this API writes or
+serves cached HTML.
+
+**The numeric values are the contract.** The action returned (0 refuse, 3 would
+store, 4 would store without notify; 1 and 2 are reserved, so no value means
+"store"), the reason integers (the closed name set returned by
+`ps_html_store_reason_name`), the flag bits, and the mode values 0 and 1 are
+all part of the ABI: a caller compiled against them reads them forever. A new
+reason is appended at the end of its set and is a MINOR change; a caller must
+treat a reason it does not know as "refused", which is how the library itself
+treats an out-of-range value it is handed (`NULL` from the name function).
+Reordering or renumbering is a MAJOR change.
+
+**The policy's strictness is the library's, not the caller's.** A page would be
+stored only on an explicit lifetime or a validator, never on a heuristic one; a
+request with credentials, or with `Cache-Control: no-store`, is refused;
+a request with a cookie passes only when the response is explicitly
+`public` or carries a valid `s-maxage`; a response that sets a cookie, `private`
+or `no-store`, and a `Vary` beyond `Accept-Encoding` are refused; a body with a
+per-client marker is refused with that reason in every mode; two `max-age` (or two
+`s-maxage`) directives, or two `Expires` lines, count as lifetime 0. The
+`request_flags` word of `ps_html_store_classify` carries the request facts
+(1 has authorization, 2 authenticated user, 4 has cookie, 8 request
+no-store). None of that is configurable per call, for the reason the sidecar's
+allowlist is not: what makes a page personal is not safe to re-decide per
+consumer. Narrowing it later is observable and is treated as a contract change.
+
+**The decision line's grammar is the contract too.** `ps_html_decision_format`
+takes a closed key set and, per key, a closed value grammar (names, counts,
+RFC 9110 tokens for a header name or Vary token; the header documents the
+table) and refuses anything else with -2, so a caller can rely on the line
+never carrying a header value or a cookie whatever it was handed. Widening a
+grammar (a new action or reason name) is a MINOR change; narrowing one is
+observable and is treated as a contract change.
+
 ## The gate
 
 `tools/ci/check_abi.py`, run by the `abi-compat` CI job. It is checkout-only:

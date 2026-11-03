@@ -58,6 +58,7 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include "src/worker/html_scanner.h"
 #include "src/worker/layer_order_sources.h"
 #include "src/worker/shared_config.h"
+#include "src/worker/subresource_gate.h"
 #include "src/worker/text_compressor.h"
 #include "test/test_util/pipe_client.h"
 #include "test/test_util/tcp_client.h"
@@ -148,9 +149,17 @@ class WorkerTest : public ::testing::Test {
 #else
     socket_path_ = temp_dir_ + "/worker.sock";
 #endif
+    // No front end answers the worker's sub-resource checks here: every
+    // cached sub-resource counts as served to any client, as before the gate.
+    // Tests of the gate itself install their own verdicts.
+    SubresourceGate::SetVerdictOverrideForTest(
+        [](const SubresourceRead&) -> std::optional<SubresourceVerdict> {
+          return SubresourceVerdict::kAdmitted;
+        });
   }
 
   void TearDown() override {
+    SubresourceGate::SetVerdictOverrideForTest(nullptr);
     if (!temp_dir_.empty()) {
       std::error_code ec;
       std::filesystem::remove_all(temp_dir_, ec);

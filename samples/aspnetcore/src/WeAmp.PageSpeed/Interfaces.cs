@@ -128,5 +128,19 @@ public interface IPageSpeedCache : IDisposable
 /// <summary>HTML processing abstraction for testability.</summary>
 public interface IHtmlProcessor
 {
+    /// <summary>
+    /// Processes one HTML document, reading its cached stylesheets under the
+    /// "https" scheme.
+    /// </summary>
     HtmlResult Process(ReadOnlySpan<byte> html, string url, string hostname);
+
+    /// <summary>
+    /// Processes one HTML document, reading its cached stylesheets under
+    /// <paramref name="scheme"/> ("http" or "https"), the scheme they were
+    /// recorded under. An implementation that does not override this calls
+    /// the three-argument form, which reads under "https".
+    /// </summary>
+    HtmlResult Process(
+        ReadOnlySpan<byte> html, string url, string hostname, string scheme) =>
+        Process(html, url, hostname);
 }

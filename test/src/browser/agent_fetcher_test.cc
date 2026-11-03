@@ -3,6 +3,7 @@
 
 #include "src/browser/agent_fetcher.h"
 
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <map>
@@ -601,8 +602,9 @@ TEST(FetchSubresource, RedirectWithBackslashAuthorityDenied) {
             1u);  // only hop 0 ran; hop 1 (backslash) denied
 }
 
-// SF-1: encoding/integrity/framing headers describe a transform the fetcher never
-// applied (it serves curl's literal bytes) and MUST be stripped before fulfill.
+// SF-1: encoding/integrity/framing headers describe the wire form, but curl has
+// already decoded the body (--compressed), so they no longer match it and MUST be
+// stripped before fulfill.
 TEST(SanitizeResponseHeaders, StripsEncodingIntegrityFraming) {
   std::vector<HttpHeader> in = {
       {"Content-Type", "text/html"}, {"Content-Encoding", "gzip"},
@@ -675,6 +677,35 @@ TEST(RealCurlSpawn, ChildStartsWithDefaultBrokenPipeDisposition) {
   EXPECT_EQ(out.output, "");
   ASSERT_TRUE(out.exit_code.has_value());
   EXPECT_EQ(*out.exit_code, -1);
+}
+
+// The cap is on curl's stdout, which is the DECODED body. A curl that emits
+// more than the cap and then stays alive must be killed and reported as
+// did-not-complete, promptly (not after the sleep).
+TEST(RealCurlSpawn, OutputOverTheCapKillsCurlAndReportsTooLarge) {
+  test::TempDir dir;
+  const std::string script = dir.path() + "/curl";
+  {
+    std::ofstream f(script);
+    f << "#!/bin/sh\nhead -c 100000 /dev/zero\nexec sleep 30\n";
+  }
+  ASSERT_EQ(::chmod(script.c_str(), 0755), 0);
+
+  const char* old_path_c = std::getenv("PATH");
+  const std::string old_path = old_path_c != nullptr ? old_path_c : "";
+  ASSERT_EQ(::setenv("PATH", (dir.path() + ":" + old_path).c_str(), 1), 0);
+
+  const auto start = std::chrono::steady_clock::now();
+  CurlSpawnOutcome out = RealCurlSpawn()({"curl"}, 4096);
+  const auto elapsed = std::chrono::steady_clock::now() - start;
+
+  ::setenv("PATH", old_path.c_str(), 1);
+
+  ASSERT_TRUE(out.spawned) << out.error;
+  EXPECT_EQ(out.error, "response too large");
+  EXPECT_FALSE(out.exit_code.has_value());
+  EXPECT_LE(out.output.size(), 4096u);
+  EXPECT_LT(elapsed, std::chrono::seconds(10));
 }
 #endif  // !_WIN32
 

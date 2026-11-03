@@ -352,14 +352,6 @@ gtest_test(
     ],
 )
 
-gtest_test(
-    name = "bilateral_filter_test",
-    deps = [
-        "//lib/base:message_handler",
-        "//lib/image:bilateral_filter",
-    ],
-)
-
 image_codec_test(
     name = "image_analysis_test",
     data_globs = [

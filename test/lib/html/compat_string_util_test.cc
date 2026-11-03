@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "absl/hash/hash.h"
 #include "gtest/gtest.h"
 #include "lib/html/compat/sparse_hash_map.h"
 #include "lib/html/compat/stl_util.h"
@@ -95,9 +96,13 @@ TEST(HtmlCompatStringUtilTest, StringSetInsensitiveIsOrderedAndCaseFolding) {
 
 TEST(HtmlCompatStringHashTest, CanonicalRecurrenceAndFolding) {
   // Pin the canonical HashString recurrence: h = h * 131 + c.
-  EXPECT_EQ(net_instaweb::CasePreserveStringHash()(GoogleString("a")), 97u);
+  using CasePreserve = net_instaweb::CasePreserve;
+  EXPECT_EQ((net_instaweb::HashString<CasePreserve, size_t>("a", 1)), 97u);
+  const size_t ab = net_instaweb::HashString<CasePreserve, size_t>("ab", 2);
+  EXPECT_EQ(ab, 97u * 131u + 98u);
+  // The functors mix that result for absl's Swiss tables, as canonical does.
   EXPECT_EQ(net_instaweb::CasePreserveStringHash()(GoogleString("ab")),
-            97u * 131u + 98u);
+            absl::HashOf(ab));
   // Case folding makes hashes case-insensitive; equality functor agrees.
   EXPECT_EQ(net_instaweb::CaseFoldStringHash()(GoogleString("aBc")),
             net_instaweb::CaseFoldStringHash()(GoogleString("AbC")));

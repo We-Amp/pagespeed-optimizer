@@ -72,6 +72,27 @@ cc_library(
     deps = ["//src/worker:shared_config"],
 )
 
+# Which request hostnames a server block stands behind (exact and wildcard
+# server names, the operator host alias table) - pure C++, testable without
+# nginx headers.
+cc_library(
+    name = "host_vouch",
+    srcs = ["host_vouch.cc"],
+    hdrs = ["host_vouch.h"],
+    visibility = ["//visibility:public"],
+)
+
+# Recognition of the worker's agent fetches arriving from this server (its
+# User-Agent marker and a peer that is loopback or the arrival address), which
+# the module presents to access rules as 224.0.0.0 - pure C++ over raw address
+# bytes, testable without nginx headers.
+cc_library(
+    name = "agent_self_fetch",
+    srcs = ["agent_self_fetch.cc"],
+    hdrs = ["agent_self_fetch.h"],
+    visibility = ["//visibility:public"],
+)
+
 # Early Hints utilities - pure C++, testable without nginx headers.
 cc_library(
     name = "early_hints_util",
@@ -170,6 +191,7 @@ cc_library(
     tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
+        ":agent_self_fetch",
         ":authz_cache_gate",
         ":cache_generation_check",
         ":early_hints",
@@ -178,6 +200,7 @@ cc_library(
         ":header_key_util",
         ":headers_sidecar_record",
         ":headers_sidecar_replay",
+        ":host_vouch",
         ":mime_util",
         ":revalidation_storability",
         ":zerocopy_barrier",

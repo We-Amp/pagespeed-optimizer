@@ -298,12 +298,6 @@ export const VIEWPORT_FIELDS: NumberFieldMeta[] = [
   { key: 'desktop_width', label: 'Desktop Width', min: 768, max: 3840, step: 1, unit: 'px', tooltip: 'Target width for desktop viewport class. Images resized to this width for desktop variants.' },
 ];
 
-export const DENOISE_FIELDS: NumberFieldMeta[] = [
-  { key: 'denoise_threshold', label: 'Denoise Threshold', min: 0, max: 100, step: 1, tooltip: 'Noise level threshold for activating bilateral denoise filter before compression.' },
-  { key: 'denoise_sigma_spatial', label: 'Denoise Sigma Spatial', min: 0, max: 100, step: 0.1, tooltip: 'Spatial sigma for bilateral filter. Controls blur radius — higher = smoother but less sharp.' },
-  { key: 'denoise_sigma_range', label: 'Denoise Sigma Range', min: 0, max: 100, step: 0.1, tooltip: 'Range sigma for bilateral filter. Controls intensity sensitivity — higher = more aggressive denoising.' },
-];
-
 export const SVG_FIELDS: NumberFieldMeta[] = [
   { key: 'svg_fidelity_threshold', label: 'SVG Fidelity Threshold', min: 0, max: 100, step: 1, tooltip: 'Minimum fidelity score (0-100) for accepting an SVG vectorization result. Higher = stricter quality gate, fewer SVGs produced.' },
   { key: 'svg_timeout_ms', label: 'SVG Timeout', min: 100, max: 30000, step: 100, unit: 'ms', tooltip: 'Maximum time in milliseconds for the VTracer vectorization pass. Increase for complex images; decrease to skip slow candidates.' },

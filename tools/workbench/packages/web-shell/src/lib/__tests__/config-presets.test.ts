@@ -19,7 +19,6 @@ import {
   JS_FEATURE_TOGGLES,
   COMPRESSION_FIELDS,
   VIEWPORT_FIELDS,
-  DENOISE_FIELDS,
   SVG_FIELDS,
   SVG_FEATURE_TOGGLES,
   SVG_PRESET_FIELD,
@@ -54,9 +53,6 @@ function makeConfig(
     quality_verify: true,
     target_ssimulacra2: 70,
     ssimulacra2_tolerance: 5,
-    denoise_threshold: 0,
-    denoise_sigma_spatial: 0,
-    denoise_sigma_range: 0,
     disable_html: false,
     disable_css: false,
     disable_js: false,
@@ -384,10 +380,6 @@ describe('field metadata', () => {
     expect(VIEWPORT_FIELDS).toHaveLength(3);
   });
 
-  it('DENOISE_FIELDS has 3 fields', () => {
-    expect(DENOISE_FIELDS).toHaveLength(3);
-  });
-
   it('SVG_FIELDS has 8 fields', () => {
     expect(SVG_FIELDS).toHaveLength(8);
   });
@@ -462,7 +454,6 @@ describe('field metadata', () => {
     const allNumberFields = [
       ...COMPRESSION_FIELDS,
       ...VIEWPORT_FIELDS,
-      ...DENOISE_FIELDS,
       ...SVG_FIELDS,
       ...QUALITY_CAP_FIELDS,
     ];
@@ -485,7 +476,6 @@ describe('field metadata', () => {
       ...SSIMULACRA2_FIELDS.map((f) => f.tooltip),
       ...COMPRESSION_FIELDS.map((f) => f.tooltip),
       ...VIEWPORT_FIELDS.map((f) => f.tooltip),
-      ...DENOISE_FIELDS.map((f) => f.tooltip),
       ...SVG_FIELDS.map((f) => f.tooltip),
       ...BROWSER_FIELDS.map((f) => f.tooltip),
       ...QUALITY_CAP_FIELDS.map((f) => f.tooltip),
@@ -513,7 +503,6 @@ describe('field metadata', () => {
       ...QUALITY_CAP_TOGGLES,
       ...COMPRESSION_FIELDS,
       ...VIEWPORT_FIELDS,
-      ...DENOISE_FIELDS,
       ...SVG_FIELDS,
       ...QUALITY_CAP_FIELDS,
       ...BROWSER_FIELDS,

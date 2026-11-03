@@ -109,4 +109,15 @@ test.describe('Docs pages fit narrow viewports', () => {
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth).toBeLessThanOrEqual(360);
   });
+
+  // The page is not .prose, so the global long-token wrapping rule does not
+  // reach it, and the source URL it prints is one long token. The PR sweep of
+  // the geometry oracle measures 375, where that token still fits; 320 is where
+  // it pushed the page wide.
+  test('/ai-crawler-cost/ has no horizontal scroll at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto('/ai-crawler-cost/');
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(320);
+  });
 });

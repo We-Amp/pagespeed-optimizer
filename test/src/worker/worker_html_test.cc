@@ -23,7 +23,9 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <vector>
 
+#include "cyclone/cache.hpp"
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
 #include "lib/cache/cache.h"
@@ -36,6 +38,7 @@
 #include "src/worker/browser_analysis_manager.h"
 #include "src/worker/url_registry.h"
 #include "src/worker/worker.h"
+#include "test/test_util/cache_test_peer.h"
 #include "test/test_util/temp_dir.h"
 #include "test/test_util/worker_quiescence.h"
 
@@ -54,8 +57,9 @@ TEST_F(WorkerTest, HtmlNotificationStoresPreloadHints) {
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
-  // Keep the sheets render-blocking: async-deferred sheets get no preload
-  // hint, and this test asserts the stylesheet hints ARE stored.
+  // Async CSS off: the sheets stay render-blocking links, they keep their
+  // preload hints, and no critical block is inlined next to them. This test
+  // pins all three.
   config.disable_async_css = true;
 
   Worker worker(config, nullptr);
@@ -107,6 +111,20 @@ TEST_F(WorkerTest, HtmlNotificationStoresPreloadHints) {
     // Verify newline separation.
     EXPECT_NE(hints.find('\n'), std::string::npos);
   }
+
+  // The sheets stay blocking, so the pass has no critical block to write; the
+  // page has nothing else to change, so it is skipped and no variant carries
+  // a block.
+  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+    if (worker.stats().html_assembly_skipped.load() >= 1u) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  EXPECT_GE(worker.stats().html_assembly_skipped.load(), 1u);
+  EXPECT_EQ(worker.stats().html_assembly_complete.load(), 0u);
+  CapabilityMask mask = CapabilityMask::Decode(0);
+  EXPECT_EQ(
+      ReadVariant(worker.cache(), url, mask).find("data-pagespeed-critical"),
+      std::string::npos);
 
   worker.Shutdown();
   worker_thread.join();
@@ -260,6 +278,8 @@ TEST_F(WorkerTest, MultipleHtmlNotificationsWithSpeculationRules) {
   config.enable_speculation_rules = true;
 
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -616,6 +636,8 @@ TEST_F(WorkerTest, HtmlWriteFailureCooldownSkipsWithMessage) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -874,6 +896,8 @@ TEST_F(WorkerTest, HtmlVariantWriteSuccessLogs) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -955,8 +979,9 @@ TEST_F(WorkerTest, HtmlEarlyHintsSentinelWriteContent) {
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
-  // Keep the sheets render-blocking: async-deferred sheets get no preload
-  // hint, and this test asserts all three hint classes appear together.
+  // Async CSS off, so the stylesheets stay render-blocking links and keep
+  // their preload hints; this test asserts all three hint classes appear
+  // together.
   config.disable_async_css = true;
 
   Worker worker(config, nullptr);
@@ -1412,6 +1437,8 @@ TEST_F(WorkerTest, HtmlExternalCssGatheringWithMeta) {
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, nullptr);
   ASSERT_TRUE(worker.Initialize());
 
@@ -1467,6 +1494,190 @@ TEST_F(WorkerTest, HtmlExternalCssGatheringWithMeta) {
   // kFlagWorkerProcessed should be SET.
   EXPECT_NE(result->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0)
       << "kFlagWorkerProcessed should be set on worker-written variant";
+}
+
+// =============================================================================
+// Pages stored by an earlier metadata version are rebuilt
+// =============================================================================
+
+// Writes worker-built HTML the way metadata version 8 stored it, header copy
+// included, at the slot `mask` selects.
+void StoreAtVersionEight(PageSpeedCache* cache, const std::string& path,
+                         const CapabilityMask& mask, const std::string& body) {
+  AlternateMetadata meta;
+  meta.full_mask = mask.Encode();
+  meta.content_type = ContentType::kHtml;
+  meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+  meta.origin_content_type = "text/html";
+  meta.origin_cache_control = "max-age=600";
+  auto prefix = meta.Serialize();
+  prefix[0] = std::byte{8};
+  std::vector<std::byte> blob = prefix;
+  for (char c : body) blob.push_back(static_cast<std::byte>(c));
+  auto key = PageSpeedCache::ComposeKeyPreNormalized(path, "", "https");
+  auto wh = PageSpeedCacheTestPeer::Cyclone(*cache).write_alternate_sync(
+      key,
+      static_cast<cyclone::AlternateId>(
+          MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF))),
+      blob.size());
+  ASSERT_TRUE(wh.has_value());
+  wh->set_header(prefix);
+  ASSERT_TRUE(wh->write_sync(std::span(blob)).has_value());
+  ASSERT_TRUE(wh->close_sync().has_value());
+}
+
+// What the front end does on the miss: record the origin's bytes at the
+// identity slot.
+void RecordOrigin(PageSpeedCache* cache, const std::string& path,
+                  const std::string& html) {
+  CapabilityMask identity;
+  AlternateMetadata meta;
+  meta.full_mask = identity.Encode();
+  meta.content_type = ContentType::kHtml;
+  meta.origin_content_type = "text/html";
+  meta.origin_cache_control = "max-age=600";
+  auto wh = cache->WriteAlternate(
+      path, "", "https",
+      MaskToAlternateId(static_cast<uint8_t>(identity.Encode() & 0xFF)),
+      html.size(), meta);
+  ASSERT_TRUE(wh.has_value());
+  ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span(html.data(), html.size())))
+                  .has_value());
+  ASSERT_TRUE(wh->close_sync().has_value());
+}
+
+CapabilityMask WithEncoding(CapabilityMask::TransferEncoding encoding) {
+  CapabilityMask mask;
+  mask.set_transfer_encoding(encoding);
+  return mask;
+}
+
+TEST_F(WorkerTest, HtmlStoredByEarlierVersionIsRebuiltFromTheOrigin) {
+  // A cache written before metadata version 9 holds worker-built HTML: the
+  // page and its gzip and brotli copies.  Those read as a miss; the front end
+  // records the origin's bytes again and notifies, and the worker must write
+  // a fresh page and fresh copies.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/earlier-version.html";
+  const std::string path = StripSchemeAuthority(url);
+  const CapabilityMask identity;
+  const CapabilityMask gzip =
+      WithEncoding(CapabilityMask::TransferEncoding::kGzip);
+  const CapabilityMask brotli =
+      WithEncoding(CapabilityMask::TransferEncoding::kBrotli);
+  for (const auto& mask : {identity, gzip, brotli}) {
+    ASSERT_NO_FATAL_FAILURE(
+        StoreAtVersionEight(worker.cache(), path, mask, "EARLIER"));
+  }
+  for (const auto& mask : {identity, gzip, brotli}) {
+    EXPECT_FALSE(
+        worker.cache()->ReadBestAlternate(path, "", "https", mask).has_value());
+  }
+
+  const std::string html =
+      "<html><head></head><body><h1>Rebuilt page</h1>"
+      "<img src=\"photo1.jpg\"><img src=\"photo2.jpg\">"
+      "<img src=\"photo3.jpg\"><img src=\"photo4.jpg\">"
+      "</body></html>";
+  ASSERT_NO_FATAL_FAILURE(RecordOrigin(worker.cache(), path, html));
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = identity.Encode();  // a desktop client
+  SendNotification(notification);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
+
+  // This test shares the worker's process and its RAM tier, which writes do
+  // not refresh: drop what the reads above left there.
+  for (const auto& mask : {identity, gzip, brotli}) {
+    worker.cache()->EvictAlternateFromRamCache(
+        path, "", "https",
+        MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF)));
+  }
+
+  auto page = ReadVariantWithMeta(worker.cache(), url, identity);
+  ASSERT_TRUE(page.has_value()) << "the page was not rebuilt";
+  EXPECT_EQ(page->content.find("EARLIER"), std::string::npos);
+  EXPECT_NE(page->content.find("Rebuilt page"), std::string::npos);
+  EXPECT_NE(page->content.find("loading=\"lazy\""), std::string::npos);
+  EXPECT_NE(page->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0);
+  EXPECT_EQ(page->metadata.version, AlternateMetadata::kCurrentVersion);
+
+  for (const auto& mask : {gzip, brotli}) {
+    auto copy = ReadVariantWithMeta(worker.cache(), url, mask);
+    ASSERT_TRUE(copy.has_value()) << "a compressed copy was not rebuilt";
+    EXPECT_EQ(copy->content.find("EARLIER"), std::string::npos);
+    EXPECT_NE(copy->metadata.flags & AlternateMetadata::kFlagWorkerProcessed,
+              0);
+    EXPECT_EQ(copy->metadata.version, AlternateMetadata::kCurrentVersion);
+  }
+}
+
+TEST_F(WorkerTest, HtmlStoredByEarlierVersionThatNowStaysUnchangedIsServed) {
+  // The same starting cache, but the page the origin now returns gets no
+  // transform, so the worker writes no copies over the earlier ones.  Those
+  // must not keep every compressed request on a miss: the recorded page is
+  // what every client is served.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.enable_speculation_rules = false;
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/earlier-unchanged.html";
+  const std::string path = StripSchemeAuthority(url);
+  const CapabilityMask identity;
+  const CapabilityMask gzip =
+      WithEncoding(CapabilityMask::TransferEncoding::kGzip);
+  const CapabilityMask brotli =
+      WithEncoding(CapabilityMask::TransferEncoding::kBrotli);
+  for (const auto& mask : {identity, gzip, brotli}) {
+    ASSERT_NO_FATAL_FAILURE(
+        StoreAtVersionEight(worker.cache(), path, mask, "EARLIER"));
+  }
+  const std::string html =
+      "<html><head></head><body><p>Plain text only</p></body></html>";
+  ASSERT_NO_FATAL_FAILURE(RecordOrigin(worker.cache(), path, html));
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = identity.Encode();  // a desktop client
+  SendNotification(notification);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().errors.load(), 0u);
+
+  for (const auto& mask : {identity, gzip, brotli}) {
+    auto served = worker.cache()->ReadBestAlternate(path, "", "https", mask);
+    ASSERT_TRUE(served.has_value())
+        << "encoding " << static_cast<int>(mask.transfer_encoding());
+    auto content = served->content();
+    EXPECT_EQ(std::string(reinterpret_cast<const char*>(content.data()),
+                          content.size()),
+              html);
+  }
 }
 
 }  // namespace

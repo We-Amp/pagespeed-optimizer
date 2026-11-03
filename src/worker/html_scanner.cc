@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -22,6 +23,7 @@
 #include "lib/base/string_util.h"
 #include "lib/base/url_util.h"
 #include "lib/classify/url_normalizer.h"
+#include "lib/css/css_import_flattener.h"
 #include "lib/html/compat/message_handler.h"
 #include "lib/html/empty_html_filter.h"
 #include "lib/html/html_element.h"
@@ -33,6 +35,53 @@
 namespace pagespeed {
 
 namespace {
+
+// True when the inline handler text sets the element's media: an assignment
+// to a `media` property (`this.media='all'`, `this['media'] = x`) or a
+// `setAttribute('media', ...)` or `removeAttribute('media')` call. Reading
+// it, comparing it or any other handler does not.
+bool HandlerSetsMedia(const char* handler) {
+  if (handler == nullptr) return false;
+  const std::string_view text(handler);
+  const auto is_ident = [](char c) {
+    return absl::ascii_isalnum(static_cast<unsigned char>(c)) || c == '_' ||
+           c == '$';
+  };
+  const auto is_skipped = [](char c) {
+    return absl::ascii_isspace(static_cast<unsigned char>(c)) || c == '\'' ||
+           c == '"';
+  };
+  constexpr std::string_view kMedia = "media";
+  for (size_t pos = text.find(kMedia); pos != std::string_view::npos;
+       pos = text.find(kMedia, pos + kMedia.size())) {
+    if (pos > 0 && is_ident(text[pos - 1])) continue;
+    size_t after = pos + kMedia.size();
+    if (after < text.size() && is_ident(text[after])) continue;
+    // `media = value`, `['media'] = value`; not `media == value`.
+    size_t i = after;
+    while (i < text.size() && (is_skipped(text[i]) || text[i] == ']')) ++i;
+    if (i < text.size() && text[i] == '=' &&
+        (i + 1 >= text.size() || text[i + 1] != '=')) {
+      return true;
+    }
+    // `setAttribute('media', value)`, `removeAttribute('media')`.
+    size_t j = pos;
+    while (j > 0 && is_skipped(text[j - 1])) --j;
+    if (j > 0 && text[j - 1] == '(') {
+      --j;
+      while (j > 0 &&
+             absl::ascii_isspace(static_cast<unsigned char>(text[j - 1]))) {
+        --j;
+      }
+      const std::string_view callee = text.substr(0, j);
+      if (callee.ends_with("setAttribute") ||
+          callee.ends_with("removeAttribute")) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 // Extract the origin (scheme + host) from a URL string.
 // Returns empty string if the URL is not absolute (no scheme://host).
@@ -122,26 +171,28 @@ bool ParentIsPicture(const net_instaweb::HtmlElement* element) {
 // treats <noscript> content as raw text, and current browsers do the same for
 // the other two. <template> content is inert. HtmlTransformFilter's
 // InsideNonDocumentSubtree and the validator name the same subtrees for block
-// placement, with one difference: they never anchor on an <svg> <style>
-// (inserting a block there would not parse as a stylesheet), while here an
-// <svg> <style> IS collected, because it styles the whole document.
+// placement, and also never anchor anywhere inside <svg> or <math>.
+//
+// The parser reads inline SVG and MathML as browsers do and gives their
+// elements no keyword, so an SVG or MathML <style>, <script>, <link> or
+// <noscript> never reaches the keyword rules here: its content is markup, not
+// the page's CSS. An HTML element inside an integration point (such as SVG
+// foreignObject) keeps its keyword and is an HTML element again.
 struct StyleScope {
-  bool noscript = false;  // inside <noscript>
-  bool inert = false;     // inside <template>, <noembed> or <noframes>
-  bool svg = false;       // inside inline <svg>
-  bool math = false;      // inside <math>
+  bool noscript = false;  // inside an HTML <noscript>
+  bool inert = false;     // inside an HTML <template>, <noembed> or <noframes>
+  bool svg = false;       // an element of SVG content (see ForeignNsOf)
+  bool math = false;      // an element of MathML content (see ForeignNsOf)
 
   // A <link> here is an HTML stylesheet link that applies to the document.
   // In foreign content a <link> is not an HTML element at all.
   [[nodiscard]] bool LinkApplies() const {
     return !noscript && !inert && !svg && !math;
   }
-  // A <style> here applies to the document. An SVG <style> in inline <svg>
-  // does (it is a document stylesheet); a <style> directly in <math> is an
-  // unknown MathML element and styles nothing.
-  [[nodiscard]] bool StyleApplies() const {
-    return !noscript && !inert && !math;
-  }
+  // A <style> here applies to the document. A <style> with a keyword is an
+  // HTML style element, which applies wherever it stands, inside an
+  // integration point too.
+  [[nodiscard]] bool StyleApplies() const { return !noscript && !inert; }
   // The only place an author's <noscript> twin of a script-loaded sheet can
   // stand: in <noscript> and nowhere else that would disqualify it.
   [[nodiscard]] bool NoscriptOnly() const {
@@ -149,9 +200,81 @@ struct StyleScope {
   }
 };
 
+enum class ElementNs : std::uint8_t { kHtml, kSvg, kMath };
+
+bool NameIs(const net_instaweb::HtmlElement& element, std::string_view name) {
+  return net_instaweb::StringCaseEqual(element.name_str(), name);
+}
+
+// The namespace of element when the parser opened it with the rules for
+// foreign content, and kHtml when it opened it with the HTML rules (an HTML
+// element, or the <svg> or <math> element that starts SVG or MathML content).
+// Recomputed from the ancestors with the parser's rules (HTML Standard
+// section 13.2.6): <svg> and <math> open SVG and MathML content, and inside
+// an integration point (SVG foreignObject, desc and title; MathML mi, mo, mn,
+// ms and mtext, except for mglyph and malignmark; MathML annotation-xml with
+// an HTML encoding; <svg> directly inside annotation-xml) the HTML rules apply
+// again. The start tags that end foreign content never have an SVG or MathML
+// parent, as the parser closes the foreign elements first.
+ElementNs ForeignNsOf(const net_instaweb::HtmlElement* element) {
+  struct Context {
+    ElementNs ns = ElementNs::kHtml;
+    bool html_ip = false;  // an HTML integration point
+    bool text_ip = false;  // a MathML text integration point
+    bool annotation_xml = false;
+  };
+  std::vector<const net_instaweb::HtmlElement*> chain;
+  for (const net_instaweb::HtmlElement* p = element; p != nullptr;
+       p = p->parent()) {
+    chain.push_back(p);
+  }
+  Context parent;  // the document
+  bool foreign_rules = false;
+  for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+    const net_instaweb::HtmlElement& e = **it;
+    const bool html_rules =
+        parent.ns == ElementNs::kHtml || parent.html_ip ||
+        (parent.text_ip && !NameIs(e, "mglyph") && !NameIs(e, "malignmark")) ||
+        (parent.annotation_xml && NameIs(e, "svg"));
+    Context context;
+    if (!html_rules) {
+      context.ns = parent.ns;
+    } else if (NameIs(e, "svg")) {
+      context.ns = ElementNs::kSvg;
+    } else if (NameIs(e, "math")) {
+      context.ns = ElementNs::kMath;
+    }
+    if (context.ns == ElementNs::kSvg) {
+      context.html_ip =
+          NameIs(e, "foreignObject") || NameIs(e, "desc") || NameIs(e, "title");
+    } else if (context.ns == ElementNs::kMath) {
+      context.text_ip = NameIs(e, "mi") || NameIs(e, "mo") || NameIs(e, "mn") ||
+                        NameIs(e, "ms") || NameIs(e, "mtext");
+      context.annotation_xml = NameIs(e, "annotation-xml");
+      if (context.annotation_xml) {
+        // Only the first encoding attribute counts.
+        for (const auto& attr : e.attributes()) {
+          if (net_instaweb::StringCaseEqual(attr.name_str(), "encoding")) {
+            const char* value = attr.DecodedValueOrNull();
+            context.html_ip =
+                value != nullptr &&
+                (net_instaweb::StringCaseEqual(value, "text/html") ||
+                 net_instaweb::StringCaseEqual(value, "application/xhtml+xml"));
+            break;
+          }
+        }
+      }
+    }
+    foreign_rules = !html_rules;
+    parent = context;
+  }
+  return foreign_rules ? parent.ns : ElementNs::kHtml;
+}
+
 StyleScope ScopeOf(const net_instaweb::HtmlElement* element) {
   using net_instaweb::HtmlName;
   StyleScope scope;
+  bool svg_or_math_ancestor = false;
   for (const net_instaweb::HtmlElement* p = element->parent(); p != nullptr;
        p = p->parent()) {
     switch (p->keyword()) {
@@ -167,11 +290,14 @@ StyleScope ScopeOf(const net_instaweb::HtmlElement* element) {
         break;
     }
     // <svg> and <math> are not interned keywords.
-    if (net_instaweb::StringCaseEqual(p->name_str(), "svg")) {
-      scope.svg = true;
-    } else if (net_instaweb::StringCaseEqual(p->name_str(), "math")) {
-      scope.math = true;
+    if (NameIs(*p, "svg") || NameIs(*p, "math")) {
+      svg_or_math_ancestor = true;
     }
+  }
+  if (svg_or_math_ancestor) {
+    const ElementNs ns = ForeignNsOf(element);
+    scope.svg = ns == ElementNs::kSvg;
+    scope.math = ns == ElementNs::kMath;
   }
   return scope;
 }
@@ -353,12 +479,20 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
     // <noembed> and <noframes>. Such an element, and everything inside one, is
     // not part of the page the critical block is for, so it stays out of
     // `elements`: its classes would otherwise pull rules into
-    // the block. It is still recorded for the template hash.
+    // the block. It is still recorded for the template hash. The same names in
+    // SVG and MathML content, where the parser gives them no keyword, stay out
+    // too (streaming markup puts a <template> in an <svg>), as
+    // StripNoscriptElements expects for its cross-check.
+    const bool inert_name =
+        keyword == net_instaweb::HtmlName::kNotAKeyword &&
+        (NameIs(*element, "noscript") || NameIs(*element, "template") ||
+         NameIs(*element, "noembed") || NameIs(*element, "noframes"));
     const bool inert = (!ancestor_inert_.empty() && ancestor_inert_.back()) ||
                        keyword == net_instaweb::HtmlName::kNoscript ||
                        keyword == net_instaweb::HtmlName::kTemplate ||
                        keyword == net_instaweb::HtmlName::kNoembed ||
-                       keyword == net_instaweb::HtmlName::kNoframes;
+                       keyword == net_instaweb::HtmlName::kNoframes ||
+                       inert_name;
     ancestor_inert_.push_back(inert);
     TrackNoscriptRender(element, keyword, worker_injected);
     if (!worker_injected &&
@@ -437,6 +571,14 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
                 element->AttributeValue(net_instaweb::HtmlName::kType))) {
           // Not fetched as CSS by the browser, wherever it stands.
         } else if (scope.LinkApplies()) {
+          link.print_media_swapped_on_load =
+              !deferred_primary &&
+              net_instaweb::StringCaseEqual(link.media, "print") &&
+              HandlerSetsMedia(
+                  element->AttributeValue(net_instaweb::HtmlName::kOnload));
+          link.may_not_block_paint =
+              !deferred_primary &&
+              (in_body_ || link.print_media_swapped_on_load);
           pending_stylesheets_.emplace_back(std::move(link),
                                             PendingKind::kApplies);
         } else if (scope.NoscriptOnly()) {
@@ -465,6 +607,7 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
           const char* media =
               element->AttributeValue(net_instaweb::HtmlName::kMedia);
           if (media != nullptr) link.media = media;
+          link.may_not_block_paint = true;
           pending_stylesheets_.emplace_back(std::move(link),
                                             PendingKind::kScriptLoaded);
         }
@@ -541,6 +684,17 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
               element->AttributeValue(net_instaweb::HtmlName::kType)) &&
           ScopeOf(element).StyleApplies()) {
         in_style_ = true;
+        // A <style> with a media attribute applies under that media only, so
+        // its body joins `inline_css` inside an @media block of the same
+        // media (on EndElement, once the whole body is read), never as
+        // unconditional rules: a print <style> must not style the screen.
+        const char* media =
+            element->AttributeValue(net_instaweb::HtmlName::kMedia);
+        const std::optional<std::string_view> scope =
+            css::CombinedSheetMediaScope(media != nullptr ? media : "");
+        style_media_unusable_ = !scope.has_value();
+        style_media_scope_ = scope.has_value() ? std::string(*scope) : "";
+        style_body_.clear();
         // The same <style> is a cascade-layer source, at this position.
         RecordStyleSource(element);
       }
@@ -855,6 +1009,22 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
 
     // Track when we exit a <style> tag
     if (element->keyword() == net_instaweb::HtmlName::kStyle) {
+      if (in_style_ && !style_media_scope_.empty() && !style_body_.empty() &&
+          result_->inline_css.size() + 1 +
+                  css::MediaScopedCssSize(style_media_scope_,
+                                          style_body_.size()) <=
+              kMaxInlineCssBytes) {
+        // A body that cannot be wrapped in its media safely adds nothing.
+        const size_t before = result_->inline_css.size();
+        if (!result_->inline_css.empty()) result_->inline_css += "\n";
+        if (!css::AppendMediaScopedCss(style_media_scope_, style_body_,
+                                       &result_->inline_css)) {
+          result_->inline_css.resize(before);
+        }
+      }
+      style_body_.clear();
+      style_media_scope_.clear();
+      style_media_unusable_ = false;
       in_style_ = false;
       style_source_ = -1;
     }
@@ -968,9 +1138,18 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
     // Collect content of <style> tags
     if (in_style_) {
       std::string_view content = characters->contents();
-      // Cap inline CSS at 2MB to prevent unbounded growth on malformed HTML.
-      if (result_->inline_css.size() + content.size() <=
-          size_t{2} * 1024 * 1024) {
+      if (!style_media_scope_.empty()) {
+        // Held until EndElement wraps the whole body in its @media block.
+        if (style_body_.size() + content.size() <= kMaxInlineCssBytes) {
+          if (!style_body_.empty()) style_body_ += "\n";
+          style_body_ += content;
+        }
+      } else if (style_media_unusable_) {
+        // A media value no browser parses: the <style> applies nowhere.
+      } else if (result_->inline_css.size() + content.size() <=
+                 kMaxInlineCssBytes) {
+        // Cap inline CSS at 2MB to prevent unbounded growth on malformed
+        // HTML.
         if (!result_->inline_css.empty()) {
           result_->inline_css += "\n";
         }
@@ -989,8 +1168,10 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
   }
 
  private:
+  // The cap on the combined inline CSS.
+  static constexpr size_t kMaxInlineCssBytes = size_t{2} * 1024 * 1024;
   // The same cap as the combined inline CSS.
-  static constexpr size_t kMaxSourceCssBytes = size_t{2} * 1024 * 1024;
+  static constexpr size_t kMaxSourceCssBytes = kMaxInlineCssBytes;
 
   // A <style> that StartElement's stylesheet-source rule collects into the
   // combined inline
@@ -1199,6 +1380,12 @@ class ElementCollectorFilter : public net_instaweb::EmptyHtmlFilter {
   int depth_{0};
   int element_index_{0};
   bool in_style_{false};
+  // For the open <style>: the media its body is scoped to in `inline_css`
+  // ("" when it applies as written), the body read so far when it is scoped,
+  // and whether its media value is one no browser parses.
+  std::string style_media_scope_;
+  std::string style_body_;
+  bool style_media_unusable_{false};
   // Index in stylesheet_sources of the <style> being read, or -1.
   int style_source_{-1};
   size_t source_css_bytes_{0};

@@ -10,6 +10,8 @@ lastUpdated: 2026-10-22
 
 mod_pagespeed includes filters for JavaScript minification, combining, inlining, and deferring execution. Three JS filters are CoreFilters: `rewrite_javascript`, `combine_javascript`, and `inline_javascript`.
 
+On pages mod_pagespeed recognizes as hydrated, some of these filters do not run. See [Hydrated pages](/docs/hydrated-pages/).
+
 ## Quick reference
 
 | Filter                                                                    | Core | OFB | Description                                          | Safe          |

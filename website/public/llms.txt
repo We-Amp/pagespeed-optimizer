@@ -8,7 +8,7 @@ Heritage: mod_pagespeed, the open-source optimization core this product continue
 
 What it does:
 
-- Image optimization in the optimizer worker: WebP, AVIF and SVG transcoding, viewport-aware resizing, learned per-format quality prediction with SSIMULACRA2 verification, content-aware classification and denoising, up to 37 variants per image (36 raster plus one SVG)
+- Image optimization in the optimizer worker: WebP, AVIF and SVG transcoding, viewport-aware resizing, learned per-format quality prediction with SSIMULACRA2 verification, content-aware classification, up to 37 variants per image (36 raster plus one SVG)
 - CSS optimization: minification, heuristic critical-CSS extraction with an optional headless-browser pipeline, non-blocking stylesheet loading
 - JavaScript optimization: safe minification and browser-analysis-driven script deferral, no AST transforms
 - HTML optimization: critical CSS injection, 103 Early Hints, lazy-loading attributes, image dimensions, LCP image preload, font preloading, preconnect hints
@@ -74,6 +74,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
 - [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
 - [Rule packs](https://modpagespeed.com/docs/rule-packs/): Rule packs for Apache, nginx and IIS: JSON rules for the canonical, title, description, hreflang and JSON-LD of your pages, in report mode first.
+- [Hydrated pages](https://modpagespeed.com/docs/hydrated-pages/): How mod_pagespeed handles hydrated React, Next.js, Vue, Nuxt and Svelte pages, what to do when recognition misses one, and the DetectHydratedPages option.
 - [Collapse whitespace (collapse_whitespace)](https://modpagespeed.com/docs/filters/collapse_whitespace/): Removes excess whitespace from HTML.
 - [Combine CSS (combine_css)](https://modpagespeed.com/docs/filters/combine_css/): Combines multiple CSS files into one.
 - [Combine heads (combine_heads)](https://modpagespeed.com/docs/filters/combine_heads/): Merges multiple <head> elements.

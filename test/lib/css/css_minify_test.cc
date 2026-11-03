@@ -124,6 +124,67 @@ TEST(CssMinifyTest, OnlyWhitespace) { ExpectMinify("   \t\n  ", ""); }
 
 TEST(CssMinifyTest, OnlyComments) { ExpectMinify("/* comment only */", ""); }
 
+// ========== Preserved comments (#582) ==========
+// A comment starting with /*! or containing @license or @preserve
+// survives byte for byte, in its position (whitespace around it still
+// collapses by the normal rules); every other comment is still
+// dropped.  ExpectMinify re-runs the idempotence oracle on each.
+
+TEST(CssMinifyTest, PreservedCommentAtTop) {
+  ExpectMinify("/*! banner v2 */ h1 { color: red; }",
+               "/*! banner v2 */ h1{color:red}");
+}
+
+TEST(CssMinifyTest, PreservedCommentBetweenRules) {
+  ExpectMinify("h1 { color: red; } /*! keep me */ p { color: blue; }",
+               "h1{color:red}/*! keep me */ p{color:blue}");
+}
+
+TEST(CssMinifyTest, PreservedCommentInsideRule) {
+  ExpectMinify("h1 { /*! keep */ color: red; }", "h1{/*! keep */ color:red}");
+}
+
+TEST(CssMinifyTest, PreservedCommentStillMinifiesAroundIt) {
+  ExpectMinify("/*! v */ h1 { margin: 0.5em; }", "/*! v */ h1{margin:.5em}");
+}
+
+TEST(CssMinifyTest, OrdinaryCommentStillDroppedNextToPreserved) {
+  ExpectMinify("/* drop */ h1 { /* drop too */ color: red; /* drop */ }",
+               "h1{color:red}");
+  ExpectMinify("h1{color:red}/* ordinary *//*! kept */p{color:blue}",
+               "h1{color:red}/*! kept */p{color:blue}");
+}
+
+TEST(CssMinifyTest, LicenseAndPreserveCommentsKept) {
+  ExpectMinify("/* @license MIT */ h1{color:red}",
+               "/* @license MIT */ h1{color:red}");
+  ExpectMinify("/*\n@preserve\n*/ h1{color:red}",
+               "/*\n@preserve\n*/ h1{color:red}");
+}
+
+TEST(CssMinifyTest, PreservedCommentInCustomPropertyValue) {
+  // Custom-property values are opaque; the comment's bytes are value
+  // content and stay verbatim.
+  ExpectMinify(":root{--x:/*! keep */ v}", ":root{--x:/*! keep */ v}");
+}
+
+TEST(CssMinifyTest, PreservedCommentUnterminated) {
+  // No "*/" and no crash: the comment runs to end of input and is
+  // closed on output, so the result stays well-formed when it is
+  // concatenated with other CSS.
+  ExpectMinify("h1{color:red}/*! never closed",
+               "h1{color:red}/*! never closed*/");
+  ExpectMinify("/*!", "/*!*/");
+  // "/*!/" is not a closed comment either.
+  ExpectMinify("/*!/", "/*!/*/");
+  // Concatenated output keeps the following rule.
+  std::string out;
+  ASSERT_TRUE(pagespeed::css::MinifyCss("a{b:c}/*! open", &out));
+  std::string both;
+  ASSERT_TRUE(pagespeed::css::MinifyCss(out + "p{q:r}", &both));
+  EXPECT_EQ(both, "a{b:c}/*! open*/p{q:r}");
+}
+
 TEST(CssMinifyTest, NestedMediaRule) {
   ExpectMinify(
       "@media screen { @media (min-width: 768px) { h1 { color: red; } } }",

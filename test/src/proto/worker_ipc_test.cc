@@ -5,6 +5,7 @@
 
 #include "src/proto/worker_ipc.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -253,7 +254,7 @@ TEST(CacheNotificationTest, DeserializeRejectsV2Format) {
   EXPECT_FALSE(CacheNotification::Deserialize(
       std::string_view(wire.data(), wire.size()), &decoded));
 
-  // Corrupt version byte to 3, then 4 (both now superseded — v5 is current).
+  // Corrupt version byte to 3, 4, then 5 (all superseded — v6 is current).
   wire[4] = 3;
   EXPECT_FALSE(CacheNotification::Deserialize(
       std::string_view(wire.data(), wire.size()), &decoded));
@@ -262,8 +263,12 @@ TEST(CacheNotificationTest, DeserializeRejectsV2Format) {
   EXPECT_FALSE(CacheNotification::Deserialize(
       std::string_view(wire.data(), wire.size()), &decoded));
 
-  // Corrupt version byte to 6 (future).
-  wire[4] = 6;
+  wire[4] = 5;
+  EXPECT_FALSE(CacheNotification::Deserialize(
+      std::string_view(wire.data(), wire.size()), &decoded));
+
+  // Corrupt version byte to 7 (future).
+  wire[4] = 7;
   EXPECT_FALSE(CacheNotification::Deserialize(
       std::string_view(wire.data(), wire.size()), &decoded));
 }
@@ -484,9 +489,10 @@ TEST(CacheNotificationTest, DeserializeInvalidScheme) {
 
   std::vector<char> wire = original.Serialize();
 
-  // v5 tail after the scheme byte: agent_request(1) + option_context_length(4)
-  // + option_context(0 here) + option_signature_length(1) + signature(0 here).
-  const size_t scheme_idx = wire.size() - 7;
+  // Tail after the scheme byte: agent_request(1) + option_context_length(4)
+  // + option_context(0 here) + option_signature_length(1) + signature(0 here)
+  // + site_length(1, v6) + site(0 here) + flags(1, v6).
+  const size_t scheme_idx = wire.size() - 9;
   ASSERT_EQ(0x02u, static_cast<unsigned char>(wire[scheme_idx]))
       << "scheme byte is not where this test thinks it is";
   wire[scheme_idx] = 0x00;  // Invalid scheme byte
@@ -539,14 +545,15 @@ TEST(CacheNotificationTest, BigEndianEncoding) {
   // = 1(version) + 4(url_len) + 2(url) + 4(host_len) + 1(host) +
   //   1(ct) + 4(mask) + 1(scheme) + 1(agent_request, v4)
   //   + 4(option_context_len, v5) + 0(option_context)
-  //   + 1(option_signature_len, v5) + 0(option_signature) = 24
+  //   + 1(option_signature_len, v5) + 0(option_signature)
+  //   + 1(site_len, v6) + 0(site) + 1(flags, v6) = 26
   EXPECT_EQ(0u, u(wire[0]));
   EXPECT_EQ(0u, u(wire[1]));
   EXPECT_EQ(0u, u(wire[2]));
-  EXPECT_EQ(24u, u(wire[3]));
+  EXPECT_EQ(26u, u(wire[3]));
 
-  // Byte 4: version = 5
-  EXPECT_EQ(5u, u(wire[4]));
+  // Byte 4: version = 6
+  EXPECT_EQ(6u, u(wire[4]));
 
   // url_length = 2
   EXPECT_EQ(0u, u(wire[5]));
@@ -591,8 +598,12 @@ TEST(CacheNotificationTest, BigEndianEncoding) {
   // option_signature_length = 0 (v5)
   EXPECT_EQ(0u, u(wire[27]));
 
-  // Total wire size = 4 (framing) + 24 (payload) = 28
-  EXPECT_EQ(28u, wire.size());
+  // site_length = 0 (v6), flags = 0 (v6)
+  EXPECT_EQ(0u, u(wire[28]));
+  EXPECT_EQ(0u, u(wire[29]));
+
+  // Total wire size = 4 (framing) + 26 (payload) = 30
+  EXPECT_EQ(30u, wire.size());
 }
 
 // ============================================================================
@@ -689,9 +700,9 @@ std::vector<char> BuildV4Frame() {
 
 }  // namespace
 
-TEST(CacheNotificationTest, ThisBuildSpeaksVersionFive) {
-  EXPECT_EQ(5, kIpcVersion)
-      << "the option context is a v5 field; if the version moved again, the "
+TEST(CacheNotificationTest, ThisBuildSpeaksVersionSix) {
+  EXPECT_EQ(6, kIpcVersion)
+      << "the site and flags are v6 fields; if the version moved again, the "
          "skew cases below need revisiting rather than renumbering";
 }
 
@@ -861,13 +872,17 @@ TEST(CacheNotificationTest, AHalfContextOnTheWireIsRefusedOnRead) {
   ASSERT_FALSE(wire.empty());
 
   // The signature length byte is the one immediately before the 64-character
-  // signature at the very end of the frame.
-  const size_t sig_len_index = wire.size() - kOptionContextSignatureChars - 1;
+  // signature, which is followed only by the v6 site length and flags bytes.
+  const size_t sig_len_index =
+      wire.size() - 2 - kOptionContextSignatureChars - 1;
   ASSERT_EQ(static_cast<uint8_t>(wire[sig_len_index]),
             kOptionContextSignatureChars);
   wire[sig_len_index] = 0;
   // Drop the now-unreferenced signature bytes and fix the framing length.
-  wire.resize(sig_len_index + 1);
+  wire.erase(
+      wire.begin() + static_cast<std::ptrdiff_t>(sig_len_index + 1),
+      wire.begin() + static_cast<std::ptrdiff_t>(sig_len_index + 1 +
+                                                 kOptionContextSignatureChars));
   const auto total = static_cast<uint32_t>(wire.size() - 4);
   wire[0] = static_cast<char>((total >> 24) & 0xFF);
   wire[1] = static_cast<char>((total >> 16) & 0xFF);
@@ -892,8 +907,8 @@ TEST(CacheNotificationTest, AnOversizedDeclaredContextLengthIsRefusedOnRead) {
   // Overwrite the declared context length with something past the bound. The
   // reader must reject on the DECLARED size, before it tries to read that many
   // bytes out of a frame that does not contain them.
-  const size_t ctx_len_index = wire.size() - kOptionContextSignatureChars - 1 -
-                               n.option_context.size() - 4;
+  const size_t ctx_len_index = wire.size() - 2 - kOptionContextSignatureChars -
+                               1 - n.option_context.size() - 4;
   const uint32_t huge = kMaxOptionContextBytes + 1;
   wire[ctx_len_index + 0] = static_cast<char>((huge >> 24) & 0xFF);
   wire[ctx_len_index + 1] = static_cast<char>((huge >> 16) & 0xFF);
@@ -972,10 +987,11 @@ TEST(CacheNotificationTest, AnUnderDeclaredLengthCannotReachPastItsOwnFrame) {
   const std::vector<char> honest = n.Serialize();
   ASSERT_FALSE(honest.empty());
 
-  // Everything the v5 tail occupies: the context length field, the payload, the
-  // signature length byte, and the signature.
+  // Everything the v5 and v6 tail occupies: the context length field, the
+  // payload, the signature length byte, the signature, the site length byte
+  // (no site here) and the flags byte.
   const size_t tail_len =
-      4 + n.option_context.size() + 1 + n.option_signature.size();
+      4 + n.option_context.size() + 1 + n.option_signature.size() + 1 + 1;
   ASSERT_GT(honest.size(), 4 + tail_len);
 
   // Control first: the identical bytes with an HONEST length are accepted and
@@ -1008,6 +1024,194 @@ TEST(CacheNotificationTest, AnUnderDeclaredLengthCannotReachPastItsOwnFrame) {
   EXPECT_EQ(rejection.peer_version, kIpcVersion);
   EXPECT_TRUE(decoded.option_context.empty());
   EXPECT_TRUE(decoded.option_signature.empty());
+}
+
+// ============================================================================
+// Site and flags (v6)
+// ============================================================================
+
+namespace {
+
+const std::string kSite(kSiteIdChars, 'c');
+
+// Rewrites the site field of a frame that carries a 64-character site,
+// keeping the framing length honest. `site` may be any length up to 255.
+std::vector<char> WithSiteBytes(const std::vector<char>& wire,
+                                const std::string& site) {
+  // The site is the last field but one: [site_len][site][flags].
+  const size_t site_len_index = wire.size() - 1 - kSiteIdChars - 1;
+  std::vector<char> out(
+      wire.begin(), wire.begin() + static_cast<std::ptrdiff_t>(site_len_index));
+  out.push_back(static_cast<char>(site.size()));
+  out.insert(out.end(), site.begin(), site.end());
+  out.push_back(wire.back());
+  const auto total = static_cast<uint32_t>(out.size() - 4);
+  out[0] = static_cast<char>((total >> 24) & 0xFF);
+  out[1] = static_cast<char>((total >> 16) & 0xFF);
+  out[2] = static_cast<char>((total >> 8) & 0xFF);
+  out[3] = static_cast<char>(total & 0xFF);
+  return out;
+}
+
+IpcRejection Rejection(const std::vector<char>& wire) {
+  CacheNotification decoded;
+  IpcRejection rejection;
+  EXPECT_FALSE(CacheNotification::Deserialize(
+      std::string_view(wire.data(), wire.size()), &decoded, &rejection));
+  return rejection;
+}
+
+}  // namespace
+
+TEST(CacheNotificationTest, SiteAndFlagsRoundTrip) {
+  CacheNotification n = BaseNotification();
+  n.site = kSite;
+  n.host_vouched = true;
+  n.from_module = false;
+  n.legacy_ex_caller = true;
+  n.option_context = "psoc1\n";
+  n.option_signature = OptionContextSignature(n.option_context);
+  const std::vector<char> wire = n.Serialize();
+  ASSERT_FALSE(wire.empty());
+
+  CacheNotification decoded;
+  ASSERT_TRUE(CacheNotification::Deserialize(
+      std::string_view(wire.data(), wire.size()), &decoded));
+  EXPECT_EQ(decoded.site, kSite);
+  EXPECT_TRUE(decoded.host_vouched);
+  EXPECT_FALSE(decoded.from_module);
+  EXPECT_TRUE(decoded.legacy_ex_caller);
+  EXPECT_EQ(decoded.option_context, n.option_context);
+  EXPECT_EQ(decoded.url, n.url);
+
+  // The last two bytes are the site's tail and the flags byte.
+  EXPECT_EQ(0x05u, static_cast<uint8_t>(wire.back()));
+}
+
+TEST(CacheNotificationTest, NoSiteAndNoFlagsRoundTripAsUnsitedAndUnvouched) {
+  const std::vector<char> wire = BaseNotification().Serialize();
+  ASSERT_FALSE(wire.empty());
+  EXPECT_EQ(0u, static_cast<uint8_t>(wire[wire.size() - 2]));  // site_length
+  EXPECT_EQ(0u, static_cast<uint8_t>(wire.back()));            // flags
+  CacheNotification decoded;
+  decoded.host_vouched = true;  // must be overwritten
+  ASSERT_TRUE(CacheNotification::Deserialize(
+      std::string_view(wire.data(), wire.size()), &decoded));
+  EXPECT_TRUE(decoded.site.empty());
+  EXPECT_FALSE(decoded.host_vouched);
+  EXPECT_FALSE(decoded.from_module);
+  EXPECT_FALSE(decoded.legacy_ex_caller);
+}
+
+TEST(CacheNotificationTest, FromModuleFlagIsBitOne) {
+  CacheNotification n = BaseNotification();
+  n.site = kSite;
+  n.from_module = true;
+  const std::vector<char> wire = n.Serialize();
+  ASSERT_FALSE(wire.empty());
+  EXPECT_EQ(0x02u, static_cast<uint8_t>(wire.back()));
+}
+
+TEST(CacheNotificationTest, ASiteOfAnyOtherShapeIsNotSerialized) {
+  for (const std::string& bad :
+       {std::string(1, 'a'), std::string(63, 'a'), std::string(65, 'a'),
+        std::string(64, 'A'), std::string(63, 'a') + "g",
+        std::string(63, 'a') + " "}) {
+    CacheNotification n = BaseNotification();
+    n.site = bad;
+    EXPECT_TRUE(n.Serialize().empty()) << "site of length " << bad.size();
+  }
+}
+
+TEST(CacheNotificationTest, ASiteOfAnyOtherShapeIsMalformedOnRead) {
+  CacheNotification n = BaseNotification();
+  n.site = kSite;
+  const std::vector<char> good = n.Serialize();
+  ASSERT_FALSE(good.empty());
+  for (const std::string& bad :
+       {std::string(1, 'a'), std::string(63, 'a'), std::string(65, 'a'),
+        std::string(64, 'A'), std::string(63, 'a') + "g",
+        std::string(63, 'a') + std::string(1, '\0')}) {
+    const IpcRejection r = Rejection(WithSiteBytes(good, bad));
+    EXPECT_EQ(r.reason, IpcRejectReason::kMalformed)
+        << "site of length " << bad.size();
+    EXPECT_EQ(r.peer_version, kIpcVersion);
+  }
+  // Control: the same rewrite with a valid site is accepted.
+  const std::vector<char> rewritten =
+      WithSiteBytes(good, std::string(kSiteIdChars, 'd'));
+  CacheNotification decoded;
+  ASSERT_TRUE(CacheNotification::Deserialize(
+      std::string_view(rewritten.data(), rewritten.size()), &decoded));
+  EXPECT_EQ(decoded.site, std::string(kSiteIdChars, 'd'));
+}
+
+TEST(CacheNotificationTest, AReservedFlagBitIsMalformedOnRead) {
+  for (int bit = 3; bit < 8; ++bit) {
+    std::vector<char> wire = BaseNotification().Serialize();
+    ASSERT_FALSE(wire.empty());
+    wire.back() = static_cast<char>(1u << bit);
+    const IpcRejection r = Rejection(wire);
+    EXPECT_EQ(r.reason, IpcRejectReason::kMalformed) << "bit " << bit;
+  }
+  // Each known bit alone is accepted.
+  for (int bit = 0; bit < 3; ++bit) {
+    std::vector<char> wire = BaseNotification().Serialize();
+    wire.back() = static_cast<char>(1u << bit);
+    CacheNotification decoded;
+    EXPECT_TRUE(CacheNotification::Deserialize(
+        std::string_view(wire.data(), wire.size()), &decoded))
+        << "bit " << bit;
+  }
+}
+
+// The frame the ASP.NET Core middleware writes for a host AllowedHosts names
+// (WorkerNotificationTests in samples/aspnetcore): no options context, no
+// site, flags HOST_VOUCHED only.  The reader takes it as vouched, unsited and
+// not from the module; a reserved bit next to it is still refused.
+TEST(CacheNotificationTest, TheMiddlewaresVouchedFrameIsReadAsVouched) {
+  const std::string url = "http://example.com/vouched";
+  const std::string host = "example.com";
+  std::vector<char> wire = {0, 0, 0, 60, 6, 0, 0, 0, 26};
+  wire.insert(wire.end(), url.begin(), url.end());
+  wire.insert(wire.end(), {0, 0, 0, 11});
+  wire.insert(wire.end(), host.begin(), host.end());
+  wire.insert(wire.end(), {0, 0, 0, 0, 8, 2, 1, 0, 0, 0, 0, 0, 0, 1});
+  ASSERT_EQ(wire.size(), 64u);
+
+  CacheNotification decoded;
+  ASSERT_TRUE(CacheNotification::Deserialize(
+      std::string_view(wire.data(), wire.size()), &decoded));
+  EXPECT_EQ(decoded.url, url);
+  EXPECT_EQ(decoded.hostname, host);
+  EXPECT_TRUE(decoded.agent_request);
+  EXPECT_TRUE(decoded.site.empty());
+  EXPECT_TRUE(decoded.host_vouched);
+  EXPECT_FALSE(decoded.from_module);
+  EXPECT_FALSE(decoded.legacy_ex_caller);
+
+  wire.back() = static_cast<char>(0x01 | 0x08);
+  EXPECT_EQ(Rejection(wire).reason, IpcRejectReason::kMalformed);
+}
+
+TEST(CacheNotificationTest, AFrameWithoutTheFlagsByteIsMalformed) {
+  std::vector<char> wire = BaseNotification().Serialize();
+  wire.pop_back();
+  const auto total = static_cast<uint32_t>(wire.size() - 4);
+  wire[3] = static_cast<char>(total & 0xFF);
+  EXPECT_EQ(Rejection(wire).reason, IpcRejectReason::kMalformed);
+}
+
+TEST(CacheNotificationTest, V5AndV7FramesAreVersionMismatchesWithPeerVersion) {
+  CacheNotification n = BaseNotification();
+  n.site = kSite;
+  for (uint8_t peer : {uint8_t{5}, uint8_t{7}}) {
+    std::vector<char> wire = n.Serialize();
+    wire[4] = static_cast<char>(peer);
+    const IpcRejection r = Rejection(wire);
+    EXPECT_EQ(r.reason, IpcRejectReason::kVersionMismatch);
+    EXPECT_EQ(r.peer_version, peer);
+  }
 }
 
 }  // namespace

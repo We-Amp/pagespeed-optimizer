@@ -2,6 +2,32 @@
 
 Entries for 2.0.x predate the relicensing of the product under the Apache License 2.0; their license and trial wording describes the behavior of those releases.
 
+## Unreleased
+
+### Disabled at startup, enabled later
+
+While the top-level `Enabled` switch (`PageSpeed:Enabled`) is `false`,
+`AddPageSpeed` no longer opens the Cyclone cache volume and `WorkerProcessHost`
+no longer launches `factory_worker`. Previously the 1 GiB volume file was
+created, and the worker launched whenever `Worker.AutoStart` was `true`, even
+while the middleware passed every response through.
+
+The first time `Enabled` is `true`, at startup or through a hot reload, both
+start: the cache volume is opened and the worker is launched, with no restart
+needed, and the next HTML request is optimized. Setting `Enabled` back to
+`false` leaves the open cache and the running worker in place. If the volume
+cannot be opened at that point, pages are still served, optimized but not
+cached, the health check reports `Unhealthy`, and the failure is logged once
+rather than per response; the open is retried at the next configuration
+change.
+
+While no worker runs, its management API is not running either, so the console
+has no worker to show and its `/v1/*` paths answer `503`; the console needs
+`Enabled` set to `true`. Until PageSpeed has been enabled, the health check
+reports `Healthy` with the description `PageSpeed is disabled`.
+`Worker.AutoStart` `false` still means "do not launch a child", and an external
+worker's `Worker.SocketPath` is still used whatever `Enabled` says.
+
 ## 2.0.20
 
 ### Middleware read-back

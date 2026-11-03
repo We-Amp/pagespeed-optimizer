@@ -406,7 +406,19 @@ class PageSpeedCache {
     config_.handler = handler;
   }
 
+  // The key namespace: the first bytes of every key this version composes.
+  // Moving it makes every stored entry unreachable to every other version at
+  // once, at the cost of a cold cache for every component.
+  static constexpr std::string_view kKeyNamespace = "ks2:";
+
   // Compose a CacheKey from URL, pre-normalized hostname, and scheme.
+  //
+  // Every key is "ks2:" followed by the composed string ("scheme://host/url",
+  // or the "oc1:" form below).  "ks2:" is the key namespace: keys composed
+  // without it, as every earlier version did, never equal one composed with
+  // it, so an earlier version cannot reach an entry this one stores and this
+  // one cannot reach an earlier version's.  A test pins the exact strings.
+  //
   // The hostname MUST already be normalized via NormalizeHostname().
   // The scheme MUST be "http" or "https" (validated by caller).
   // This avoids redundant normalization when the caller needs to
@@ -436,20 +448,20 @@ class PageSpeedCache {
   // of it are spent, and a key holds at most 64 alternates against a published
   // budget that already accounts 44.
   //
-  // THE DEFAULT CONTEXT PRODUCES THE OLD KEY, BYTE FOR BYTE. An empty
+  // THE DEFAULT CONTEXT PRODUCES THE DEFAULT KEY, BYTE FOR BYTE. An empty
   // signature, or the signature of the empty context, yields exactly what
   // ComposeKeyPreNormalized above yields — same string, same digest. So a
-  // deployment that sends no option context is unaffected, nothing already
-  // stored moves, and no cache goes cold when this ships. A test pins that
-  // equality rather than leaving it to inspection.
+  // deployment that sends no option context is unaffected by contexts. A test
+  // pins that equality rather than leaving it to inspection.
   //
-  // Injectivity, since the two forms share one hash input space. A
-  // default-context key is always the composed string "scheme://host/url",
+  // Injectivity, since the two forms share one hash input space. Both carry
+  // the same "ks2:" namespace prefix, so they are compared after it. A
+  // default-context key is then the composed string "scheme://host/url",
   // whose scheme the caller has already validated as exactly "http" or
-  // "https"; a context key always begins "oc1:". No validated scheme is a
+  // "https"; a context key always continues "oc1:". No validated scheme is a
   // prefix of "oc1:", so the two shapes are disjoint at their first byte
-  // regardless of what the url or hostname contain — which is the part that
-  // matters, because a url IS attacker-influenced. Within the context form the
+  // after the prefix, regardless of what the url or hostname contain — which
+  // is the part that matters, because a url IS attacker-influenced. Within the context form the
   // signature is a fixed width followed by a separator, so its boundary is
   // unambiguous too, and a test drives a url crafted to imitate the context
   // form.
@@ -465,6 +477,33 @@ class PageSpeedCache {
       std::string_view url, std::string_view normalized_hostname,
       std::string_view scheme, std::string_view option_signature);
 
+  // The same again, scoped to one site: the keyspace of one server block or
+  // virtual host of the front end that recorded the entry.
+  //
+  // `site` is empty, or 64 lowercase hex characters (the SHA-256 of that
+  // block's cache fragment); the caller has validated it. EMPTY IS THE OLD
+  // KEY: the result is exactly the four-argument overload's, so an unsited
+  // caller moves nothing. A non-empty site gives
+  // "ks2:" + "st1:" + site + "@" + the string the four-argument overload
+  // composes after "ks2:", its "oc1:" form included.
+  //
+  // Injectivity, alongside the "oc1:" argument above: the site is fixed width
+  // and followed by "@", so its boundary is unambiguous, and after the "ks2:"
+  // namespace the three shapes differ at their first byte — "s" for a sited
+  // key, "h" for a validated scheme ("http"/"https"), "o" for "oc1:". No url
+  // or hostname can move a key from one shape to another. The hostname inside stays the origin's, for fetches
+  // and same-host tests; only the key is scoped.
+  static cyclone::CacheKey ComposeSiteKeyPreNormalized(
+      std::string_view url, std::string_view normalized_hostname,
+      std::string_view scheme, std::string_view option_signature,
+      std::string_view site);
+
+  // SITE. Every url-based method below takes a trailing `site` and composes
+  // its key through ComposeSiteKeyPreNormalized with the default option
+  // context. Empty (the default) is the unsited keyspace, exactly as before;
+  // a 64-hex site addresses that site's keyspace and nothing else. The
+  // caller validates the site.
+  //
   // Read the best-fit alternate for a client capability mask.
   // Uses PageSpeedSelector to score all stored alternates.
   // Returns CacheError::NotFound if no alternates exist or none match.
@@ -475,7 +514,8 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
   ReadBestAlternate(std::string_view url, std::string_view hostname,
                     std::string_view scheme, const CapabilityMask& mask,
-                    bool agent_request_entitled = false);
+                    bool agent_request_entitled = false,
+                    std::string_view site = {});
 
   // Read best alternate using a pre-composed CacheKey (avoids re-hashing).
   // This is the nginx serve hot path; per the port-parity discipline,
@@ -494,7 +534,8 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
   ReadBestAlternateAgent(std::string_view url, std::string_view hostname,
                          std::string_view scheme, const CapabilityMask& mask,
-                         bool agent_request_entitled);
+                         bool agent_request_entitled,
+                         std::string_view site = {});
 
   // The SINGLE audited agent serve gate, shared by every serve
   // surface (nginx + the native C API + the .NET middleware).  Selects the best
@@ -510,11 +551,14 @@ class PageSpeedCache {
                               const CapabilityMask& mask,
                               bool agent_request_entitled);
 
-  // Read a specific alternate by ID (for sentinel access).
+  // Read a specific alternate by ID.  A content alternate or the agent
+  // Markdown variant whose metadata does not parse (a version this build
+  // refuses, or damage) is a miss; other sentinels have no metadata prefix
+  // and are returned as is.
   // Uses a trivial selector that matches only the requested ID.
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError> ReadAlternate(
       std::string_view url, std::string_view hostname, std::string_view scheme,
-      AlternateId id);
+      AlternateId id, std::string_view site = {});
 
   // Read alternate by pre-composed CacheKey (avoids re-hashing).
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
@@ -527,7 +571,7 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<WriteResult, cyclone::CacheError> WriteAlternate(
       std::string_view url, std::string_view hostname, std::string_view scheme,
       AlternateId id, uint64_t content_length,
-      const AlternateMetadata& metadata);
+      const AlternateMetadata& metadata, std::string_view site = {});
 
   // The same, against a key the caller already has.
   //
@@ -582,7 +626,7 @@ class PageSpeedCache {
   // that gap should check for one first and decide.
   [[nodiscard]] std::expected<WriteResult, cyclone::CacheError> WriteSentinel(
       std::string_view url, std::string_view hostname, std::string_view scheme,
-      SentinelId sentinel, uint64_t content_length);
+      SentinelId sentinel, uint64_t content_length, std::string_view site = {});
 
   // Write the agent_optimize markdown variant. It is stored under
   // the kAgentMarkdown=0x7C sentinel id but, UNLIKE WriteSentinel, WITH a
@@ -602,7 +646,8 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<WriteResult, cyclone::CacheError>
   WriteAgentAlternate(std::string_view url, std::string_view hostname,
                       std::string_view scheme, uint64_t content_length,
-                      const AlternateMetadata& metadata);
+                      const AlternateMetadata& metadata,
+                      std::string_view site = {});
 
   // Write the durable ORIGINAL of a resource: the bytes the origin sent,
   // unoptimized, kept so that the optimized variants can be rebuilt without
@@ -687,7 +732,8 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<WriteResult, cyclone::CacheError>
   WriteOriginalAlternate(std::string_view url, std::string_view hostname,
                          std::string_view scheme, uint64_t content_length,
-                         const AlternateMetadata& metadata);
+                         const AlternateMetadata& metadata,
+                         std::string_view site = {});
 
   // Read the durable original by EXACT ID.
   //
@@ -704,7 +750,7 @@ class PageSpeedCache {
   // caller gets the class or it gets nothing.
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
   ReadOriginalAlternate(std::string_view url, std::string_view hostname,
-                        std::string_view scheme);
+                        std::string_view scheme, std::string_view site = {});
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
   ReadOriginalAlternateByKey(const cyclone::CacheKey& key);
 
@@ -774,7 +820,8 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<HeadersSidecarWrite, cyclone::CacheError>
   WriteHeadersSidecar(std::string_view url, std::string_view hostname,
                       std::string_view scheme,
-                      std::span<const HeaderField> headers);
+                      std::span<const HeaderField> headers,
+                      std::string_view site = {});
 
   // Read the header sidecar by EXACT ID.  Like the durable original, it is
   // never selectable — a block of headers is not a representation and must
@@ -792,7 +839,7 @@ class PageSpeedCache {
   // Pass ReadHeadersSidecarPayload(result) to ParseHeadersSidecar.
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
   ReadHeadersSidecar(std::string_view url, std::string_view hostname,
-                     std::string_view scheme);
+                     std::string_view scheme, std::string_view site = {});
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
   ReadHeadersSidecarByKey(const cyclone::CacheKey& key);
 
@@ -933,7 +980,8 @@ class PageSpeedCache {
 
   // Remove all alternates for a URL.
   [[nodiscard]] std::expected<void, cyclone::CacheError> Remove(
-      std::string_view url, std::string_view hostname, std::string_view scheme);
+      std::string_view url, std::string_view hostname, std::string_view scheme,
+      std::string_view site = {});
 
   // Remove a single alternate for a URL, leaving the rest of the chain
   // intact (issue #652: lets the worker's origin-refreshed purge drop the
@@ -942,7 +990,7 @@ class PageSpeedCache {
   // this process's RAM tier, mirroring whole-key Remove semantics.
   [[nodiscard]] std::expected<void, cyclone::CacheError> RemoveAlternate(
       std::string_view url, std::string_view hostname, std::string_view scheme,
-      AlternateId id);
+      AlternateId id, std::string_view site = {});
 
   // Drop every alternate of a URL except the ids in `preserve` — the removal
   // the origin-refresh purge performs, decided from listings of the URL's
@@ -991,7 +1039,8 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<size_t, cyclone::CacheError>
   RemoveAlternatesExcept(std::string_view url, std::string_view hostname,
                          std::string_view scheme,
-                         std::span<const AlternateId> preserve);
+                         std::span<const AlternateId> preserve,
+                         std::string_view site = {});
 
   // Drop everything the worker DERIVED for a URL and keep what the front end
   // recorded: the mirror image of RemoveAlternatesExcept.
@@ -1035,7 +1084,20 @@ class PageSpeedCache {
   // error.
   [[nodiscard]] std::expected<size_t, cyclone::CacheError>
   RemoveDerivedAlternates(std::string_view url, std::string_view hostname,
-                          std::string_view scheme);
+                          std::string_view scheme, std::string_view site = {});
+
+  // Drop the entries of a URL that an earlier version wrote and this build no
+  // longer serves (AlternateMetadata::IsRetired: every HTML entry below
+  // version 9, and the worker's Markdown versions of pages).  Reads already
+  // treat them as a MISS; removing them matters when a rebuild does not
+  // overwrite every one, since selection works on the stored mask and would
+  // keep choosing such an entry.  Only the newest node of each id is judged:
+  // it is the node a read returns and the node a removal unlinks.  Best
+  // effort, one pass; returns the number removed.  A missing key is 0, not an
+  // error.  Acts on `site`'s keyspace only.
+  [[nodiscard]] std::expected<size_t, cyclone::CacheError>
+  RemoveRetiredAlternates(std::string_view url, std::string_view hostname,
+                          std::string_view scheme, std::string_view site = {});
 
   // Evict a single (key, alternate) entry from THIS process's RAM tier
   // without touching the on-disk document.  Needed because Cyclone's RAM
@@ -1046,17 +1108,19 @@ class PageSpeedCache {
   // freshly re-recorded body).  No-op when the RAM tier is disabled.
   void EvictAlternateFromRamCache(std::string_view url,
                                   std::string_view hostname,
-                                  std::string_view scheme, AlternateId id);
+                                  std::string_view scheme, AlternateId id,
+                                  std::string_view site = {});
 
   // Check if a specific alternate exists.
   bool AlternateExists(std::string_view url, std::string_view hostname,
-                       std::string_view scheme, AlternateId id);
+                       std::string_view scheme, AlternateId id,
+                       std::string_view site = {});
 
   // List all alternates for a URL.
   [[nodiscard]] std::expected<std::vector<cyclone::AlternateInfo>,
                               cyclone::CacheError>
   ListAlternates(std::string_view url, std::string_view hostname,
-                 std::string_view scheme);
+                 std::string_view scheme, std::string_view site = {});
 
   // Cache statistics.
   cyclone::CacheStats Stats() const;
@@ -1178,11 +1242,12 @@ class PageSpeedCache {
   [[nodiscard]] std::expected<size_t, cyclone::CacheError>
   RemoveAlternatesWhereLocked(
       std::string_view url, std::string_view hostname, std::string_view scheme,
+      std::string_view site,
       const std::function<bool(AlternateId)>& is_preserved, const char* label);
 
   // Compose a CacheKey from URL, hostname, and scheme (normalizes hostname).
   cyclone::CacheKey ComposeKey(std::string_view url, std::string_view hostname,
-                               std::string_view scheme);
+                               std::string_view scheme, std::string_view site);
 
   // Drop the node currently carrying `id` on this key's chain, and this
   // process's RAM copy of it, so that the write about to follow REPLACES

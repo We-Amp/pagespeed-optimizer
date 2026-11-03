@@ -14,6 +14,8 @@
 #include <cstring>
 #include <filesystem>
 #include <memory>
+#include <set>
+#include <span>
 #include <string>
 #include <thread>
 
@@ -25,6 +27,7 @@
 #include "lib/classify/capability_mask.h"
 #include "lib/classify/content_type.h"
 #include "nlohmann/json.hpp"
+#include "src/worker/known_sites.h"
 #include "test/test_util/tcp_client.h"
 #include "test/test_util/temp_dir.h"
 #include "uv.h"
@@ -58,8 +61,8 @@ class CacheHandlersTest : public ::testing::Test {
         .url_registry = *url_registry_,
         .invalidate_url =
             [this](const std::string& url, const std::string& hostname,
-                   const std::string& scheme) {
-              auto result = cache_->Remove(url, hostname, scheme);
+                   const std::string& scheme, const std::string& site) {
+              auto result = cache_->Remove(url, hostname, scheme, site);
               return result.has_value() ? 1 : 0;
             },
         .clear_dedup = nullptr,
@@ -371,6 +374,7 @@ TEST_F(CacheHandlersTest, ListAlternatesWithData) {
   EXPECT_FALSE(j["alternates"][0]["is_sentinel"].get<bool>());
   // Single entry: chain_length equals count (no stale duplicates).
   EXPECT_EQ(j["chain_length"], 1);
+  EXPECT_EQ(j["cache_key"], "ks2:https://example.comhttp://example.com/page");
 }
 
 TEST_F(CacheHandlersTest, ListUrlsEndpoint) {
@@ -387,6 +391,9 @@ TEST_F(CacheHandlersTest, ListUrlsEndpoint) {
   EXPECT_EQ(j["urls"].size(), 2u);
   // alternate_count should be 0 when nothing is written to cache.
   EXPECT_EQ(j["urls"][0]["alternate_count"], 0);
+  // The reported key is the string the cache composes, namespace included.
+  EXPECT_EQ(j["urls"][0]["cache_key"],
+            "ks2:https://example.comhttp://example.com/b");
 }
 
 TEST_F(CacheHandlersTest, ListUrlsAlternateCount) {
@@ -1896,13 +1903,15 @@ TEST_F(CacheHandlersTest, ReprocessWithCallbacks) {
   ContentType enqueued_ct = ContentType::kOther;
 
   ctx_->clear_dedup = [&](const std::string& u, const std::string& /*hostname*/,
-                          const std::string& /*scheme*/) {
+                          const std::string& /*scheme*/,
+                          const std::string& /*site*/) {
     clear_called = true;
     cleared_url = u;
   };
   ctx_->enqueue_reprocess = [&](const std::string& u,
                                 const std::string& /*hostname*/,
-                                const std::string& /*scheme*/, ContentType ct) {
+                                const std::string& /*scheme*/,
+                                const std::string& /*site*/, ContentType ct) {
     enqueue_called = true;
     enqueued_url = u;
     enqueued_ct = ct;
@@ -1950,7 +1959,8 @@ TEST_F(CacheHandlersTest, ReprocessWithNoOriginal) {
 
   ctx_->enqueue_reprocess = [&](const std::string& /*url*/,
                                 const std::string& /*hostname*/,
-                                const std::string& /*scheme*/, ContentType ct) {
+                                const std::string& /*scheme*/,
+                                const std::string& /*site*/, ContentType ct) {
     enqueue_called = true;
     enqueued_ct = ct;
   };
@@ -2612,6 +2622,215 @@ TEST_F(CacheHandlersTest, PurgeAllMissingConfirmKey) {
 // =============================================================================
 
 // Fixture with cooldown callbacks wired into the CacheApiContext.
+// ---------------------------------------------------------------------------
+// Sites: per-URL purge, reprocess, content and the listing take an optional
+// site, and a purge without one reaches every known site.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+const std::string kSiteA(64, 'a');
+const std::string kSiteB(64, 'b');
+
+std::string PostJson(const std::string& path, const std::string& body) {
+  return "POST " + path +
+         " HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\n"
+         "Content-Length: " +
+         std::to_string(body.size()) + "\r\n\r\n" + body;
+}
+
+std::string PurgeBody(const std::string& extra = "") {
+  return R"({"url":"/s.css","hostname":"example.com","scheme":"https")" +
+         extra + "}";
+}
+
+}  // namespace
+
+class SiteCacheHandlersTest : public CacheHandlersTest {
+ protected:
+  // An entry for /s.css in `site`'s keyspace, recorded in the registry.
+  void WriteSited(const std::string& site, const std::string& content) {
+    AlternateMetadata meta;
+    meta.full_mask = CapabilityMask().Encode();
+    meta.content_type = ContentType::kCss;
+    auto wh = cache_->WriteAlternate("/s.css", "example.com", "https",
+                                     MaskToAlternateId(meta.full_mask & 0xFF),
+                                     content.size(), meta, site);
+    ASSERT_TRUE(wh.has_value());
+    ASSERT_TRUE(
+        wh->write_sync(std::as_bytes(std::span(content.data(), content.size())))
+            .has_value());
+    ASSERT_TRUE(wh->close_sync().has_value());
+    url_registry_->Record("/s.css", "example.com", "https", site);
+  }
+  bool Exists(const std::string& site) {
+    return cache_->AlternateExists(
+        "/s.css", "example.com", "https",
+        MaskToAlternateId(CapabilityMask().Encode() & 0xFF), site);
+  }
+};
+
+TEST_F(SiteCacheHandlersTest, PurgeWithAKnownSitePurgesOnlyThatSite) {
+  WriteSited(kSiteA, "a{}");
+  WriteSited(kSiteB, "b{}");
+  WriteSited("", "u{}");
+  std::string resp = SendRequest(
+      PostJson("/v1/cache/purge", PurgeBody(R"(,"site":")" + kSiteA + "\"")));
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  json j = ParseJsonBody(resp);
+  EXPECT_EQ(j["deleted"].get<int>(), 1);
+  ASSERT_EQ(j["sites"].size(), 1u);
+  EXPECT_EQ(j["sites"][0]["site"], kSiteA);
+  EXPECT_EQ(j["sites_checked"].get<int>(), 1);
+  EXPECT_FALSE(j.contains("note"));
+  EXPECT_FALSE(Exists(kSiteA));
+  EXPECT_TRUE(Exists(kSiteB));
+  EXPECT_TRUE(Exists(""));
+}
+
+TEST_F(SiteCacheHandlersTest, PurgeWithAnUnknownSiteIsForbidden) {
+  WriteSited(kSiteA, "a{}");
+  std::string resp = SendRequest(
+      PostJson("/v1/cache/purge", PurgeBody(R"(,"site":")" + kSiteB + "\"")));
+  EXPECT_NE(resp.find("403"), std::string::npos) << resp;
+  EXPECT_NE(resp.find("Site was never served through this instance."),
+            std::string::npos);
+  EXPECT_TRUE(Exists(kSiteA));
+}
+
+TEST_F(SiteCacheHandlersTest, PurgeWithAMalformedSiteIsABadRequest) {
+  WriteSited(kSiteA, "a{}");
+  for (const std::string& bad : {R"(,"site":")" + std::string(63, 'a') + "\"",
+                                 R"(,"site":")" + std::string(64, 'A') + "\"",
+                                 R"(,"site":")" + std::string(63, 'a') + "g\"",
+                                 std::string(R"(,"site":7)")}) {
+    std::string resp = SendRequest(PostJson("/v1/cache/purge", PurgeBody(bad)));
+    EXPECT_NE(resp.find("400"), std::string::npos) << bad << "\n" << resp;
+  }
+  EXPECT_TRUE(Exists(kSiteA));
+}
+
+TEST_F(SiteCacheHandlersTest, PurgeWithoutASiteCountsEachSite) {
+  WriteSited(kSiteA, "a{}");
+  WriteSited(kSiteB, "b{}");
+  WriteSited("", "u{}");
+  std::string resp = SendRequest(PostJson("/v1/cache/purge", PurgeBody()));
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  json j = ParseJsonBody(resp);
+  EXPECT_EQ(j["deleted"].get<int>(), 3);
+  EXPECT_EQ(j["sites_checked"].get<int>(), 3);
+  ASSERT_EQ(j["sites"].size(), 3u);
+  std::set<std::string> seen;
+  for (const auto& s : j["sites"]) {
+    EXPECT_EQ(s["deleted"].get<int>(), 1);
+    seen.insert(s["site"].get<std::string>());
+  }
+  EXPECT_EQ(seen, (std::set<std::string>{kSiteA, kSiteB, ""}));
+  EXPECT_FALSE(j["known_sites_incomplete"].get<bool>());
+  EXPECT_FALSE(Exists(kSiteA) || Exists(kSiteB) || Exists(""));
+}
+
+TEST_F(SiteCacheHandlersTest, PurgeAfterARestartStillFindsASitedEntry) {
+  const std::string sites_file = KnownSitesFilePath(cache_path_);
+  {
+    KnownSitesWriter writer(
+        sites_file, [this] { return url_registry_->TakeKnownSitesIfChanged(); },
+        std::chrono::milliseconds(50));
+    writer.Start();
+    WriteSited(kSiteA, "a{}");
+    writer.Stop();
+  }
+  // A restart: the registry starts empty and loads the known-sites file.
+  (void)url_registry_->ClearAll();
+  url_registry_->ClearKnownSites();
+  ASSERT_FALSE(url_registry_->HasSite(kSiteA));
+  url_registry_->Record("/other.css", "example.com", "https");  // the host
+  bool readable = false;
+  url_registry_->LoadKnownSites(ReadKnownSitesFile(sites_file, &readable));
+  ASSERT_TRUE(readable);
+
+  std::string resp = SendRequest(PostJson("/v1/cache/purge", PurgeBody()));
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  json j = ParseJsonBody(resp);
+  EXPECT_EQ(j["deleted"].get<int>(), 1) << resp;
+  ASSERT_EQ(j["sites"].size(), 1u);
+  EXPECT_EQ(j["sites"][0]["site"], kSiteA);
+  EXPECT_FALSE(j.contains("note"));
+  EXPECT_FALSE(Exists(kSiteA));
+}
+
+TEST_F(SiteCacheHandlersTest, PurgeAllDropsKnownSitesFromMemoryAndFile) {
+  const std::string sites_file = KnownSitesFilePath(cache_path_);
+  KnownSitesWriter writer(
+      sites_file, [this] { return url_registry_->TakeKnownSitesIfChanged(); },
+      std::chrono::milliseconds(50));
+  writer.Start();
+  WriteSited(kSiteA, "a{}");
+
+  // A bare ClearAll keeps them.
+  (void)url_registry_->ClearAll();
+  EXPECT_TRUE(url_registry_->HasSite(kSiteA));
+  url_registry_->Record("/s.css", "example.com", "https", kSiteA);
+
+  std::string resp = SendRequest(
+      PostJson("/v1/cache/purge", R"({"scope":"all","confirm":"purge-all"})"));
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  EXPECT_FALSE(url_registry_->HasSite(kSiteA));
+  writer.Stop();
+  bool readable = false;
+  EXPECT_TRUE(ReadKnownSitesFile(sites_file, &readable).empty());
+  EXPECT_TRUE(readable);
+}
+
+TEST_F(SiteCacheHandlersTest, PurgeReportsIncompleteKnownSites) {
+  WriteSited(kSiteA, "a{}");
+  ctx_->known_sites_incomplete = [] { return true; };
+  json j = ParseJsonBody(SendRequest(PostJson("/v1/cache/purge", PurgeBody())));
+  EXPECT_TRUE(j["known_sites_incomplete"].get<bool>());
+}
+
+TEST_F(SiteCacheHandlersTest, ReprocessCarriesTheSite) {
+  WriteSited(kSiteA, "a{}");
+  std::string seen_site = "unset";
+  ctx_->enqueue_reprocess = [&](const std::string&, const std::string&,
+                                const std::string&, const std::string& site,
+                                ContentType) { seen_site = site; };
+  std::string resp = SendRequest(PostJson(
+      "/v1/cache/reprocess", PurgeBody(R"(,"site":")" + kSiteA + "\"")));
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  EXPECT_EQ(seen_site, kSiteA);
+  EXPECT_EQ(ParseJsonBody(resp)["site"], kSiteA);
+
+  resp = SendRequest(
+      PostJson("/v1/cache/reprocess", PurgeBody(R"(,"site":"nope")")));
+  EXPECT_NE(resp.find("400"), std::string::npos);
+}
+
+TEST_F(SiteCacheHandlersTest, ListingAndContentTakeTheSite) {
+  WriteSited(kSiteA, "a{}");
+  WriteSited(kSiteB, "b{}");
+  std::string resp = SendRequest("GET /v1/cache/urls?site=" + kSiteA +
+                                 " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  json j = ParseJsonBody(resp);
+  ASSERT_EQ(j["urls"].size(), 1u);
+  EXPECT_EQ(j["urls"][0]["site"], kSiteA);
+  // The reported key is the one the cache composes: the namespace first,
+  // then the site.
+  EXPECT_EQ(j["urls"][0]["cache_key"],
+            "ks2:st1:" + kSiteA + "@https://example.com/s.css");
+
+  const int id = MaskToAlternateId(CapabilityMask().Encode() & 0xFF);
+  resp = SendRequest(
+      "GET /v1/cache/content?url=/s.css&hostname=example.com"
+      "&alternate_id=" +
+      std::to_string(id) + "&site=" + kSiteB +
+      " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  EXPECT_NE(resp.find("b{}"), std::string::npos);
+  EXPECT_EQ(resp.find("a{}"), std::string::npos);
+}
+
 class CooldownHandlersTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -2634,16 +2853,16 @@ class CooldownHandlersTest : public ::testing::Test {
         .url_registry = *url_registry_,
         .invalidate_url =
             [this](const std::string& url, const std::string& hostname,
-                   const std::string& scheme) {
-              auto result = cache_->Remove(url, hostname, scheme);
+                   const std::string& scheme, const std::string& site) {
+              auto result = cache_->Remove(url, hostname, scheme, site);
               return result.has_value() ? 1 : 0;
             },
         .clear_dedup = nullptr,
         .enqueue_reprocess = nullptr,
         .reset_cache = nullptr,
-        .get_cooldown = [this](const std::string& url,
-                               const std::string& hostname,
-                               const std::string& /*scheme*/)
+        .get_cooldown =
+            [this](const std::string& url, const std::string& hostname,
+                   const std::string& /*scheme*/, const std::string& /*site*/)
             -> std::optional<CacheApiContext::CooldownEntry> {
           std::string key = url + "|" + hostname;
           auto it = cooldowns_.find(key);

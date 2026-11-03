@@ -4,10 +4,13 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IO;
+using WeAmp.PageSpeed.AspNetCore.Internal;
 using WeAmp.PageSpeed.Native;
 
 namespace WeAmp.PageSpeed.AspNetCore;
@@ -87,6 +90,7 @@ public sealed class PageSpeedMiddleware
     private readonly IPageSpeedCache _cache;
     private readonly WorkerNotificationService _notifier;
     private readonly ILogger<PageSpeedMiddleware> _logger;
+    private readonly IOptionsMonitor<HostFilteringOptions>? _hostFiltering;
 
     /// <summary>
     /// Creates a new PageSpeed middleware instance.
@@ -97,9 +101,11 @@ public sealed class PageSpeedMiddleware
         IHtmlProcessor htmlProcessor,
         IPageSpeedCache cache,
         WorkerNotificationService notifier,
-        ILogger<PageSpeedMiddleware> logger)
+        ILogger<PageSpeedMiddleware> logger,
+        IOptionsMonitor<HostFilteringOptions>? hostFiltering = null)
     {
         _next = next;
+        _hostFiltering = hostFiltering;
         _options = options;
         _htmlProcessor = htmlProcessor;
         _cache = cache;
@@ -196,8 +202,11 @@ public sealed class PageSpeedMiddleware
                 // eligible), so non-markdown / non-entitled requests are
                 // unaffected. The native gate also enforces the content-hash
                 // binding — a stale/unbound markdown is refused (null → HTML).
+                // Rendered markdown is fetched from the host name, so it is
+                // served only under a host AllowedHosts names.
                 int agentEntitled = 0;
                 if (opts.EnableAgentOptimize
+                    && HostVouched(hostname)
                     && RequestClassifier.WantsAgentMarkdown(context.Request))
                 {
                     try
@@ -310,6 +319,11 @@ public sealed class PageSpeedMiddleware
             return;
         }
 
+        // Only the response to an anonymous request is stored. Evaluated now,
+        // after the application ran, so authentication and endpoint selection
+        // placed after this middleware are visible.
+        var record = IsAnonymousRequest(context);
+
         // Classify response content type (managed, no P/Invoke needed).
         var responseContentType = context.Response.ContentType;
         var psContentType = ClassifyResponseContentType(responseContentType);
@@ -321,12 +335,20 @@ public sealed class PageSpeedMiddleware
                 await HandleHtmlMiss(
                     context, originalBody, buffer, opts,
                     url, hostname, scheme, mask, cacheability,
-                    cacheControl, capture);
+                    cacheControl, capture, record);
                 break;
 
             case PageSpeedContentType.Image:
             case PageSpeedContentType.Css:
             case PageSpeedContentType.Js:
+                if (!record)
+                {
+                    // Served as the application served it; not stored.
+                    buffer.Seek(0, SeekOrigin.Begin);
+                    await buffer.CopyToAsync(
+                        originalBody, context.RequestAborted);
+                    break;
+                }
                 await HandleAssetMiss(
                     context, originalBody, buffer, opts,
                     url, hostname, scheme, mask,
@@ -535,9 +557,11 @@ public sealed class PageSpeedMiddleware
             AddLinkHeadersFromCache(context, url, hostname, scheme);
 
         // Re-notify worker if cached entry needs revalidation.
-        if (cached.NeedsRevalidation)
+        if (cached.NeedsRevalidation &&
+            !WithholdHtmlNotify(cachedType, hostname))
             if (!_notifier.TryNotify(url, hostname, scheme, cachedType, mask,
-                                     ShouldRequestAgentRender(context, opts)))
+                                     ShouldRequestAgentRender(context, opts),
+                                     hostVouched: HostVouched(hostname)))
                 _logger.LogDebug("TryNotify failed for revalidation: {Url}", url);
 
         // ETag derived from the served bytes, so two different payloads
@@ -740,6 +764,14 @@ public sealed class PageSpeedMiddleware
                 url);
             return new(false, null);
         }
+        if ((flags & CacheFlags.AnonymousRecorded) == 0)
+        {
+            // Not recorded under the anonymous-request rule.
+            _logger.LogDebug(
+                "Cache entry for {Url} was not recorded from an anonymous request; refetching",
+                url);
+            return new(false, null);
+        }
         if ((flags & CacheFlags.HeadersSidecarRequired) == 0)
             return new(true, null);
 
@@ -930,8 +962,48 @@ public sealed class PageSpeedMiddleware
     }
 
     /// <summary>
-    /// Handles an HTML cache MISS: transforms the HTML, caches it,
-    /// writes early hints, and notifies the worker.
+    /// Whether the request was anonymous as far as the application can tell:
+    /// no <c>Authorization</c> or <c>Proxy-Authorization</c> header, no
+    /// authenticated user, and an endpoint without an authorization
+    /// requirement (<see cref="IAuthorizeData"/>, an
+    /// <see cref="AuthorizationPolicy"/> or
+    /// <see cref="IAuthorizationRequirementData"/> metadata), or one that
+    /// allows anonymous access. Only the response
+    /// to such a request is stored in the cache. Called after the rest of
+    /// the pipeline has run.
+    /// </summary>
+    internal static bool IsAnonymousRequest(HttpContext context)
+    {
+        var headers = context.Request.Headers;
+        if (headers.ContainsKey("Authorization") ||
+            headers.ContainsKey("Proxy-Authorization"))
+            return false;
+
+        var user = context.User;
+        if (user != null)
+        {
+            foreach (var identity in user.Identities)
+            {
+                if (identity.IsAuthenticated) return false;
+            }
+        }
+
+        var metadata = context.GetEndpoint()?.Metadata;
+        if (metadata != null &&
+            (metadata.GetMetadata<IAuthorizeData>() != null ||
+             metadata.GetMetadata<AuthorizationPolicy>() != null ||
+             metadata.GetMetadata<IAuthorizationRequirementData>() != null) &&
+            metadata.GetMetadata<IAllowAnonymous>() == null)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Handles an HTML cache MISS: transforms the HTML and, when
+    /// <paramref name="record"/> is set, caches it, writes early hints, and
+    /// notifies the worker. Otherwise the transformed page is served to this
+    /// client only.
     /// </summary>
     private async Task HandleHtmlMiss(
         HttpContext context, Stream originalBody,
@@ -939,7 +1011,8 @@ public sealed class PageSpeedMiddleware
         string url, string hostname, string scheme, uint mask,
         ResponseCacheability cacheability,
         string? cacheControl,
-        MissCapture capture)
+        MissCapture capture,
+        bool record)
     {
         // Size gate for HTML processing.
         if (buffer.Length > opts.MaxResponseBufferBytes ||
@@ -958,7 +1031,7 @@ public sealed class PageSpeedMiddleware
 
             context.RequestAborted.ThrowIfCancellationRequested();
             using var result = _htmlProcessor.Process(
-                htmlSpan, url, hostname);
+                htmlSpan, url, hostname, scheme);
             context.RequestAborted.ThrowIfCancellationRequested();
 
             if (result.Modified)
@@ -975,6 +1048,8 @@ public sealed class PageSpeedMiddleware
                 await originalBody.WriteAsync(
                     output, context.RequestAborted);
 
+                if (!record) return;
+
                 var cacheable = TryWriteToCache(
                     url, hostname, scheme, output,
                     PageSpeedContentType.Html,
@@ -988,11 +1063,13 @@ public sealed class PageSpeedMiddleware
                         url, hostname, scheme, result.EarlyHintsMemory);
 
                 // [Critical #2] Skip worker notification if no-transform.
-                if (cacheable && cacheability != ResponseCacheability.NoTransform)
+                if (cacheable && cacheability != ResponseCacheability.NoTransform &&
+                    !WithholdHtmlNotify(PageSpeedContentType.Html, hostname))
                 {
                     if (!_notifier.TryNotify(
                         url, hostname, scheme, PageSpeedContentType.Html, mask,
-                        ShouldRequestAgentRender(context, opts)))
+                        ShouldRequestAgentRender(context, opts),
+                        hostVouched: HostVouched(hostname)))
                         _logger.LogDebug("TryNotify failed for HTML: {Url}", url);
                 }
             }
@@ -1021,6 +1098,32 @@ public sealed class PageSpeedMiddleware
                 _logger.LogError(ex,
                     "Response already started, cannot fall back");
             }
+        }
+    }
+
+    /// <summary>
+    /// Whether AllowedHosts names <paramref name="hostname"/>; see
+    /// <see cref="AgentHostVouch"/>.
+    /// </summary>
+    private bool HostVouched(string hostname) =>
+        AgentHostVouch.Vouches(_hostFiltering?.CurrentValue.AllowedHosts, hostname);
+
+    /// <summary>
+    /// While the worker's agent optimization is on, an HTML notification can
+    /// make it render the page and fetch from the host name. Withheld for a
+    /// host AllowedHosts does not name; the response itself is served as
+    /// usual. An unreadable worker setting counts as on.
+    /// </summary>
+    private bool WithholdHtmlNotify(PageSpeedContentType type, string hostname)
+    {
+        if (type != PageSpeedContentType.Html || HostVouched(hostname)) return false;
+        try
+        {
+            return _cache.ReadSharedConfigAgentEntitled() != 0;
+        }
+        catch
+        {
+            return true;
         }
     }
 
@@ -1070,7 +1173,8 @@ public sealed class PageSpeedMiddleware
         // [Critical #2] Skip worker notification if no-transform.
         if (cacheable && cacheability != ResponseCacheability.NoTransform)
         {
-            if (!_notifier.TryNotify(url, hostname, scheme, psContentType, mask))
+            if (!_notifier.TryNotify(url, hostname, scheme, psContentType, mask,
+                                     hostVouched: HostVouched(hostname)))
                 _logger.LogDebug("TryNotify failed for {Type}: {Url}", psContentType, url);
         }
     }
@@ -1114,9 +1218,15 @@ public sealed class PageSpeedMiddleware
                     url);
                 return false;
             }
-            flags |= CacheFlags.HeadersClassified;
+            // Callers record only responses to anonymous requests.
+            flags |= CacheFlags.HeadersClassified | CacheFlags.AnonymousRecorded;
             if (sidecar.Stored) flags |= CacheFlags.HeadersSidecarRequired;
             if (VariesOnAccept(originHeaders)) flags |= CacheFlags.OriginVariesAccept;
+        }
+        catch (CacheNotOpenException)
+        {
+            ReportCacheNotOpen();
+            return false;
         }
         catch (Exception ex)
         {
@@ -1167,12 +1277,30 @@ public sealed class PageSpeedMiddleware
             writer.Write(output.Span);
             writer.Commit();
         }
+        catch (CacheNotOpenException)
+        {
+            ReportCacheNotOpen();
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
                 "Cache write failed for {Url}", url);
         }
         return true;
+    }
+
+    /// <summary>
+    /// A write skipped because the cache is not open (PageSpeed was enabled
+    /// but the volume could not be opened; the open failure itself is logged
+    /// as an error). Logged once per failure state, not per response.
+    /// </summary>
+    private void ReportCacheNotOpen()
+    {
+        if (_cache is DeferredPageSpeedCache deferred && !deferred.TryClaimNotOpenReport())
+            return;
+        _logger.LogWarning(
+            "The PageSpeed cache is not open; responses are optimized but not "
+            + "cached until it opens (see the earlier error)");
     }
 
     private void TryWriteEarlyHints(
@@ -1192,6 +1320,10 @@ public sealed class PageSpeedMiddleware
                 (ulong)earlyHints.Length);
             writer.Write(earlyHints.Span);
             writer.Commit();
+        }
+        catch (CacheNotOpenException)
+        {
+            ReportCacheNotOpen();
         }
         catch (Exception ex)
         {

@@ -46,7 +46,7 @@ should_skip() {
 
   # Config files
   case "$file" in
-    *.bazelrc|*.gitignore|*.yaml|*.yml|*.json|*.toml|*.cfg|*.ini|tsconfig.json)
+    *.bazelrc|*.gitignore|*.yaml|*.yml|*.json|*.toml|*.cfg|*.ini)
       return 0 ;;
   esac
 

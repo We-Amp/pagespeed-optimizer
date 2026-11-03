@@ -234,6 +234,226 @@ bool IsHeadPrelude(std::string_view name, std::string_view tag) {
           EqualsIgnoreCase(http_equiv.value, "content-security-policy"));
 }
 
+template <size_t N>
+bool NameIsOneOf(std::string_view name, const std::string_view (&names)[N]) {
+  for (std::string_view n : names) {
+    if (EqualsIgnoreCase(name, n)) return true;
+  }
+  return false;
+}
+
+// The serve path's parser (the vendored HtmlLexer) reads inline SVG and MathML
+// as browsers do (HTML Standard section 13.2.6), and gives their elements no
+// keyword: an SVG or MathML <style> or <link> is neither a stylesheet source
+// nor raw text there. OpenElements follows the open elements with the parser's
+// rules, so the scanner below can tell such an element from an HTML one.
+// The name sets are the parser's.
+
+// Start tags that end SVG and MathML content; <font> does too with a color,
+// face or size attribute.
+constexpr std::string_view kForeignBreakoutStartTags[] = {
+    "b",      "big",    "blockquote", "body",    "br",    "center", "code",
+    "dd",     "div",    "dl",         "dt",      "em",    "embed",  "h1",
+    "h2",     "h3",     "h4",         "h5",      "h6",    "head",   "hr",
+    "i",      "img",    "li",         "listing", "menu",  "meta",   "nobr",
+    "ol",     "p",      "pre",        "ruby",    "s",     "small",  "span",
+    "strong", "strike", "sub",        "sup",     "table", "tt",     "u",
+    "ul",     "var"};
+constexpr std::string_view kForeignBreakoutFontAttributes[] = {"color", "face",
+                                                               "size"};
+constexpr std::string_view kSvgHtmlIntegrationPoints[] = {
+    "desc", "foreignobject", "title"};
+constexpr std::string_view kMathMlTextIntegrationPoints[] = {"mi", "mn", "mo",
+                                                             "ms", "mtext"};
+constexpr std::string_view kMathMlTextIntegrationPointExceptions[] = {
+    "malignmark", "mglyph"};
+constexpr std::string_view kAnnotationXmlHtmlEncodings[] = {
+    "application/xhtml+xml", "text/html"};
+// End tags handled by the HTML rules that walk past SVG or MathML content.
+constexpr std::string_view kEndTagsThatDoNotPop[] = {"body", "form", "head",
+                                                     "html"};
+constexpr std::string_view kFormattingElements[] = {
+    "a",    "b", "big",   "code",   "em",     "font", "i",
+    "nobr", "s", "small", "strike", "strong", "tt",   "u"};
+constexpr std::string_view kEndTagsClosingInScope[] = {
+    "address", "applet",  "article",  "aside",      "blockquote", "button",
+    "center",  "dd",      "details",  "dialog",     "dir",        "div",
+    "dl",      "dt",      "fieldset", "figcaption", "figure",     "footer",
+    "h1",      "h2",      "h3",       "h4",         "h5",         "h6",
+    "header",  "hgroup",  "li",       "listing",    "main",       "marquee",
+    "menu",    "nav",     "object",   "ol",         "pre",        "search",
+    "section", "summary", "ul"};
+constexpr std::string_view kScopeBoundaries[] = {"applet",  "caption",  "html",
+                                                 "marquee", "object",   "table",
+                                                 "td",      "template", "th"};
+constexpr std::string_view kListItemScopeBoundaries[] = {"ol", "ul"};
+constexpr std::string_view kTableFamilyEndTags[] = {
+    "caption", "col", "colgroup", "optgroup", "option", "select", "table",
+    "tbody",   "td",  "template", "tfoot",    "th",     "thead",  "tr"};
+constexpr std::string_view kSpecialHtmlElements[] = {
+    "address",    "applet",   "area",       "article",  "aside",   "base",
+    "basefont",   "bgsound",  "blockquote", "body",     "br",      "button",
+    "caption",    "center",   "col",        "colgroup", "dd",      "details",
+    "dir",        "div",      "dl",         "dt",       "embed",   "fieldset",
+    "figcaption", "figure",   "footer",     "form",     "frame",   "frameset",
+    "h1",         "h2",       "h3",         "h4",       "h5",      "h6",
+    "head",       "header",   "hgroup",     "hr",       "html",    "iframe",
+    "img",        "input",    "keygen",     "li",       "link",    "listing",
+    "main",       "marquee",  "menu",       "meta",     "nav",     "noembed",
+    "noframes",   "noscript", "object",     "ol",       "p",       "param",
+    "plaintext",  "pre",      "script",     "search",   "section", "select",
+    "source",     "style",    "summary",    "table",    "tbody",   "td",
+    "template",   "textarea", "tfoot",      "th",       "thead",   "title",
+    "tr",         "track",    "ul",         "wbr",      "xmp"};
+// HTML elements without an end tag.
+constexpr std::string_view kVoidElements[] = {
+    "area",  "base",  "basefont", "bgsound", "br",    "col",    "embed",
+    "frame", "hr",    "image",    "img",     "input", "keygen", "link",
+    "meta",  "param", "source",   "track",   "wbr"};
+
+class OpenElements {
+ public:
+  enum class Ns : std::uint8_t { kHtml, kSvg, kMath };
+
+  // A start tag `name` (the tag text is `tag`): ends foreign content first
+  // when it is a breakout tag, and returns the namespace of the element it
+  // opens. Call Push for it afterwards when it stays open.
+  Ns StartTag(std::string_view name, std::string_view tag) {
+    bool html_rules = StartTagUsesHtmlRules(name);
+    if (!html_rules && IsBreakout(name, tag)) {
+      PopForeignForBreakout();
+      html_rules = true;
+    }
+    if (!html_rules) return Current().ns;
+    if (EqualsIgnoreCase(name, "svg")) return Ns::kSvg;
+    if (EqualsIgnoreCase(name, "math")) return Ns::kMath;
+    return Ns::kHtml;
+  }
+
+  void Push(std::string_view name, std::string_view tag, Ns ns) {
+    Open open;
+    open.name = std::string(name);
+    open.ns = ns;
+    if (ns == Ns::kSvg) {
+      open.html_ip = NameIsOneOf(name, kSvgHtmlIntegrationPoints);
+      open.special = open.html_ip;
+    } else if (ns == Ns::kMath) {
+      open.text_ip = NameIsOneOf(name, kMathMlTextIntegrationPoints);
+      open.annotation_xml = EqualsIgnoreCase(name, "annotation-xml");
+      if (open.annotation_xml) {
+        TagAttr encoding = FindTagAttribute(tag, "encoding");
+        open.html_ip = encoding.present &&
+                       NameIsOneOf(encoding.value, kAnnotationXmlHtmlEncodings);
+      }
+      open.special = open.annotation_xml || open.text_ip;
+    }
+    stack_.push_back(std::move(open));
+  }
+
+  // An HTML element that stays open after its start tag.
+  static bool HtmlElementStaysOpen(std::string_view name) {
+    return !NameIsOneOf(name, kVoidElements);
+  }
+
+  void EndTag(std::string_view name) {
+    if (InForeignContent()) {
+      if (EqualsIgnoreCase(name, "br") || EqualsIgnoreCase(name, "p")) {
+        PopForeignForBreakout();
+      } else {
+        for (size_t i = stack_.size(); i-- > 0;) {
+          if (EqualsIgnoreCase(stack_[i].name, name)) {
+            stack_.resize(i);
+            return;
+          }
+          if (i > 0 && stack_[i - 1].ns == Ns::kHtml) break;
+        }
+      }
+    }
+    bool crossed_foreign = false;
+    bool crossed_special_html = false;
+    const bool do_not_pop = NameIsOneOf(name, kEndTagsThatDoNotPop);
+    const bool formatting = NameIsOneOf(name, kFormattingElements);
+    const bool closes_in_scope = NameIsOneOf(name, kEndTagsClosingInScope);
+    const bool table_family = NameIsOneOf(name, kTableFamilyEndTags);
+    const bool list_item = EqualsIgnoreCase(name, "li");
+    for (size_t i = stack_.size(); i-- > 0;) {
+      const Open& o = stack_[i];
+      if (o.ns != Ns::kHtml) {
+        if (o.special) return;
+        crossed_foreign = true;
+      } else if (EqualsIgnoreCase(o.name, name)) {
+        if (crossed_foreign &&
+            (do_not_pop || (formatting && crossed_special_html))) {
+          return;
+        }
+        stack_.resize(i);
+        return;
+      } else if (crossed_foreign && NameIsOneOf(o.name, kSpecialHtmlElements)) {
+        crossed_special_html = true;
+        if (closes_in_scope) {
+          if (NameIsOneOf(o.name, kScopeBoundaries) ||
+              (list_item && NameIsOneOf(o.name, kListItemScopeBoundaries))) {
+            return;
+          }
+        } else if (!formatting && !table_family && !do_not_pop) {
+          return;
+        }
+      }
+    }
+  }
+
+  // Whether the current node is an SVG or MathML element.
+  bool InForeignContent() const { return Current().ns != Ns::kHtml; }
+
+ private:
+  struct Open {
+    std::string name;
+    Ns ns = Ns::kHtml;
+    bool html_ip = false;  // an HTML integration point
+    bool text_ip = false;  // a MathML text integration point
+    bool annotation_xml = false;
+    bool special = false;  // an integration point or annotation-xml
+  };
+
+  const Open& Current() const {
+    static const Open kDocument;
+    return stack_.empty() ? kDocument : stack_.back();
+  }
+
+  bool StartTagUsesHtmlRules(std::string_view name) const {
+    const Open& current = Current();
+    if (current.ns == Ns::kHtml || current.html_ip) return true;
+    if (current.text_ip &&
+        !NameIsOneOf(name, kMathMlTextIntegrationPointExceptions)) {
+      return true;
+    }
+    return current.annotation_xml && EqualsIgnoreCase(name, "svg");
+  }
+
+  static bool IsBreakout(std::string_view name, std::string_view tag) {
+    if (NameIsOneOf(name, kForeignBreakoutStartTags)) return true;
+    if (!EqualsIgnoreCase(name, "font")) return false;
+    return ForEachAttribute(tag, [](std::string_view n, std::string_view) {
+      return NameIsOneOf(n, kForeignBreakoutFontAttributes);
+    });
+  }
+
+  void PopForeignForBreakout() {
+    while (!stack_.empty()) {
+      const Open& o = stack_.back();
+      if (o.ns == Ns::kHtml || o.html_ip || o.text_ip) break;
+      stack_.pop_back();
+    }
+  }
+
+  std::vector<Open> stack_;
+};
+
+// True when html[pos] opens a CDATA section.
+bool StartsCdata(std::string_view html, size_t pos) {
+  return html.substr(pos, 9) == "<![CDATA[";
+}
+
 struct StripResult {
   bool ok = false;
   std::string error;
@@ -306,6 +526,10 @@ StripResult StripStylesheetSources(
     }
     return false;
   };
+  OpenElements open;
+  // Tags before this offset have been given to `open` (or are the content of
+  // an <iframe>, which the parser reads as text).
+  size_t tracked_until = 0;
 
   size_t pos = 0;
   while (pos < html.size()) {
@@ -322,7 +546,52 @@ StripResult StripStylesheetSources(
     }
 
     if (html[pos] == '<') {
-      html_scan::RawTextElement rt = html_scan::ScanRawTextElement(html, pos);
+      // In SVG and MathML content a CDATA section is text up to "]]>".
+      if (open.InForeignContent() && StartsCdata(html, pos)) {
+        size_t end = html.find("]]>", pos + 9);
+        end = end == std::string_view::npos ? html.size() : end + 3;
+        out.html.append(html.substr(pos, end - pos));
+        pos = end;
+        continue;
+      }
+      TagName tn = ReadTagName(html, pos);
+      // An SVG or MathML element: never raw text, never a stylesheet source,
+      // never a head prelude. Copied through as it is.
+      bool foreign_tag = false;
+      if (!tn.name.empty() && pos >= tracked_until) {
+        size_t end = FindTagEnd(html, pos);
+        if (end == std::string_view::npos) end = html.size();
+        std::string_view tag = html.substr(pos, end - pos);
+        tracked_until = end;
+        if (tn.end_tag) {
+          open.EndTag(tn.name);
+        } else {
+          const OpenElements::Ns ns = open.StartTag(tn.name, tag);
+          if (ns != OpenElements::Ns::kHtml) {
+            foreign_tag = true;
+            const bool self_closing = tag.size() >= 2 && tag.back() == '>' &&
+                                      tag[tag.size() - 2] == '/';
+            if (!self_closing) open.Push(tn.name, tag, ns);
+          } else if (!html_scan::ScanRawTextElement(html, pos).matched &&
+                     OpenElements::HtmlElementStaysOpen(tn.name)) {
+            open.Push(tn.name, tag, ns);
+            if (EqualsIgnoreCase(tn.name, "iframe")) {
+              // Its content is text up to </iframe.
+              size_t close = end;
+              while (
+                  close < html.size() &&
+                  !(html[close] == '<' &&
+                    EqualsIgnoreCase(html.substr(close + 1, 7), "/iframe"))) {
+                ++close;
+              }
+              tracked_until = close;
+            }
+          }
+        }
+      }
+
+      html_scan::RawTextElement rt;
+      if (!foreign_tag) rt = html_scan::ScanRawTextElement(html, pos);
       if (rt.matched) {
         if (!rt.closed) {
           // The rest of the document is inside it. Neither keeping nor dropping
@@ -348,7 +617,7 @@ StripResult StripStylesheetSources(
         continue;
       }
 
-      if (StartsLinkTag(html, pos)) {
+      if (!foreign_tag && StartsLinkTag(html, pos)) {
         size_t end = FindTagEnd(html, pos);
         if (end == std::string_view::npos) {
           out.error = "unterminated <link> tag";
@@ -380,14 +649,13 @@ StripResult StripStylesheetSources(
       // Every other tag is copied character by character below, as before. A
       // few are looked at on the way: the non-document subtree boundaries and
       // the head prelude, which the placement rule reads.
-      TagName tn = ReadTagName(html, pos);
       size_t subtree = std::size(kNonDocumentSubtrees);
       for (size_t k = 0; k < std::size(kNonDocumentSubtrees); ++k) {
         if (EqualsIgnoreCase(tn.name, kNonDocumentSubtrees[k])) subtree = k;
       }
-      const bool maybe_prelude =
-          !tn.end_tag && (EqualsIgnoreCase(tn.name, "meta") ||
-                          EqualsIgnoreCase(tn.name, "base"));
+      const bool maybe_prelude = !foreign_tag && !tn.end_tag &&
+                                 (EqualsIgnoreCase(tn.name, "meta") ||
+                                  EqualsIgnoreCase(tn.name, "base"));
       if (subtree < std::size(kNonDocumentSubtrees) || maybe_prelude) {
         size_t end = FindTagEnd(html, pos);
         std::string_view tag = html.substr(

@@ -57,6 +57,16 @@ public static class CacheFlags
     /// </summary>
     public const byte HeadersSidecarRequired = 0x20;
 
+    /// <summary>
+    /// The entry was recorded from the response to an anonymous request
+    /// (kFlagAnonymousRecorded): no <c>Authorization</c> or
+    /// <c>Proxy-Authorization</c> header, no authenticated user, and no
+    /// authorization requirement on the endpoint. The middleware sets it on
+    /// every entry it records and serves only entries that carry it; the
+    /// worker carries it into the variants it builds.
+    /// </summary>
+    public const byte AnonymousRecorded = 0x40;
+
     // NOTE (#454): bit 0x02 is C++ kFlagWorkerProcessed (worker dedup) — NOT an
     // origin-revalidation signal. The real signal is now exposed via OriginCcFlags
     // (ReadResult.OriginCcFlags) and is plumbed through ps_parse_cache_control.
