@@ -127,6 +127,16 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
                                                  std::string_view scheme,
                                                  std::string_view site = {});
 
+  // Whether the document is known to be text/html: the response's media type
+  // is `text/html` (parameters aside), or the embedding API documents its
+  // input as text/html. Critical CSS is injected only when it is: the block's
+  // markup guard is sound for an HTML <style> element only, and in XHTML
+  // (application/xhtml+xml) its text is XML. Default false: a caller that
+  // cannot tell gets no inline block (and EndDocument reverts any deferral).
+  void set_document_is_text_html(bool is_text_html) {
+    document_is_text_html_ = is_text_html;
+  }
+
   // Returns true if any transformation was applied.
   bool modified() const { return modified_; }
 
@@ -172,7 +182,16 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   // cascade_layer_order.h). Otherwise it keeps the end-of-head placement before
   // the end tag, and with it the end-of-head behaviour for overrides the block
   // dropped.
-  void InjectCriticalCss(net_instaweb::HtmlElement* head_element);
+  //
+  // REFUSED (no block; EndDocument then reverts any stylesheet deferral) when
+  // the document is not known to be text/html, a CSP forbids inline style, the
+  // CSS holds a `<` then an ASCII letter, `/`, `!` or `?` (which covers
+  // `</style` in any letter case), the insertion point is inside
+  // <noscript>/<noembed>/<noframes>/<template>/<svg>/<math>/<select>/
+  // <plaintext>, the document is "in select" (a <select> start tag without a
+  // later explicit </select>), or a <plaintext> or <frameset> has been seen
+  // (a <frameset> after the block takes it back).
+  void InjectCriticalCss(net_instaweb::HtmlElement* element);
 
   // Maintain critical_css_anchor_: the first <link rel="stylesheet"> or <style>
   // seen since the last head-prelude element (<meta charset>, <meta
@@ -277,6 +296,27 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
 
   bool modified_ = false;
   bool critical_css_injected_ = false;
+  // See set_document_is_text_html. Survives StartDocument.
+  bool document_is_text_html_ = false;
+  // InjectCriticalCss found its insertion point inside a non-document subtree
+  // (<noscript>, <template>, <svg>, ...): no block for this document at all.
+  bool critical_css_context_refused_ = false;
+  // A <select> start tag has been seen and no explicit </select> since: a
+  // browser in "in select" mode ignores a <style> start tag, so the CSS would
+  // be text. Neither the block nor an anchor is placed while it holds.
+  bool in_select_ = false;
+  // Set once the parser and a browser may disagree about where a <select>
+  // ends (see EndElement and StartElement): in select for the rest of the
+  // document.
+  bool select_sticky_ = false;
+  [[nodiscard]] bool InSelect() const { return in_select_ || select_sticky_; }
+  // A <plaintext> (the rest of the page is text) or a <frameset> has been
+  // seen: no block for the rest of the document.
+  bool plaintext_seen_ = false;
+  bool frameset_seen_ = false;
+  // The block InjectCriticalCss inserted, so a later <frameset> can take it
+  // back.
+  net_instaweb::HtmlElement* injected_critical_style_ = nullptr;
   // See TrackCriticalCssAnchor. Null until a stylesheet source is seen; reset
   // by a head-prelude element. Only dereferenced through the parser after an
   // IsRewritable check, so a node flushed out of the window is skipped, not

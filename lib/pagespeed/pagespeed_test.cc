@@ -3088,6 +3088,101 @@ TEST(PageSpeedCApi, CriticalCssExtractWithAllConfigArrays) {
 }
 
 // ================================================================
+// ps_html_process: critical CSS that could hold markup is refused
+// ================================================================
+
+namespace {
+
+// Runs ps_html_process on a page whose only stylesheet, /style.css, holds
+// `css`; returns the output and sets *has_critical.
+std::string ProcessWithCachedSheet(ps_cache_t* cache, const std::string& css,
+                                   int* has_critical) {
+  ps_write_params_t params;
+  ps_write_params_init_auto(&params);
+  params.alternate_id = 0x08;
+  params.content_length = css.size();
+  params.full_mask = 0x08;
+  params.content_type = PS_CONTENT_CSS;
+  params.origin_ct = "text/css";
+  ps_write_handle_t* wh = nullptr;
+  EXPECT_EQ(ps_cache_write_begin(cache, "/style.css", "example.com", "https",
+                                 &params, &wh),
+            PS_OK);
+  if (wh == nullptr) return "";
+  EXPECT_EQ(ps_write_data(wh, css.data(), css.size()), PS_OK);
+  EXPECT_EQ(ps_write_close(wh), PS_OK);
+
+  const char* html =
+      "<html><head>"
+      "<link rel=\"stylesheet\" href=\"/style.css\">"
+      "</head><body>"
+      "<div class=\"hero\">Hello</div>"
+      "</body></html>";
+  ps_html_config_t config;
+  ps_html_config_init(&config);
+  config.enable_critical_css = 1;
+  ps_html_result_t* result = nullptr;
+  EXPECT_EQ(ps_html_process(html, std::strlen(html), "http://example.com/page",
+                            "example.com", &config, cache, &result),
+            PS_OK);
+  if (result == nullptr) return "";
+  *has_critical = ps_html_result_has_critical_css(result);
+  size_t out_len = 0;
+  const char* output = ps_html_result_output(result, &out_len);
+  // An unmodified page has no output: the caller serves the input as is.
+  std::string out = output != nullptr ? std::string(output, out_len) : html;
+  ps_html_result_free(result);
+  return out;
+}
+
+// No block, and the stylesheet stays render-blocking.
+void ExpectNoBlockAndBlockingSheet(int has_critical, const std::string& out) {
+  EXPECT_EQ(has_critical, 0) << out;
+  EXPECT_EQ(out.find("data-pagespeed-critical"), std::string::npos) << out;
+  EXPECT_EQ(out.find("data-pagespeed-async"), std::string::npos) << out;
+  EXPECT_EQ(out.find("rel=\"preload\""), std::string::npos) << out;
+  EXPECT_NE(out.find("rel=\"stylesheet\""), std::string::npos) << out;
+}
+
+}  // namespace
+
+// A plain block is inlined (the control for the refusals below).
+TEST_F(PageSpeedCacheApiTest, HtmlProcessInlinesPlainCriticalCss) {
+  OpenCache();
+  int has_critical = -1;
+  std::string out =
+      ProcessWithCachedSheet(cache_, ".hero{color:red}", &has_critical);
+  EXPECT_EQ(has_critical, 1) << out;
+  EXPECT_NE(out.find("data-pagespeed-critical"), std::string::npos) << out;
+}
+
+// Tailwind CSS v4 registers properties with `@property`, whose `syntax` is a
+// string such as "<color>": a `<` then a letter, so the block is refused.
+TEST_F(PageSpeedCacheApiTest, HtmlProcessRefusesPropertySyntaxStrings) {
+  OpenCache();
+  int has_critical = -1;
+  std::string out = ProcessWithCachedSheet(
+      cache_,
+      "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
+      "initial-value:#0000}"
+      ".hero{background-image:linear-gradient(var(--tw-gradient-from),red)}",
+      &has_critical);
+  ExpectNoBlockAndBlockingSheet(has_critical, out);
+}
+
+// `</style`, in any letter case, could end the inlined element: refused.
+TEST_F(PageSpeedCacheApiTest, HtmlProcessRefusesStyleEndTag) {
+  OpenCache();
+  for (const char* css : {".hero{color:red;content:\"</style>\"}",
+                          ".hero{color:red;content:\"</StYlE \"}"}) {
+    SCOPED_TRACE(css);
+    int has_critical = -1;
+    std::string out = ProcessWithCachedSheet(cache_, css, &has_critical);
+    ExpectNoBlockAndBlockingSheet(has_critical, out);
+  }
+}
+
+// ================================================================
 // ps_html_process with cache: external CSS lookup (lines 1316-1327)
 // ================================================================
 

@@ -118,29 +118,38 @@ bool InsideInertSubtree(const net_instaweb::HtmlElement* element) {
   return false;
 }
 
-// True when `element` sits inside a subtree where an inserted <style> is not a
-// document stylesheet for every client: the inert subtrees above, and foreign
-// content (<svg>/<math>, where <style> is not a raw-text element). A
-// stylesheet source in there cannot be the critical block's anchor. The
-// validator's StripStylesheetSources applies the same list.
-bool InsideNonDocumentSubtree(const net_instaweb::HtmlElement* element) {
+// True when `element` opens a subtree where an inserted <style> is not a
+// document stylesheet for every client: the inert subtrees above, foreign
+// content (<svg>/<math>, where <style> is not a raw-text element), <select>
+// (whose parser ignores a <style> start tag, so the CSS would be text) and
+// <plaintext> (everything after it is text).
+bool IsNonDocumentSubtreeRoot(const net_instaweb::HtmlElement* element) {
   using net_instaweb::HtmlName;
+  switch (element->keyword()) {
+    case HtmlName::kNoscript:
+    case HtmlName::kNoembed:
+    case HtmlName::kNoframes:
+    case HtmlName::kTemplate:
+    case HtmlName::kSelect:
+      return true;
+    default:
+      break;
+  }
+  std::string_view name(element->name_str().data(), element->name_str().size());
+  return net_instaweb::StringCaseEqual(name, "svg") ||
+         net_instaweb::StringCaseEqual(name, "math") ||
+         net_instaweb::StringCaseEqual(name, "plaintext");
+}
+
+// True when `element` sits inside such a subtree. A stylesheet source in there
+// cannot be the critical block's anchor. The validator's
+// StripStylesheetSources applies the same list but for <select> and
+// <plaintext>, where the serve path injects no block at all (in_select_,
+// plaintext_seen_).
+bool InsideNonDocumentSubtree(const net_instaweb::HtmlElement* element) {
   for (const net_instaweb::HtmlElement* p = element->parent(); p != nullptr;
        p = p->parent()) {
-    switch (p->keyword()) {
-      case HtmlName::kNoscript:
-      case HtmlName::kNoembed:
-      case HtmlName::kNoframes:
-      case HtmlName::kTemplate:
-        return true;
-      default:
-        break;
-    }
-    std::string_view name(p->name_str().data(), p->name_str().size());
-    if (net_instaweb::StringCaseEqual(name, "svg") ||
-        net_instaweb::StringCaseEqual(name, "math")) {
-      return true;
-    }
+    if (IsNonDocumentSubtreeRoot(p)) return true;
   }
   return false;
 }
@@ -171,6 +180,12 @@ HtmlTransformFilter::HtmlTransformFilter(
 void HtmlTransformFilter::StartDocument() {
   modified_ = false;
   critical_css_injected_ = false;
+  critical_css_context_refused_ = false;
+  in_select_ = false;
+  select_sticky_ = false;
+  plaintext_seen_ = false;
+  frameset_seen_ = false;
+  injected_critical_style_ = nullptr;
   critical_css_anchor_ = nullptr;
   in_head_ = false;
   in_body_ = false;
@@ -192,6 +207,38 @@ void HtmlTransformFilter::StartElement(net_instaweb::HtmlElement* element) {
   using net_instaweb::HtmlName;
 
   HtmlName::Keyword keyword = element->keyword();
+
+  // Contexts in which a browser would not read an inserted <style> as a
+  // style element; InjectCriticalCss refuses while (or after) they apply.
+  // In select mode, any start tag but <option>, <optgroup>, <hr> or
+  // <script> is one where the parser's tree and a browser's can part (a
+  // <template>, foreign content, a nested <select>, a <div> the parser
+  // nests): stay in select for the rest of the document.
+  if (in_select_ && keyword != HtmlName::kOption &&
+      keyword != HtmlName::kOptgroup && keyword != HtmlName::kHr &&
+      keyword != HtmlName::kScript) {
+    select_sticky_ = true;
+  }
+  if (keyword == HtmlName::kSelect) in_select_ = true;
+  {
+    const std::string_view name(element->name_str().data(),
+                                element->name_str().size());
+    if (net_instaweb::StringCaseEqual(name, "plaintext")) {
+      plaintext_seen_ = true;
+    } else if (net_instaweb::StringCaseEqual(name, "frameset")) {
+      frameset_seen_ = true;
+      // A frameset document gets no block at all: take back one injected
+      // at </head> (the whole document is one flush window, so the node is
+      // still rewritable); EndDocument then reverts the deferral.
+      if (critical_css_injected_ && injected_critical_style_ != nullptr &&
+          parser_->IsRewritable(injected_critical_style_)) {
+        parser_->DeleteNode(injected_critical_style_);
+        injected_critical_style_ = nullptr;
+        critical_css_injected_ = false;
+        critical_css_context_refused_ = true;
+      }
+    }
+  }
 
   if (keyword == HtmlName::kHead) {
     in_head_ = true;
@@ -296,7 +343,7 @@ void HtmlTransformFilter::StartElement(net_instaweb::HtmlElement* element) {
   if (config_.enable_async_css && !critical_css_.empty() &&
       MetaCspAllowsInlineStyle() && keyword == HtmlName::kLink &&
       element->FindAttribute("data-pagespeed-async-fallback") == nullptr &&
-      !InsideNonDocumentSubtree(element)) {
+      !InSelect() && !InsideNonDocumentSubtree(element)) {
     ApplyAsyncCss(element);
   }
 
@@ -331,6 +378,31 @@ void HtmlTransformFilter::EndElement(net_instaweb::HtmlElement* element) {
 
   HtmlName::Keyword keyword = element->keyword();
 
+  // Only a </select> in the source ends a browser's "in select" mode; a
+  // select the parser closes for its tree (an ancestor's end tag, </head>,
+  // the end of input) leaves the browser reading what follows inside it.
+  // The parser's explicit </select> is the browser's only when it closed
+  // nothing but <option> and <optgroup>: the elements it skips end first,
+  // without an end tag of their own. Any other element ending that way while
+  // in select (a <div>, a <template>) keeps the document in select for good.
+  if (in_select_ && keyword != HtmlName::kSelect &&
+      keyword != HtmlName::kOption && keyword != HtmlName::kOptgroup &&
+      element->style() != net_instaweb::HtmlElement::EXPLICIT_CLOSE &&
+      element->style() != net_instaweb::HtmlElement::IMPLICIT_CLOSE &&
+      element->style() != net_instaweb::HtmlElement::BRIEF_CLOSE) {
+    select_sticky_ = true;
+  }
+  if (keyword == HtmlName::kSelect &&
+      element->style() == net_instaweb::HtmlElement::EXPLICIT_CLOSE &&
+      !select_sticky_) {
+    bool select_above = false;
+    for (const net_instaweb::HtmlElement* p = element->parent(); p != nullptr;
+         p = p->parent()) {
+      if (p->keyword() == HtmlName::kSelect) select_above = true;
+    }
+    if (!select_above) in_select_ = false;
+  }
+
   if (keyword == HtmlName::kHead) {
     if (config_.enable_font_preload && !font_preload_injected_) {
       InjectFontPreload(element);
@@ -360,7 +432,7 @@ void HtmlTransformFilter::EndElement(net_instaweb::HtmlElement* element) {
 }
 
 void HtmlTransformFilter::EndDocument() {
-  // Whether the inline block was REFUSED (meta CSP, `</style` guard) or simply
+  // Whether the inline block was REFUSED (meta CSP, markup guard) or simply
   // never reached (a fragment with no </head> and no </body>) makes no
   // difference to the visitor: a deferred stylesheet with no inlined block to
   // paint meanwhile is a guaranteed flash of unstyled content. Gate on the
@@ -371,8 +443,16 @@ void HtmlTransformFilter::EndDocument() {
 }
 
 void HtmlTransformFilter::InjectCriticalCss(
-    net_instaweb::HtmlElement* /*element*/) {
+    net_instaweb::HtmlElement* element) {
   if (critical_css_.empty()) return;
+
+  // Only into a document known to be text/html (see set_document_is_text_html):
+  // in XHTML the block's text is parsed as XML, where `<` opens markup and `&`
+  // an entity reference (CSS nesting uses `&`), so the guard below says
+  // nothing about it there. A refused block leaves the stylesheets
+  // render-blocking (EndDocument reverts any deferral).
+  if (!document_is_text_html_) return;
+  if (critical_css_context_refused_) return;
 
   // Gate on the page's CSP (header policies from the headers sidecar and
   // <meta> ones): if inline <style> would be dropped, do not inject. The SAME
@@ -391,12 +471,30 @@ void HtmlTransformFilter::InjectCriticalCss(
 
   // Markup safety: refuse CSS holding a `<` that could open a tag, a closing
   // tag, a comment or a processing instruction (`<` then an ASCII letter,
-  // `/`, `!` or `?`).  A bare `<` in a range media query stays allowed.
+  // `/`, `!` or `?`), so the block's text is markup-free even where a browser
+  // would not read it as a style's raw text (a tokenizer state the parser
+  // does not model). A bare `<` in a range media query stays allowed. This
+  // also refuses `syntax: "<color>"` in an @property rule.
   for (size_t i = 0; i + 1 < sanitized.size(); ++i) {
     if (sanitized[i] != '<') continue;
     const unsigned char next = static_cast<unsigned char>(sanitized[i + 1]);
     if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
         next == '/' || next == '!' || next == '?') {
+      return;  // Abort injection.
+    }
+  }
+
+  // In an HTML <style> element the raw text ends at the first `</style`
+  // (ASCII case-insensitive) followed by whitespace, `/` or `>`. The check
+  // above already refuses every `</`; this one names the end tag on its own.
+  // CSS strings are not skipped: a `</style` inside one ends the element just
+  // the same. Only sound for text/html; see document_is_text_html_.
+  constexpr std::string_view kStyleEndTag = "</style";
+  const std::string_view css_view(sanitized);
+  for (size_t i = 0; i + kStyleEndTag.size() <= css_view.size(); ++i) {
+    if (css_view[i] == '<' &&
+        net_instaweb::StringCaseEqual(css_view.substr(i, kStyleEndTag.size()),
+                                      kStyleEndTag)) {
       return;  // Abort injection.
     }
   }
@@ -411,9 +509,6 @@ void HtmlTransformFilter::InjectCriticalCss(
   // filter with the whole document as one flush window, so it is rewritable;
   // the check is the same guard RevertAsyncCss applies, and a node that has
   // left the window is not touched (InsertNodeBeforeNode Checks on it).
-  auto* style_element =
-      parser_->NewElement(nullptr, net_instaweb::HtmlName::kStyle);
-  parser_->AddAttribute(style_element, "data-pagespeed-critical", "");
   //
   // A block that names a cascade layer goes first only with the page's layer
   // order in front of it, when that order is proven; otherwise it keeps the old
@@ -423,12 +518,41 @@ void HtmlTransformFilter::InjectCriticalCss(
   // including before the end tag when every sheet is in <body>.
   const CriticalCssLayerPlacement layers =
       DecideCriticalCssLayerPlacement(sanitized, layer_order_);
-  if (!layers.keep_fallback && critical_css_anchor_ != nullptr &&
-      parser_->IsRewritable(critical_css_anchor_)) {
+  const bool before_anchor = !layers.keep_fallback &&
+                             critical_css_anchor_ != nullptr &&
+                             parser_->IsRewritable(critical_css_anchor_);
+
+  // The block must land where an inserted <style> is a document stylesheet:
+  // never inside <noscript>/<noembed>/<noframes>/<template> or foreign content
+  // (<svg>/<math>), where it would not apply, or not as raw text. Before the
+  // anchor it becomes the anchor's sibling; before the current end tag, the
+  // last child of `element`. TrackCriticalCssAnchor already skips sources in
+  // those subtrees, and a <head> or <body> start tag ends foreign content
+  // (html_lexer.cc), so this refuses a document that nests <head> or <body>
+  // in <noscript>, <noembed>, <noframes>, <template> or <select>; the rest is
+  // defense in depth. The refusal is final for the document (no second try at
+  // </body>).
+  // So does a document that is "in select" (a <select> start tag not yet
+  // matched by an explicit </select>), or has had a <plaintext> or a
+  // <frameset>, wherever the block would go (conservative: before an earlier
+  // anchor it would be safe).
+  if (InSelect() || plaintext_seen_ || frameset_seen_ ||
+      (before_anchor ? InsideNonDocumentSubtree(critical_css_anchor_)
+                     : (IsNonDocumentSubtreeRoot(element) ||
+                        InsideNonDocumentSubtree(element)))) {
+    critical_css_context_refused_ = true;
+    return;  // Refuse; EndDocument reverts any deferral.
+  }
+
+  auto* style_element =
+      parser_->NewElement(nullptr, net_instaweb::HtmlName::kStyle);
+  parser_->AddAttribute(style_element, "data-pagespeed-critical", "");
+  if (before_anchor) {
     parser_->InsertNodeBeforeNode(critical_css_anchor_, style_element);
   } else {
     parser_->InsertNodeBeforeCurrent(style_element);
   }
+  injected_critical_style_ = style_element;
   if (!layers.prefix.empty()) sanitized.insert(0, layers.prefix);
 
   auto* css_text = parser_->NewCharactersNode(style_element, sanitized);
@@ -490,7 +614,7 @@ void HtmlTransformFilter::TrackCriticalCssAnchor(
        ((element->AttributeValue(HtmlName::kRel) != nullptr &&
          RelHasToken(element->AttributeValue(HtmlName::kRel), "stylesheet")) ||
         IsLoadCssPreload(element)));
-  if (is_source && !InsideNonDocumentSubtree(element)) {
+  if (is_source && !InSelect() && !InsideNonDocumentSubtree(element)) {
     critical_css_anchor_ = element;
   }
 }

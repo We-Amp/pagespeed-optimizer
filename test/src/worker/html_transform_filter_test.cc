@@ -74,6 +74,7 @@ std::string TransformHtml(
                                 "https", lcp_candidate, preconnect_origins,
                                 speculation_urls, defer_scripts, font_urls);
   transform.set_subresource_gate(AdmitAllGate(), /*host_fetch_allowed=*/true);
+  transform.set_document_is_text_html(true);
   parser.AddFilter(&transform);
 
   std::string output;
@@ -4377,6 +4378,7 @@ std::string TransformWithHeaderCsps(std::string_view html,
   config.enable_image_dimensions = false;
   HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
                                 "https");
+  transform.set_document_is_text_html(true);
   transform.set_header_csps(std::move(header_csps));
   parser.AddFilter(&transform);
 
@@ -5139,6 +5141,7 @@ std::string TransformHtmlWithLayers(std::string_view html,
   net_instaweb::HtmlParse parser(&message_handler);
   HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
                                 "https");
+  transform.set_document_is_text_html(true);
   transform.set_cascade_layer_order(order);
   parser.AddFilter(&transform);
   std::string output;
@@ -5323,6 +5326,372 @@ TEST(HtmlTransformFilterTest, CriticalCssRefusedByLaterMetaCspStillReverts) {
   EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
   EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos);
   EXPECT_NE(result.find("rel=\"stylesheet\""), std::string::npos);
+}
+
+// ========== Critical CSS markup guard and document type ==========
+
+// As TransformHtml, with the document type under the test's control:
+// std::nullopt leaves set_document_is_text_html uncalled (the default).
+std::string TransformWithDocumentType(std::string_view html,
+                                      const HtmlTransformConfig& config,
+                                      std::string_view critical_css,
+                                      std::optional<bool> is_text_html,
+                                      bool* injected = nullptr) {
+  net_instaweb::HtmlKeywords::Init();
+  net_instaweb::NullMessageHandler message_handler;
+  net_instaweb::HtmlParse parser(&message_handler);
+  HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
+                                "https");
+  transform.set_subresource_gate(AdmitAllGate(), /*host_fetch_allowed=*/true);
+  if (is_text_html.has_value()) {
+    transform.set_document_is_text_html(*is_text_html);
+  }
+  parser.AddFilter(&transform);
+  std::string output;
+  net_instaweb::StringWriter writer(&output);
+  net_instaweb::HtmlWriterFilter writer_filter(&parser);
+  writer_filter.set_writer(&writer);
+  parser.AddFilter(&writer_filter);
+  if (!parser.StartParse("http://example.com/")) return "";
+  parser.ParseText(html);
+  parser.FinishParse();
+  if (injected != nullptr) *injected = transform.critical_css_injected();
+  return output;
+}
+
+HtmlTransformConfig GuardConfig() {
+  HtmlTransformConfig config;
+  config.enable_critical_css = true;
+  config.enable_async_css = true;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+  return config;
+}
+
+constexpr std::string_view kGuardPage =
+    "<html><head><title>T</title>"
+    "<link rel=\"stylesheet\" href=\"/style.css\"></head>"
+    "<body><p>x</p></body></html>";
+
+// The block shipped and the stylesheet stays deferred behind it.
+void ExpectInjectedAndDeferred(const std::string& result,
+                               std::string_view css) {
+  EXPECT_EQ(CountOccurrences(result, "data-pagespeed-critical"), 1u) << result;
+  EXPECT_NE(result.find(css), std::string::npos) << result;
+  EXPECT_NE(result.find("data-pagespeed-async=\"\""), std::string::npos)
+      << result;
+  EXPECT_NE(result.find("rel=\"preload\""), std::string::npos) << result;
+}
+
+// No block, and the deferral it would have bridged is reverted: the author's
+// render-blocking stylesheet, nothing else.
+void ExpectRefusedAndReverted(const std::string& result) {
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+      << result;
+  EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos) << result;
+  EXPECT_EQ(result.find("rel=\"preload\""), std::string::npos) << result;
+  EXPECT_EQ(result.find("<noscript"), std::string::npos) << result;
+  EXPECT_EQ(result.find("/pagespeed_static/async_css."), std::string::npos)
+      << result;
+  EXPECT_EQ(CountOccurrences(result, "rel=\"stylesheet\""), 1u) << result;
+}
+
+// Tailwind-like CSS used in the tests below: Tailwind CSS v4 registers its
+// gradient and sizing properties with `@property`, whose `syntax` descriptor
+// is a string such as "<color>".
+constexpr std::string_view kTailwindLikeCss =
+    "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
+    "initial-value:#0000}"
+    "@property --tw-gradient-from-position{syntax:\"<length-percentage>\";"
+    "inherits:false;initial-value:0%}"
+    ".bg-gradient-to-r{--tw-gradient-position:to right in oklab}";
+
+// A `<` then an ASCII letter, `/`, `!` or `?` refuses the block, inside a CSS
+// string or not: Tailwind's `syntax: "<color>"` too. The stylesheets stay
+// render-blocking.
+TEST(HtmlTransformFilterTest, CriticalCssWithMarkupLikeTextIsRefused) {
+  for (std::string_view css : {
+           kTailwindLikeCss,
+           std::string_view("@media (400px<width<800px){a{color:red}}"),
+           std::string_view("a{content:\"<!-- x\"}"),
+           std::string_view("a{content:\"<? x\"}"),
+           std::string_view("a{content:\"<b>\"}"),
+           std::string_view("a{content:\"</b>\"}"),
+           std::string_view("a{content:\"<style>\"}"),
+       }) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   css, true, &injected);
+    EXPECT_FALSE(injected) << css;
+    ExpectRefusedAndReverted(result);
+  }
+}
+
+// A `<` before anything else, as in a range media query, stays allowed.
+TEST(HtmlTransformFilterTest, CriticalCssWithRangeMediaQueryIsInjected) {
+  for (std::string_view css : {
+           std::string_view("@media (width<=600px){a{color:red}}"),
+           std::string_view("@media (width<600px){a{color:red}}"),
+           std::string_view("@media (width < 600px){a{color:red}}"),
+       }) {
+    bool injected = false;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   css, true, &injected);
+    EXPECT_TRUE(injected) << css;
+    ExpectInjectedAndDeferred(result, css);
+  }
+}
+
+// Pages where a browser's tokenizer can leave a state the parser does not
+// model (a short comment, a CDATA section in HTML content, a raw-text tag in
+// <noscript>) and read a <select> the parser never sees. Whatever the filter
+// decides, no CSS text may become an element: the block is either refused or
+// holds no `<` then an ASCII letter, `/`, `!` or `?`.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkup) {
+  for (std::string_view page : {
+           std::string_view("<html><head><!--><select>-->"
+                            "<link rel=stylesheet href=/s.css></head>"
+                            "<body><p>x</p></body></html>"),
+           std::string_view("<html><head><!---><select>-->"
+                            "<link rel=stylesheet href=/s.css></head>"
+                            "<body><p>x</p></body></html>"),
+           std::string_view("<html><head><![CDATA[><select>]]>"
+                            "<link rel=stylesheet href=/s.css></head>"
+                            "<body><p>x</p></body></html>"),
+           std::string_view("<html><head></head><body><noscript><script>"
+                            "</noscript><select></script></noscript>"
+                            "<link rel=stylesheet href=/s.css>"
+                            "<p>x</p></body></html>"),
+       }) {
+    for (std::string_view css :
+         {kTailwindLikeCss, std::string_view("body{color:red}")}) {
+      SCOPED_TRACE(std::string(page) + " / " + std::string(css));
+      std::string result =
+          TransformWithDocumentType(page, GuardConfig(), css, true);
+      const size_t open = result.find("data-pagespeed-critical");
+      if (open == std::string::npos) continue;  // refused
+      const size_t text = result.find('>', open);
+      ASSERT_NE(text, std::string::npos) << result;
+      const size_t end = result.find("</style>", text);
+      ASSERT_NE(end, std::string::npos) << result;
+      const std::string_view block =
+          std::string_view(result).substr(text + 1, end - text - 1);
+      for (size_t i = 0; i + 1 < block.size(); ++i) {
+        if (block[i] != '<') continue;
+        const unsigned char next = static_cast<unsigned char>(block[i + 1]);
+        EXPECT_FALSE((next >= 'a' && next <= 'z') ||
+                     (next >= 'A' && next <= 'Z') || next == '/' ||
+                     next == '!' || next == '?')
+            << result;
+      }
+    }
+  }
+}
+
+// `</style` in any letter case, whatever follows it (a space, `/`, `>`, any
+// other byte, or the end of the block), and inside a CSS string as much as
+// outside one, refuses the block.
+TEST(HtmlTransformFilterTest, CriticalCssWithStyleEndTagIsRefusedInAnyCase) {
+  for (std::string_view css : {
+           std::string_view("a{color:red}</style><script>x()</script>"),
+           std::string_view("a{color:red}</STYLE>"),
+           std::string_view("a{color:red}</StYlE b{}"),
+           std::string_view("a{color:red}</StYlE/b{}"),
+           std::string_view("a{color:red}</StYlE>"),
+           std::string_view("a{color:red}</stylesheet"),
+           std::string_view("a{content:\"</style>\"}"),
+           std::string_view("a{color:red}</style"),
+           std::string_view("a{color:red}<\0/style>", 21),
+       }) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   css, true, &injected);
+    EXPECT_FALSE(injected) << css;
+    ExpectRefusedAndReverted(result);
+  }
+}
+
+// An XHTML page (application/xhtml+xml), or one whose type the caller cannot
+// tell, gets no block at all, even plain CSS: its <style> text is XML there.
+TEST(HtmlTransformFilterTest, CriticalCssIsNotInjectedUnlessTextHtml) {
+  for (std::optional<bool> is_text_html :
+       {std::optional<bool>(false), std::optional<bool>()}) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(
+        kGuardPage, GuardConfig(), "body{color:red}", is_text_html, &injected);
+    EXPECT_FALSE(injected);
+    ExpectRefusedAndReverted(result);
+  }
+}
+
+// The insertion point must be where an inserted <style> is a document
+// stylesheet. A <head> or <body> nested in <noscript> or <template> refuses
+// the block, for the whole document: no second try at a later end tag.
+TEST(HtmlTransformFilterTest, CriticalCssRefusedWhenAnchorIsInNonDocument) {
+  for (std::string_view page : {
+           std::string_view("<html><noscript><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "</head></noscript><body><p>x</p></body></html>"),
+           std::string_view("<html><template><head><title>T</title></head>"
+                            "</template><link rel=\"stylesheet\" "
+                            "href=\"/style.css\"><body><p>x</p></body></html>"),
+           std::string_view("<html><noscript><body><p>x</p></body>"
+                            "</noscript></html>"),
+       }) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_FALSE(injected) << page;
+    EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+        << result;
+    EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos) << result;
+    EXPECT_EQ(result.find("rel=\"preload\""), std::string::npos) << result;
+  }
+}
+
+// <head> and <body> start tags end foreign content (the lexer pops <svg> and
+// <math> for them, as browsers do), so the end tag the block goes before is
+// back in HTML: the block is a document stylesheet there and is inlined.
+TEST(HtmlTransformFilterTest, CriticalCssInlinedWhenHeadEndsForeignContent) {
+  for (std::string_view page : {
+           std::string_view("<html><svg><head></head></svg>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<body><p>x</p></body></html>"),
+           std::string_view("<html><math><head></head></math>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<body><p>x</p></body></html>"),
+       }) {
+    bool injected = false;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_TRUE(injected) << page;
+    ExpectInjectedAndDeferred(result, "body{color:red}");
+  }
+}
+
+// A browser in "in select" mode ignores a <style> start tag, so the CSS
+// would be text; it leaves that mode only at an explicit </select>, not at
+// an ancestor's end tag the parser uses to close the select for its own tree
+// (conservative: the filter also stays in select at a second <select> start
+// tag, which a browser treats as </select>). Any start tag in select other
+// than <option>, <optgroup>, <hr> or <script> keeps the document in select
+// for good, and so does a select the parser closes for its own tree, such as
+// at a table cell's end tag (the browser's table exit is not followed).
+// After <plaintext> everything is text, and a frameset document gets no
+// block either. All of these refuse the block for the document, and any
+// deferral is reverted.
+TEST(HtmlTransformFilterTest, CriticalCssRefusedInSelectPlaintextOrFrameset) {
+  for (std::string_view page : {
+           // The parser closes the select at </div>; the browser does not.
+           std::string_view("<html><body><div><select></div>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A stylesheet inside a select that is never closed.
+           std::string_view("<html><body><select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A deferrable sheet, then an unclosed select before </head>.
+           std::string_view("<html><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<select><option>a</head><body><p>x</p></body>"
+                            "</html>"),
+           // The parser closes the template and matches </select>; the
+           // browser ignores </select> in the template and is in select
+           // again after </template>.
+           std::string_view("<html><body><select><template></select>"
+                            "</template>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A nested select inside that template.
+           std::string_view("<html><body><select><template><select>"
+                            "</select></template></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // The parser matches </select> past an open <div> (a browser
+           // would not nest it; refused all the same).
+           std::string_view("<html><body><select><div></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // Foreign content in select.
+           std::string_view("<html><body><select><svg></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A select the parser closes at a table cell's end tag.
+           std::string_view("<html><body><table><tr><td><select></td></tr>"
+                            "</table>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // An unclosed select before </body>.
+           std::string_view("<html><body><p>x</p>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<select><option>a</body></html>"),
+           // <plaintext> before </head>.
+           std::string_view("<html><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<plaintext>a</head><body></body></html>"),
+           // A frameset document: the frameset follows </head>.
+           std::string_view("<html><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "</head><frameset cols=\"*\"><frame src=\"a.html\">"
+                            "</frameset></html>"),
+       }) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_FALSE(injected) << page;
+    EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+        << result;
+    EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos) << result;
+    EXPECT_EQ(result.find("rel=\"preload\""), std::string::npos) << result;
+    EXPECT_EQ(result.find("/pagespeed_static/async_css."), std::string::npos)
+        << result;
+  }
+}
+
+// A select closed by its own </select>, holding only <option>, <optgroup>,
+// <hr> or <script>, ends "in select" mode: a stylesheet after it anchors the
+// block as usual (no <head>, so the block goes before that sheet, after the
+// select) and is deferred behind it.
+TEST(HtmlTransformFilterTest,
+     CriticalCssInjectedAfterAnExplicitlyClosedSelect) {
+  for (std::string_view page : {
+           std::string_view("<html><body><select><option>a</option></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           std::string_view("<html><body><select><option>a<optgroup>"
+                            "<option>b</select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           std::string_view("<html><body><select><script>x()</script>"
+                            "<hr></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+       }) {
+    bool injected = false;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_TRUE(injected) << page;
+    ExpectInjectedAndDeferred(result, "body{color:red}");
+    EXPECT_GT(result.find("data-pagespeed-critical"), result.find("</select>"))
+        << result;
+  }
+}
+
+// A block placed before </head> precedes any <select> later in the body: it
+// is a style element there and stays.
+TEST(HtmlTransformFilterTest, CriticalCssInHeadKeptWhenASelectFollows) {
+  bool injected = false;
+  std::string result = TransformWithDocumentType(
+      "<html><head><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/style.css\"></head><body>"
+      "<select><option>a<p>x</p></body></html>",
+      GuardConfig(), "body{color:red}", true, &injected);
+  EXPECT_TRUE(injected);
+  ExpectInjectedAndDeferred(result, "body{color:red}");
+  EXPECT_LT(result.find("data-pagespeed-critical"), result.find("</head>"))
+      << result;
 }
 
 }  // namespace

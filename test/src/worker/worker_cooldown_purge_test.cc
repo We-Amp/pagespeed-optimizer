@@ -2003,6 +2003,7 @@ TEST_F(WorkerTest, CooldownSchemeIsolation) {
     AlternateMetadata meta;
     meta.full_mask = default_mask.Encode();
     meta.content_type = ContentType::kOther;
+    meta.origin_content_type = DefaultOriginContentType(html);
     auto wh =
         worker.cache()->WriteAlternate(path, "", "http", id, html.size(), meta);
     ASSERT_TRUE(wh.has_value());

@@ -38,6 +38,7 @@
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
+#include "lib/classify/content_type.h"
 #include "lib/classify/option_context.h"
 #include "lib/classify/url_normalizer.h"
 #include "lib/css/css_import_flattener.h"
@@ -6314,6 +6315,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
           notification.hostname, notification.scheme, scan_result.lcp_candidate,
           scan_result.third_party_origins, speculation_urls, defer_scripts);
       transform_filter.set_cascade_layer_order(combined.layer_order);
+      // The page is text/html only when the origin said so: an XHTML page
+      // (application/xhtml+xml, also filed under kHtml) or one stored without
+      // a Content-Type gets no inline critical CSS.
+      transform_filter.set_document_is_text_html(
+          IsTextHtmlMediaType(html_read_result->metadata.origin_content_type));
       transform_filter.set_site(notification.site);
       transform_filter.set_subresource_gate(
           subresource_gate_.get(),
