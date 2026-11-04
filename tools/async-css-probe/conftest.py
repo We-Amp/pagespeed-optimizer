@@ -105,6 +105,17 @@ FIXTURE_FOLD_SUBRESOURCE_PATHS = (
 )
 
 
+# The second page: stock Bootstrap 5.3.3 (fixtures/bootstrap-5.3.3), served at
+# /plain/ with its stylesheet at /bootstrap.min.css. Its stylesheet holds no
+# `<` followed by a letter, `/`, `!` or `?`, which is what lets the optimizer
+# inline a critical block for it. The primary page's Tailwind v4 sheet holds
+# `@property ... syntax:"<color>"`, so the optimizer never inlines into it and
+# never defers its stylesheet: the pair covers both outcomes of that rule.
+PLAIN_HTML_PATH = "/plain/"
+PLAIN_CSS_PATH = "/bootstrap.min.css"
+PLAIN_FIXTURE_DIR = os.path.join(PROBE_DIR, "fixtures", "bootstrap-5.3.3")
+
+
 def fixture_file(url_path: str) -> str:
     """The fixture file the origin serves at ``url_path``."""
     rel = "index.html" if url_path == "/" else url_path.lstrip("/")
@@ -418,6 +429,57 @@ class ProbeClient:
             f"{path} was never served as optimized output within {timeout}s ({detail})"
         )
 
+    def poll_for_settled(
+        self,
+        path: str,
+        origin_bytes: bytes,
+        timeout: float = 60.0,
+        interval: float = 0.25,
+    ):
+        """Poll until the optimizer has DECIDED about the page.
+
+        ``poll_for_optimized`` waits for bytes that differ from the origin's,
+        which a page the optimizer leaves alone never produces: a plain page
+        with no critical block, no deferral and nothing else to rewrite is
+        served as the origin sent it, and that is the correct outcome. So the
+        decision is either bytes that differ, or the worker's own record that
+        it found nothing to transform for this page.
+        """
+        deadline = time.time() + timeout
+        last = None
+        next_log_check = 0.0
+        while time.time() < deadline:
+            try:
+                r = self.get(path)
+                last = r
+                if r.headers.get("X-PageSpeed") == "HIT":
+                    if r.content != origin_bytes:
+                        return r
+                    if time.time() >= next_log_check:
+                        next_log_check = time.time() + 2.0
+                        logs = compose_run("logs", "--no-color", "worker").stdout
+                        if any(
+                            f"{line} {path}" in logs
+                            for line in (
+                                "No HTML transformations applicable for",
+                                "HTML transform produced no changes for",
+                            )
+                        ):
+                            return r
+            except requests.RequestException:
+                pass
+            time.sleep(interval)
+        detail = (
+            f"{last.status_code} X-PageSpeed="
+            f"{last.headers.get('X-PageSpeed', '<absent>')}"
+            if last is not None
+            else "no response at all"
+        )
+        raise AssertionError(
+            f"{path} was neither rewritten nor declared untouched by the worker "
+            f"within {timeout}s ({detail})"
+        )
+
 
 def compose_run(*args):
     return subprocess.run(
@@ -473,12 +535,14 @@ def probe_services():
         compose_check("up", "-d")
     try:
         _wait_for_service(ORIGIN_URL, FIXTURE_HTML_PATH)
+        _wait_for_service(ORIGIN_URL, PLAIN_HTML_PATH)
         # Readiness is probed on the STYLESHEET, never on the page under test.
         # A readiness request to "/" would be the page's first optimization, run
         # before the sheet is cached — so the page would be stored in the
         # cold-cache state and every later assertion would read a page the
         # optimizer never got to see properly.
         _wait_for_service(NGINX_URL, FIXTURE_CSS_PATH)
+        _wait_for_service(NGINX_URL, PLAIN_CSS_PATH)
         # Confirm the worker is actually ready: a still-starting worker
         # performs no optimization at all and every assertion below would
         # fail as an unexplained absence of markup. Skipped only where
@@ -533,6 +597,55 @@ def optimized_home(client, fixture_html_bytes) -> requests.Response:
 @pytest.fixture(scope="session")
 def home_markup(optimized_home) -> MarkupIndex:
     return MarkupIndex(optimized_home.text)
+
+
+@pytest.fixture(scope="session")
+def optimized_plain(client) -> requests.Response:
+    """The plain (Bootstrap) page as the optimizer serves it. Same warm order
+    as ``optimized_home``: its stylesheet is cached before the page is first
+    optimized."""
+    with open(os.path.join(PLAIN_FIXTURE_DIR, "index.html"), "rb") as f:
+        origin_bytes = f.read()
+    client.poll_for_hit(PLAIN_CSS_PATH)
+    return client.poll_for_settled(PLAIN_HTML_PATH, origin_bytes)
+
+
+@pytest.fixture(scope="session")
+def plain_markup(optimized_plain) -> MarkupIndex:
+    return MarkupIndex(optimized_plain.text)
+
+
+@pytest.fixture(scope="session")
+def plain_css_bytes() -> bytes:
+    with open(os.path.join(PLAIN_FIXTURE_DIR, "bootstrap.min.css"), "rb") as f:
+        return f.read()
+
+
+class Page:
+    """One optimized fixture page: where it lives, what was served, its markup."""
+
+    def __init__(self, name, html_path, css_path, response):
+        self.name = name
+        self.html_path = html_path
+        self.css_path = css_path
+        self.response = response
+        self.markup = MarkupIndex(response.text)
+
+
+@pytest.fixture(scope="session")
+def tailwind_page(optimized_home) -> Page:
+    return Page("tailwind", FIXTURE_HTML_PATH, FIXTURE_CSS_PATH, optimized_home)
+
+
+@pytest.fixture(scope="session")
+def plain_page(optimized_plain) -> Page:
+    return Page("plain", PLAIN_HTML_PATH, PLAIN_CSS_PATH, optimized_plain)
+
+
+@pytest.fixture(params=["tailwind", "plain"])
+def page(request) -> Page:
+    """Each fixture page in turn, for the invariants that hold for both."""
+    return request.getfixturevalue(f"{request.param}_page")
 
 
 @pytest.fixture(scope="session")

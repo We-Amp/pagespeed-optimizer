@@ -26,11 +26,13 @@ services:
     command: python3 /app/probe_origin.py
     volumes:
       - ./fixtures/modpagespeed-com:/var/www/fixture:ro
+      - ./fixtures/bootstrap-5.3.3:/var/www/fixture-plain:ro
       - ./probe_origin.py:/app/probe_origin.py:ro
     environment:
       - PORT=8081
       - BIND=0.0.0.0
       - PROBE_FIXTURE=/var/www/fixture
+      - PROBE_PLAIN_FIXTURE=/var/www/fixture-plain
     ports:
       - "${PROBE_ORIGIN_PORT:-8281}:8081"
 
@@ -44,6 +46,10 @@ services:
       - ASYNC_CSS_PROBE_FORCE=${ASYNC_CSS_PROBE_FORCE:-0}
       # Read by the canonical entrypoint; empty means "leave the default".
       - PAGESPEED_ASYNC_CSS_MIN_COVERAGE=${PAGESPEED_ASYNC_CSS_MIN_COVERAGE:-}
+      # Host name visitors use (the published port) -> where the worker reaches
+      # nginx on the compose network; see entrypoint-probe-worker.sh.
+      - PROBE_VISITOR_HOST=localhost:${PROBE_NGINX_PORT:-8280}
+      - PROBE_WORKER_HOST=nginx:8080
     volumes:
       - shared:/shared
       - ./entrypoint-probe-worker.sh:/entrypoint-probe-worker.sh:ro

@@ -60,6 +60,22 @@ def build_routes(fixture_dir: str) -> dict[str, str]:
 
 ROUTES = build_routes(FIXTURE_DIR)
 
+# A second page, served beside the first: its index.html answers at PLAIN_PATH
+# and every other file at its own path (the page links its stylesheet by an
+# absolute path). The two fixtures share no file name, so neither shadows the
+# other; a collision is refused rather than resolved.
+PLAIN_FIXTURE_DIR = os.environ.get("PROBE_PLAIN_FIXTURE", "")
+PLAIN_PATH = "/plain/"
+if PLAIN_FIXTURE_DIR:
+    for _route, _target in build_routes(PLAIN_FIXTURE_DIR).items():
+        _route = PLAIN_PATH if _route == "/" else _route
+        if _route == "/index.html":
+            continue  # the plain page's index is served at PLAIN_PATH only
+        if _route in ROUTES:
+            sys.exit(f"ERROR: plain fixture path {_route} collides with the primary")
+        ROUTES[_route] = _target
+    ROUTES[PLAIN_PATH] = os.path.join(PLAIN_FIXTURE_DIR, "index.html")
+
 
 class ProbeHandler(http.server.BaseHTTPRequestHandler):
     server_version = "AsyncCssProbeOrigin/1.0"
