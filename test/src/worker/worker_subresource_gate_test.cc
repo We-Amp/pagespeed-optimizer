@@ -147,6 +147,7 @@ class WorkerSubresourceGateTest : public WorkerTest {
     AlternateMetadata meta;
     meta.full_mask = default_mask.Encode();
     meta.content_type = ContentType::kOther;
+    meta.origin_content_type = DefaultOriginContentType(content);
     meta.flags = flags;
     auto wh =
         cache->WriteAlternate(url, hostname, "http", id, content.size(), meta);

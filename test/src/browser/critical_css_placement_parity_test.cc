@@ -149,6 +149,7 @@ std::string Serve(std::string_view html, std::string_view critical_css,
         auto* filter =
             new HtmlTransformFilter(parser, config, a->critical_css, nullptr,
                                     "", "https", {}, {}, {}, *a->defer_scripts);
+        filter->set_document_is_text_html(true);
         filter->set_cascade_layer_order(*a->layer_order);
         return static_cast<net_instaweb::HtmlFilter*>(filter);
       },

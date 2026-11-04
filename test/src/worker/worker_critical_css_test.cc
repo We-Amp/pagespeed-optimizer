@@ -116,6 +116,126 @@ TEST_F(WorkerTest, HtmlNotificationInjectsCriticalCss) {
   worker_thread.join();
 }
 
+// Critical CSS holding a `<` then an ASCII letter (Tailwind CSS v4's
+// `@property` syntax strings such as "<color>") is not inlined on the worker
+// path either.
+TEST_F(WorkerTest, CriticalCssWithPropertySyntaxStringIsNotInlined) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.unsafe_force_async_css = true;
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string html =
+      "<html><head><style>"
+      "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
+      "initial-value:#0000}"
+      "h1{color:red;background-image:linear-gradient("
+      "var(--tw-gradient-from),red)}</style></head>"
+      "<body><h1>Hello World</h1></body></html>";
+  const std::string cache_url = "/tailwind.html";
+  CacheOriginal(worker.cache(), cache_url, html);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = "http://example.com" + cache_url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = 0x00000001;
+  SendNotification(notification);
+
+  CapabilityMask mask = CapabilityMask::Decode(0x00000001);
+  mask.set_image_format(CapabilityMask::ImageFormat::kOriginal);
+  std::string variant;
+  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    variant = ReadVariant(worker.cache(), cache_url, mask);
+    if (!variant.empty()) break;
+    if (i >= 20) break;  // may write nothing at all
+  }
+  EXPECT_EQ(variant.find("data-pagespeed-critical"), std::string::npos)
+      << variant;
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+// The worker inlines critical CSS only into a page the origin served as
+// text/html: an XHTML page (application/xhtml+xml, which the front ends file
+// as HTML too) or one recorded without a Content-Type gets none, and its
+// stylesheet stays render-blocking.
+TEST_F(WorkerTest, CriticalCssOnlyForPagesServedAsTextHtml) {
+  const std::string page =
+      "<html><head><style>body { margin: 0; } "
+      "h1 { color: red; }</style></head>"
+      "<body><h1>Hello World</h1></body></html>";
+  // The fixture records text/html for a body that opens with <html> when the
+  // test names no type; a leading comment keeps the empty type empty.
+  const std::string untyped_page = "<!-- untyped -->" + page;
+  struct Case {
+    const char* origin_content_type;
+    const std::string* html;
+    bool expect_block;
+  };
+  const Case cases[] = {
+      {"text/html; charset=utf-8", &page, true},
+      {"application/xhtml+xml", &page, false},
+      {"application/xhtml+xml; charset=utf-8", &page, false},
+      {"", &untyped_page, false},
+  };
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.unsafe_force_async_css = true;
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  for (size_t n = 0; n < std::size(cases); ++n) {
+    CacheOriginal(worker.cache(), "/page" + std::to_string(n) + ".html",
+                  *cases[n].html, "", 0, nullptr, cases[n].origin_content_type);
+  }
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CapabilityMask mask = CapabilityMask::Decode(0x00000001);
+  mask.set_image_format(CapabilityMask::ImageFormat::kOriginal);
+  for (size_t n = 0; n < std::size(cases); ++n) {
+    const Case& c = cases[n];
+    SCOPED_TRACE(c.origin_content_type);
+    const std::string cache_url = "/page" + std::to_string(n) + ".html";
+    CacheNotification notification;
+    notification.url = "http://example.com" + cache_url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kHtml;
+    notification.capability_mask = 0x00000001;
+    SendNotification(notification);
+
+    std::string variant;
+    for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      variant = ReadVariant(worker.cache(), cache_url, mask);
+      if (!variant.empty()) break;
+      if (!c.expect_block && i >= 20) break;  // may write nothing at all
+    }
+    if (c.expect_block) {
+      ASSERT_FALSE(variant.empty()) << "HTML variant not written";
+      EXPECT_NE(variant.find("data-pagespeed-critical"), std::string::npos)
+          << variant;
+    } else {
+      EXPECT_EQ(variant.find("data-pagespeed-critical"), std::string::npos)
+          << variant;
+    }
+  }
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
 // A rule inside <noscript> applies only to clients without
 // scripts, so it must never reach the inlined critical block, which every
 // browser is served. Before the fix the scanner folded <noscript> <style>

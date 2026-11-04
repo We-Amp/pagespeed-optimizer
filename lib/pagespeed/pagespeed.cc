@@ -2888,6 +2888,8 @@ extern "C" ps_error_t ps_html_transform_run(ps_html_transform_t* transform,
         transform->cache_ptr, transform->hostname, "https",
         transform->lcp_candidate, transform->preconnect_origins,
         transform->speculation_urls);
+    // The page is text/html by this entry point's contract (pagespeed.h).
+    filter.set_document_is_text_html(true);
     parser.AddFilter(&filter);
 
     std::string output;
@@ -3135,6 +3137,8 @@ extern "C" ps_error_t ps_html_process(const char* html, size_t html_len,
         (cache != nullptr) ? cache->cache.get() : nullptr,
         (hostname != nullptr) ? hostname : "", scheme,
         scan_result.lcp_candidate, scan_result.third_party_origins);
+    // The page is text/html by this entry point's contract (pagespeed.h).
+    filter.set_document_is_text_html(true);
     parser.AddFilter(&filter);
 
     std::string output;

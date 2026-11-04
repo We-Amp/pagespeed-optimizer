@@ -83,6 +83,8 @@ Added: the admin console now shows how much of the saving on responses served fr
 
 Fixed: the JavaScript minifier now leaves some scripts in legacy multibyte encodings unminified, keeping the original code.
 
+Changed: XHTML pages (served as application/xhtml+xml) are served without the inline critical CSS block, and their stylesheets stay render-blocking.
+
 ## 2.7.0 - 2026-10-31
 
 Changed: the Helm chart 0.3.13 is published with this release; its default
