@@ -124,6 +124,8 @@ const ENUM_DEFAULTS = new Map([
   ['kLazyloadImagesModeJs', 'js'],
   ['kRulePackModeReport', 'report'],
   ['kRulePackModeEnforce', 'enforce'],
+  ['kDaemonHtmlCacheOff', 'off'],
+  ['kDaemonHtmlCacheReportOnly', 'report-only'],
 ]);
 
 // Options whose accepted values are parsed by a dedicated function; the
@@ -133,6 +135,7 @@ const ENUM_PARSERS = [
   ['EnableRewriting', 'EnabledEnum* value)'],
   ['LazyloadImagesMode', 'LazyloadImagesMode* value)'],
   ['RulePackMode', 'RulePackMode* value)'],
+  ['DaemonHtmlCache', 'DaemonHtmlCacheMode* value)'],
 ];
 
 // Argument shapes of the directives that are not registered options. The
