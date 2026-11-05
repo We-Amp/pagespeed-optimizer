@@ -403,17 +403,40 @@ export function evalExpr(expr, lookup, depth = 0) {
   if (depth > 8) return null;
   let e = expr.trim();
   e = e.replace(/static_cast<[^>]+>\(([^)]*)\)/g, '$1');
+  // Brace-initialized integer casts: int64{5}, uint32_t{1}, size_t{8}.
+  e = e.replace(/\b(?:u?int(?:8|16|32|64)?(?:_t)?|size_t)\s*\{([^{}]*)\}/g, '($1)');
   e = e.replace(/\b(\d+)(?:LL|L|UL|U|ULL)\b/g, '$1');
   e = e.replace(/\b(?:\w+::)*(k[A-Z]\w*)\b/g, (_, k) => {
     const v = lookup(k, depth + 1);
     return v === null || v === undefined ? 'NaN' : `(${v})`;
   });
+  if (e.includes('<<')) return evalShiftExpr(e);
   if (!/^[\d\s+\-*/().eE]+$/.test(e) || e.includes('NaN')) return null;
   try {
     // The expression is now digits and arithmetic only (validated above).
     const value = Function(`"use strict"; return (${e});`)();
     if (typeof value !== 'number' || !Number.isFinite(value)) return null;
     return value;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Evaluate an integer expression that uses `<<` (2 << 20). JavaScript's `<<`
+ * works on 32-bit integers, so the expression is evaluated in BigInt, where
+ * `<<`, `+`, `-` and `*` have C's integer meaning and precedence; division
+ * and non-integer literals are refused rather than approximated.
+ */
+function evalShiftExpr(e) {
+  if (!/^[\d\s+\-*()<]+$/.test(e) || /</.test(e.replace(/<</g, ''))) return null;
+  try {
+    const big = e.replace(/\d+/g, '$&n');
+    const value = Function(`"use strict"; return (${big});`)();
+    if (typeof value !== 'bigint') return null;
+    if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < -BigInt(Number.MAX_SAFE_INTEGER))
+      return null;
+    return Number(value);
   } catch {
     return null;
   }

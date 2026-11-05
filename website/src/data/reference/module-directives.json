@@ -48,6 +48,10 @@
     "RulePackMode": [
       "report",
       "enforce"
+    ],
+    "DaemonHtmlCache": [
+      "off",
+      "report-only"
     ]
   },
   "directives": [
@@ -1678,10 +1682,10 @@
         "nginx"
       ],
       "syntax": {
-        "apache": "ModPagespeedCssParseMaxBytes value",
-        "nginx": "pagespeed CssParseMaxBytes value;"
+        "apache": "ModPagespeedCssParseMaxBytes number",
+        "nginx": "pagespeed CssParseMaxBytes number;"
       },
-      "default": null,
+      "default": "2097152",
       "context": {
         "apache": [
           "server config",
@@ -1700,7 +1704,7 @@
       "description": "Largest stylesheet, in bytes, that the CSS rewriter will parse; larger ones are passed through unmodified (<= 0 for no limit).",
       "descriptionSource": "source",
       "scope": "directory",
-      "valueType": null,
+      "valueType": "int",
       "id": "cpmb",
       "origin": "rewrite_options",
       "deprecated": false,
@@ -1929,10 +1933,10 @@
         "nginx"
       ],
       "syntax": {
-        "apache": "ModPagespeedDaemonHtmlCache value",
-        "nginx": "pagespeed DaemonHtmlCache value;"
+        "apache": "ModPagespeedDaemonHtmlCache off|report-only",
+        "nginx": "pagespeed DaemonHtmlCache off|report-only;"
       },
-      "default": null,
+      "default": "off",
       "context": {
         "apache": [
           "server config",
@@ -1948,7 +1952,7 @@
       "description": "HTML on the optimizer daemon path: off (default), or report-only, which reports whether each HTML response could be stored and changes nothing else.",
       "descriptionSource": "source",
       "scope": "server",
-      "valueType": null,
+      "valueType": "enum",
       "id": "dhc",
       "origin": "rewrite_options",
       "deprecated": false,
@@ -1963,10 +1967,10 @@
         "nginx"
       ],
       "syntax": {
-        "apache": "ModPagespeedDaemonHtmlMaxBytes value",
-        "nginx": "pagespeed DaemonHtmlMaxBytes value;"
+        "apache": "ModPagespeedDaemonHtmlMaxBytes number",
+        "nginx": "pagespeed DaemonHtmlMaxBytes number;"
       },
-      "default": null,
+      "default": "5242880",
       "context": {
         "apache": [
           "server config",
@@ -1982,7 +1986,7 @@
       "description": "Largest HTML body DaemonHtmlCache considers storable, in bytes. Values above 16 MiB count as 16 MiB.",
       "descriptionSource": "source",
       "scope": "server",
-      "valueType": null,
+      "valueType": "int",
       "id": "dhmb",
       "origin": "rewrite_options",
       "deprecated": false,
@@ -2171,10 +2175,10 @@
         "nginx"
       ],
       "syntax": {
-        "apache": "ModPagespeedDebugOutputMaxBytes value",
-        "nginx": "pagespeed DebugOutputMaxBytes value;"
+        "apache": "ModPagespeedDebugOutputMaxBytes number",
+        "nginx": "pagespeed DebugOutputMaxBytes number;"
       },
-      "default": null,
+      "default": "1048576",
       "context": {
         "apache": [
           "server config",
@@ -2193,7 +2197,7 @@
       "description": "Most bytes of debug comments written into one document (0 = unbounded).",
       "descriptionSource": "source",
       "scope": "directory",
-      "valueType": null,
+      "valueType": "int",
       "id": "dob",
       "origin": "rewrite_options",
       "deprecated": false,
@@ -2622,10 +2626,10 @@
         "nginx"
       ],
       "syntax": {
-        "apache": "ModPagespeedDocumentImageInlineMaxBytes value",
-        "nginx": "pagespeed DocumentImageInlineMaxBytes value;"
+        "apache": "ModPagespeedDocumentImageInlineMaxBytes number",
+        "nginx": "pagespeed DocumentImageInlineMaxBytes number;"
       },
-      "default": null,
+      "default": "4194304",
       "context": {
         "apache": [
           "server config",
@@ -2644,7 +2648,7 @@
       "description": "Most image bytes inlined into one document; further images are left as links.",
       "descriptionSource": "source",
       "scope": "query",
-      "valueType": null,
+      "valueType": "int",
       "id": "dii",
       "origin": "rewrite_options",
       "deprecated": false,
