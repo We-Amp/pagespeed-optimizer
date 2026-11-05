@@ -1,8 +1,8 @@
 {
   "source": {
     "repo": "https://github.com/We-Amp/mod_pagespeed",
-    "tag": "v2.7.0",
-    "commit": "b30b635c42398c7b2765003c6dfa44f9b13a134a"
+    "tag": "v2.8.0",
+    "commit": "2b567fe552e5c35c545f28800bf44cc2b54ca9fd"
   },
   "generator": "website/scripts/generate-references.mjs",
   "areas": [
@@ -1546,12 +1546,12 @@
           "server",
           "location"
         ],
-        "query": true
+        "query": false
       },
       "since": null,
       "description": "Number of bytes below which stylesheets will be flattened.",
       "descriptionSource": "source",
-      "scope": "query",
+      "scope": "directory",
       "valueType": "int",
       "id": "cf",
       "origin": "rewrite_options",
@@ -1665,6 +1665,43 @@
       "scope": "directory",
       "valueType": "int",
       "id": "co",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
+      "name": "CssParseMaxBytes",
+      "kind": "option",
+      "area": "CSS",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedCssParseMaxBytes value",
+        "nginx": "pagespeed CssParseMaxBytes value;"
+      },
+      "default": null,
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host",
+          "directory",
+          ".htaccess"
+        ],
+        "nginx": [
+          "http",
+          "server",
+          "location"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Largest stylesheet, in bytes, that the CSS rewriter will parse; larger ones are passed through unmodified (<= 0 for no limit).",
+      "descriptionSource": "source",
+      "scope": "directory",
+      "valueType": null,
+      "id": "cpmb",
       "origin": "rewrite_options",
       "deprecated": false,
       "safeToPrint": true
@@ -1884,6 +1921,74 @@
       "safeToPrint": true
     },
     {
+      "name": "DaemonHtmlCache",
+      "kind": "option",
+      "area": "Optimizer worker",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedDaemonHtmlCache value",
+        "nginx": "pagespeed DaemonHtmlCache value;"
+      },
+      "default": null,
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "HTML on the optimizer daemon path: off (default), or report-only, which reports whether each HTML response could be stored and changes nothing else.",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": null,
+      "id": "dhc",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
+      "name": "DaemonHtmlMaxBytes",
+      "kind": "option",
+      "area": "Optimizer worker",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedDaemonHtmlMaxBytes value",
+        "nginx": "pagespeed DaemonHtmlMaxBytes value;"
+      },
+      "default": null,
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Largest HTML body DaemonHtmlCache considers storable, in bytes. Values above 16 MiB count as 16 MiB.",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": null,
+      "id": "dhmb",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
       "name": "DaemonServeHonorRequestFreshness",
       "kind": "option",
       "area": "Optimizer worker",
@@ -2058,6 +2163,43 @@
       "safeToPrint": false
     },
     {
+      "name": "DebugOutputMaxBytes",
+      "kind": "option",
+      "area": "Threads and limits",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedDebugOutputMaxBytes value",
+        "nginx": "pagespeed DebugOutputMaxBytes value;"
+      },
+      "default": null,
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host",
+          "directory",
+          ".htaccess"
+        ],
+        "nginx": [
+          "http",
+          "server",
+          "location"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Most bytes of debug comments written into one document (0 = unbounded).",
+      "descriptionSource": "source",
+      "scope": "directory",
+      "valueType": null,
+      "id": "dob",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
       "name": "DefaultCacheHtml",
       "kind": "option",
       "area": "Caching",
@@ -2120,6 +2262,38 @@
       "origin": "system",
       "deprecated": false,
       "safeToPrint": false
+    },
+    {
+      "name": "DetectHydratedPages",
+      "kind": "option",
+      "area": "Other",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedDetectHydratedPages on|off",
+        "nginx": "pagespeed DetectHydratedPages on|off;"
+      },
+      "default": "on",
+      "context": {
+        "apache": [
+          "server config"
+        ],
+        "nginx": [
+          "http"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Keep stylesheet and script URLs and inline styles unchanged on pages a client-side framework will hydrate. Server-wide only.",
+      "descriptionSource": "source",
+      "scope": "process",
+      "valueType": "bool",
+      "id": "dhyd",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
     },
     {
       "name": "DisableBackgroundFetchesForBots",
@@ -2438,6 +2612,43 @@
       "origin": "rewrite_options",
       "deprecated": true,
       "safeToPrint": null
+    },
+    {
+      "name": "DocumentImageInlineMaxBytes",
+      "kind": "option",
+      "area": "Images",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedDocumentImageInlineMaxBytes value",
+        "nginx": "pagespeed DocumentImageInlineMaxBytes value;"
+      },
+      "default": null,
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host",
+          "directory",
+          ".htaccess"
+        ],
+        "nginx": [
+          "http",
+          "server",
+          "location"
+        ],
+        "query": true
+      },
+      "since": null,
+      "description": "Most image bytes inlined into one document; further images are left as links.",
+      "descriptionSource": "source",
+      "scope": "query",
+      "valueType": null,
+      "id": "dii",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
     },
     {
       "name": "Domain",

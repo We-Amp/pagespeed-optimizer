@@ -1,8 +1,8 @@
 {
   "source": {
     "repo": "https://github.com/We-Amp/mod_pagespeed",
-    "tag": "v2.7.0",
-    "commit": "b30b635c42398c7b2765003c6dfa44f9b13a134a"
+    "tag": "v2.8.0",
+    "commit": "2b567fe552e5c35c545f28800bf44cc2b54ca9fd"
   },
   "generator": "website/scripts/generate-references.mjs",
   "filters": [
