@@ -1371,6 +1371,7 @@ const DENYLIST: DenyRule[] = [
       'src/content/docs/release-notes-2-5.mdx',
       'src/content/docs/release-notes-2-6.mdx',
       'src/content/docs/release-notes-2-7.mdx',
+      'src/content/docs/release-notes-2-8.mdx',
       'src/content/docs/release-notes.mdx',
       // The legal pages, which enumerate the predecessor lines by name because
       // the terms they state apply to each of them.
@@ -2132,6 +2133,7 @@ describe('canonical sources hold ground-truth product facts', () => {
       'Debian 13 trixie': '1.26.3',
       'Ubuntu 22.04 jammy': '1.18.0',
       'Ubuntu 24.04 noble': '1.24.0',
+      'Ubuntu 26.04 resolute': '1.28.3',
     });
   });
 

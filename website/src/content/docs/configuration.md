@@ -363,9 +363,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.7.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.7.0): 328 directives.
+Generated from the mod_pagespeed source at tag [`v2.8.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.8.0): 334 directives.
 
-Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (5) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (30) · [Images](#area-images) (43) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (9) · [Caching](#area-caching) (48) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (3) · [Experiments and analytics](#area-experiments-and-analytics) (6) · [Other](#area-other) (1) · [Deprecated and ignored](#area-deprecated-and-ignored) (35).
+Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (7) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (30) · [Images](#area-images) (44) · [CSS](#area-css) (10) · [JavaScript](#area-javascript) (9) · [Caching](#area-caching) (48) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (4) · [Experiments and analytics](#area-experiments-and-analytics) (6) · [Other](#area-other) (2) · [Deprecated and ignored](#area-deprecated-and-ignored) (35).
 
 ### Enabling and filter selection {#area-enabling-and-filter-selection}
 
@@ -1159,7 +1159,7 @@ Declares an extra element attribute that holds a URL, with the resource category
 
 ### Optimizer worker {#area-optimizer-worker}
 
-[`DaemonApiSocketPath`](#daemonapisocketpath), [`DaemonServeHonorRequestFreshness`](#daemonservehonorrequestfreshness), [`DaemonServeStoredEncodings`](#daemonservestoredencodings), [`DaemonSocketPath`](#daemonsocketpath), [`DaemonVolumePath`](#daemonvolumepath)
+[`DaemonApiSocketPath`](#daemonapisocketpath), [`DaemonHtmlCache`](#daemonhtmlcache), [`DaemonHtmlMaxBytes`](#daemonhtmlmaxbytes), [`DaemonServeHonorRequestFreshness`](#daemonservehonorrequestfreshness), [`DaemonServeStoredEncodings`](#daemonservestoredencodings), [`DaemonSocketPath`](#daemonsocketpath), [`DaemonVolumePath`](#daemonvolumepath)
 
 #### DaemonApiSocketPath {#daemonapisocketpath}
 
@@ -1170,6 +1170,22 @@ Declares an extra element attribute that holds a URL, with the resource category
 Path of the optimizer worker's management API unix socket, backing the /v1/daemon/\* admin endpoints. Empty disables them. This is a different socket from DaemonSocketPath (the notification socket).
 
 On nginx: Set the unix socket path of the optimizer worker's management API, backing the /v1/daemon/\* admin endpoints. Empty disables them.
+
+#### DaemonHtmlCache {#daemonhtmlcache}
+
+- **Syntax:** `ModPagespeedDaemonHtmlCache value` (Apache) · `pagespeed DaemonHtmlCache value;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+HTML on the optimizer worker path: off (default), or report-only, which reports whether each HTML response could be stored and changes nothing else.
+
+#### DaemonHtmlMaxBytes {#daemonhtmlmaxbytes}
+
+- **Syntax:** `ModPagespeedDaemonHtmlMaxBytes value` (Apache) · `pagespeed DaemonHtmlMaxBytes value;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Largest HTML body DaemonHtmlCache considers storable, in bytes. Values above 16 MiB count as 16 MiB.
 
 #### DaemonServeHonorRequestFreshness {#daemonservehonorrequestfreshness}
 
@@ -1695,7 +1711,7 @@ If true, keep track of statistics per VHost and not just globally
 
 ### Images {#area-images}
 
-[`AvifAnimatedRecompressionQuality`](#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](#avifqualityforsavedata), [`AvifRecompressionQuality`](#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](#aviftimeoutms), [`CriticalImagesBeaconEnabled`](#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](#cssimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](#imagelimitresizeareapercent), [`ImageMaxAnimatedFrames`](#imagemaxanimatedframes), [`ImageMaxRewritesAtOnce`](#imagemaxrewritesatonce), [`ImageProvenanceCarry`](#imageprovenancecarry), [`ImageRecompressionQuality`](#imagerecompressionquality), [`ImageResolutionLimitBytes`](#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](#inlineonlycriticalimages), [`JpegQualityForSaveData`](#jpegqualityforsavedata), [`JpegRecompressionQuality`](#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](#lazyloadimagesblankurl), [`LazyloadImagesMode`](#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](#preserveimageprovenance), [`ProgressiveJpegMinBytes`](#progressivejpegminbytes), [`ResponsiveImageDensities`](#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](#webpqualityforsavedata), [`WebpRecompressionQuality`](#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](#webptimeoutms)
+[`AvifAnimatedRecompressionQuality`](#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](#avifqualityforsavedata), [`AvifRecompressionQuality`](#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](#aviftimeoutms), [`CriticalImagesBeaconEnabled`](#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](#cssimageinlinemaxbytes), [`DocumentImageInlineMaxBytes`](#documentimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](#imagelimitresizeareapercent), [`ImageMaxAnimatedFrames`](#imagemaxanimatedframes), [`ImageMaxRewritesAtOnce`](#imagemaxrewritesatonce), [`ImageProvenanceCarry`](#imageprovenancecarry), [`ImageRecompressionQuality`](#imagerecompressionquality), [`ImageResolutionLimitBytes`](#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](#inlineonlycriticalimages), [`JpegQualityForSaveData`](#jpegqualityforsavedata), [`JpegRecompressionQuality`](#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](#lazyloadimagesblankurl), [`LazyloadImagesMode`](#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](#preserveimageprovenance), [`ProgressiveJpegMinBytes`](#progressivejpegminbytes), [`ResponsiveImageDensities`](#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](#webpqualityforsavedata), [`WebpRecompressionQuality`](#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](#webptimeoutms)
 
 #### AvifAnimatedRecompressionQuality {#avifanimatedrecompressionquality}
 
@@ -1752,6 +1768,14 @@ Enable insertion of client-side critical image detection js for image optimizati
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
 
 Number of bytes below which CSS images will be inlined.
+
+#### DocumentImageInlineMaxBytes {#documentimageinlinemaxbytes}
+
+- **Syntax:** `ModPagespeedDocumentImageInlineMaxBytes value` (Apache) · `pagespeed DocumentImageInlineMaxBytes value;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
+
+Most image bytes inlined into one document; further images are left as links.
 
 #### EnableLazyLoadHighResImages {#enablelazyloadhighresimages}
 
@@ -2047,7 +2071,7 @@ _The module source carries no help text for this option._
 
 ### CSS {#area-css}
 
-[`AlwaysRewriteCss`](#alwaysrewritecss), [`CriticalCssAboveTheFoldOnly`](#criticalcssabovethefoldonly), [`CssFlattenMaxBytes`](#cssflattenmaxbytes), [`CssInlineMaxBytes`](#cssinlinemaxbytes), [`CssOutlineMinBytes`](#cssoutlineminbytes), [`GoogleFontCssInlineMaxBytes`](#googlefontcssinlinemaxbytes), [`MaxCombinedCssBytes`](#maxcombinedcssbytes), [`PermitIdsForCssCombining`](#permitidsforcsscombining), [`TestOnlyPrioritizeCriticalCssDontApplyOriginalCss`](#testonlyprioritizecriticalcssdontapplyoriginalcss)
+[`AlwaysRewriteCss`](#alwaysrewritecss), [`CriticalCssAboveTheFoldOnly`](#criticalcssabovethefoldonly), [`CssFlattenMaxBytes`](#cssflattenmaxbytes), [`CssInlineMaxBytes`](#cssinlinemaxbytes), [`CssOutlineMinBytes`](#cssoutlineminbytes), [`CssParseMaxBytes`](#cssparsemaxbytes), [`GoogleFontCssInlineMaxBytes`](#googlefontcssinlinemaxbytes), [`MaxCombinedCssBytes`](#maxcombinedcssbytes), [`PermitIdsForCssCombining`](#permitidsforcsscombining), [`TestOnlyPrioritizeCriticalCssDontApplyOriginalCss`](#testonlyprioritizecriticalcssdontapplyoriginalcss)
 
 #### AlwaysRewriteCss {#alwaysrewritecss}
 
@@ -2070,7 +2094,7 @@ Makes prioritize_critical_css inline only the rules for content in the first scr
 
 - **Syntax:** `ModPagespeedCssFlattenMaxBytes number` (Apache) · `pagespeed CssFlattenMaxBytes number;` (nginx)
 - **Default:** `1024000`
-- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Number of bytes below which stylesheets will be flattened.
 
@@ -2094,6 +2118,14 @@ Number of bytes below which stylesheets will be inlined.
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Number of bytes above which inline CSS resources will be outlined.
+
+#### CssParseMaxBytes {#cssparsemaxbytes}
+
+- **Syntax:** `ModPagespeedCssParseMaxBytes value` (Apache) · `pagespeed CssParseMaxBytes value;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Largest stylesheet, in bytes, that the CSS rewriter will parse; larger ones are passed through unmodified (&lt;= 0 for no limit).
 
 #### GoogleFontCssInlineMaxBytes {#googlefontcssinlinemaxbytes}
 
@@ -2863,7 +2895,15 @@ Retain HTML comments matching wildcard, even with remove_comments enabled
 
 ### Threads and limits {#area-threads-and-limits}
 
-[`NumExpensiveRewriteThreads`](#numexpensiverewritethreads), [`NumRewriteThreads`](#numrewritethreads), [`PublicAdminAccess`](#publicadminaccess)
+[`DebugOutputMaxBytes`](#debugoutputmaxbytes), [`NumExpensiveRewriteThreads`](#numexpensiverewritethreads), [`NumRewriteThreads`](#numrewritethreads), [`PublicAdminAccess`](#publicadminaccess)
+
+#### DebugOutputMaxBytes {#debugoutputmaxbytes}
+
+- **Syntax:** `ModPagespeedDebugOutputMaxBytes value` (Apache) · `pagespeed DebugOutputMaxBytes value;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Most bytes of debug comments written into one document (0 = unbounded).
 
 #### NumExpensiveRewriteThreads {#numexpensiverewritethreads}
 
@@ -2951,7 +2991,15 @@ Run an experiment to test the effectiveness of rewriters.
 
 ### Other {#area-other}
 
-[`ExposeVersionInHeaders`](#exposeversioninheaders)
+[`DetectHydratedPages`](#detecthydratedpages), [`ExposeVersionInHeaders`](#exposeversioninheaders)
+
+#### DetectHydratedPages {#detecthydratedpages}
+
+- **Syntax:** `ModPagespeedDetectHydratedPages on|off` (Apache) · `pagespeed DetectHydratedPages on|off;` (nginx)
+- **Default:** `on`
+- **Context:** Apache: server config · nginx: http
+
+Keep stylesheet and script URLs and inline styles unchanged on pages a client-side framework will hydrate. Server-wide only.
 
 #### ExposeVersionInHeaders {#exposeversioninheaders}
 
