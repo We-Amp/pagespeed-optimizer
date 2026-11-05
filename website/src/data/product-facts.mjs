@@ -531,6 +531,7 @@ export const NGINX_APT_DISTROS = [
   { distro: 'Debian 13 trixie', nginx: '1.26.3' },
   { distro: 'Ubuntu 22.04 jammy', nginx: '1.18.0' },
   { distro: 'Ubuntu 24.04 noble', nginx: STOCK_NGINX_UBUNTU },
+  { distro: 'Ubuntu 26.04 resolute', nginx: '1.28.3' },
 ];
 export const NGINX_APT_ARCHES = 'amd64 + arm64';
 // Compact prose listing of the prebuilt apt matrix, e.g.
