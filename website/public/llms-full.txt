@@ -5130,16 +5130,16 @@ On nginx: Set the unix socket path of the optimizer worker's management API, bac
 
 #### DaemonHtmlCache
 
-- **Syntax:** `ModPagespeedDaemonHtmlCache value` (Apache) · `pagespeed DaemonHtmlCache value;` (nginx)
-- **Default:** —
+- **Syntax:** `ModPagespeedDaemonHtmlCache off|report-only` (Apache) · `pagespeed DaemonHtmlCache off|report-only;` (nginx)
+- **Default:** `off`
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 HTML on the optimizer worker path: off (default), or report-only, which reports whether each HTML response could be stored and changes nothing else.
 
 #### DaemonHtmlMaxBytes
 
-- **Syntax:** `ModPagespeedDaemonHtmlMaxBytes value` (Apache) · `pagespeed DaemonHtmlMaxBytes value;` (nginx)
-- **Default:** —
+- **Syntax:** `ModPagespeedDaemonHtmlMaxBytes number` (Apache) · `pagespeed DaemonHtmlMaxBytes number;` (nginx)
+- **Default:** `5242880`
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 Largest HTML body DaemonHtmlCache considers storable, in bytes. Values above 16 MiB count as 16 MiB.
@@ -5728,8 +5728,8 @@ Number of bytes below which CSS images will be inlined.
 
 #### DocumentImageInlineMaxBytes
 
-- **Syntax:** `ModPagespeedDocumentImageInlineMaxBytes value` (Apache) · `pagespeed DocumentImageInlineMaxBytes value;` (nginx)
-- **Default:** —
+- **Syntax:** `ModPagespeedDocumentImageInlineMaxBytes number` (Apache) · `pagespeed DocumentImageInlineMaxBytes number;` (nginx)
+- **Default:** `4194304`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location · also per request (query parameter)
 
 Most image bytes inlined into one document; further images are left as links.
@@ -6078,8 +6078,8 @@ Number of bytes above which inline CSS resources will be outlined.
 
 #### CssParseMaxBytes
 
-- **Syntax:** `ModPagespeedCssParseMaxBytes value` (Apache) · `pagespeed CssParseMaxBytes value;` (nginx)
-- **Default:** —
+- **Syntax:** `ModPagespeedCssParseMaxBytes number` (Apache) · `pagespeed CssParseMaxBytes number;` (nginx)
+- **Default:** `2097152`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Largest stylesheet, in bytes, that the CSS rewriter will parse; larger ones are passed through unmodified (&lt;= 0 for no limit).
@@ -6856,8 +6856,8 @@ Retain HTML comments matching wildcard, even with remove_comments enabled
 
 #### DebugOutputMaxBytes
 
-- **Syntax:** `ModPagespeedDebugOutputMaxBytes value` (Apache) · `pagespeed DebugOutputMaxBytes value;` (nginx)
-- **Default:** —
+- **Syntax:** `ModPagespeedDebugOutputMaxBytes number` (Apache) · `pagespeed DebugOutputMaxBytes number;` (nginx)
+- **Default:** `1048576`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Most bytes of debug comments written into one document (0 = unbounded).
