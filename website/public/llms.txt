@@ -201,6 +201,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [mod_pagespeed 2.8.0: security fixes and nginx.org packages](https://modpagespeed.com/blog/mod-pagespeed-2-8-release/): 2026-11-05. mod_pagespeed 2.8.0 fixes a large number of security issues; update recommended. New nginx module packages for Ubuntu 26.04 and nginx.org's nginx.
 - [Long-standing upstream issues, resolved](https://modpagespeed.com/blog/long-standing-upstream-issues-resolved/): 2026-11-01. Dozens of open issues in the archived mod_pagespeed and ngx_pagespeed trackers are resolved in current mod_pagespeed. Each is listed with its fix.
 - [Our seccomp soak passed. Then Chrome called mincore](https://modpagespeed.com/blog/our-seccomp-soak-passed-then-chrome-called-mincore/): 2026-10-20. A log-only systemd soak cannot see calls your filter subtracts, or a call that fires less often than the soak runs. Headless Chrome hit both.
 - [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
