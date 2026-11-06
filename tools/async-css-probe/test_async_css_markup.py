@@ -140,6 +140,19 @@ class TestForcedDeferral:
             f"expected {PLAIN_CSS_PATH} among deferred sheets, got {hrefs}"
         )
 
+    def test_deferred_sheet_is_larger_than_64_kib(self, plain_css_bytes):
+        """The deferral above is also the end-to-end check that a stylesheet
+        larger than 64 KiB can be confirmed and used. Before the optimizer uses
+        a stylesheet it asks the site, with a HEAD request, whether the sheet is
+        served to any client; that request once inherited a 64 KiB download
+        cap and was refused for every larger sheet, so such a page got no
+        critical CSS and no deferral. Keep the plain page's sheet above that
+        size, so a fixture swap cannot quietly drop the case."""
+        assert len(plain_css_bytes) > 64 * 1024, (
+            f"{PLAIN_CSS_PATH} is {len(plain_css_bytes)} bytes; the plain page "
+            "needs a stylesheet larger than 64 KiB"
+        )
+
     def test_loader_script_injected_once_at_the_content_addressed_path(
         self, plain_markup, async_css_loader_path
     ):

@@ -31,6 +31,9 @@
 //   * `--max-time` bounds time. `--max-filesize` bounds the ENCODED transfer only;
 //     the cap on DECODED bytes is the spawner's limit on curl's stdout (the
 //     caller passes max_response_bytes), which kills curl when it is exceeded.
+//     A HEAD carries no `--max-filesize`: it has no body, and curl would refuse
+//     the answer when the advertised Content-Length exceeds the cap. Its
+//     output stays bounded by the spawner's stdout limit.
 //
 // Minimum curl: a build with at least one decoder (zlib, brotli or zstd).
 // `--compressed` advertises only the encodings the build can decode, and a

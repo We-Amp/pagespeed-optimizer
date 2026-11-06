@@ -103,6 +103,35 @@ TEST(CurlFetcher, HeadOptionSendsHeadOnly) {
                "--head"));
 }
 
+// A HEAD asks whether a resource is served, not for its bytes. curl checks
+// --max-filesize against the advertised Content-Length even for a HEAD
+// ("Maximum file size exceeded", exit 63), so a cap on a HEAD refuses the
+// answer for every resource larger than the cap: a 230 KB stylesheet asked
+// about with a 64 KiB cap never got one.
+TEST(CurlFetcher, HeadCarriesNoFileSizeCap) {
+  CurlFetchOptions opts;
+  opts.head = true;
+  opts.max_response_bytes = 64u << 10;
+  const Argv a = BuildPinnedGetArgv("https://example.com/big.css",
+                                    "example.com", 443, "93.184.216.34", opts);
+  ASSERT_FALSE(a.empty());
+  EXPECT_TRUE(Contains(a, "--head"));
+  EXPECT_FALSE(Contains(a, "--max-filesize"));
+  // Still bounded in time.
+  EXPECT_TRUE(Contains(a, "--max-time"));
+}
+
+// Negative control: a GET with the same options keeps its transfer cap.
+TEST(CurlFetcher, GetKeepsFileSizeCap) {
+  CurlFetchOptions opts;
+  opts.max_response_bytes = 64u << 10;
+  const Argv a = BuildPinnedGetArgv("https://example.com/big.css",
+                                    "example.com", 443, "93.184.216.34", opts);
+  ASSERT_FALSE(a.empty());
+  EXPECT_FALSE(Contains(a, "--head"));
+  EXPECT_TRUE(HasFlagValue(a, "--max-filesize", "65536"));
+}
+
 TEST(CurlFetcher, IpLiteralHostNeedsNoResolve) {
   // host == pinned_ip → the URL already pins the target; --resolve is redundant.
   const Argv a = BuildPinnedGetArgv("http://127.0.0.1:3000/api", "127.0.0.1",
