@@ -4,6 +4,8 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: pages whose stylesheet is larger than 64 KiB get critical CSS and deferred stylesheets again. In 2.8.0 the request that confirms a stylesheet is served to any client was refused for such stylesheets, so those pages were served with ordinary render-blocking stylesheets and no inlined critical CSS. Pages were still served correctly. Affected: 2.8.0.
+
 ## 2.8.0 - 2026-11-05
 
 Changed: the Helm chart 0.3.14 is published with this release; its default

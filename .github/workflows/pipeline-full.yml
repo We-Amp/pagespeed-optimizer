@@ -1096,10 +1096,11 @@ jobs:
           done
           exit $rc
 
-      # Debugging aid for a failed probe only. A refused upload must not
+      # Debugging aid: uploaded on success too, so a passing run's worker
+      # logs can be compared with a failing one. A refused upload must not
       # turn a passing probe red.
       - name: Upload probe results
-        if: failure()
+        if: always()
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
