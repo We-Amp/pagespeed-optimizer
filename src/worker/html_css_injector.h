@@ -146,7 +146,10 @@ bool CriticalCssNamesCascadeLayer(std::string_view css);
 // As InjectCriticalCss, but at byte offset `pos` of `html` (0 <= pos <=
 // html.size()), with the same sanitization (NUL bytes dropped, then
 // EscapeLessThanForStyleElement, as the serve path writes the block) and the
-// same `</style` refusal (success=true, injected=false, empty html). Fails when `pos` is past the
+// same `</style` refusal outside strings and comments (inside them it is
+// rewritten as `\3c /style`): success=true, injected=false, empty html. It
+// does not apply CssOpensMarkupOutsideStrings; the validator checks the
+// candidate block with it before calling this. Fails when `pos` is past the
 // end. The caller owns the choice of position: this does no scanning.
 CssInjectionResult InjectCriticalCssAt(std::string_view html, size_t pos,
                                        std::string_view critical_css);

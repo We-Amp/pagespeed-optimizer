@@ -660,6 +660,38 @@ TEST(CssLessThanTest, OutsideStringsOnlyAMarkupOpenerIsReported) {
   EXPECT_FALSE(CssOpensMarkupOutsideStrings(".\\<b\\>{a:1}"));
 }
 
+TEST(CssLessThanTest, UnterminatedStringOrCommentAtTheEnd) {
+  // A string or comment still open at the end of the text: its `<` is
+  // escaped and is not an opener outside.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:'<b"),
+            "a{content:'\\3c b");
+  EXPECT_FALSE(CssOpensMarkupOutsideStrings("a{content:'<b"));
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{}/* <b"), "a{}/* \\3c b");
+  EXPECT_FALSE(CssOpensMarkupOutsideStrings("a{}/* <b"));
+  // A backslash as the very last byte, in a string and outside one.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"<\\"),
+            "a{content:\"\\3c \\");
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{}\\"), "a{}\\");
+  EXPECT_FALSE(CssOpensMarkupOutsideStrings("a{}\\"));
+  // A `<` as the very last byte outside: a bare delimiter, kept.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{}<"), "a{}<");
+}
+
+TEST(CssLessThanTest, TextAlreadyHoldingTheEscapeIsKept) {
+  // An author's `\3c` (with or without its space) is copied as it is, and a
+  // `<` next to it is escaped on its own.
+  for (std::string_view css : {"a{content:\"\\3c b\"}", "a{content:\"\\3cb\"}",
+                               ".\\3c b{a:1}", "a{content:'\\3C '}"}) {
+    EXPECT_EQ(EscapeLessThanForStyleElement(css), css) << css;
+    EXPECT_FALSE(CssOpensMarkupOutsideStrings(css)) << css;
+  }
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"\\3c <\"}"),
+            "a{content:\"\\3c \\3c \"}");
+  // An escaped backslash before a `<`: the `<` is a character of its own.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"\\\\<b\"}"),
+            "a{content:\"\\\\\\3c b\"}");
+}
+
 // A Tailwind CSS v4 stylesheet, the shape of its output: the layer order,
 // `@property` registrations with `syntax` strings, arbitrary-value utilities
 // whose class names escape `<`, `content` strings holding `<`, a range media

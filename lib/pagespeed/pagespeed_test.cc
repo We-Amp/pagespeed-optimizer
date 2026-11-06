@@ -902,16 +902,17 @@ TEST(PageSpeedCApi, CssValidateStyleCloseCaseInsensitive) {
 }
 
 TEST(PageSpeedCApi, CssValidateRefusesMarkupOpeningSequences) {
+  // Strict, inside CSS strings and comments too: callers inline the CSS as
+  // it is, without the escaping the critical block gets.
   const char* const refused[] = {
+      "a[title=\"<b\"] { }",
+      "a { content: \"<A\"; }",
       "a { } </x",
-      "a { } <b",
-      "a { } <!--",
-      "a { } <?x",
-      "a { --x: a<B; }",
-      // `</style` is refused inside a string too: the caller writes the CSS
-      // into a <style> element as it is.
+      "a { content: \"<!\"; }",
+      "a { content: \"<?\"; }",
+      "a { content: \"</noscript><img src=x>\"; }",
+      "/* <div> */ a { color: red; }",
       "a { content: \"</style>\"; }",
-      "a { content: '</STYLE '; }",
   };
   for (const char* css : refused) {
     SCOPED_TRACE(css);
@@ -919,21 +920,15 @@ TEST(PageSpeedCApi, CssValidateRefusesMarkupOpeningSequences) {
   }
 }
 
-// Inside a CSS string or comment, a `<` is accepted: Tailwind CSS v4's
-// `syntax: "<color>"`, attribute selectors and `content` values.
-TEST(PageSpeedCApi, CssValidateAcceptsLessThanInStrings) {
-  const char* const kept[] = {
-      "a[title=\"<b\"] { }",
-      "a { content: \"<A\"; }",
-      "a { content: \"<!\"; }",
-      "a { content: '<?'; }",
-      "@property --tw-gradient-from { syntax: \"<color>\"; inherits: false; }",
-      "/* <div> */ a { color: red; }",
-  };
-  for (const char* css : kept) {
-    SCOPED_TRACE(css);
-    EXPECT_EQ(ps_css_validate(css, std::strlen(css)), PS_OK);
-  }
+// The documented consequence: a Tailwind CSS v4 sheet, whose `@property`
+// rules carry `syntax: "<color>"`, does not pass ps_css_validate, although
+// ps_html_process inlines its critical CSS (HtmlProcessInlinesPropertySyntax-
+// Strings).
+TEST(PageSpeedCApi, CssValidateRefusesTailwindPropertySyntaxStrings) {
+  const char* css =
+      "@property --tw-gradient-from { syntax: \"<color>\"; inherits: false; "
+      "initial-value: #0000; }";
+  EXPECT_EQ(ps_css_validate(css, std::strlen(css)), PS_ERR_INVALID_ARG);
 }
 
 TEST(PageSpeedCApi, CssValidateKeepsRangeMediaQueries) {

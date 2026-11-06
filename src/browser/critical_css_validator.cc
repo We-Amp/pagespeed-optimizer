@@ -898,6 +898,17 @@ ValidationDocuments BuildValidationDocuments(
   const std::string reference_css = absl::StrCat(layers.prefix, full_css);
   const std::string candidate_css = absl::StrCat(layers.prefix, critical_css);
 
+  // The serve path refuses a block holding, outside its strings and comments,
+  // a `<` that could open markup (HtmlTransformFilter::InjectCriticalCss), so
+  // there is no served block to validate. Only the candidate: the reference
+  // is never served, and a page's own sheets may carry `<!--` from an old
+  // inline <style>.
+  if (CssOpensMarkupOutsideStrings(candidate_css)) {
+    return Refuse(
+        "critical CSS injection refused: the block holds text a browser "
+        "could read as markup");
+  }
+
   const size_t largest_css = reference_css.size() > candidate_css.size()
                                  ? reference_css.size()
                                  : candidate_css.size();

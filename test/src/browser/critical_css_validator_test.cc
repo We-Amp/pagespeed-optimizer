@@ -721,7 +721,7 @@ TEST(BuildValidationDocumentsTest, CssCarryingTheInjectionMarkerFailsClosed) {
   // one place, and the fairness invariant is what the whole comparison rests
   // on. The invariant is checked before either document is rendered.
   auto docs = BuildValidationDocuments(
-      kPage, ".a{color:red}", ".a{color:red}<style data-pagespeed-critical>");
+      kPage, ".a{color:red}<style data-pagespeed-critical>", ".a{color:red}");
   EXPECT_FALSE(docs.ok);
   EXPECT_NE(docs.error.find("outside the injected style body"),
             std::string::npos)
@@ -753,6 +753,22 @@ TEST(BuildValidationDocumentsTest,
       << docs.reference;
   EXPECT_EQ(docs.reference.find("<color>"), std::string::npos)
       << docs.reference;
+}
+
+// A candidate block the serve path would refuse (a `<` that opens markup
+// outside its strings and comments) is not validated either.
+TEST(BuildValidationDocumentsTest, ACandidateTheServePathRefusesIsRefused) {
+  for (const char* css : {".a{color:red}<b>", ".a{--x:a<!--}"}) {
+    SCOPED_TRACE(css);
+    auto docs = BuildValidationDocuments(kPage, ".a{color:red}", css);
+    EXPECT_FALSE(docs.ok);
+    EXPECT_NE(docs.error.find("could read as markup"), std::string::npos)
+        << docs.error;
+  }
+  // The reference may hold one (a page's old `<!--` inside <style>).
+  EXPECT_TRUE(
+      BuildValidationDocuments(kPage, "<!-- .a{color:red} -->", ".a{color:red}")
+          .ok);
 }
 
 // A stylesheet source inside a <select> never anchors the block, as on the

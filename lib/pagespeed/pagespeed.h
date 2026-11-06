@@ -1969,6 +1969,14 @@ PS_EXPORT void ps_critical_css_result_free(ps_critical_css_result_t* result);
 
 /* ---------- CSS processing ---------- */
 
+/* Returns PS_ERR_INVALID_ARG when `css` holds a NUL byte, or a `<` followed
+ * by an ASCII letter, `/`, `!` or `?` anywhere, inside CSS strings and
+ * comments too (so `</style` in any letter case). A bare `<`, as in a range
+ * media query, is accepted. The check is strict because a caller may write
+ * the CSS into a page as it is: a sheet such as Tailwind CSS v4's, whose
+ * `@property` rules carry `syntax: "<color>"`, is refused here. (The critical
+ * CSS that ps_html_process inlines is instead escaped: each such `<` in a CSS
+ * string or comment is written as `\3c `.) */
 PS_EXPORT PS_NODISCARD ps_error_t ps_css_validate(const char* css,
                                                   size_t css_len);
 

@@ -2436,21 +2436,20 @@ static bool CssOpensMarkup(const char* css, size_t len) {
   return pagespeed::CssOpensMarkupOutsideStrings(std::string_view(css, len));
 }
 
-// True when the CSS holds `</style` in any letter case, anywhere: a caller
-// that writes ps_css_validate'd CSS into a <style> element as it is would see
-// the element end there, string or not.
-static bool CssContainsStyleEndTag(const char* css, size_t len) {
-  constexpr std::string_view kStyleEndTag = "</style";
-  const std::string_view view(css, len);
-  for (size_t i = 0; i + kStyleEndTag.size() <= view.size(); ++i) {
-    size_t k = 0;
-    while (k < kStyleEndTag.size()) {
-      char c = view[i + k];
-      if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
-      if (c != kStyleEndTag[k]) break;
-      ++k;
+// True when the CSS holds a `<` that could open markup ANYWHERE, inside CSS
+// strings and comments too: `<` then an ASCII letter, `/`, `!` or `?` (which
+// covers `</style` in any letter case). This is ps_css_validate's contract,
+// stricter than the critical block's: its callers write the CSS into a page
+// as it is, with no escaping, and possibly where a `</noscript` or an SVG
+// `<style>` end would matter. A bare `<` (range media queries) is allowed.
+static bool CssContainsMarkupOpenerAnywhere(const char* css, size_t len) {
+  for (size_t i = 0; i + 1 < len; ++i) {
+    if (css[i] != '<') continue;
+    const unsigned char next = static_cast<unsigned char>(css[i + 1]);
+    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+        next == '/' || next == '!' || next == '?') {
+      return true;
     }
-    if (k == kStyleEndTag.size()) return true;
   }
   return false;
 }
@@ -2700,7 +2699,7 @@ extern "C" ps_error_t ps_css_validate(const char* css, size_t css_len) {
     SetLastError("CSS contains null bytes");
     return PS_ERR_INVALID_ARG;
   }
-  if (CssOpensMarkup(css, css_len) || CssContainsStyleEndTag(css, css_len)) {
+  if (CssContainsMarkupOpenerAnywhere(css, css_len)) {
     SetLastError("CSS contains a sequence that could open markup");
     return PS_ERR_INVALID_ARG;
   }
