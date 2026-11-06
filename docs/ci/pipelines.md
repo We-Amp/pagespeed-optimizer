@@ -721,6 +721,10 @@ that group.
 | Version map row matches `MODULE_PACKAGE_VERSION` (same test) | two committed files | error | error |
 | Built-output content lint (`npm run check:content`) and the `llms*.txt` drift test | committed content | error | error |
 
+Because the sync pull request may merge with stale image tags, a follow-up
+pull request that moves them is then required: the next push to `main` fails
+the drift guard until it lands.
+
 The content lint, the llms drift test and the two committed-file rows above are not live state: they read only
 what the pull request commits, so a failure on a release blog post (a
 retired "2.1" label in its teaser, a `public/llms*.txt` not regenerated with
