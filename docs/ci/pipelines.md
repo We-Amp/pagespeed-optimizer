@@ -697,14 +697,43 @@ variable `on`, the CI pipeline calls `website.yml` and every job of a direct
 `CI gate`; flipping the variable is the only step
 (`gh variable set WEBSITE_GATE --body on --repo We-Amp/pagespeed-optimizer`,
 rollback `gh variable delete WEBSITE_GATE --repo We-Amp/pagespeed-optimizer`).
-**Precondition before turning it on:** the build job's live-state guards must
-tolerate a release window first. Today the 2.1 manifest drift guard fails the
-very sync pull request that bumps the manifest, the Helm and package-index
-unit tests read live release state, and the built-output content lint trips
-on release blog posts; once they feed `CI gate`, they would block
-release-window pull requests. Each must skip or warn on
-`auto/sync-release-manifests` and `release/*` branches, or within the tag-age
-grace window, before the gate goes on. The call is pinned to
+**Release windows.** The build job's release-state guards are release-window
+tolerant, so turning the gate on does not block the pull requests that
+carry a release. A run is a release window when it is a pull request (or a
+merge-queue entry, resolved through its pull request) whose head branch is
+`auto/sync-release-manifests` or `release/*` **and** lives in this repository
+(a fork cannot earn the tolerance by naming its branch); the step
+`Detect a release window` (`website/scripts/release-window.sh`) sets
+`RELEASE_WINDOW=1` for the rest of the job (and `RELEASE_SYNC=1` for the sync
+branch alone). Main pushes, every other pull request and any failed lookup are
+not a window; a failed merge-queue lookup prints a `::warning::` (the job token
+needs `pull-requests: read`, granted to the `website` job and to the
+`website.yml` build job). A merge-queue group built for a release pull request
+also holds the pull requests queued ahead of it, and they get the window too in
+that group.
+
+| Guard | Reads | Outside a window | In a window |
+| --- | --- | --- | --- |
+| 2.1 manifest lags the latest stable tag (`check-version-drift.sh`) | tag of the public module repo | warning for 6 h after the tag, then error | warning at any tag age |
+| Stale hand-pinned image tags (same script) | committed content vs the manifest | error | warning on `auto/sync-release-manifests` only (the sync bot edits `release.yaml` alone, so it cannot fix them in its commit); error on `release/*` |
+| `MODULE_PACKAGE_VERSION` equals the live package index (`module-package-version.test.ts`) | package index | error | warning |
+| Version map row matches the Helm chart (`version-map.test.ts`) | `deploy/helm/pagespeed/Chart.yaml`, bumped by the release lane first | error | warning |
+| Version map row matches `MODULE_PACKAGE_VERSION` (same test) | two committed files | error | error |
+| Built-output content lint (`npm run check:content`) and the `llms*.txt` drift test | committed content | error | error |
+
+Because the sync pull request may merge with stale image tags, a follow-up
+pull request that moves them is then required: the next push to `main` fails
+the drift guard until it lands.
+
+The content lint, the llms drift test and the two committed-file rows above are not live state: they read only
+what the pull request commits, so a failure on a release blog post (a
+retired "2.1" label in its teaser, a `public/llms*.txt` not regenerated with
+`npm run gen:llms`) is a real content defect and stays a failure in a window.
+The warnings are `::warning::` annotations that say they are release-window
+warnings. A `release/*` or sync branch that lingers after its release keeps
+the tolerance until it is merged or deleted, so keep those branches short
+lived.
+The call is pinned to
 `website.yml@main`, like every reusable workflow here: a `ci-dev` dispatch
 that changes `website.yml` runs the copy on `main`, and until `main` has the
 `workflow_call` trigger the `website` job cannot run at all. To try a change

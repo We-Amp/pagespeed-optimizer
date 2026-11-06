@@ -650,6 +650,8 @@ jobs:
     if: ${{ needs.changes.outputs.website == 'true' && vars.WEBSITE_GATE == 'on' }}
     permissions:
       contents: read
+      # Passed to website.yml's build job (merge queue release-window lookup).
+      pull-requests: read
     uses: We-Amp/pagespeed-optimizer/.github/workflows/website.yml@main
 
   # Ground-truth scan of the committed npm and cargo lockfiles. tools/sbom/
