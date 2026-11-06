@@ -1007,20 +1007,20 @@ void VariantSizeTest::ReplayWarmupMatrix(Layout layout) {
   warm.content_type = ContentType::kImage;
   warm.capability_mask = kWarmupSentinel;
   SendNotification(warm);
-  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
-      worker, 1, kWorkerStallBudget));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
   EXPECT_GT(worker.stats().variants_written.load(), 0u);
 
   ExpectStoredSlotsSmallerThanFallback(worker, url);
   const std::string desktop_jpeg =
       ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x08));
   EXPECT_LT(desktop_jpeg.size(), jpeg.size());
-  EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x0A))
-                .size(),
-            desktop_jpeg.size());
-  EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x28))
-                .size(),
-            desktop_jpeg.size());
+  EXPECT_LE(
+      ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x0A)).size(),
+      desktop_jpeg.size());
+  EXPECT_LE(
+      ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x28)).size(),
+      desktop_jpeg.size());
 
   worker.Shutdown();
   worker_thread.join();

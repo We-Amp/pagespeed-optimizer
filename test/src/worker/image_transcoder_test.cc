@@ -10182,8 +10182,8 @@ void SizeGateOutcomesTest::CheckConsistentWithShippedArms(
       jpeg,
       {CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
        CapabilityMask::ImageFormat::kOriginal},
-      CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x,
-      sd, {.source_quality = source_q});
+      CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x, sd,
+      {.source_quality = source_q});
   ASSERT_TRUE(multi.optimized_original.success)
       << multi.optimized_original.error_message;
   const size_t baseline = multi.optimized_original.output_data.size();
