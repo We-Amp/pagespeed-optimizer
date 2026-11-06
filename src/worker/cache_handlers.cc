@@ -333,13 +333,13 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
   // Add the composed cache key (matches ComposeKey output).
   std::string normalized_host =
       NormalizeHostnameForApi(hostname, ctx.url_norm_config);
-  std::string cache_key_str =
-      absl::StrCat(scheme, "://", normalized_host, url);
+  std::string cache_key_str = absl::StrCat(scheme, "://", normalized_host, url);
   if (!site.empty()) {
     cache_key_str = absl::StrCat("st1:", site, "@", cache_key_str);
     resp["site"] = site;
   }
-  resp["cache_key"] = absl::StrCat(PageSpeedCache::kKeyNamespace, cache_key_str);
+  resp["cache_key"] =
+      absl::StrCat(PageSpeedCache::kKeyNamespace, cache_key_str);
 
   resp["alternates"] = std::move(alternates);
   resp["count"] = resp["alternates"].size();

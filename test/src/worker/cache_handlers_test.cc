@@ -2823,8 +2823,7 @@ TEST_F(SiteCacheHandlersTest, AlternatesTakeTheSite) {
   json j = ParseJsonBody(resp);
   EXPECT_EQ(j["count"], 1);
   EXPECT_EQ(j["site"], kSiteA);
-  EXPECT_EQ(j["cache_key"],
-            "ks2:st1:" + kSiteA + "@https://example.com/s.css");
+  EXPECT_EQ(j["cache_key"], "ks2:st1:" + kSiteA + "@https://example.com/s.css");
   EXPECT_EQ(j["alternates"][0]["content_type"], "css");
 
   resp = SendRequest(
