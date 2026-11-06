@@ -185,8 +185,11 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   //
   // REFUSED (no block; EndDocument then reverts any stylesheet deferral) when
   // the document is not known to be text/html, a CSP forbids inline style, the
-  // CSS holds a `<` then an ASCII letter, `/`, `!` or `?` (which covers
-  // `</style` in any letter case), the insertion point is inside
+  // CSS holds, outside its strings and comments, a `<` then an ASCII letter,
+  // `/`, `!` or `?` (so `</style` in any letter case is refused outside
+  // strings and comments, and rewritten inside them: such a `<` there is
+  // written as the escape `\3c `, see EscapeLessThanForStyleElement), the
+  // insertion point is inside
   // <noscript>/<noembed>/<noframes>/<template>/<svg>/<math>/<select>/
   // <plaintext>, the document is "in select" (a <select> start tag without a
   // later explicit </select>), or a <plaintext> or <frameset> has been seen

@@ -285,6 +285,7 @@ cc_library(
     deps = [
         ":async_css_loader",
         ":cascade_layer_order",
+        ":html_css_injector",
         ":html_scanner",
         ":subresource_gate",
         "//lib/base:string_util",

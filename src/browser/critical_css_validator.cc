@@ -217,9 +217,13 @@ TagName ReadTagName(std::string_view html, size_t pos) {
 
 // Subtrees where an inserted <style> is not a document stylesheet for every
 // client, so a source inside one never anchors the block. The same list as
-// HtmlTransformFilter's InsideNonDocumentSubtree.
+// HtmlTransformFilter's IsNonDocumentSubtreeRoot, <select> and <plaintext>
+// included: the serve path injects no block while a page is in select or
+// after a <plaintext>, and a source inside a <select> that has closed again
+// does not anchor it either.
 constexpr std::string_view kNonDocumentSubtrees[] = {
-    "noscript", "noembed", "noframes", "template", "svg", "math"};
+    "noscript", "noembed", "noframes", "template",
+    "svg",      "math",    "select",   "plaintext"};
 
 // A head-prelude element the block must never move ahead of: <base>, <meta
 // charset>, <meta http-equiv="Content-Type" | "Content-Security-Policy">.
@@ -894,6 +898,17 @@ ValidationDocuments BuildValidationDocuments(
   const std::string reference_css = absl::StrCat(layers.prefix, full_css);
   const std::string candidate_css = absl::StrCat(layers.prefix, critical_css);
 
+  // The serve path refuses a block holding, outside its strings and comments,
+  // a `<` that could open markup (HtmlTransformFilter::InjectCriticalCss), so
+  // there is no served block to validate. Only the candidate: the reference
+  // is never served, and a page's own sheets may carry `<!--` from an old
+  // inline <style>.
+  if (CssOpensMarkupOutsideStrings(candidate_css)) {
+    return Refuse(
+        "critical CSS injection refused: the block holds text a browser "
+        "could read as markup");
+  }
+
   const size_t largest_css = reference_css.size() > candidate_css.size()
                                  ? reference_css.size()
                                  : candidate_css.size();
@@ -907,6 +922,15 @@ ValidationDocuments BuildValidationDocuments(
       InjectCriticalCssAt(stripped.html, pos, reference_css);
   CssInjectionResult candidate =
       InjectCriticalCssAt(stripped.html, pos, candidate_css);
+
+  // The injector writes each `<` in a CSS string or comment as a four-byte
+  // escape, as the serve path does, so the documents can come out larger than
+  // the estimate above.
+  for (const auto* r : {&reference, &candidate}) {
+    if (r->html.size() > max_document_bytes) {
+      return Refuse("validation document too large to render");
+    }
+  }
 
   // The injector reports its `</style` refusal as success=TRUE with an EMPTY
   // document (html_css_injector.cc). Checking `success` alone would synthesize

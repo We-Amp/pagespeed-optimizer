@@ -25,6 +25,7 @@
 #include "lib/image/image_dimensions.h"
 #include "src/worker/async_css_loader.h"
 #include "src/worker/cascade_layer_order.h"
+#include "src/worker/html_css_injector.h"
 
 namespace pagespeed {
 
@@ -143,9 +144,8 @@ bool IsNonDocumentSubtreeRoot(const net_instaweb::HtmlElement* element) {
 
 // True when `element` sits inside such a subtree. A stylesheet source in there
 // cannot be the critical block's anchor. The validator's
-// StripStylesheetSources applies the same list but for <select> and
-// <plaintext>, where the serve path injects no block at all (in_select_,
-// plaintext_seen_).
+// StripStylesheetSources applies the same list (kNonDocumentSubtrees,
+// critical_css_validator.cc); change both together.
 bool InsideNonDocumentSubtree(const net_instaweb::HtmlElement* element) {
   for (const net_instaweb::HtmlElement* p = element->parent(); p != nullptr;
        p = p->parent()) {
@@ -469,36 +469,6 @@ void HtmlTransformFilter::InjectCriticalCss(
     if (c != '\0') sanitized.push_back(c);
   }
 
-  // Markup safety: refuse CSS holding a `<` that could open a tag, a closing
-  // tag, a comment or a processing instruction (`<` then an ASCII letter,
-  // `/`, `!` or `?`), so the block's text is markup-free even where a browser
-  // would not read it as a style's raw text (a tokenizer state the parser
-  // does not model). A bare `<` in a range media query stays allowed. This
-  // also refuses `syntax: "<color>"` in an @property rule.
-  for (size_t i = 0; i + 1 < sanitized.size(); ++i) {
-    if (sanitized[i] != '<') continue;
-    const unsigned char next = static_cast<unsigned char>(sanitized[i + 1]);
-    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
-        next == '/' || next == '!' || next == '?') {
-      return;  // Abort injection.
-    }
-  }
-
-  // In an HTML <style> element the raw text ends at the first `</style`
-  // (ASCII case-insensitive) followed by whitespace, `/` or `>`. The check
-  // above already refuses every `</`; this one names the end tag on its own.
-  // CSS strings are not skipped: a `</style` inside one ends the element just
-  // the same. Only sound for text/html; see document_is_text_html_.
-  constexpr std::string_view kStyleEndTag = "</style";
-  const std::string_view css_view(sanitized);
-  for (size_t i = 0; i + kStyleEndTag.size() <= css_view.size(); ++i) {
-    if (css_view[i] == '<' &&
-        net_instaweb::StringCaseEqual(css_view.substr(i, kStyleEndTag.size()),
-                                      kStyleEndTag)) {
-      return;  // Abort injection.
-    }
-  }
-
   // Create <style data-pagespeed-critical>...</style>. It goes BEFORE the
   // first stylesheet source seen (see the header: the block must lose every
   // same-specificity tie against the sheets it duplicates, which source order
@@ -521,6 +491,35 @@ void HtmlTransformFilter::InjectCriticalCss(
   const bool before_anchor = !layers.keep_fallback &&
                              critical_css_anchor_ != nullptr &&
                              parser_->IsRewritable(critical_css_anchor_);
+
+  // Markup safety: the block's text must hold no `<` that could open a tag, a
+  // closing tag, a comment or a processing instruction (`<` then an ASCII
+  // letter, `/`, `!` or `?`), so it is markup-free even where a browser would
+  // not read it as a style's raw text (a tokenizer state the parser does not
+  // model). Such a `<` inside a CSS string or comment, as in Tailwind CSS v4's
+  // `syntax: "<color>"`, is written as the CSS escape `\3c `, which means the
+  // same to CSS (EscapeLessThanForStyleElement). One outside them is not
+  // valid CSS: refuse the block. A bare `<`, as in a range media query, stays
+  // as it is. Decided on the text as written, layer statement included.
+  std::string block_text = layers.prefix;
+  block_text.append(sanitized);
+  if (CssOpensMarkupOutsideStrings(block_text)) return;  // Abort injection.
+  block_text = EscapeLessThanForStyleElement(block_text);
+
+  // In an HTML <style> element the raw text ends at the first `</style`
+  // (ASCII case-insensitive) followed by whitespace, `/` or `>`. After the
+  // two steps above the text holds no `</` at all; this names the end tag on
+  // its own, as defense in depth. Only sound for text/html; see
+  // document_is_text_html_.
+  constexpr std::string_view kStyleEndTag = "</style";
+  const std::string_view css_view(block_text);
+  for (size_t i = 0; i + kStyleEndTag.size() <= css_view.size(); ++i) {
+    if (css_view[i] == '<' &&
+        net_instaweb::StringCaseEqual(css_view.substr(i, kStyleEndTag.size()),
+                                      kStyleEndTag)) {
+      return;  // Abort injection.
+    }
+  }
 
   // The block must land where an inserted <style> is a document stylesheet:
   // never inside <noscript>/<noembed>/<noframes>/<template> or foreign content
@@ -553,9 +552,7 @@ void HtmlTransformFilter::InjectCriticalCss(
     parser_->InsertNodeBeforeCurrent(style_element);
   }
   injected_critical_style_ = style_element;
-  if (!layers.prefix.empty()) sanitized.insert(0, layers.prefix);
-
-  auto* css_text = parser_->NewCharactersNode(style_element, sanitized);
+  auto* css_text = parser_->NewCharactersNode(style_element, block_text);
   parser_->AppendChild(style_element, css_text);
 
   critical_css_injected_ = true;
