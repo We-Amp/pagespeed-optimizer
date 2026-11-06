@@ -192,8 +192,11 @@ gtest_test(
     size = "large",
     data = ["//test/lib/image:testdata"],
     # ~850 s single-process on the Windows lane against a 900 s ceiling; the
-    # cases are independent codec round-trips, so shard them.
-    shard_count = 4,
+    # cases are independent codec round-trips, so shard them.  A handful of
+    # cases take minutes each (the size-gate matrices), and gtest deals tests
+    # to shards round-robin by index, so the count is sized to keep them on
+    # separate shards: at 4 shards the slowest held 720 s of a 416 s mean.
+    shard_count = 8,
     tags = ["no_tsan"],
     deps = [
         "//lib/base:message_handler",
@@ -455,8 +458,8 @@ gtest_test(
     name = "worker_test",
     size = "large",
     # One target, many topic files: the single 21k-line translation unit this
-    # replaced dominated both compile and lint time. The target name, shard
-    # count and test ids are unchanged, so exclusions by name keep working.
+    # replaced dominated both compile and lint time. The target name is
+    # unchanged, so exclusions by name keep working.
     srcs = [
         "worker_agent_markdown_test.cc",
         "worker_cooldown_purge_test.cc",
@@ -484,8 +487,11 @@ gtest_test(
     # config_setting (repo has none yet), so this widening applies to ALL
     # lanes: a genuinely hung worker reports at 3600s instead of 900s.
     timeout = "eternal",
+    # A few replays of the full variant matrix take 4-8 minutes each; at 8
+    # shards two of them shared a shard (slowest 581 s against a 316 s
+    # mean).  16 keeps them apart; the bound is now the longest single case.
     data = ["//test/lib/image:testdata"],
-    shard_count = 8,
+    shard_count = 16,
     deps = [
         "//lib/base:message_handler",
         "//lib/cache:freshness",
