@@ -2806,6 +2806,49 @@ TEST_F(SiteCacheHandlersTest, ReprocessCarriesTheSite) {
   EXPECT_NE(resp.find("400"), std::string::npos);
 }
 
+TEST_F(SiteCacheHandlersTest, AlternatesTakeTheSite) {
+  WriteSited(kSiteA, "a{}");
+  WriteSited(kSiteB, "bb{}");
+  // Without a site the unsited keyspace is read: nothing is stored there.
+  std::string resp = SendRequest(
+      "GET /v1/cache/alternates?url=/s.css&hostname=example.com&scheme=https"
+      " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("404"), std::string::npos) << resp;
+
+  resp = SendRequest(
+      "GET /v1/cache/alternates?url=/s.css&hostname=example.com&scheme=https"
+      "&site=" +
+      kSiteA + " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  json j = ParseJsonBody(resp);
+  EXPECT_EQ(j["count"], 1);
+  EXPECT_EQ(j["site"], kSiteA);
+  EXPECT_EQ(j["cache_key"], "ks2:st1:" + kSiteA + "@https://example.com/s.css");
+  EXPECT_EQ(j["alternates"][0]["content_type"], "css");
+
+  resp = SendRequest(
+      "GET /v1/cache/alternates?url=/s.css&hostname=example.com&scheme=https"
+      "&site=" +
+      kSiteB + " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  EXPECT_NE(resp.find("\"count\":1"), std::string::npos);
+}
+
+TEST_F(SiteCacheHandlersTest, AlternatesWithAMalformedSiteIsABadRequest) {
+  std::string resp = SendRequest(
+      "GET /v1/cache/alternates?url=/s.css&hostname=example.com&site=nope"
+      " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("400"), std::string::npos) << resp;
+}
+
+TEST_F(SiteCacheHandlersTest, AlternatesWithAnUnknownSiteIsForbidden) {
+  WriteSited(kSiteA, "a{}");
+  std::string resp = SendRequest(
+      "GET /v1/cache/alternates?url=/s.css&hostname=example.com&site=" +
+      kSiteB + " HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("403"), std::string::npos) << resp;
+}
+
 TEST_F(SiteCacheHandlersTest, ListingAndContentTakeTheSite) {
   WriteSited(kSiteA, "a{}");
   WriteSited(kSiteB, "b{}");
