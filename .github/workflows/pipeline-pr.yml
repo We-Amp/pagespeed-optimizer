@@ -340,6 +340,8 @@ jobs:
 
       - name: PR tier fleet scope - self-test
         run: bash tools/ci/test_pr_tier_scope.sh
+      - name: Docs lane classifier - self-test
+        run: bash tools/ci/test_docs_only.sh
 
       - name: Lint scope expander - self-test
         run: bash tools/ci/test_lint_scope_expand.sh
@@ -459,8 +461,9 @@ jobs:
   #
   # The job also decides the fleet scope (docs/ci/pipelines.md, "CI_SCOPE"):
   # `fleet` gates `vendor`, and with it every fleet leg. A push whose commit
-  # the merge queue already proved may skip them; merge_group and
-  # workflow_dispatch always run them. checks: read lets the decision read the
+  # the merge queue already proved may skip them, and so may a
+  # docs-only pull request or merge group ("DOCS_LANE"); workflow_dispatch
+  # always runs them. checks: read lets the decision read the
   # commit's check suites; the calling job must grant it too.
   changes:
     name: Detect changed paths
@@ -477,6 +480,7 @@ jobs:
       css: ${{ steps.diff.outputs.css }}
       js: ${{ steps.diff.outputs.js }}
       etag: ${{ steps.diff.outputs.etag }}
+      website: ${{ steps.diff.outputs.website }}
     steps:
       # fetch-depth: 0 so the diff can reach the pull request's base commit.
       - name: Unlock a previous run's vendored toolchain files
@@ -537,18 +541,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CI_SCOPE: ${{ vars.CI_SCOPE }}
+          DOCS_LANE: ${{ vars.DOCS_LANE }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           SHA: ${{ github.sha }}
           BEFORE_SHA: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           FORK_OR_BOT: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}
           PR_FULL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:pr-full') }}
-        # merge_group and workflow_dispatch always run the full PR tier; the
-        # decision script is read from the default branch, never the tree.
+        # workflow_dispatch always runs the full PR tier; a pull request and a
+        # merge group go through the decision script (and its docs lane), read
+        # from the default branch, never the tree.
         run: |
           set -euo pipefail
           out="${RUNNER_TEMP}/fleet-scope.txt"
           case "${GITHUB_EVENT_NAME}" in
-            merge_group|workflow_dispatch) printf 'fleet=true\nheavy=true\n' > "${out}" ;;
+            workflow_dispatch) printf 'fleet=true\nheavy=true\n' > "${out}" ;;
             *)
               if git show "origin/${DEFAULT_BRANCH}:tools/ci/pr_tier_scope.sh" > "${RUNNER_TEMP}/pr_tier_scope.sh" 2>/dev/null &&
                 bash "${RUNNER_TEMP}/pr_tier_scope.sh" > "${out}" &&
@@ -593,6 +600,7 @@ jobs:
           css=false
           js=false
           etag=false
+          website=false
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME}" = "merge_group" ]; then
             changed="${RUNNER_TEMP}/changed-files.txt"
             git diff --no-renames --name-only "${BASE}...HEAD" > "${changed}"
@@ -608,6 +616,12 @@ jobs:
             if grep -qE '^(src/nginx/etag_util\.|src/nginx/ngx_pagespeed_module\.cc$|src/nginx/header_key_util\.|src/worker/worker\.cc$|src/worker/api_handlers\.|src/worker/http_server\.|src/worker/worker\.h$|src/nginx/headers_sidecar_replay\.h$|src/nginx/revalidation_storability\.h$|lib/cache/headers_sidecar\.|lib/classify/alternate_metadata\.|tools/e2e/Dockerfile\.prebuilt$|tools/common/|tools/production-tests/)' "${changed}"; then
               etag=true
             fi
+            # The website gate (website.yml, the `website` job below): the
+            # site, the facts it shares with the product, its own workflow and
+            # the product sources its generated references come from.
+            if grep -qE '^(website/|shared/product-facts\.mjs$|\.github/workflows/website\.yml$|src/worker/main\.cc$|src/nginx/ngx_pagespeed_module\.cc$|docker/nginx-version\.txt$)' "${changed}"; then
+              website=true
+            fi
           elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             # A dispatch runs the whole PR tier, so the ETag subset runs too
             # (the CSS and JS smokes stay pull request only).
@@ -617,8 +631,26 @@ jobs:
             echo "css=${css}"
             echo "js=${js}"
             echo "etag=${etag}"
+            echo "website=${website}"
           } >> "$GITHUB_OUTPUT"
-          echo "path filters: css=${css} js=${js} etag=${etag}"
+          echo "path filters: css=${css} js=${js} etag=${etag} website=${website}"
+
+  # The website gate (website.yml) for a pull request or merge group that
+  # changes the site or the sources it is generated from: build, unit tests,
+  # content lint and reference drift on both events, the Playwright suite and
+  # the Lighthouse budgets on the pull request only (the queue re-checks the
+  # rebased build, not the browser suite). A failure fails `pr` and with it
+  # `CI gate`; a run without website changes skips the job, which counts as
+  # success. Hosted only. Off until the repository variable WEBSITE_GATE is
+  # `on` (docs/ci/pipelines.md, "WEBSITE_GATE"); while it is off, website.yml
+  # runs from its own pull_request trigger and does not feed `CI gate`.
+  website:
+    name: Website
+    needs: changes
+    if: ${{ needs.changes.outputs.website == 'true' && vars.WEBSITE_GATE == 'on' }}
+    permissions:
+      contents: read
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/website.yml@main
 
   # Ground-truth scan of the committed npm and cargo lockfiles. tools/sbom/
   # dep-scan.sh runs in --fail-on medium mode over ONLY those surfaces, which

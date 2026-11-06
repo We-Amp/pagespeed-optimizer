@@ -29,9 +29,21 @@ name: Website
 # (fetch-pricing.js refuses without this). Deploying the site is the
 # operator's step, from this tree; nothing in this workflow deploys.
 #
-# Triggers mirror the CI workflow (push to main + pull requests), filtered
-# to the tree this gate owns. A push that merges a website pull request
-# re-runs it on main; the concurrency group keeps only the newest run.
+# Two ways in for a pull request, switched by the repository variable
+# WEBSITE_GATE (docs/ci/pipelines.md, "WEBSITE_GATE"):
+#   * off (unset, the default): this workflow's own pull_request trigger runs
+#     it, as an advisory check outside `CI gate`;
+#   * `on`: the CI pipeline calls it (pipeline-pr.yml, job `website`) for a
+#     pull request or merge group that changes the site or its sources, so
+#     its result feeds the required `CI gate`, and every job of a direct
+#     pull_request run skips (the `direct_pr_off` term below), so nothing
+#     runs twice.
+# A called run has inputs.called set (its default); a direct run has no
+# inputs. In the merge queue only the build and reference drift run: the
+# browser suite and Lighthouse ran on the same change in the pull request. A
+# push to main that changes the tree this gate owns runs it directly, and the
+# nightly runs the full-width geometry sweep. The concurrency group keeps only
+# the newest run per caller and ref.
 
 on:
   push:
@@ -53,13 +65,23 @@ on:
       - 'src/worker/main.cc'
       - 'src/nginx/ngx_pagespeed_module.cc'
       - 'docker/nginx-version.txt'
+  # Called by pipeline-pr.yml for pull requests and merge groups once
+  # WEBSITE_GATE is on.
+  workflow_call:
+    inputs:
+      called:
+        description: Set by the caller; a direct run has no inputs
+        type: boolean
+        default: true
   # Nightly full-width geometry sweep (website-playwright only; the other
   # jobs skip on a schedule). Pull requests run the 375px column.
   schedule:
     - cron: '30 2 * * *'
 
 concurrency:
-  group: website-${{ github.ref }}
+  # github.workflow is the caller's name when called, so a called run and a
+  # direct one never share a group.
+  group: website-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions: {}
@@ -69,7 +91,9 @@ jobs:
     permissions:
       contents: read
     name: Website unit tests & build (ubuntu)
-    if: github.event_name != 'schedule'
+    # direct_pr_off: a direct pull_request run skips once WEBSITE_GATE is on
+    # (the CI pipeline runs the gate then). Same term on every job.
+    if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -250,7 +274,7 @@ jobs:
     permissions:
       contents: read
     name: Reference data matches the pinned module source (ubuntu)
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -302,6 +326,8 @@ jobs:
     permissions:
       contents: read
     name: Website browser suite (Playwright, ubuntu)
+    # Not in the merge queue: it ran on the same change in the pull request.
+    if: github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: ${{ github.event_name == 'schedule' && 75 || 30 }}
     defaults:
@@ -373,7 +399,8 @@ jobs:
     permissions:
       contents: read
     name: Website Lighthouse budgets (ubuntu)
-    if: github.event_name != 'schedule'
+    # Not in the merge queue: it ran on the same change in the pull request.
+    if: github.event_name != 'schedule' && github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
