@@ -5,24 +5,28 @@
 # The 2.1 version-drift guard of website.yml (see the comment there). Run from
 # the repository root, or set ROOT.
 #
-# Two checks, both about live release state:
-#   1. the 2.1 manifest must not lag the latest stable v2.* tag of the public
-#      mod_pagespeed repository (a warning for GRACE_HOURS after the tag, an
-#      error after that);
-#   2. hand-pinned image tags in non-frozen content must equal the manifest.
+# Two checks:
+#   1. LIVE STATE: the 2.1 manifest must not lag the latest stable v2.* tag of
+#      the public mod_pagespeed repository (a warning for GRACE_HOURS after
+#      the tag, an error after that);
+#   2. COMMITTED FILES: hand-pinned image tags in non-frozen content must equal
+#      the manifest.
 #
-# RELEASE_WINDOW=1 (set by release-window.sh for the sync and release/*
-# pull requests that carry the fix) turns the findings of both checks into
-# warnings: the pull request that bumps the manifest cannot also have every
-# literal and tag moved in lock-step, and blocking it would block the fix.
-# Everything else stays an error: main pushes, ordinary pull requests, an
-# unreadable manifest, no tag at all, an unreadable tag date.
+# RELEASE_WINDOW=1 (set by release-window.sh for the sync and release/* pull
+# requests) turns a manifest lag into a warning at any tag age. Stale image
+# tags are softened ONLY when RELEASE_SYNC=1 (the auto/sync-release-manifests
+# pull request): that bot edits release.yaml alone (see PR #666), so it cannot
+# move the literals in the same commit, and the check would block its own fix.
+# On release/* pull requests and everywhere else they stay errors. Also errors
+# in a window: an unreadable manifest and no stable tag at all. An unreadable
+# tag date counts as a stale tag, so inside a window it is a warning too.
 
 set -euo pipefail
 
 cd "${ROOT:-.}"
 grace="${GRACE_HOURS:-6}"
 window="${RELEASE_WINDOW:-0}"
+sync="${RELEASE_SYNC:-0}"
 
 # Date to epoch seconds: GNU date on the runner, BSD date on a Mac.
 to_epoch() {
@@ -31,15 +35,16 @@ to_epoch() {
     || echo 0
 }
 
-# complain MESSAGE: an error, or a warning inside a release window.
+# complain soft|sync MESSAGE: an error, or a warning when the softening applies
+# (soft: any release window; sync: the sync pull request only).
 fail=0
 warned=0
 complain() {
-  if [ "$window" = 1 ]; then
+  if { [ "$1" = soft ] && [ "$window" = 1 ]; } || { [ "$1" = sync ] && [ "$sync" = 1 ]; }; then
     warned=1
-    echo "::warning::$1 -- warning only: this is a release window (the sync or release/* pull request); the same finding fails on main and on ordinary pull requests."
+    echo "::warning::$2 -- warning only: this is a release window (the sync or release/* pull request); the same finding fails on main and on ordinary pull requests."
   else
-    echo "::error::$1"
+    echo "::error::$2"
     fail=1
   fi
 }
@@ -80,7 +85,7 @@ if [ "$(printf '%s\n%s\n' "$latest_stable" "$manifest" | sort -V | tail -1)" != 
   if [ "$tag_ct" -gt 0 ] && [ "$tag_age_h" -lt "$grace" ]; then
     echo "::warning::the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable}, tagged ${tag_age_h}h ago -- within the ${grace}h grace window. Passing; this fails once the tag is older than that. Bump release.yaml."
   else
-    complain "the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable} (tag age ${tag_age_h}h, or tag date unreadable). Bump website/src/content/releases-2.1/release.yaml."
+    complain soft "the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable} (tag age ${tag_age_h}h, or tag date unreadable). Bump website/src/content/releases-2.1/release.yaml."
   fi
 fi
 
@@ -99,7 +104,7 @@ stale=$(find website/src/content website/src/pages website/src/components websit
   -exec grep -Eoh 'ghcr\.io/we-amp/pagespeed-[a-z]+:2\.[0-9]+\.[0-9]+|PAGESPEED_VERSION(:-|=)(2\.[0-9]+\.[0-9]+|latest)|pagespeed-(worker|nginx):(\$\{PAGESPEED_VERSION:-)?latest' {} + 2>/dev/null \
   | sort -u | grep -vE "(:|:-|=)${esc}\$" || true)
 if [ -n "$stale" ]; then
-  complain "stale image tag(s) in non-frozen content (must be :${manifest}): $(printf '%s' "$stale" | tr '\n' ' ')"
+  complain sync "stale image tag(s) in non-frozen content (must be :${manifest}): $(printf '%s' "$stale" | tr '\n' ' ')"
 fi
 
 if [ "$fail" = 0 ] && [ "$warned" = 0 ]; then

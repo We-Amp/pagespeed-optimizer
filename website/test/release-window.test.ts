@@ -77,7 +77,9 @@ describe('release-window.sh', () => {
     expect(win(q(7))).toBe(true);
     expect(win(q(8))).toBe(false);
     expect(win(q(9))).toBe(false); // fork head
-    expect(win(q(10))).toBe(false); // lookup fails
+    const failed = run('release-window.sh', { ...base, ...q(10) }, bin);
+    expect(failed.out).toContain('release_window=false'); // lookup fails
+    expect(failed.out).toContain('::warning::release window: could not resolve');
     expect(win({ EVENT_NAME: 'merge_group', REF_NAME: 'something-else' })).toBe(false);
   });
 
@@ -96,7 +98,20 @@ describe('release-window.sh', () => {
       bin,
     );
     run('release-window.sh', { ...base, EVENT_NAME: 'push', GITHUB_ENV: f }, bin);
-    expect(readFileSync(f, 'utf8')).toBe('RELEASE_WINDOW=1\nRELEASE_WINDOW=0\n');
+    run(
+      'release-window.sh',
+      {
+        ...base,
+        EVENT_NAME: 'pull_request',
+        HEAD_REF: 'auto/sync-release-manifests',
+        HEAD_REPO: base.GITHUB_REPOSITORY,
+        GITHUB_ENV: f,
+      },
+      bin,
+    );
+    expect(readFileSync(f, 'utf8')).toBe(
+      'RELEASE_WINDOW=1\nRELEASE_SYNC=0\nRELEASE_WINDOW=0\nRELEASE_SYNC=0\nRELEASE_WINDOW=1\nRELEASE_SYNC=1\n',
+    );
   });
 });
 
@@ -121,8 +136,8 @@ describe('check-version-drift.sh', () => {
   const old = new Date(Date.now() - 48 * 3600e3).toISOString().replace(/\.\d+Z$/, 'Z');
   const ghTagged = `case "$*" in *git/refs/tags*) echo '{"object":{"type":"commit","sha":"abc"}}';; *git/commits*) echo '${old}';; *) exit 1;; esac`;
   const bin = fakeBin('drift', { tags: ['v2.7.0', 'v2.8.0'], gh: ghTagged });
-  const go = (root: string, window: string) =>
-    run('check-version-drift.sh', { ROOT: root, RELEASE_WINDOW: window }, bin);
+  const go = (root: string, window: string, sync = '0') =>
+    run('check-version-drift.sh', { ROOT: root, RELEASE_WINDOW: window, RELEASE_SYNC: sync }, bin);
 
   it('passes when everything agrees', () => {
     const r = go(tree('ok', '2.8.0', '2.8.0'), '0');
@@ -130,12 +145,16 @@ describe('check-version-drift.sh', () => {
     expect(r.out).toContain('version-drift guard OK');
   });
 
-  it('fails a stale image tag outside a release window, warns inside one', () => {
+  it('fails a stale image tag everywhere except the sync pull request, which only warns', () => {
     const root = tree('stale', '2.8.0', '2.7.0');
     const strict = go(root, '0');
     expect(strict.code).toBe(1);
     expect(strict.out).toContain('::error::stale image tag(s)');
-    const tolerant = go(root, '1');
+    // A release/* window is not enough: committed files, not live state.
+    const releaseBranch = go(root, '1', '0');
+    expect(releaseBranch.code).toBe(1);
+    expect(releaseBranch.out).toContain('::error::stale image tag(s)');
+    const tolerant = go(root, '1', '1');
     expect(tolerant.code).toBe(0);
     expect(tolerant.out).toContain('::warning::stale image tag(s)');
     expect(tolerant.out).toContain('release window');

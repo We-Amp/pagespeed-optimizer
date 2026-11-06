@@ -90,6 +90,8 @@ jobs:
   website-build:
     permissions:
       contents: read
+      # Only the merge queue lookup of the release window step reads a pull request.
+      pull-requests: read
     name: Website unit tests & build (ubuntu)
     # direct_pr_off: a direct pull_request run skips once WEBSITE_GATE is on
     # (the CI pipeline runs the gate then). Same term on every job.

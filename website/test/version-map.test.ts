@@ -31,11 +31,12 @@ describe('version map', () => {
     // The chart is bumped by the release lane's own pull request
     // (release/helm-*) before the site's version map follows, so in a release
     // window a mismatch here is a warning (test/lib/release-window.ts).
-    expectOrWarn('version map row vs Helm chart and package version', () => {
+    expectOrWarn('version map row vs Helm chart', () => {
       expect(current.helmChart).toBe(String(chart.version));
       expect(String(chart.appVersion)).toBe(current.release);
-      expect(current.packages).toBe(MODULE_PACKAGE_VERSION);
     });
+    // Two committed files, not live state: strict in a window too.
+    expect(current.packages).toBe(MODULE_PACKAGE_VERSION);
   });
 
   it('lists releases newest first, each once, with ISO dates', () => {
