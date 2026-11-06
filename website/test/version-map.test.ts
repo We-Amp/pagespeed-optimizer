@@ -13,6 +13,7 @@ import { parse as parseYaml } from 'yaml';
 import { MODULE_PACKAGE_VERSION } from '../src/data/product-facts.mjs';
 import { VERSION_MAP, versionMapMarkdown } from '../src/data/version-map.mjs';
 import { releaseManifest } from './lib/release-manifest';
+import { expectOrWarn } from './lib/release-window';
 
 const chart = parseYaml(
   readFileSync(new URL('../../deploy/helm/pagespeed/Chart.yaml', import.meta.url), 'utf8'),
@@ -27,9 +28,14 @@ describe('version map', () => {
   });
 
   it('gives the current release the chart and package versions that ship it', () => {
-    expect(current.helmChart).toBe(String(chart.version));
-    expect(String(chart.appVersion)).toBe(current.release);
-    expect(current.packages).toBe(MODULE_PACKAGE_VERSION);
+    // The chart is bumped by the release lane's own pull request
+    // (release/helm-*) before the site's version map follows, so in a release
+    // window a mismatch here is a warning (test/lib/release-window.ts).
+    expectOrWarn('version map row vs Helm chart and package version', () => {
+      expect(current.helmChart).toBe(String(chart.version));
+      expect(String(chart.appVersion)).toBe(current.release);
+      expect(current.packages).toBe(MODULE_PACKAGE_VERSION);
+    });
   });
 
   it('lists releases newest first, each once, with ISO dates', () => {
