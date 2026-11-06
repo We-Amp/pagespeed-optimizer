@@ -2711,10 +2711,10 @@ TEST(HtmlTransformFilterTest, CriticalCssRefusesMarkupOpeningSequences) {
   config.enable_lazy_load = false;
   config.enable_image_dimensions = false;
 
+  // Outside a CSS string or comment: refused.
   const char* const refused[] = {
-      "a[title=\"<b\"] { color: red; }", "a { content: \"<A\"; }",
-      "a { color: red; } </x",           "a { content: \"<!\"; }",
-      "a { content: \"<?\"; }",          "a { background: url(\"<i\"); }",
+      "a { color: red; } </x", "a { color: red; } <b", "a { color: red; } <!--",
+      "a { color: red; } <?x", "a { --x: a<i; }",
   };
   for (const char* css : refused) {
     SCOPED_TRACE(css);
@@ -2722,6 +2722,21 @@ TEST(HtmlTransformFilterTest, CriticalCssRefusesMarkupOpeningSequences) {
         TransformHtml("<html><head></head><body></body></html>",
                       "http://example.com/", config, css);
     EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+  }
+  // Inside one: inlined, the `<` written as the CSS escape `\3c `.
+  const char* const escaped[] = {
+      "a[title=\"<b\"] { color: red; }", "a { content: \"<A\"; }",
+      "a { content: \"<!\"; }",          "a { content: \"<?\"; }",
+      "a { background: url(\"<i\"); }",
+  };
+  for (const char* css : escaped) {
+    SCOPED_TRACE(css);
+    std::string result =
+        TransformHtml("<html><head></head><body></body></html>",
+                      "http://example.com/", config, css);
+    EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos)
+        << result;
+    EXPECT_NE(result.find("\"\\3c "), std::string::npos) << result;
   }
 }
 
@@ -4682,7 +4697,7 @@ TEST(HtmlTransformFilterTest,
   std::string result = TransformHtml(
       "<html><head><link rel=\"stylesheet\" href=\"/style.css\"></head>"
       "<body></body></html>",
-      "http://example.com/", config, "body{content:\"</style>\"}");
+      "http://example.com/", config, "body{--x:a</style>}");
 
   EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
       << "precondition: the XSS guard must refuse this critical block";
@@ -5398,33 +5413,123 @@ void ExpectRefusedAndReverted(const std::string& result) {
   EXPECT_EQ(CountOccurrences(result, "rel=\"stylesheet\""), 1u) << result;
 }
 
-// Tailwind-like CSS used in the tests below: Tailwind CSS v4 registers its
-// gradient and sizing properties with `@property`, whose `syntax` descriptor
-// is a string such as "<color>".
-constexpr std::string_view kTailwindLikeCss =
-    "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
-    "initial-value:#0000}"
-    "@property --tw-gradient-from-position{syntax:\"<length-percentage>\";"
-    "inherits:false;initial-value:0%}"
-    ".bg-gradient-to-r{--tw-gradient-position:to right in oklab}";
+// The block text between the critical <style> start tag and its end tag.
+std::string_view CriticalBlockText(const std::string& result) {
+  const size_t open = result.find("data-pagespeed-critical");
+  if (open == std::string::npos) return {};
+  const size_t text = result.find('>', open);
+  if (text == std::string::npos) return {};
+  const size_t end = result.find("</style>", text);
+  if (end == std::string::npos) return {};
+  return std::string_view(result).substr(text + 1, end - text - 1);
+}
 
-// A `<` then an ASCII letter, `/`, `!` or `?` refuses the block, inside a CSS
-// string or not: Tailwind's `syntax: "<color>"` too. The stylesheets stay
-// render-blocking.
-TEST(HtmlTransformFilterTest, CriticalCssWithMarkupLikeTextIsRefused) {
-  for (std::string_view css : {
-           kTailwindLikeCss,
-           std::string_view("@media (400px<width<800px){a{color:red}}"),
-           std::string_view("a{content:\"<!-- x\"}"),
-           std::string_view("a{content:\"<? x\"}"),
-           std::string_view("a{content:\"<b>\"}"),
-           std::string_view("a{content:\"</b>\"}"),
-           std::string_view("a{content:\"<style>\"}"),
+// True when `text` holds a `<` then an ASCII letter, `/`, `!` or `?`.
+bool HoldsMarkupOpener(std::string_view text) {
+  for (size_t i = 0; i + 1 < text.size(); ++i) {
+    if (text[i] != '<') continue;
+    const unsigned char next = static_cast<unsigned char>(text[i + 1]);
+    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+        next == '/' || next == '!' || next == '?') {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Tailwind CSS v4's `syntax: "<color>"` and other CSS strings holding a `<`
+// keep the block: each such `<` is written as the CSS escape `\3c `, which
+// means the same to CSS, and the stylesheet stays deferred behind it.
+TEST(HtmlTransformFilterTest, CriticalCssWithLessThanInStringsIsEscaped) {
+  struct Case {
+    std::string_view css;
+    std::string_view written;
+  };
+  for (const Case& c : {
+           Case{"@property --tw-gradient-from{syntax:\"<color>\";"
+                "inherits:false;initial-value:#0000}",
+                "@property --tw-gradient-from{syntax:\"\\3c color>\";"
+                "inherits:false;initial-value:#0000}"},
+           Case{"a{content:\"<!-- x\"}", "a{content:\"\\3c !-- x\"}"},
+           Case{"a{content:'<? x'}", "a{content:'\\3c ? x'}"},
+           Case{"a{content:\"<b>\"}", "a{content:\"\\3c b>\"}"},
+           Case{"a{content:\"</b>\"}", "a{content:\"\\3c /b>\"}"},
+           Case{"a{content:\"<style>\"}", "a{content:\"\\3c style>\"}"},
+           Case{"a{content:\"</style>\"}", "a{content:\"\\3c /style>\"}"},
+           Case{"a{content:\"</StYlE \"}", "a{content:\"\\3c /StYlE \"}"},
+           Case{"/* <div> */a{color:red}", "/* \\3c div> */a{color:red}"},
        }) {
+    SCOPED_TRACE(std::string(c.css));
+    bool injected = false;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   c.css, true, &injected);
+    EXPECT_TRUE(injected);
+    ExpectInjectedAndDeferred(result, c.written);
+    EXPECT_EQ(CriticalBlockText(result), c.written) << result;
+  }
+}
+
+// A real Tailwind CSS v4 critical block keeps its critical CSS: the layer
+// order statement, `@property` registrations, arbitrary-value utilities
+// (`content-['<']`, whose class name escapes the `<`), nested `&` rules and
+// range media queries. The text that ships holds no `<` that opens markup.
+TEST(HtmlTransformFilterTest, TailwindV4CriticalCssIsInlined) {
+  constexpr std::string_view kTailwindV4 =
+      "@layer theme,base,components,utilities;"
+      "@layer utilities{"
+      ".content-\\[\\'\\<\\'\\]{--tw-content:'<';content:var(--tw-content)}"
+      ".before\\:content-\\[\\\"\\<\\/b\\>\\\"\\]{&::before{"
+      "--tw-content:\"</b>\";content:var(--tw-content)}}"
+      ".bg-linear-to-r{--tw-gradient-position:to right in oklab;"
+      "background-image:linear-gradient(var(--tw-gradient-stops))}"
+      ".hover\\:text-red-500{&:hover{@media (hover:hover){color:red}}}"
+      ".max-md\\:hidden{@media (width<48rem){display:none}}}"
+      "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
+      "initial-value:#0000}"
+      "@property --tw-gradient-from-position{syntax:\"<length-percentage>\";"
+      "inherits:false;initial-value:0%}";
+  bool injected = false;
+  std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                 kTailwindV4, true, &injected);
+  EXPECT_TRUE(injected);
+  const std::string_view block = CriticalBlockText(result);
+  EXPECT_FALSE(HoldsMarkupOpener(block)) << result;
+  for (std::string_view expected : {
+           std::string_view("syntax:\"\\3c color>\""),
+           std::string_view("syntax:\"\\3c length-percentage>\""),
+           std::string_view(".content-\\[\\'\\3c \\'\\]{--tw-content:'\\3c '"),
+           std::string_view("--tw-content:\"\\3c /b>\""),
+           std::string_view("&:hover{@media (hover:hover){color:red}}"),
+           std::string_view("@media (width<48rem){display:none}"),
+       }) {
+    EXPECT_NE(block.find(expected), std::string_view::npos) << expected << "\n"
+                                                            << result;
+  }
+  ExpectInjectedAndDeferred(result, "@layer theme,base,components,utilities;");
+}
+
+// Outside a CSS string or comment, a `<` then an ASCII letter, `/`, `!` or
+// `?` is not valid CSS and refuses the block. The stylesheets stay
+// render-blocking.
+TEST(HtmlTransformFilterTest, CriticalCssWithMarkupOutsideStringsIsRefused) {
+  for (std::string_view css : {
+           std::string_view("@media (400px<width<800px){a{color:red}}"),
+           std::string_view("a{color:red}<b>"),
+           std::string_view("a{color:red}<!-- x"),
+           std::string_view("a{color:red}<? x"),
+           std::string_view("a{--x:a<B}"),
+           // An unescaped newline ends a string, so the `<b` is outside it.
+           std::string_view("a{content:\"x\n<b>\"}"),
+           // An escaped quote opens no string.
+           std::string_view(".x\\\"{a:1}<b>"),
+           // A quote in a comment opens no string.
+           std::string_view("/* \" */a{}<b>"),
+       }) {
+    SCOPED_TRACE(std::string(css));
     bool injected = true;
     std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
                                                    css, true, &injected);
-    EXPECT_FALSE(injected) << css;
+    EXPECT_FALSE(injected);
     ExpectRefusedAndReverted(result);
   }
 }
@@ -5445,54 +5550,89 @@ TEST(HtmlTransformFilterTest, CriticalCssWithRangeMediaQueryIsInjected) {
 }
 
 // Pages where a browser's tokenizer can leave a state the parser does not
-// model (a short comment, a CDATA section in HTML content, a raw-text tag in
-// <noscript>) and read a <select> the parser never sees. Whatever the filter
-// decides, no CSS text may become an element: the block is either refused or
-// holds no `<` then an ASCII letter, `/`, `!` or `?`.
-TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkup) {
-  for (std::string_view page : {
-           std::string_view("<html><head><!--><select>-->"
-                            "<link rel=stylesheet href=/s.css></head>"
-                            "<body><p>x</p></body></html>"),
-           std::string_view("<html><head><!---><select>-->"
-                            "<link rel=stylesheet href=/s.css></head>"
-                            "<body><p>x</p></body></html>"),
-           std::string_view("<html><head><![CDATA[><select>]]>"
-                            "<link rel=stylesheet href=/s.css></head>"
-                            "<body><p>x</p></body></html>"),
-           std::string_view("<html><head></head><body><noscript><script>"
-                            "</noscript><select></script></noscript>"
-                            "<link rel=stylesheet href=/s.css>"
-                            "<p>x</p></body></html>"),
+// model, and read a <select> or a raw-text element the parser never sees.
+// Whatever the filter decides, no CSS text may become an element: the block
+// is either refused or holds no `<` then an ASCII letter, `/`, `!` or `?`,
+// whether its CSS strings hold a `<` (Tailwind's `syntax: "<color>"`, a
+// `</style>`, a `<!--`) or not. One test per tokenizer case.
+void ExpectBlockTextNeverHoldsMarkup(std::string_view page) {
+  for (std::string_view css : {
+           std::string_view("@property --tw-gradient-from{syntax:\"<color>\";"
+                            "inherits:false;initial-value:#0000}"
+                            ".bg{color:red}"),
+           std::string_view("a{content:\"</style><script>x()</script>\"}"),
+           std::string_view("a{content:\"<!--<script>\"}b{content:'-->'}"),
+           std::string_view("/* <select> */body{color:red}"),
+           std::string_view("body{color:red}"),
        }) {
-    for (std::string_view css :
-         {kTailwindLikeCss, std::string_view("body{color:red}")}) {
-      SCOPED_TRACE(std::string(page) + " / " + std::string(css));
-      std::string result =
-          TransformWithDocumentType(page, GuardConfig(), css, true);
-      const size_t open = result.find("data-pagespeed-critical");
-      if (open == std::string::npos) continue;  // refused
-      const size_t text = result.find('>', open);
-      ASSERT_NE(text, std::string::npos) << result;
-      const size_t end = result.find("</style>", text);
-      ASSERT_NE(end, std::string::npos) << result;
-      const std::string_view block =
-          std::string_view(result).substr(text + 1, end - text - 1);
-      for (size_t i = 0; i + 1 < block.size(); ++i) {
-        if (block[i] != '<') continue;
-        const unsigned char next = static_cast<unsigned char>(block[i + 1]);
-        EXPECT_FALSE((next >= 'a' && next <= 'z') ||
-                     (next >= 'A' && next <= 'Z') || next == '/' ||
-                     next == '!' || next == '?')
-            << result;
-      }
-    }
+    SCOPED_TRACE(std::string(page) + " / " + std::string(css));
+    std::string result =
+        TransformWithDocumentType(page, GuardConfig(), css, true);
+    if (result.find("data-pagespeed-critical") == std::string::npos) continue;
+    const std::string_view block = CriticalBlockText(result);
+    ASSERT_FALSE(block.empty()) << result;
+    EXPECT_FALSE(HoldsMarkupOpener(block)) << result;
   }
 }
 
+// `<!-->`: a browser ends the comment at once; the parser runs on to `-->`.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupShortComment) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><!--><select>--><link rel=stylesheet href=/s.css></head>"
+      "<body><p>x</p></body></html>");
+}
+
+// `<!--->`: the same, one dash longer.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupShortComment3) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><!---><select>--><link rel=stylesheet href=/s.css></head>"
+      "<body><p>x</p></body></html>");
+}
+
+// `--!>`: a browser ends a comment there; the parser does not.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupBangComment) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><!-- x --!><select>--><link rel=stylesheet href=/s.css>"
+      "</head><body><p>x</p></body></html>");
+}
+
+// A CDATA section in HTML content: a browser reads a bogus comment that ends
+// at the first `>`; the parser reads on to `]]>`.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupCdata) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><![CDATA[><select>]]><link rel=stylesheet href=/s.css>"
+      "</head><body><p>x</p></body></html>");
+}
+
+// <noscript> content is raw text to a browser running scripts; the parser
+// reads it as markup.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupNoscript) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head></head><body><noscript><script></noscript><select>"
+      "</script></noscript><link rel=stylesheet href=/s.css>"
+      "<p>x</p></body></html>");
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><noscript><style></noscript><select></style></noscript>"
+      "<link rel=stylesheet href=/s.css></head><body><p>x</p></body></html>");
+}
+
+// <noembed> content is raw text to a browser; the parser reads it as markup.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupNoembed) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><noembed><style></noembed><select></style></noembed>"
+      "<link rel=stylesheet href=/s.css></head><body><p>x</p></body></html>");
+}
+
+// <noframes> content is raw text to a browser; the parser reads it as markup.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupNoframes) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><noframes><style></noframes><select></style></noframes>"
+      "<link rel=stylesheet href=/s.css></head><body><p>x</p></body></html>");
+}
+
 // `</style` in any letter case, whatever follows it (a space, `/`, `>`, any
-// other byte, or the end of the block), and inside a CSS string as much as
-// outside one, refuses the block.
+// other byte, or the end of the block), outside a CSS string, refuses the
+// block. (Inside one it is escaped: CriticalCssWithLessThanInStringsIsEscaped.)
 TEST(HtmlTransformFilterTest, CriticalCssWithStyleEndTagIsRefusedInAnyCase) {
   for (std::string_view css : {
            std::string_view("a{color:red}</style><script>x()</script>"),
@@ -5501,7 +5641,7 @@ TEST(HtmlTransformFilterTest, CriticalCssWithStyleEndTagIsRefusedInAnyCase) {
            std::string_view("a{color:red}</StYlE/b{}"),
            std::string_view("a{color:red}</StYlE>"),
            std::string_view("a{color:red}</stylesheet"),
-           std::string_view("a{content:\"</style>\"}"),
+           std::string_view("a{content:\"x\"}</style>"),
            std::string_view("a{color:red}</style"),
            std::string_view("a{color:red}<\0/style>", 21),
        }) {

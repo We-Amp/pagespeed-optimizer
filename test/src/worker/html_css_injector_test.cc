@@ -5,7 +5,9 @@
 
 #include "src/worker/html_css_injector.h"
 
+#include <cstddef>
 #include <string>
+#include <string_view>
 
 #include "gtest/gtest.h"
 
@@ -556,6 +558,173 @@ TEST(HtmlScanTest, CommentsEndWhereTheServePathLexerEndsThem) {
   EXPECT_EQ(html_scan::ScanComment("<!--->x<!-- y -->", 0), 17u);
   EXPECT_EQ(html_scan::ScanComment("<!-- a --!> b -->", 0), 17u);
   EXPECT_EQ(html_scan::ScanComment("<!-- never closed", 0), std::string::npos);
+}
+
+// ---------------------------------------------------------------------------
+// The `<` rules for a critical block's text (CssOpensMarkupOutsideStrings,
+// EscapeLessThanForStyleElement).
+// ---------------------------------------------------------------------------
+
+// True when `text` holds a `<` then an ASCII letter, `/`, `!` or `?`.
+bool HoldsMarkupOpener(std::string_view text) {
+  for (size_t i = 0; i + 1 < text.size(); ++i) {
+    if (text[i] != '<') continue;
+    const char next = text[i + 1];
+    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+        next == '/' || next == '!' || next == '?') {
+      return true;
+    }
+  }
+  return false;
+}
+
+TEST(CssLessThanTest, StringsAreEscaped) {
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{syntax:\"<color>\"}"),
+            "a{syntax:\"\\3c color>\"}");
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:'<'}"),
+            "a{content:'\\3c '}");
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"</style>\"}"),
+            "a{content:\"\\3c /style>\"}");
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"<!-- <? <A\"}"),
+            "a{content:\"\\3c !-- \\3c ? \\3c A\"}");
+  // A `<` before a hex digit or a space: the escape's own space ends it, so
+  // the next character stays itself.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"<1 < \"}"),
+            "a{content:\"\\3c 1 \\3c  \"}");
+  for (std::string_view css :
+       {"a{syntax:\"<color>\"}", "a{content:'<'}", "a{content:\"</style>\"}",
+        "a{content:\"<!-- <? <A\"}"}) {
+    EXPECT_FALSE(CssOpensMarkupOutsideStrings(css)) << css;
+  }
+}
+
+TEST(CssLessThanTest, QuotesEscapesAndNewlinesEndStringsAsCssDoes) {
+  // An escaped quote does not end the string; the other quote does not
+  // either.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"\\\"<b'<i\"}"),
+            "a{content:\"\\\"\\3c b'\\3c i\"}");
+  // A `\<` escape is the same character: it becomes the hex escape, without
+  // the backslash doubled.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"\\<b\"}"),
+            "a{content:\"\\3c b\"}");
+  // A backslash before a newline continues the string, CR LF included.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"x\\\n<b\"}"),
+            "a{content:\"x\\\n\\3c b\"}");
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"x\\\r\n<b\"}"),
+            "a{content:\"x\\\r\n\\3c b\"}");
+  // An unescaped newline ends the string (a bad string): a `<` after it is
+  // outside.
+  EXPECT_TRUE(CssOpensMarkupOutsideStrings("a{content:\"x\n<b>}"));
+  // An escaped quote outside a string opens none.
+  EXPECT_TRUE(CssOpensMarkupOutsideStrings(".x\\\"{a:1}<b"));
+  // A string left open at the end of the text.
+  EXPECT_EQ(EscapeLessThanForStyleElement("a{content:\"<b"),
+            "a{content:\"\\3c b");
+}
+
+TEST(CssLessThanTest, CommentsAreEscapedAndHideQuotes) {
+  EXPECT_EQ(EscapeLessThanForStyleElement("/* <div> \" */a{}"),
+            "/* \\3c div> \" */a{}");
+  // The quote in the comment opened no string: the `<b` after it is outside.
+  EXPECT_TRUE(CssOpensMarkupOutsideStrings("/* \" */<b"));
+  // `/*` inside a string opens no comment.
+  EXPECT_TRUE(CssOpensMarkupOutsideStrings("a{content:\"/*\"}<b */"));
+}
+
+TEST(CssLessThanTest, OutsideStringsOnlyAMarkupOpenerIsReported) {
+  for (std::string_view css : {
+           "a{}<b",
+           "a{}</style>",
+           "a{}<!--",
+           "a{}<?x",
+           "a{--x:a<B}",
+           "a{}</",
+           "a{}<z",
+       }) {
+    EXPECT_TRUE(CssOpensMarkupOutsideStrings(css)) << css;
+  }
+  for (std::string_view css : {
+           "@media (width<600px){a{color:red}}",
+           "@media (width<=600px){a{color:red}}",
+           "@media (400px < width < 900px){a{color:red}}",
+           "a{--x:1<2}",
+           "a{}<",
+           "",
+       }) {
+    EXPECT_FALSE(CssOpensMarkupOutsideStrings(css)) << css;
+    // A bare `<` is left as it is.
+    EXPECT_EQ(EscapeLessThanForStyleElement(css), css);
+  }
+  // An escaped `<` in a selector is written as the hex escape too.
+  EXPECT_EQ(EscapeLessThanForStyleElement(".\\<b\\>{a:1}"), ".\\3c b\\>{a:1}");
+  EXPECT_FALSE(CssOpensMarkupOutsideStrings(".\\<b\\>{a:1}"));
+}
+
+// A Tailwind CSS v4 stylesheet, the shape of its output: the layer order,
+// `@property` registrations with `syntax` strings, arbitrary-value utilities
+// whose class names escape `<`, `content` strings holding `<`, a range media
+// query and CSS nesting with `&`.
+constexpr std::string_view kTailwindV4Css =
+    "@layer theme,base,components,utilities;"
+    "@layer theme{:root,:host{--color-red-500:oklch(63.7% .237 25.331)}}"
+    "@layer utilities{"
+    ".content-\\[\\'\\<\\'\\]{--tw-content:'<';content:var(--tw-content)}"
+    ".before\\:content-\\[\\\"\\<\\/b\\>\\\"\\]{&::before{"
+    "--tw-content:\"</b>\";content:var(--tw-content)}}"
+    ".bg-linear-to-r{--tw-gradient-position:to right in oklab;"
+    "background-image:linear-gradient(var(--tw-gradient-stops))}"
+    ".hover\\:text-red-500{&:hover{@media (hover:hover){"
+    "color:var(--color-red-500)}}}"
+    ".md\\:flex{@media (width>=48rem){display:flex}}"
+    ".max-md\\:hidden{@media (width<48rem){display:none}}}"
+    "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
+    "initial-value:#0000}"
+    "@property --tw-gradient-from-position{syntax:\"<length-percentage>\";"
+    "inherits:false;initial-value:0%}"
+    "@property --tw-content{syntax:\"*\";inherits:false;initial-value:\"\"}";
+
+TEST(CssLessThanTest, TailwindV4SheetIsKeptAndMarkupFree) {
+  EXPECT_FALSE(CssOpensMarkupOutsideStrings(kTailwindV4Css));
+  const std::string escaped = EscapeLessThanForStyleElement(kTailwindV4Css);
+  EXPECT_FALSE(HoldsMarkupOpener(escaped)) << escaped;
+  EXPECT_NE(escaped.find("syntax:\"\\3c color>\""), std::string::npos)
+      << escaped;
+  EXPECT_NE(escaped.find("syntax:\"\\3c length-percentage>\""),
+            std::string::npos)
+      << escaped;
+  EXPECT_NE(escaped.find("--tw-content:'\\3c '"), std::string::npos) << escaped;
+  EXPECT_NE(escaped.find("--tw-content:\"\\3c /b>\""), std::string::npos)
+      << escaped;
+  EXPECT_NE(escaped.find(".content-\\[\\'\\3c \\'\\]"), std::string::npos)
+      << escaped;
+  EXPECT_NE(escaped.find("(width<48rem)"), std::string::npos) << escaped;
+  // Escaping twice changes nothing: the escape holds no `<`.
+  EXPECT_EQ(EscapeLessThanForStyleElement(escaped), escaped);
+
+  // The string injector writes the same text into the block.
+  auto result = InjectCriticalCss("<html><head></head><body></body></html>",
+                                  kTailwindV4Css);
+  EXPECT_TRUE(result.success);
+  ASSERT_TRUE(result.injected);
+  EXPECT_NE(result.html.find("<style data-pagespeed-critical>" + escaped +
+                             "</style></head>"),
+            std::string::npos)
+      << result.html;
+}
+
+// `</style` inside a CSS string no longer refuses the block: it is written as
+// `\3c /style`, which does not end the element. Outside a string it still
+// does (StyleCloseXss* above).
+TEST(HtmlCssInjectorTest, StyleEndTagInsideAStringIsEscaped) {
+  auto result =
+      InjectCriticalCss("<html><head></head><body></body></html>",
+                        "a{content:\"</STYLE><script>x()</script>\"}");
+  EXPECT_TRUE(result.success);
+  ASSERT_TRUE(result.injected);
+  EXPECT_NE(result.html.find("a{content:\"\\3c /STYLE>\\3c script>x()"
+                             "\\3c /script>\"}</style></head>"),
+            std::string::npos)
+      << result.html;
 }
 
 }  // namespace

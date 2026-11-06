@@ -116,10 +116,11 @@ TEST_F(WorkerTest, HtmlNotificationInjectsCriticalCss) {
   worker_thread.join();
 }
 
-// Critical CSS holding a `<` then an ASCII letter (Tailwind CSS v4's
-// `@property` syntax strings such as "<color>") is not inlined on the worker
-// path either.
-TEST_F(WorkerTest, CriticalCssWithPropertySyntaxStringIsNotInlined) {
+// A Tailwind CSS v4 page keeps its critical CSS on the worker path: its
+// `@property` syntax strings such as "<color>" and `content` strings holding
+// `<` are written with the CSS escape `\3c `, and the block holds no `<` that
+// opens markup.
+TEST_F(WorkerTest, TailwindV4CriticalCssIsInlined) {
   WorkerConfig config;
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
@@ -130,11 +131,20 @@ TEST_F(WorkerTest, CriticalCssWithPropertySyntaxStringIsNotInlined) {
 
   const std::string html =
       "<html><head><style>"
+      "@layer theme,base,components,utilities;"
+      "@layer utilities{"
+      ".content-\\[\\'\\<\\'\\]{--tw-content:'<';"
+      "content:var(--tw-content)}"
+      ".text-red-500{color:red;&:hover{color:blue}}"
+      ".bg-linear-to-r{background-image:linear-gradient("
+      "var(--tw-gradient-from),red)}"
+      ".max-md\\:hidden{@media (width<48rem){display:none}}}"
       "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
       "initial-value:#0000}"
-      "h1{color:red;background-image:linear-gradient("
-      "var(--tw-gradient-from),red)}</style></head>"
-      "<body><h1>Hello World</h1></body></html>";
+      "@property --tw-content{syntax:\"*\";inherits:false;"
+      "initial-value:\"\"}</style></head>"
+      "<body><h1 class=\"text-red-500 bg-linear-to-r\">Hello World</h1>"
+      "<p class=\"content-['<']\">x</p></body></html>";
   const std::string cache_url = "/tailwind.html";
   CacheOriginal(worker.cache(), cache_url, html);
 
@@ -155,10 +165,23 @@ TEST_F(WorkerTest, CriticalCssWithPropertySyntaxStringIsNotInlined) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     variant = ReadVariant(worker.cache(), cache_url, mask);
     if (!variant.empty()) break;
-    if (i >= 20) break;  // may write nothing at all
   }
-  EXPECT_EQ(variant.find("data-pagespeed-critical"), std::string::npos)
+  ASSERT_NE(variant.find("data-pagespeed-critical"), std::string::npos)
       << variant;
+  const size_t open = variant.find("data-pagespeed-critical");
+  const size_t text = variant.find('>', open);
+  const size_t end = variant.find("</style>", text);
+  ASSERT_NE(end, std::string::npos) << variant;
+  const std::string block = variant.substr(text + 1, end - text - 1);
+  EXPECT_NE(block.find("syntax:\"\\3c color>\""), std::string::npos) << block;
+  EXPECT_NE(block.find(".text-red-500"), std::string::npos) << block;
+  for (size_t i = 0; i + 1 < block.size(); ++i) {
+    if (block[i] != '<') continue;
+    const char next = block[i + 1];
+    EXPECT_FALSE((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+                 next == '/' || next == '!' || next == '?')
+        << block;
+  }
 
   worker.Shutdown();
   worker_thread.join();

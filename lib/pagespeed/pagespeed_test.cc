@@ -903,12 +903,36 @@ TEST(PageSpeedCApi, CssValidateStyleCloseCaseInsensitive) {
 
 TEST(PageSpeedCApi, CssValidateRefusesMarkupOpeningSequences) {
   const char* const refused[] = {
-      "a[title=\"<b\"] { }",    "a { content: \"<A\"; }", "a { } </x",
-      "a { content: \"<!\"; }", "a { content: \"<?\"; }",
+      "a { } </x",
+      "a { } <b",
+      "a { } <!--",
+      "a { } <?x",
+      "a { --x: a<B; }",
+      // `</style` is refused inside a string too: the caller writes the CSS
+      // into a <style> element as it is.
+      "a { content: \"</style>\"; }",
+      "a { content: '</STYLE '; }",
   };
   for (const char* css : refused) {
     SCOPED_TRACE(css);
     EXPECT_EQ(ps_css_validate(css, std::strlen(css)), PS_ERR_INVALID_ARG);
+  }
+}
+
+// Inside a CSS string or comment, a `<` is accepted: Tailwind CSS v4's
+// `syntax: "<color>"`, attribute selectors and `content` values.
+TEST(PageSpeedCApi, CssValidateAcceptsLessThanInStrings) {
+  const char* const kept[] = {
+      "a[title=\"<b\"] { }",
+      "a { content: \"<A\"; }",
+      "a { content: \"<!\"; }",
+      "a { content: '<?'; }",
+      "@property --tw-gradient-from { syntax: \"<color>\"; inherits: false; }",
+      "/* <div> */ a { color: red; }",
+  };
+  for (const char* css : kept) {
+    SCOPED_TRACE(css);
+    EXPECT_EQ(ps_css_validate(css, std::strlen(css)), PS_OK);
   }
 }
 
@@ -3157,8 +3181,9 @@ TEST_F(PageSpeedCacheApiTest, HtmlProcessInlinesPlainCriticalCss) {
 }
 
 // Tailwind CSS v4 registers properties with `@property`, whose `syntax` is a
-// string such as "<color>": a `<` then a letter, so the block is refused.
-TEST_F(PageSpeedCacheApiTest, HtmlProcessRefusesPropertySyntaxStrings) {
+// string such as "<color>". The block is inlined, the `<` written as the CSS
+// escape `\3c `, which means the same to CSS.
+TEST_F(PageSpeedCacheApiTest, HtmlProcessInlinesPropertySyntaxStrings) {
   OpenCache();
   int has_critical = -1;
   std::string out = ProcessWithCachedSheet(
@@ -3167,14 +3192,27 @@ TEST_F(PageSpeedCacheApiTest, HtmlProcessRefusesPropertySyntaxStrings) {
       "initial-value:#0000}"
       ".hero{background-image:linear-gradient(var(--tw-gradient-from),red)}",
       &has_critical);
+  EXPECT_EQ(has_critical, 1) << out;
+  EXPECT_NE(out.find("data-pagespeed-critical"), std::string::npos) << out;
+  EXPECT_NE(out.find("syntax:\"\\3c color>\""), std::string::npos) << out;
+  EXPECT_EQ(out.find("\"<color>\""), std::string::npos) << out;
+}
+
+// Outside a CSS string, a `<` then a letter is not valid CSS: refused.
+TEST_F(PageSpeedCacheApiTest, HtmlProcessRefusesMarkupOutsideStrings) {
+  OpenCache();
+  int has_critical = -1;
+  std::string out =
+      ProcessWithCachedSheet(cache_, ".hero{color:red;--x:a<b}", &has_critical);
   ExpectNoBlockAndBlockingSheet(has_critical, out);
 }
 
-// `</style`, in any letter case, could end the inlined element: refused.
+// `</style`, in any letter case, could end the inlined element: refused
+// outside a CSS string. Inside one it is escaped and the block is inlined.
 TEST_F(PageSpeedCacheApiTest, HtmlProcessRefusesStyleEndTag) {
   OpenCache();
-  for (const char* css : {".hero{color:red;content:\"</style>\"}",
-                          ".hero{color:red;content:\"</StYlE \"}"}) {
+  for (const char* css :
+       {".hero{color:red;--x:a</style>}", ".hero{color:red;--x:a</StYlE }"}) {
     SCOPED_TRACE(css);
     int has_critical = -1;
     std::string out = ProcessWithCachedSheet(cache_, css, &has_critical);

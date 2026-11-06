@@ -53,6 +53,7 @@
 #include "src/proto/worker_ipc.h"
 #include "src/worker/async_css_loader.h"
 #include "src/worker/critical_css_extractor.h"
+#include "src/worker/html_css_injector.h"
 #include "src/worker/html_scanner.h"
 #include "src/worker/html_transform_filter.h"
 #include "src/worker/serve_stats.h"
@@ -2426,16 +2427,30 @@ static CapabilityMask::Viewport MapViewport(ps_viewport_t vp) {
 // Helper: validate CSS for XSS
 // ================================================================
 
-static bool CssContainsStyleClose(const char* css, size_t len) {
-  // True when the CSS holds a `<` that could open markup: `<` then an ASCII
-  // letter, `/`, `!` or `?`.  A bare `<` (range media queries) is allowed.
-  for (size_t i = 0; i + 1 < len; ++i) {
-    if (css[i] != '<') continue;
-    const unsigned char next = static_cast<unsigned char>(css[i + 1]);
-    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
-        next == '/' || next == '!' || next == '?') {
-      return true;
+// True when the CSS holds, outside its strings and comments, a `<` that could
+// open markup: `<` then an ASCII letter, `/`, `!` or `?`. A bare `<` (range
+// media queries) is allowed, and so is one in a string or comment, which the
+// critical block writes as the escape `\3c ` (EscapeLessThanForStyleElement,
+// html_css_injector.h).
+static bool CssOpensMarkup(const char* css, size_t len) {
+  return pagespeed::CssOpensMarkupOutsideStrings(std::string_view(css, len));
+}
+
+// True when the CSS holds `</style` in any letter case, anywhere: a caller
+// that writes ps_css_validate'd CSS into a <style> element as it is would see
+// the element end there, string or not.
+static bool CssContainsStyleEndTag(const char* css, size_t len) {
+  constexpr std::string_view kStyleEndTag = "</style";
+  const std::string_view view(css, len);
+  for (size_t i = 0; i + kStyleEndTag.size() <= view.size(); ++i) {
+    size_t k = 0;
+    while (k < kStyleEndTag.size()) {
+      char c = view[i + k];
+      if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+      if (c != kStyleEndTag[k]) break;
+      ++k;
     }
+    if (k == kStyleEndTag.size()) return true;
   }
   return false;
 }
@@ -2685,7 +2700,7 @@ extern "C" ps_error_t ps_css_validate(const char* css, size_t css_len) {
     SetLastError("CSS contains null bytes");
     return PS_ERR_INVALID_ARG;
   }
-  if (CssContainsStyleClose(css, css_len)) {
+  if (CssOpensMarkup(css, css_len) || CssContainsStyleEndTag(css, css_len)) {
     SetLastError("CSS contains a sequence that could open markup");
     return PS_ERR_INVALID_ARG;
   }
@@ -3095,8 +3110,9 @@ extern "C" ps_error_t ps_html_process(const char* html, size_t html_len,
         std::string& css = css_result.critical_css;
         // Strip null bytes.
         css.erase(std::remove(css.begin(), css.end(), '\0'), css.end());
-        // Reject if it holds a sequence that could open markup.
-        if (!CssContainsStyleClose(css.c_str(), css.size())) {
+        // Reject if it holds, outside its strings and comments, a sequence
+        // that could open markup; the transform escapes the rest.
+        if (!CssOpensMarkup(css.c_str(), css.size())) {
           critical_css = std::move(css);
         }
       }

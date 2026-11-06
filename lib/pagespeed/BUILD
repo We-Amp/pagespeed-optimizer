@@ -55,6 +55,7 @@ cc_library(
         "//src/proto:worker_ipc",
         "//src/worker:async_css_loader",
         "//src/worker:critical_css_extractor",
+        "//src/worker:html_css_injector",
         "//src/worker:html_scanner",
         "//src/worker:html_transform_filter",
         "//src/worker:serve_stats",
