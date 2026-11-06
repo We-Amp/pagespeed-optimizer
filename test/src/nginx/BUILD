@@ -5,6 +5,9 @@ load("//bazel:test.bzl", "gtest_test")
 
 gtest_test(
     name = "ngx_pagespeed_test",
+    # Opens several on-disk caches; on hosted Windows runners single opens
+    # stall for up to ~20 s, so the whole binary can pass 60 s ("small").
+    size = "medium",
     deps = [
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
