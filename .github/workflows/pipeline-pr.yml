@@ -641,11 +641,13 @@ jobs:
   # the Lighthouse budgets on the pull request only (the queue re-checks the
   # rebased build, not the browser suite). A failure fails `pr` and with it
   # `CI gate`; a run without website changes skips the job, which counts as
-  # success. Hosted only.
+  # success. Hosted only. Off until the repository variable WEBSITE_GATE is
+  # `on` (docs/ci/pipelines.md, "WEBSITE_GATE"); while it is off, website.yml
+  # runs from its own pull_request trigger and does not feed `CI gate`.
   website:
     name: Website
     needs: changes
-    if: ${{ needs.changes.outputs.website == 'true' }}
+    if: ${{ needs.changes.outputs.website == 'true' && vars.WEBSITE_GATE == 'on' }}
     permissions:
       contents: read
     uses: We-Amp/pagespeed-optimizer/.github/workflows/website.yml@main

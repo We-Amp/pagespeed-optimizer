@@ -674,18 +674,42 @@ base commit) and the repository variable `DOCS_LANE`.
   requests first, then `gh variable set DOCS_LANE --body on --repo We-Amp/pagespeed-optimizer`.
   Roll back with `gh variable delete DOCS_LANE --repo We-Amp/pagespeed-optimizer`; the next run
   takes it.
-- **The website gate counts.** The docs lane leaves a website change with the
-  hosted gates only, so the site's own checks are part of the PR tier: the
-  `changes` job publishes `website` (true when a pull request or merge group
-  changes `website/`, `shared/product-facts.mjs`,
+- **The website gate (`WEBSITE_GATE`).** The docs lane leaves a website
+  change with the hosted gates only, so the site's own checks can join the
+  PR tier: the `changes` job publishes `website` (true when a pull request or
+  merge group changes `website/`, `shared/product-facts.mjs`,
   `.github/workflows/website.yml`, `src/worker/main.cc`,
   `src/nginx/ngx_pagespeed_module.cc` or `docker/nginx-version.txt`), and the
   `website` job calls `website.yml@main`. Build, unit tests, content lint and
   reference drift run on both events; the Playwright suite and the Lighthouse
   budgets run on the pull request only. A failure fails `pr` and `CI gate`; a
-  run without website changes skips the job, which `CI gate` accepts.
-  `website.yml` keeps its own push and nightly triggers and has no
-  `pull_request` trigger. This part does not depend on `DOCS_LANE`.
+  run without website changes skips the job, which `CI gate` accepts. This
+  part does not depend on `DOCS_LANE`.
+
+## WEBSITE_GATE: the website checks in `CI gate`
+
+The `website` job of `pipeline-pr.yml` runs only when the repository variable
+`WEBSITE_GATE` is `on`. Unset (the default) or any other value keeps today's
+behaviour: `website.yml` runs from its own `pull_request` trigger as an
+advisory check, outside `CI gate` and outside the merge queue. With the
+variable `on`, the CI pipeline calls `website.yml` and every job of a direct
+`pull_request` run of `website.yml` skips, so the checks run once, inside
+`CI gate`; flipping the variable is the only step
+(`gh variable set WEBSITE_GATE --body on --repo We-Amp/pagespeed-optimizer`,
+rollback `gh variable delete WEBSITE_GATE --repo We-Amp/pagespeed-optimizer`).
+**Precondition before turning it on:** the build job's live-state guards must
+tolerate a release window first. Today the 2.1 manifest drift guard fails the
+very sync pull request that bumps the manifest, the Helm and package-index
+unit tests read live release state, and the built-output content lint trips
+on release blog posts; once they feed `CI gate`, they would block
+release-window pull requests. Each must skip or warn on
+`auto/sync-release-manifests` and `release/*` branches, or within the tag-age
+grace window, before the gate goes on. The call is pinned to
+`website.yml@main`, like every reusable workflow here: a `ci-dev` dispatch
+that changes `website.yml` runs the copy on `main`, and until `main` has the
+`workflow_call` trigger the `website` job cannot run at all. To try a change
+to the callee on `ci-dev`, point that `uses:` line at `@ci-dev` on the
+`ci-dev` branch only, and never merge that edit.
 
 ## Required checks
 

@@ -29,15 +29,21 @@ name: Website
 # (fetch-pricing.js refuses without this). Deploying the site is the
 # operator's step, from this tree; nothing in this workflow deploys.
 #
-# Pull requests and the merge queue reach this workflow through the CI
-# pipeline (pipeline-pr.yml, job `website`, when the site or its sources
-# change), so its result feeds the required `CI gate`; there is no
-# pull_request trigger here, which would run it twice. In the merge queue only
-# the build and reference drift run: the browser suite and Lighthouse ran on
-# the same change in the pull request. A push to main that changes the tree
-# this gate owns runs it directly, and the nightly runs the full-width
-# geometry sweep. The concurrency group keeps only the newest run per caller
-# and ref.
+# Two ways in for a pull request, switched by the repository variable
+# WEBSITE_GATE (docs/ci/pipelines.md, "WEBSITE_GATE"):
+#   * off (unset, the default): this workflow's own pull_request trigger runs
+#     it, as an advisory check outside `CI gate`;
+#   * `on`: the CI pipeline calls it (pipeline-pr.yml, job `website`) for a
+#     pull request or merge group that changes the site or its sources, so
+#     its result feeds the required `CI gate`, and every job of a direct
+#     pull_request run skips (the `direct_pr_off` term below), so nothing
+#     runs twice.
+# A called run has inputs.called set (its default); a direct run has no
+# inputs. In the merge queue only the build and reference drift run: the
+# browser suite and Lighthouse ran on the same change in the pull request. A
+# push to main that changes the tree this gate owns runs it directly, and the
+# nightly runs the full-width geometry sweep. The concurrency group keeps only
+# the newest run per caller and ref.
 
 on:
   push:
@@ -50,8 +56,23 @@ on:
       - 'src/worker/main.cc'
       - 'src/nginx/ngx_pagespeed_module.cc'
       - 'docker/nginx-version.txt'
-  # Called by pipeline-pr.yml for pull requests and merge groups.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - 'shared/product-facts.mjs'
+      - '.github/workflows/website.yml'
+      - 'src/worker/main.cc'
+      - 'src/nginx/ngx_pagespeed_module.cc'
+      - 'docker/nginx-version.txt'
+  # Called by pipeline-pr.yml for pull requests and merge groups once
+  # WEBSITE_GATE is on.
   workflow_call:
+    inputs:
+      called:
+        description: Set by the caller; a direct run has no inputs
+        type: boolean
+        default: true
   # Nightly full-width geometry sweep (website-playwright only; the other
   # jobs skip on a schedule). Pull requests run the 375px column.
   schedule:
@@ -70,7 +91,9 @@ jobs:
     permissions:
       contents: read
     name: Website unit tests & build (ubuntu)
-    if: github.event_name != 'schedule'
+    # direct_pr_off: a direct pull_request run skips once WEBSITE_GATE is on
+    # (the CI pipeline runs the gate then). Same term on every job.
+    if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -251,7 +274,7 @@ jobs:
     permissions:
       contents: read
     name: Reference data matches the pinned module source (ubuntu)
-    if: github.event_name != 'schedule'
+    if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -304,7 +327,7 @@ jobs:
       contents: read
     name: Website browser suite (Playwright, ubuntu)
     # Not in the merge queue: it ran on the same change in the pull request.
-    if: github.event_name != 'merge_group'
+    if: github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: ${{ github.event_name == 'schedule' && 75 || 30 }}
     defaults:
@@ -377,7 +400,7 @@ jobs:
       contents: read
     name: Website Lighthouse budgets (ubuntu)
     # Not in the merge queue: it ran on the same change in the pull request.
-    if: github.event_name != 'schedule' && github.event_name != 'merge_group'
+    if: github.event_name != 'schedule' && github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
