@@ -426,13 +426,32 @@ factory_worker --strip-query-extensions css,js,png,jpg,webp
 ```
 
 Consolidates cache entries for static assets that differ only by a cache-busting
-query string. See [URL normalization](#url-normalization).
+query string. The whole query string is dropped for every listed extension, on
+every site the worker serves, so list an extension only when no site's server
+returns different content for it depending on the query string. See
+[URL normalization](#url-normalization).
+
+## --strip-query-groups
+
+```bash
+factory_worker --strip-query-groups static
+```
+
+A group stands for a fixed list of extensions (`images`, `static`) and works
+exactly like listing them with
+[`--strip-query-extensions`](#--strip-query-extensions), on every site the
+worker serves. See [URL normalization](#url-normalization).
 
 ## --strip-query-params
 
 ```bash
 factory_worker --strip-query-params utm_source,utm_medium,fbclid
 ```
+
+Removes only the named parameters and keeps the rest of the query string, on
+every site the worker serves. This is the right setting for tracking parameters
+such as `utm_source` or `fbclid`: list only parameters that no site's server
+uses to choose what it returns. See [URL normalization](#url-normalization).
 
 ## --host-alias
 

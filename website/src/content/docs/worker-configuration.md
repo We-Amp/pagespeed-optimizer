@@ -1328,7 +1328,10 @@ factory_worker --strip-query-extensions css,js,png,jpg,webp
 ```
 
 Consolidates cache entries for static assets that differ only by a cache-busting
-query string. See [URL normalization](#url-normalization).
+query string. The whole query string is dropped for every listed extension, on
+every site the worker serves, so list an extension only when no site's server
+returns different content for it depending on the query string. See
+[URL normalization](#url-normalization).
 
 #### --strip-query-groups {#--strip-query-groups}
 
@@ -1336,6 +1339,15 @@ query string. See [URL normalization](#url-normalization).
 - **Default:** —
 
 Comma-separated group names (e.g., images,static)
+
+```bash
+factory_worker --strip-query-groups static
+```
+
+A group stands for a fixed list of extensions (`images`, `static`) and works
+exactly like listing them with
+[`--strip-query-extensions`](#--strip-query-extensions), on every site the
+worker serves. See [URL normalization](#url-normalization).
 
 #### --strip-query-params {#--strip-query-params}
 
@@ -1347,6 +1359,11 @@ Comma-separated param names (e.g., utm_source,fbclid)
 ```bash
 factory_worker --strip-query-params utm_source,utm_medium,fbclid
 ```
+
+Removes only the named parameters and keeps the rest of the query string, on
+every site the worker serves. This is the right setting for tracking parameters
+such as `utm_source` or `fbclid`: list only parameters that no site's server
+uses to choose what it returns. See [URL normalization](#url-normalization).
 
 #### --host-alias {#--host-alias}
 
@@ -1611,6 +1628,23 @@ factory_worker --mobile-width 480 --tablet-width 768 --desktop-width 0
 [`--host-alias`](#--host-alias) normalize the cache key: query strings that only
 bust caches and host aliases that serve the same content collapse onto one
 cache entry.
+
+The query-string settings apply to every site the worker serves, not to one
+site, and requests whose URLs differ only in what a setting removes share one
+cache entry. Choose them with that in mind:
+
+- Prefer [`--strip-query-params`](#--strip-query-params) for tracking
+  parameters (`utm_source`, `utm_medium`, `fbclid`): it removes only the
+  parameters you name.
+- Use [`--strip-query-extensions`](#--strip-query-extensions) or
+  [`--strip-query-groups`](#--strip-query-groups) only for file types whose
+  query strings are cache-busters on every site the worker serves, such as a
+  version number after a stylesheet or image URL.
+- Leave out any parameter or file type for which a site's server returns
+  different content depending on the query string, such as a theme, language or
+  size parameter.
+
+All three settings are empty by default: nothing is removed until you list it.
 
 ## Image quality {#image-quality-flags}
 
