@@ -4,6 +4,8 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Fixed: the cache detail view of the admin console and the `GET /v1/cache/alternates` endpoint now find entries stored per site; the endpoint takes the `site` listed by `GET /v1/cache/urls`. In 2.8.0 every such entry showed as not in the index. Affected: 2.8.0.
+
 Fixed: pages whose stylesheet is larger than 64 KiB get critical CSS and deferred stylesheets again. In 2.8.0 the request that confirms a stylesheet is served to any client was refused for such stylesheets, so those pages were served with ordinary render-blocking stylesheets and no inlined critical CSS. Pages were still served correctly. Affected: 2.8.0.
 
 ## 2.8.0 - 2026-11-05
