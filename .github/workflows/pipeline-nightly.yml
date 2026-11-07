@@ -2029,7 +2029,8 @@ jobs:
           set -uo pipefail
           # Container user for this runner's daemon (rootful or rootless):
           # see tools/ci/container-identity.sh.
-          eval "$(tools/ci/container-identity.sh)" || exit 1
+          out="$(tools/ci/container-identity.sh)" || exit 1
+          eval "$out"
           set +e
           docker run --rm --network="${{ steps.net.outputs.name }}" \
             --user "$CONTAINER_USER" -e HOME=/tmp -e npm_config_cache=/tmp/.npm \

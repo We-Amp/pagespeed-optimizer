@@ -942,7 +942,8 @@ jobs:
           eval "$(tools/ci/stage-docker-cli.sh)"
           # Container user and daemon socket for this runner's daemon
           # (rootful or rootless): see tools/ci/container-identity.sh.
-          eval "$(tools/ci/container-identity.sh)"
+          out="$(tools/ci/container-identity.sh)" || exit 1
+          eval "$out"
           docker run --rm --network=host \
             --user "$CONTAINER_USER" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
@@ -1039,7 +1040,8 @@ jobs:
           eval "$(tools/ci/stage-docker-cli.sh)"
           # Container user and daemon socket for this runner's daemon
           # (rootful or rootless): see tools/ci/container-identity.sh.
-          eval "$(tools/ci/container-identity.sh)"
+          out="$(tools/ci/container-identity.sh)" || exit 1
+          eval "$out"
           COMPOSE="docker compose -f tools/async-css-probe/docker-compose.yml -f tools/async-css-probe/docker-compose.prebuilt.yml"
           # Well above the coverage this fixture achieves, so "the gate
           # refuses" is unambiguous and does not depend on extractor tuning.

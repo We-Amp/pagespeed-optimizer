@@ -17,6 +17,10 @@ pass() { echo "ok: $1"; }
 mkdir -p "$ROOT/bin"
 cat > "$ROOT/bin/docker" <<'SH'
 #!/bin/sh
+if [ "$1" = context ]; then
+  # Active endpoint: FAKE_CONTEXT_HOST wins, else DOCKER_HOST, else default.
+  echo "${FAKE_CONTEXT_HOST:-${DOCKER_HOST:-unix:///var/run/docker.sock}}"; exit 0
+fi
 [ "$1" = info ] || exit 1
 case "${FAKE_DAEMON:-rootful}" in
   rootful)  echo '[name=apparmor,profile=default name=seccomp,profile=builtin name=cgroupns]' ;;
@@ -55,6 +59,11 @@ pass "no DOCKER_HOST: /var/run/docker.sock"
 pass "unix:// DOCKER_HOST: socket path taken from it (a path with a space survives eval)"
 [ "$(get DOCKER_SOCK DOCKER_HOST=tcp://127.0.0.1:2375)" = "/var/run/docker.sock" ] || fail "tcp DOCKER_HOST: default socket"
 pass "tcp:// DOCKER_HOST: default socket"
+
+[ "$(get DOCKER_SOCK FAKE_CONTEXT_HOST="unix://$SOCK")" = "$SOCK" ] || fail "current context endpoint: socket taken from it"
+pass "current context endpoint (DOCKER_HOST unset): socket path taken from it"
+[ "$(get DOCKER_SOCK FAKE_CONTEXT_HOST="unix://$SOCK" DOCKER_HOST=tcp://127.0.0.1:2375)" = "$SOCK" ] || fail "context beats a tcp DOCKER_HOST"
+pass "context endpoint wins over a non-unix DOCKER_HOST"
 
 [ "$(get DOCKER_GID DOCKER_HOST="unix://$SOCK")" = "$MYGID" ] || fail "socket gid read from the socket file"
 pass "DOCKER_GID is the socket file's group"
