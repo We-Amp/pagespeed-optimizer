@@ -44,7 +44,8 @@ jobs:
     permissions:
       contents: read
     name: Build daemon & unit-test slice (ubuntu)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -155,7 +156,8 @@ jobs:
     permissions:
       contents: read
     name: License audit (Apache RAT)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -192,7 +194,8 @@ jobs:
 
   license-and-sbom:
     name: License Headers + SBOM Drift
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     # grype downloads its vulnerability database on a cold runner.
     timeout-minutes: 15
     # pull-requests: read lets the release-note gate list the pull request's
@@ -398,7 +401,8 @@ jobs:
     permissions:
       contents: read
     name: Public-tree hygiene gate
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -467,7 +471,8 @@ jobs:
   # commit's check suites; the calling job must grant it too.
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       checks: read
@@ -670,7 +675,8 @@ jobs:
     permissions:
       contents: read
     name: Blocking Dep Scan (npm + cargo)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       SYFT_VERSION: v1.44.0
@@ -714,7 +720,8 @@ jobs:
   # write permission. The scheduled image scan belongs to the nightly tier.
   dep-scan:
     name: Dependency Scan (report-only)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -804,7 +811,8 @@ jobs:
     permissions:
       contents: read
     name: ABI Compatibility (lib/pagespeed C API)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -857,7 +865,8 @@ jobs:
     permissions:
       contents: read
     name: JS/TS Unit Tests
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -895,7 +904,8 @@ jobs:
     permissions:
       contents: read
     name: Release Packaging Container
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -939,7 +949,8 @@ jobs:
     name: Vendor Dependencies
     needs: changes
     if: ${{ needs.changes.outputs.fleet == 'true' }}
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 45
     outputs:
       short_sha: ${{ steps.stamp.outputs.short_sha }}
@@ -1126,7 +1137,8 @@ jobs:
       contents: read
     name: Linux Build
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1358,7 +1370,8 @@ jobs:
       contents: read
     name: Linux Unit Tests
     needs: [changes, vendor, linux-build]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 120
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1451,7 +1464,8 @@ jobs:
       contents: read
     name: Production readiness (ETag subset)
     needs: [changes, linux-build]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.etag == 'true' }}
     timeout-minutes: 30
     steps:
@@ -1551,7 +1565,8 @@ jobs:
       contents: read
     name: Lint (clang-tidy + clang-format)
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     # A scoped lint finishes in a minute or two; a FULL-tree lint (every .cc
     # touched, e.g. a header sweep) takes tens of minutes, longer on a cold
     # lint cache or a hosted runner (which also builds the image first).
@@ -1889,7 +1904,8 @@ jobs:
     # public repository instead of by commit id, so a floor move can resolve.
     name: JS Kernel Differential (vendored goldens)
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -2019,7 +2035,8 @@ jobs:
     # public repository instead of by commit id, so a floor move can resolve.
     name: HTML Parse Differential (vendored goldens)
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -2154,7 +2171,8 @@ jobs:
       contents: read
     name: Release-config test compile
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -2240,7 +2258,8 @@ jobs:
       contents: read
     name: CSS fuzz smoke (deterministic oracle replay)
     needs: changes
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.css == 'true' }}
     timeout-minutes: 20
     steps:
@@ -2326,7 +2345,8 @@ jobs:
       contents: read
     name: JS fuzz smoke (deterministic oracle replay)
     needs: changes
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.js == 'true' }}
     timeout-minutes: 20
     steps:
@@ -2893,7 +2913,8 @@ jobs:
     permissions: {}
     name: Shared build runners are switched off
     if: ${{ vars.FLEET_ENABLED == 'false' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Say what the switch changed

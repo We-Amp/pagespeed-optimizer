@@ -42,7 +42,8 @@ jobs:
   smoke-linux-x64:
     permissions: {}
     name: smoke / ${{ matrix.rid }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
       matrix:

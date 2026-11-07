@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
@@ -86,6 +86,6 @@ jobs:
           esac
           cat "${out}" >> "$GITHUB_OUTPUT"
   vendor:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - run: echo vendor

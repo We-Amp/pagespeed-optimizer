@@ -889,7 +889,7 @@ eg_expected() {
   printf '%s\n' \
     '  event-guard:' \
     '    name: Event guard (refuses merge_group, unexpected events, refs and actors)' \
-    '    runs-on: ubuntu-latest' \
+    '    runs-on: ubuntu-24.04' \
     '    steps:' \
     '      - name: Refuse events, refs and actors this pipeline must never run on' \
     '        env:' \
@@ -1044,7 +1044,7 @@ for wf in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
     if [ -n "${v}" ] && ! is_hosted_label "${v}"; then printf '%s\n' "${j}"; fi
   done)"
   [ -n "${fleet_jobs}" ] || continue
-  eg_block="$(awk '/^(  )?#/ { next } /^  [A-Za-z0-9_-]+:[ ]*$/ { inj = ($1 == "event-guard:") } /^[^[:space:]]/ { inj = 0 } inj { print }' "${wf}")"
+  eg_block="$(awk '/^(  )?#/ { next } /^    # pinned to 24\.04: / { next } /^  [A-Za-z0-9_-]+:[ ]*$/ { inj = ($1 == "event-guard:") } /^[^[:space:]]/ { inj = 0 } inj { print }' "${wf}")"
   if [ -z "${eg_block}" ]; then
     err "${wf}: a fleet pipeline needs the hosted job 'event-guard' (event-guard)"
     continue
