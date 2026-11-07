@@ -332,6 +332,9 @@ jobs:
       - name: Bazel disk cache prune - self-test
         run: bash tools/ci/test_prune_bazel_disk_cache.sh
 
+      - name: Container identity helper - self-test
+        run: bash tools/ci/test_container_identity.sh
+
       - name: Slot-budget helper - self-test
         run: bash tools/ci/test_slot_budget.sh
 
