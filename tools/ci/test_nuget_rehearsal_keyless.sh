@@ -92,7 +92,7 @@ if sorted(block(pt, "permissions", 0)) != want_p: err("rehearsal: top-level perm
 if re.search(r"^    permissions:", pt, re.M) and sorted(block(pt, "permissions", 4)) != want_p: err("rehearsal: a job's permissions differ")
 # one hosted runner label
 labels = re.findall(r"^\s*runs-on:\s*(.*?)\s*$", pc, re.M)
-if not labels or any(l != "ubuntu-latest" for l in labels): err("rehearsal: runs-on is %s, expected only ubuntu-latest" % labels)
+if not labels or any(l != "ubuntu-24.04" for l in labels): err("rehearsal: runs-on is %s, expected only ubuntu-24.04" % labels)
 if re.search(r"runs-on", cc): err("caller: has a runs-on")
 # checkout of main without credentials
 uses = re.findall(r"^\s*-?\s*uses:\s*(\S+)", pc, re.M)
@@ -141,7 +141,7 @@ PY
   [ $? = 0 ] || { echo "FAIL mutation did not change anything: $1"; fail=1; return; }
   if check "$d" >/dev/null; then echo "FAIL not caught: $1"; fail=1; else echo "ok   caught: $1"; fi
 }
-mutate 'environment: release'                     $P "s.replace('    runs-on: ubuntu-latest', '    environment: release\n    runs-on: ubuntu-latest')"
+mutate 'environment: release'                     $P "s.replace('    runs-on: ubuntu-24.04', '    environment: release\n    runs-on: ubuntu-24.04')"
 mutate 'a secrets reference'                      $P "s.replace('\${{ github.token }}', '\${{ secrets.GITHUB_TOKEN }}')"
 mutate 'secrets: inherit in the caller'           $C "s.replace('    uses: ', '    secrets: inherit\n    uses: ')"
 mutate 'id-token: write'                          $P "s.replace('  actions: read\n\njobs', '  actions: read\n  id-token: write\n\njobs')"
@@ -160,7 +160,7 @@ mutate 'a schedule trigger in the callee'         $P "s.replace('on:\n  workflow
 mutate 'a job calling release.yml'                $C "s.replace('pipeline-nuget-rehearsal.yml@main', 'release.yml@main')"
 mutate 'a call to the real lane'                  $C "s.replace('pipeline-nuget-rehearsal.yml@main', 'pipeline-release-nuget.yml@main')"
 mutate 'a second job in the caller'               $C "s + '\n  second:\n    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nuget-rehearsal.yml@main\n'"
-mutate 'a persistent runner label'                $P "s.replace('runs-on: ubuntu-latest', 'runs-on: fleet-heavy')"
+mutate 'a persistent runner label'                $P "s.replace('runs-on: ubuntu-24.04', 'runs-on: fleet-heavy')"
 mutate 'an unpinned action'                       $P "s.replace('actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68', 'actions/setup-dotnet@v6')"
 mutate 'NuGet/login step'                         $P "s.replace('      - name: Ensure .NET 10 SDK', '      - uses: NuGet/login@v1\n      - name: Ensure .NET 10 SDK')"
 mutate 'a nuget push in the workflow'             $P "s.replace('run: tools/ci/nupkg_checks.sh nuget-org nupkg', 'run: dotnet nuget push nupkg/*.nupkg')"
