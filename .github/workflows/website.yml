@@ -96,7 +96,8 @@ jobs:
     # direct_pr_off: a direct pull_request run skips once WEBSITE_GATE is on
     # (the CI pipeline runs the gate then). Same term on every job.
     if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
@@ -236,7 +237,8 @@ jobs:
       contents: read
     name: Reference data matches the pinned module source (ubuntu)
     if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -289,7 +291,8 @@ jobs:
     name: Website browser suite (Playwright, ubuntu)
     # Not in the merge queue: it ran on the same change in the pull request.
     if: github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'schedule' && 75 || 30 }}
     defaults:
       run:
@@ -362,7 +365,8 @@ jobs:
     name: Website Lighthouse budgets (ubuntu)
     # Not in the merge queue: it ran on the same change in the pull request.
     if: github.event_name != 'schedule' && github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
