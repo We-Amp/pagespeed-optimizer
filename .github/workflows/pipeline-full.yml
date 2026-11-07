@@ -940,13 +940,14 @@ jobs:
           # Stage the CLI and the compose plugin where the DAEMON can
           # bind-mount them (a bind-mount source is resolved by the daemon).
           eval "$(tools/ci/stage-docker-cli.sh)"
-          DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo 0)"
-          case "$DOCKER_GID" in ''|*[!0-9]*) DOCKER_GID=0 ;; esac
+          # Container user and daemon socket for this runner's daemon
+          # (rootful or rootless): see tools/ci/container-identity.sh.
+          eval "$(tools/ci/container-identity.sh)"
           docker run --rm --network=host \
-            --user "$(id -u):$(id -g)" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
+            --user "$CONTAINER_USER" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
             -v "$PWD":/repo -w /repo/tools/http-compliance \
-            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$DOCKER_SOCK":/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e COMPLIANCE_NO_LIFECYCLE=1 \
@@ -1036,8 +1037,9 @@ jobs:
         run: |
           set -euo pipefail
           eval "$(tools/ci/stage-docker-cli.sh)"
-          DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo 0)"
-          case "$DOCKER_GID" in ''|*[!0-9]*) DOCKER_GID=0 ;; esac
+          # Container user and daemon socket for this runner's daemon
+          # (rootful or rootless): see tools/ci/container-identity.sh.
+          eval "$(tools/ci/container-identity.sh)"
           COMPOSE="docker compose -f tools/async-css-probe/docker-compose.yml -f tools/async-css-probe/docker-compose.prebuilt.yml"
           # Well above the coverage this fixture achieves, so "the gate
           # refuses" is unambiguous and does not depend on extractor tuning.
@@ -1085,10 +1087,10 @@ jobs:
             fi
 
             docker run --rm --network=host \
-              --user "$(id -u):$(id -g)" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
+              --user "$CONTAINER_USER" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
               -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
               -v "$PWD":/repo -w /repo/tools/async-css-probe \
-              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$DOCKER_SOCK":/var/run/docker.sock \
               -v "$DOCKER_BIN":/usr/bin/docker:ro \
               -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
               -e PROBE_NO_LIFECYCLE=1 \
