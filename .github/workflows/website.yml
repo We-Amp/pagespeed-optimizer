@@ -289,7 +289,8 @@ jobs:
     name: Website browser suite (Playwright, ubuntu)
     # Not in the merge queue: it ran on the same change in the pull request.
     if: github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
-    runs-on: ubuntu-latest
+    # pinned until Playwright supports Ubuntu 26.04; see https://github.com/We-Amp/pagespeed-optimizer/issues/685
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'schedule' && 75 || 30 }}
     defaults:
       run:
@@ -362,7 +363,8 @@ jobs:
     name: Website Lighthouse budgets (ubuntu)
     # Not in the merge queue: it ran on the same change in the pull request.
     if: github.event_name != 'schedule' && github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
-    runs-on: ubuntu-latest
+    # pinned until Playwright supports Ubuntu 26.04; see https://github.com/We-Amp/pagespeed-optimizer/issues/685
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
