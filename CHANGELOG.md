@@ -4,7 +4,7 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
-## 2.8.1 - TBD
+## 2.8.1 - 2026-11-08
 
 Changed: the Helm chart 0.3.15 is published with this release; its default
 image version is 2.8.1.
