@@ -4,11 +4,18 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
-Fixed: the cache detail view of the admin console and the `GET /v1/cache/alternates` endpoint now find entries stored per site; the endpoint takes the `site` listed by `GET /v1/cache/urls`. In 2.8.0 every such entry showed as not in the index. Affected: 2.8.0.
+## 2.8.1 - 2026-11-08
 
-Fixed: pages built with Tailwind CSS v4 get inlined critical CSS and deferred stylesheets again. In 2.8.0 critical CSS was left out whenever it held a `<` inside a CSS string, such as the `syntax: "<color>"` of the `@property` rules Tailwind CSS v4 writes, or a `content: "<"` value, so those pages were served with ordinary render-blocking stylesheets. A `<` inside a CSS string or comment is now written as the CSS escape `\3c `, which browsers read as the same character, so the inlined CSS still holds no text a browser could read as markup. Critical CSS with such text outside its strings and comments is still left out. `ps_css_validate` in the C API and `CssProcessor.Validate` in the ASP.NET Core package are unchanged: they inline nothing, so they still refuse such a `<` inside strings too, and refuse a Tailwind CSS v4 stylesheet. Affected: 2.8.0.
+Changed: the Helm chart 0.3.15 is published with this release; its default
+image version is 2.8.1.
 
-Fixed: pages whose stylesheet is larger than 64 KiB get critical CSS and deferred stylesheets again. In 2.8.0 the request that confirms a stylesheet is served to any client was refused for such stylesheets, so those pages were served with ordinary render-blocking stylesheets and no inlined critical CSS. Pages were still served correctly. Affected: 2.8.0.
+Fixed: the cache detail view of the admin console and `GET /v1/cache/alternates` find entries stored per site. The endpoint takes the `site` listed by `GET /v1/cache/urls`. In 2.8.0 every such entry showed as not in the index. Affected: 2.8.0.
+
+Fixed: pages built with Tailwind CSS v4 get inlined critical CSS and deferred stylesheets again. In 2.8.0 those pages kept render-blocking stylesheets and no inlined critical CSS. Affected: 2.8.0.
+
+Known issue: `ps_css_validate` in the C API and `CssProcessor.Validate` in the ASP.NET Core package still reject Tailwind CSS v4 stylesheets, as in 2.8.0. The critical CSS fix above does not change them.
+
+Fixed: pages whose stylesheet is larger than 64 KiB get critical CSS and deferred stylesheets again. In 2.8.0 those pages kept render-blocking stylesheets and no inlined critical CSS. Pages were still served correctly. Affected: 2.8.0.
 
 ## 2.8.0 - 2026-11-05
 
