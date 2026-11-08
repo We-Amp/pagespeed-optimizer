@@ -144,7 +144,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Release notes by line
 
-- [Release notes: 2.8](https://modpagespeed.com/docs/release-notes-2-8/): mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the ASP.NET Core sidecar, and 2.8.0, security fixes and new nginx module packages.
+- [Release notes: 2.8](https://modpagespeed.com/docs/release-notes-2-8/): mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the sidecar; 2.8.0, security fixes and new nginx module packages.
 - [Release notes: 2.7](https://modpagespeed.com/docs/release-notes-2-7/): mod_pagespeed 2.7.0 release notes: security fixes, including issues found by Anthropic's OSS Scanner, and no version in response headers by default.
 - [Release notes: 2.6](https://modpagespeed.com/docs/release-notes-2-6/): mod_pagespeed 2.6.0 release notes: security fixes for the nginx and Apache modules, and an optimizer service that can start after the web server.
 - [Release notes: 2.5](https://modpagespeed.com/docs/release-notes-2-5/): mod_pagespeed 2.5 release notes: 2.5.2, a security update for the bundled nginx and libpng, and 2.5.0, with one version number from then on.

@@ -144,7 +144,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Release notes by line
 
-- [Release notes: 2.8](https://modpagespeed.com/docs/release-notes-2-8/): mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the ASP.NET Core sidecar, and 2.8.0, security fixes and new nginx module packages.
+- [Release notes: 2.8](https://modpagespeed.com/docs/release-notes-2-8/): mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the sidecar; 2.8.0, security fixes and new nginx module packages.
 - [Release notes: 2.7](https://modpagespeed.com/docs/release-notes-2-7/): mod_pagespeed 2.7.0 release notes: security fixes, including issues found by Anthropic's OSS Scanner, and no version in response headers by default.
 - [Release notes: 2.6](https://modpagespeed.com/docs/release-notes-2-6/): mod_pagespeed 2.6.0 release notes: security fixes for the nginx and Apache modules, and an optimizer service that can start after the web server.
 - [Release notes: 2.5](https://modpagespeed.com/docs/release-notes-2-5/): mod_pagespeed 2.5 release notes: 2.5.2, a security update for the bundled nginx and libpng, and 2.5.0, with one version number from then on.
@@ -21844,7 +21844,7 @@ Every release, grouped into four periods and newest first inside each. Each line
 
 mod_pagespeed 2.1.0, 2.2.0, 2.3.0, 2.4.0, 2.5.0, 2.5.2, 2.6.0, 2.7.0, 2.8.0 and 2.8.1 are the module and the optimizer worker released together; there is no module release 2.5.1. The [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists the version each artifact carries. See [the current release](https://modpagespeed.com/docs/release-notes/#current-release) above and the [2.8](https://modpagespeed.com/docs/release-notes-2-8/), [2.7](https://modpagespeed.com/docs/release-notes-2-7/), [2.6](https://modpagespeed.com/docs/release-notes-2-6/), [2.5](https://modpagespeed.com/docs/release-notes-2-5/), [2.4](https://modpagespeed.com/docs/release-notes-2-4/), [2.3](https://modpagespeed.com/docs/release-notes-2-3/), [2.2](https://modpagespeed.com/docs/release-notes-2-2/) and [2.1](https://modpagespeed.com/docs/release-notes-2-1/) pages for the full entries.
 
-**[2.8.1](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-1)** (TBD, module + optimizer worker) — Maintenance release, released together with the optimizer worker: inlined critical CSS again for pages built with Tailwind CSS v4 and pages with stylesheets over 64 KiB, cache flushes that reach every server process, the ASP.NET Core sidecar on Debian 13 and Ubuntu 26.04, and several IIS fixes.
+**[2.8.1](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-1)** (TBD, module + optimizer worker) — Maintenance release, released together with the optimizer worker: inlined critical CSS again for pages built with Tailwind CSS v4 and pages with stylesheets over 64 KiB, cache flushes that reach every server process, an ASP.NET Core sidecar that starts on Debian 13 and Ubuntu 26.04, and several IIS fixes.
 
 **[2.8.0](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-0)** (2026-11-05, module + optimizer worker) — Security update, released together with the optimizer worker: six classes of security fix, and new nginx module packages for Ubuntu 26.04 and for nginx.org's stable nginx. Update recommended.
 
@@ -22267,7 +22267,7 @@ the [Terms of Service](https://modpagespeed.com/terms/) govern a subscription.
 
 # Release notes: 2.8
 
-mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the ASP.NET Core sidecar, and 2.8.0, security fixes and new nginx module packages.
+mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the sidecar; 2.8.0, security fixes and new nginx module packages.
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-8/
 
