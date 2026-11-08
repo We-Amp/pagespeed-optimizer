@@ -144,7 +144,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Release notes by line
 
-- [Release notes: 2.8](https://modpagespeed.com/docs/release-notes-2-8/): mod_pagespeed 2.8.0 release notes: security fixes across the modules, the optimizer worker and the ASP.NET Core package, and new nginx module packages.
+- [Release notes: 2.8](https://modpagespeed.com/docs/release-notes-2-8/): mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the ASP.NET Core sidecar, and 2.8.0, security fixes and new nginx module packages.
 - [Release notes: 2.7](https://modpagespeed.com/docs/release-notes-2-7/): mod_pagespeed 2.7.0 release notes: security fixes, including issues found by Anthropic's OSS Scanner, and no version in response headers by default.
 - [Release notes: 2.6](https://modpagespeed.com/docs/release-notes-2-6/): mod_pagespeed 2.6.0 release notes: security fixes for the nginx and Apache modules, and an optimizer service that can start after the web server.
 - [Release notes: 2.5](https://modpagespeed.com/docs/release-notes-2-5/): mod_pagespeed 2.5 release notes: 2.5.2, a security update for the bundled nginx and libpng, and 2.5.0, with one version number from then on.
@@ -1275,7 +1275,7 @@ services:
 
   # Factory Worker — optimizes cached content
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.8.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.8.1
     pid: 'service:pidns'
     environment:
       # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
@@ -1291,7 +1291,7 @@ services:
 
   # Nginx with PageSpeed module
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.8.0
+    image: ghcr.io/we-amp/pagespeed-nginx:2.8.1
     pid: 'service:pidns'
     ports:
       - '8080:8080'
@@ -1771,7 +1771,7 @@ helm install pagespeed weamp/pagespeed -f my-values.yaml
 | Value                     | Default                           | Description                     |
 | ------------------------- | --------------------------------- | ------------------------------- |
 | `worker.image.repository` | `ghcr.io/we-amp/pagespeed-worker` | Worker container image          |
-| `image.tag`               | `2.8.0` (unset in the chart: tracks its `appVersion`) | One tag for both images; `worker.image.tag` and `nginx.image.tag` are rejected |
+| `image.tag`               | `2.8.1` (unset in the chart: tracks its `appVersion`) | One tag for both images; `worker.image.tag` and `nginx.image.tag` are rejected |
 | `worker.cacheSize`        | `1073741824` (1 GB)               | Cyclone cache size in bytes     |
 | `worker.extraArgs`        | `[]`                              | Additional CLI flags for worker |
 
@@ -15704,7 +15704,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.8.0}
+    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.8.1}
     pid: 'service:pidns'
     depends_on:
       pidns:
@@ -15729,7 +15729,7 @@ services:
         max-file: '3'
 
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.8.0}
+    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.8.1}
     pid: 'service:pidns'
     ports:
       - '${NGINX_PORT:-80}:80'
@@ -15883,7 +15883,7 @@ spec:
     fsGroup: 918 # the volume arrives group-owned by group pagespeed
   containers:
     - name: worker
-      image: ghcr.io/we-amp/pagespeed-worker:2.8.0
+      image: ghcr.io/we-amp/pagespeed-worker:2.8.1
       env:
         # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
         - name: ACCEPT_EULA
@@ -15903,7 +15903,7 @@ spec:
         timeoutSeconds: 5
 
     - name: nginx
-      image: ghcr.io/we-amp/pagespeed-nginx:2.8.0
+      image: ghcr.io/we-amp/pagespeed-nginx:2.8.1
       env:
         # Your origin; the image renders its nginx config from these two
         - name: BACKEND_HOST
@@ -19035,7 +19035,7 @@ alike). Changing them requires a worker restart.
 ```yaml
 services:
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.8.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.8.1
     environment:
       - PAGESPEED_WEB_BOT_AUTH=true
       # Comma-separated HTTPS JWKS key-directory URLs (no spaces).
@@ -19256,7 +19256,7 @@ releases after 2.0.35.
 ```yaml
 services:
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.8.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.8.1
     environment:
       - PAGESPEED_RSL_CAP_ENFORCEMENT=true
       # Comma-separated HTTPS JWKS key-directory URLs for the token issuers (no spaces).
@@ -21782,22 +21782,30 @@ mod_pagespeed release notes: the current release, the notes of every line, every
 
 Canonical URL: https://modpagespeed.com/docs/release-notes/
 
-mod_pagespeed is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together, and since 2.5.0 one version number covers both: the native packages, the container images, the NuGet packages and the Helm chart's application version of the current release all carry 2.8.0. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](https://modpagespeed.com/docs/release-notes/#security-updates) we have published and [what has changed since the last upstream release](https://modpagespeed.com/docs/release-notes/#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
+mod_pagespeed is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together, and since 2.5.0 one version number covers both: the native packages, the container images, the NuGet packages and the Helm chart's application version of the current release all carry 2.8.1. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](https://modpagespeed.com/docs/release-notes/#security-updates) we have published and [what has changed since the last upstream release](https://modpagespeed.com/docs/release-notes/#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
 
 ## The current release
 
-**mod_pagespeed 2.8.0** (2026-11-05, module + optimizer worker)
+**mod_pagespeed 2.8.1** (TBD, module + optimizer worker)
 
-**mod_pagespeed 2.8.0 is a security update, released together with the optimizer worker and installed as a matching pair.** The packages in the signed apt and yum repositories, the container images, the NuGet packages (the ASP.NET Core sidecar packages among them) and the application version of the Helm chart (chart 0.3.14) all carry the version 2.8.0. It fixes six classes of security issue; the release notes list them with their credits. It adds native nginx module packages for Ubuntu 26.04 and for nginx.org's stable nginx, including on Enterprise Linux 9. The admin console now shows how much of the saving on responses served from the optimizer's cache came from compression applied by mod_pagespeed and how much from its optimization; your web server's own compression on other responses is not counted.
-**Update recommended.**
+**mod_pagespeed 2.8.1 is a maintenance release of the module and the optimizer
+worker, released together and installed as a matching pair.** The packages in the
+signed apt and yum repositories, the container images, the NuGet packages (the
+ASP.NET Core sidecar packages among them) and the application version of the Helm
+chart (chart 0.3.15) all carry the version 2.8.1. Pages built with Tailwind
+CSS v4 and pages with stylesheets over 64 KiB get inlined critical CSS again, a cache
+flush now reaches every server process, the ASP.NET Core sidecar starts on Debian 13
+and Ubuntu 26.04, and several IIS issues are fixed. This release has no security
+fixes.
 
-[Read the full 2.8.0 release notes](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-0): the security fixes, the new packages, what changed and the fixes on each server.
+[Read the full 2.8.1 release notes](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-1): what changed and
+the fixes on each server.
 
 ## Release notes by line
 
 Each line has its own page with the full entry for every release, collapsed and newest first.
 
-- [mod_pagespeed 2.8](https://modpagespeed.com/docs/release-notes-2-8/): 2.8.0, 2026-11-05. The current release: the module and the optimizer worker together, with security fixes and new nginx module packages.
+- [mod_pagespeed 2.8](https://modpagespeed.com/docs/release-notes-2-8/): 2.8.1, TBD, and 2.8.0, 2026-11-05. The current release: the module and the optimizer worker together; 2.8.1 fixes critical CSS for Tailwind CSS v4 and large stylesheets, cache flushes and several IIS issues.
 - [mod_pagespeed 2.7](https://modpagespeed.com/docs/release-notes-2-7/): 2.7.0, 2026-11-01. The module and the optimizer worker together, with security fixes.
 - [mod_pagespeed 2.6](https://modpagespeed.com/docs/release-notes-2-6/): 2.6.0, 2026-10-28. The module and the optimizer worker together, with security fixes in the nginx and Apache modules.
 - [mod_pagespeed 2.5](https://modpagespeed.com/docs/release-notes-2-5/): 2.5.2, 2026-10-22, and 2.5.0, 2026-10-19. The module and the optimizer worker together, security updates, and one version number from 2.5.0 on.
@@ -21815,6 +21823,7 @@ Which version each artifact of a release carries: the apt and yum packages, the 
 
 | Release | Date | apt/yum packages (module + optimizer worker) | Container images | Helm chart (app version) | NuGet WeAmp.PageSpeed.AspNetCore | IIS installer |
 | --- | --- | --- | --- | --- | --- | --- |
+| 2.8.1 | TBD | 2.8.1 | 2.8.1 | 0.3.15 (2.8.1) | 2.8.1 | pagespeed-iis-2.8.1-win-x64.msi |
 | 2.8.0 | 2026-11-05 | 2.8.0 | 2.8.0 | 0.3.14 (2.8.0) | 2.8.0 | pagespeed-iis-2.8.0-win-x64.msi |
 | 2.7.0 | 2026-11-01 | 2.7.0 | 2.7.0 | 0.3.13 (2.7.0) | 2.7.0 | pagespeed-iis-2.7.0-win-x64.msi |
 | 2.6.0 | 2026-10-28 | 2.6.0 | 2.6.0 | 0.3.12 (2.6.0) | 2.6.0 | pagespeed-iis-2.6.0-win-x64.msi |
@@ -21833,7 +21842,9 @@ Every release, grouped into four periods and newest first inside each. Each line
 
 ### One product since 2.1.0 (September to November 2026)
 
-mod_pagespeed 2.1.0, 2.2.0, 2.3.0, 2.4.0, 2.5.0, 2.5.2, 2.6.0, 2.7.0 and 2.8.0 are the module and the optimizer worker released together; there is no module release 2.5.1. The [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists the version each artifact carries. See [the current release](https://modpagespeed.com/docs/release-notes/#current-release) above and the [2.8](https://modpagespeed.com/docs/release-notes-2-8/), [2.7](https://modpagespeed.com/docs/release-notes-2-7/), [2.6](https://modpagespeed.com/docs/release-notes-2-6/), [2.5](https://modpagespeed.com/docs/release-notes-2-5/), [2.4](https://modpagespeed.com/docs/release-notes-2-4/), [2.3](https://modpagespeed.com/docs/release-notes-2-3/), [2.2](https://modpagespeed.com/docs/release-notes-2-2/) and [2.1](https://modpagespeed.com/docs/release-notes-2-1/) pages for the full entries.
+mod_pagespeed 2.1.0, 2.2.0, 2.3.0, 2.4.0, 2.5.0, 2.5.2, 2.6.0, 2.7.0, 2.8.0 and 2.8.1 are the module and the optimizer worker released together; there is no module release 2.5.1. The [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists the version each artifact carries. See [the current release](https://modpagespeed.com/docs/release-notes/#current-release) above and the [2.8](https://modpagespeed.com/docs/release-notes-2-8/), [2.7](https://modpagespeed.com/docs/release-notes-2-7/), [2.6](https://modpagespeed.com/docs/release-notes-2-6/), [2.5](https://modpagespeed.com/docs/release-notes-2-5/), [2.4](https://modpagespeed.com/docs/release-notes-2-4/), [2.3](https://modpagespeed.com/docs/release-notes-2-3/), [2.2](https://modpagespeed.com/docs/release-notes-2-2/) and [2.1](https://modpagespeed.com/docs/release-notes-2-1/) pages for the full entries.
+
+**[2.8.1](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-1)** (TBD, module + optimizer worker) — Maintenance release, released together with the optimizer worker: inlined critical CSS again for pages built with Tailwind CSS v4 and pages with stylesheets over 64 KiB, cache flushes that reach every server process, the ASP.NET Core sidecar on Debian 13 and Ubuntu 26.04, and several IIS fixes.
 
 **[2.8.0](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-0)** (2026-11-05, module + optimizer worker) — Security update, released together with the optimizer worker: six classes of security fix, and new nginx module packages for Ubuntu 26.04 and for nginx.org's stable nginx. Update recommended.
 
@@ -22256,13 +22267,111 @@ the [Terms of Service](https://modpagespeed.com/terms/) govern a subscription.
 
 # Release notes: 2.8
 
-mod_pagespeed 2.8.0 release notes: security fixes across the modules, the optimizer worker and the ASP.NET Core package, and new nginx module packages.
+mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, IIS and the ASP.NET Core sidecar, and 2.8.0, security fixes and new nginx module packages.
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-8/
 
-mod_pagespeed 2.8.0 is the current release: the module and the optimizer worker, released together on 2026-11-05 and installed as a matching pair. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+mod_pagespeed 2.8 was released as 2.8.0 on 2026-11-05 and 2.8.1 on TBD: the module and the optimizer worker together, installed as a matching pair. 2.8.1 is the current release. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
 
-**mod_pagespeed 2.8.0** (2026-11-05, module + optimizer worker)
+**mod_pagespeed 2.8.1** (TBD, module + optimizer worker)
+
+**Release date:** TBD
+
+**Status:** Stable
+
+**Packages:** the same packages, platforms and channels as 2.8.0. The module packages
+for Apache, nginx and IIS, the cPanel package and `pagespeed-optimizer` are 2.8.1;
+install the module and the optimizer of the same version together. The container
+images, the NuGet packages (including the ASP.NET Core sidecar packages) and the
+application version of the Helm chart (chart 0.3.15) are 2.8.1 as well.
+
+**Highlights**
+
+- **Pages built with Tailwind CSS v4, and pages whose stylesheet is larger than
+  64 KiB, get inlined critical CSS and deferred stylesheets again.** In 2.8.0 both
+  kinds of page were served correctly but with ordinary render-blocking stylesheets.
+- **After a cache flush through `cache.flush`, every server process serves the
+  flushed state.** This fixes the known issue listed for 2.8.0.
+- **The ASP.NET Core sidecar starts on Debian 13 and Ubuntu 26.04**, and no longer
+  needs a PCRE library on the host.
+- **IIS fixes:** pages are no longer served without optimization from IIS's response
+  caches, requests with an IPv6 address as the host are optimized, and the
+  `pagespeed RemoteConfigurationUrl` line in `pagespeed.config` now takes effect (see
+  Upgrade notes).
+- **The admin console's cache detail view finds entries stored per site again.**
+
+**Upgrade notes**
+
+- **IIS: check `pagespeed.config` for a `pagespeed RemoteConfigurationUrl` line
+  before you upgrade.** 2.8.0 and earlier ignored that line silently; only the form
+  without the `pagespeed` prefix worked. From 2.8.1 the module fetches and applies
+  the remote configuration it names. Requests may wait up to
+  `RemoteConfigurationTimeoutMs` (1 second by default) while it is fetched or
+  refreshed, and when a fetch fails the module uses the local configuration, or the
+  last good remote copy. Remove the line if you do not want remote configuration.
+- Install the module and `pagespeed-optimizer` 2.8.1 together. The admin console's
+  list of a URL's variants needs both at 2.8.1.
+- The cache is kept across the upgrade.
+
+**Fixed**
+
+_Module (all ports unless named)_
+
+- **After a cache flush through `cache.flush`, every server process serves the
+  flushed state.** A server process could keep serving cache entries from before the
+  flush, so a page could switch between results (for example between deferred and
+  render-blocking stylesheets) depending on which process served it. Affected: 2.8.0
+  and earlier.
+- The console's cache URL detail page shows each URL's variants and previews again.
+  Affected: 2.8.0.
+- CSS rewriting no longer breaks rules for class and id names that start with a
+  digit, such as Tailwind's `2xl:` responsive utilities. Before, browsers ignored those
+  rules. Affected: 2.8.0 and earlier.
+- IIS: visitors could sometimes get a page without optimization from IIS's response
+  caches. Those pages are now optimized.
+- IIS: requests that arrive over IPv6 with an IPv6 address as the host (for example
+  `http://[::1]/`) on the default ports are now optimized. Before, they were served
+  without optimization and the admin pages answered 404.
+- IIS: `pagespeed RemoteConfigurationUrl <url>` in `pagespeed.config` now takes
+  effect. See Upgrade notes.
+
+_Optimizer worker and its nginx module_
+
+- **Pages built with Tailwind CSS v4 get inlined critical CSS and deferred
+  stylesheets again.** In 2.8.0 those pages kept render-blocking stylesheets and no
+  inlined critical CSS. Affected: 2.8.0.
+- **Pages whose stylesheet is larger than 64 KiB get critical CSS and deferred
+  stylesheets again.** In 2.8.0 those pages kept render-blocking stylesheets and no
+  inlined critical CSS. Pages were still served correctly. Affected: 2.8.0.
+- **The cache detail view of the admin console and `GET /v1/cache/alternates` find
+  entries stored per site.** The endpoint takes the `site` listed by
+  `GET /v1/cache/urls`. In 2.8.0 every such entry showed as not in the index.
+  Affected: 2.8.0.
+
+_ASP.NET Core package_
+
+- **The ASP.NET Core sidecar starts on Debian 13 and Ubuntu 26.04.** The nginx
+  bundled with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux` needed `libpcre.so.3`,
+  which those releases no longer ship. The bundled nginx now carries PCRE2 10.49
+  statically linked and needs no PCRE library on the host, so the `libpcre3`
+  prerequisite is gone. Tested on Debian 11, 12 and 13 and Ubuntu 26.04.
+
+**Changed**
+
+- IIS: `UsePerVHostStatistics` and `CreateSharedMemoryMetadataCache` are not
+  supported on IIS. Setting either now logs a warning at configuration load that it
+  has no effect, instead of being accepted silently. Invalid values are still
+  rejected.
+
+**Known issues**
+
+- `ps_css_validate` in the C API and `CssProcessor.Validate` in the ASP.NET Core
+  package still reject Tailwind CSS v4 stylesheets, as in 2.8.0. The critical CSS fix
+  above does not change them.
+
+## Earlier releases
+
+### **2.8.0** (2026-11-05, module + optimizer worker) — Security update, released together with the optimizer worker: six classes of security fix, and new nginx module packages for Ubuntu 26.04 and for nginx.org's stable nginx. Update recommended.
 
 **Release date:** 2026-11-05
 

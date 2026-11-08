@@ -36,6 +36,15 @@ import { PKG_ASPNETCORE, PKG_SIDECAR, SIDECAR_VERSION } from './product-facts.mj
 /** @type {VersionRow[]} */
 export const VERSION_MAP = [
   {
+    release: '2.8.1',
+    date: 'TBD',
+    packages: '2.8.1',
+    images: '2.8.1',
+    helmChart: '0.3.15',
+    nuget: '2.8.1',
+    iisInstaller: true,
+  },
+  {
     release: '2.8.0',
     date: '2026-11-05',
     packages: '2.8.0',
