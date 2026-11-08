@@ -49,7 +49,8 @@ permissions: {}
 jobs:
   event-guard:
     name: Event guard (refuses merge_group, unexpected events, refs and actors)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     steps:
       - name: Refuse events, refs and actors this pipeline must never run on
         env:
@@ -82,7 +83,8 @@ jobs:
       contents: read
     name: Vendor Dependencies
     needs: event-guard
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 45
     outputs:
       short_sha: ${{ steps.stamp.outputs.short_sha }}
@@ -269,7 +271,8 @@ jobs:
       contents: read
     name: Linux Build
     needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -482,7 +485,8 @@ jobs:
       contents: read
     name: Linux ASan + UBSan
     needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 120
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -568,7 +572,8 @@ jobs:
       contents: read
     name: Linux TSan
     needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 180
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -656,7 +661,8 @@ jobs:
       contents: read
     name: Daemon Privilege Rig (${{ matrix.distro }})
     needs: linux-build
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ vars.FLEET_ENABLED != 'false' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 30
     strategy:
@@ -742,7 +748,8 @@ jobs:
       contents: read
     name: Linux Pkg Smoke
     needs: linux-build
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-light' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-light' }}
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -841,7 +848,8 @@ jobs:
       contents: read
     name: HTTP Compliance
     needs: linux-build
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-light' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-light' }}
     if: ${{ vars.FLEET_ENABLED != 'false' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 20
     steps:
@@ -932,13 +940,15 @@ jobs:
           # Stage the CLI and the compose plugin where the DAEMON can
           # bind-mount them (a bind-mount source is resolved by the daemon).
           eval "$(tools/ci/stage-docker-cli.sh)"
-          DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo 0)"
-          case "$DOCKER_GID" in ''|*[!0-9]*) DOCKER_GID=0 ;; esac
+          # Container user and daemon socket for this runner's daemon
+          # (rootful or rootless): see tools/ci/container-identity.sh.
+          out="$(tools/ci/container-identity.sh)" || exit 1
+          eval "$out"
           docker run --rm --network=host \
-            --user "$(id -u):$(id -g)" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
+            --user "$CONTAINER_USER" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
             -v "$PWD":/repo -w /repo/tools/http-compliance \
-            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "$DOCKER_SOCK":/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e COMPLIANCE_NO_LIFECYCLE=1 \
@@ -965,7 +975,8 @@ jobs:
       contents: read
     name: Async-CSS Probe
     needs: linux-build
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-light' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-light' }}
     if: ${{ vars.FLEET_ENABLED != 'false' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 20
     steps:
@@ -1027,8 +1038,10 @@ jobs:
         run: |
           set -euo pipefail
           eval "$(tools/ci/stage-docker-cli.sh)"
-          DOCKER_GID="$(stat -c '%g' /var/run/docker.sock 2>/dev/null || stat -f '%g' /var/run/docker.sock 2>/dev/null || echo 0)"
-          case "$DOCKER_GID" in ''|*[!0-9]*) DOCKER_GID=0 ;; esac
+          # Container user and daemon socket for this runner's daemon
+          # (rootful or rootless): see tools/ci/container-identity.sh.
+          out="$(tools/ci/container-identity.sh)" || exit 1
+          eval "$out"
           COMPOSE="docker compose -f tools/async-css-probe/docker-compose.yml -f tools/async-css-probe/docker-compose.prebuilt.yml"
           # Well above the coverage this fixture achieves, so "the gate
           # refuses" is unambiguous and does not depend on extractor tuning.
@@ -1076,10 +1089,10 @@ jobs:
             fi
 
             docker run --rm --network=host \
-              --user "$(id -u):$(id -g)" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
+              --user "$CONTAINER_USER" --group-add "$DOCKER_GID" --group-add 0 -e HOME=/tmp \
               -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
               -v "$PWD":/repo -w /repo/tools/async-css-probe \
-              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$DOCKER_SOCK":/var/run/docker.sock \
               -v "$DOCKER_BIN":/usr/bin/docker:ro \
               -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
               -e PROBE_NO_LIFECYCLE=1 \
@@ -1131,7 +1144,8 @@ jobs:
     needs: linux-build
     # Hosted on purpose: the job asserts a Yama-enabled kernel for the section 4b
     # control, and the fleet's Docker hosts run a kernel without Yama.
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       # Checked inside a container because the daemon's kernel is what
@@ -1828,7 +1842,8 @@ jobs:
     name: Lint (whole tree)
     if: ${{ github.event_name != 'push' }}
     needs: vendor
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     # A whole-tree lint takes tens of minutes, longer on a cold lint cache or
     # a hosted runner (which also builds the image first).
     timeout-minutes: 120
@@ -2075,7 +2090,8 @@ jobs:
     permissions: {}
     name: Shared build runners are switched off
     if: ${{ vars.FLEET_ENABLED == 'false' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Say what the switch changed

@@ -104,7 +104,8 @@ permissions:
 jobs:
   event-guard:
     name: Event guard (refuses merge_group, unexpected events, refs and actors)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     steps:
       - name: Refuse events, refs and actors this pipeline must never run on
         env:
@@ -136,7 +137,8 @@ jobs:
   ref-guard:
     name: Ref guard
     needs: event-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       ref: ${{ steps.guard.outputs.ref }}
@@ -201,7 +203,8 @@ jobs:
   ci-release-gate:
     name: CI run of the release commit
     needs: ref-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     # Reads the workflow runs of this public repository with the default
     # read-only token; no extra permission is requested. The script comes
@@ -228,7 +231,8 @@ jobs:
   vendor:
     name: Vendor Dependencies
     needs: ref-guard
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 30
     env:
@@ -333,7 +337,8 @@ jobs:
     name: Vendor Dependencies (hosted)
     needs: ref-guard
     if: ${{ vars.FLEET_ENABLED != 'true' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
@@ -350,7 +355,8 @@ jobs:
   security-gates:
     name: Security Gates (SBOM + Grype + VEX)
     needs: ref-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       GRYPE_FAIL_ON: ${{ inputs.grype_severity || 'medium' }}
@@ -427,7 +433,8 @@ jobs:
   linux-release-build:
     name: Linux Release Build
     needs: [ref-guard, vendor]
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 90
     env: &linux-x64-env
@@ -581,7 +588,8 @@ jobs:
     name: Linux Release Build (hosted)
     needs: [ref-guard, vendor-hosted]
     if: ${{ vars.FLEET_ENABLED != 'true' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
     env: *linux-x64-env
     steps: *linux-build-steps
@@ -606,7 +614,8 @@ jobs:
   linux-release-tests:
     name: Linux Release Tests
     needs: [ref-guard, linux-release-build]
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 60
     env: *linux-x64-env
@@ -681,7 +690,8 @@ jobs:
     name: Linux Release Tests (hosted)
     needs: [ref-guard, linux-release-build-hosted]
     if: ${{ vars.FLEET_ENABLED != 'true' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 300
     env: *linux-x64-env
     steps: *linux-test-steps
@@ -1218,7 +1228,8 @@ jobs:
   sidecar-pack:
     name: Sidecar packages (fetch, verify, test, pack)
     needs: ref-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
       artifact: ${{ steps.pin.outputs.artifact }}
@@ -1449,7 +1460,8 @@ jobs:
       && needs.macos-release-tests.result == 'success'
       && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: release
     permissions:
@@ -1776,7 +1788,8 @@ jobs:
       && needs.macos-release-tests.result == 'success'
       && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env: *package-env
     steps: *package-steps
@@ -1788,7 +1801,8 @@ jobs:
     name: Sign SHA256SUMS
     needs: [ref-guard, package]
     if: ${{ !cancelled() && needs.package.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: release
     steps:
@@ -1848,7 +1862,8 @@ jobs:
     name: Attach SHA256SUMS.asc to the draft release
     needs: [ref-guard, sign-checksums]
     if: ${{ !cancelled() && needs.sign-checksums.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write
@@ -1896,7 +1911,8 @@ jobs:
     name: Publish to nuget.org (Trusted Publishing)
     needs: [ref-guard, package, attach-signature]
     if: ${{ !cancelled() && needs.package.result == 'success' && needs.attach-signature.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: release
     permissions:
@@ -1946,7 +1962,8 @@ jobs:
     name: Promote draft to published GitHub release
     needs: [ref-guard, publish-nuget]
     if: ${{ !cancelled() && needs.publish-nuget.result == 'success' && inputs.auto_promote == true }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment: release
     permissions:

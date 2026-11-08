@@ -10156,46 +10156,59 @@ TEST(BudgetRescueTest, ZeroAttemptsDoesNothing) {
 // gate fire: whatever the encoder does, a shipped converted arm is smaller
 // than the optimized JPEG, a rescue implies a refusal, and a rescued arm
 // meets the quality floor of its call (67, or 52 with Save-Data).
-TEST_F(ImageTranscoderTest, SizeGateOutcomesAreConsistentWithShippedArms) {
+// The two Save-Data settings are independent and the check is slow, so each
+// is its own test id and gtest sharding can place them on different shards.
+class SizeGateOutcomesTest : public ImageTranscoderTest {
+ protected:
+  void CheckConsistentWithShippedArms(CapabilityMask::SaveData sd);
+};
+
+TEST_F(SizeGateOutcomesTest, ConsistentWithShippedArmsSaveDataOff) {
+  CheckConsistentWithShippedArms(CapabilityMask::SaveData::kOff);
+}
+
+TEST_F(SizeGateOutcomesTest, ConsistentWithShippedArmsSaveDataOn) {
+  CheckConsistentWithShippedArms(CapabilityMask::SaveData::kOn);
+}
+
+void SizeGateOutcomesTest::CheckConsistentWithShippedArms(
+    CapabilityMask::SaveData sd) {
   std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
   ASSERT_FALSE(jpeg.empty());
   const int source_q =
       ImageTranscoder::DetectSourceJpegQuality(jpeg, &handler_);
-  for (auto sd :
-       {CapabilityMask::SaveData::kOff, CapabilityMask::SaveData::kOn}) {
-    const float floor = sd == CapabilityMask::SaveData::kOn ? 52.0f : 67.0f;
-    auto multi = transcoder_.TranscodeMultiResized(
-        jpeg,
-        {CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
-         CapabilityMask::ImageFormat::kOriginal},
-        CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x,
-        sd, {.source_quality = source_q});
-    ASSERT_TRUE(multi.optimized_original.success)
-        << multi.optimized_original.error_message;
-    const size_t baseline = multi.optimized_original.output_data.size();
-    if (multi.size_refused_webp == 0 && multi.size_refused_avif == 0) {
-      GTEST_SKIP() << "no converted arm was refused on this fixture, so the "
-                      "outcome counters have nothing to describe";
-    }
-    EXPECT_LE(multi.size_rescued_webp, multi.size_refused_webp);
-    EXPECT_LE(multi.size_rescued_avif, multi.size_refused_avif);
-    if (multi.webp.success) {
-      EXPECT_LT(multi.webp.output_data.size(), baseline);
-    }
-    if (multi.avif.success) {
-      EXPECT_LT(multi.avif.output_data.size(), baseline);
-    }
-    if (multi.size_rescued_webp > 0) {
-      EXPECT_TRUE(multi.webp.success);
-      EXPECT_GE(multi.webp_ssimulacra2_score, floor);
-    }
-    if (multi.size_rescued_avif > 0) {
-      EXPECT_TRUE(multi.avif.success);
-      EXPECT_GE(multi.avif_ssimulacra2_score, floor);
-    }
-    if (!multi.webp.success && multi.size_refused_webp > 0) {
-      EXPECT_EQ(0, multi.size_rescued_webp);
-    }
+  const float floor = sd == CapabilityMask::SaveData::kOn ? 52.0f : 67.0f;
+  auto multi = transcoder_.TranscodeMultiResized(
+      jpeg,
+      {CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
+       CapabilityMask::ImageFormat::kOriginal},
+      CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x, sd,
+      {.source_quality = source_q});
+  ASSERT_TRUE(multi.optimized_original.success)
+      << multi.optimized_original.error_message;
+  const size_t baseline = multi.optimized_original.output_data.size();
+  if (multi.size_refused_webp == 0 && multi.size_refused_avif == 0) {
+    GTEST_SKIP() << "no converted arm was refused on this fixture, so the "
+                    "outcome counters have nothing to describe";
+  }
+  EXPECT_LE(multi.size_rescued_webp, multi.size_refused_webp);
+  EXPECT_LE(multi.size_rescued_avif, multi.size_refused_avif);
+  if (multi.webp.success) {
+    EXPECT_LT(multi.webp.output_data.size(), baseline);
+  }
+  if (multi.avif.success) {
+    EXPECT_LT(multi.avif.output_data.size(), baseline);
+  }
+  if (multi.size_rescued_webp > 0) {
+    EXPECT_TRUE(multi.webp.success);
+    EXPECT_GE(multi.webp_ssimulacra2_score, floor);
+  }
+  if (multi.size_rescued_avif > 0) {
+    EXPECT_TRUE(multi.avif.success);
+    EXPECT_GE(multi.avif_ssimulacra2_score, floor);
+  }
+  if (!multi.webp.success && multi.size_refused_webp > 0) {
+    EXPECT_EQ(0, multi.size_rescued_webp);
   }
 }
 

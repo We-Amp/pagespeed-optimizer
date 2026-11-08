@@ -56,19 +56,97 @@ size_t FindOpenTagEnd(std::string_view html, std::string_view tag_name) {
   return std::string_view::npos;
 }
 
+bool IsCssNewline(char c) { return c == '\n' || c == '\r' || c == '\f'; }
+
+bool OpensMarkup(char next) {
+  return (next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+         next == '/' || next == '!' || next == '?';
+}
+
+constexpr std::string_view kEscapedLessThan = "\\3c ";
+
+// One pass over `css` with the CSS tokenizer's string, comment and escape
+// rules (see the header). Appends the rewritten text to `escaped` when it is
+// not null, and sets `*opens_markup` (when not null) if a `<` outside strings
+// and comments opens markup; such a `<` is copied as it is.
+void ScanCssLessThan(std::string_view css, std::string* escaped,
+                     bool* opens_markup) {
+  enum class State : unsigned char { kNormal, kString, kComment };
+  State state = State::kNormal;
+  char quote = '\0';
+  const size_t n = css.size();
+  auto put = [escaped](std::string_view text) {
+    if (escaped != nullptr) escaped->append(text);
+  };
+  for (size_t i = 0; i < n; ++i) {
+    const char c = css[i];
+    const char next = i + 1 < n ? css[i + 1] : '\0';
+    if (c == '<') {
+      if (state == State::kNormal && i + 1 < n && OpensMarkup(next) &&
+          opens_markup != nullptr) {
+        *opens_markup = true;
+        if (escaped == nullptr) return;
+      }
+      if (state != State::kNormal) {
+        put(kEscapedLessThan);
+        continue;
+      }
+    } else if (c == '\\' && state != State::kComment) {
+      // An escape: the backslash and the character it escapes go together,
+      // so an escaped quote does not open or close a string.
+      if (next == '<') {
+        put(kEscapedLessThan);
+        ++i;
+        continue;
+      }
+      if (i + 1 < n && (state == State::kString || !IsCssNewline(next))) {
+        // In a string a newline after the backslash continues it; CR LF is
+        // one newline.
+        size_t len = 2;
+        if (next == '\r' && i + 2 < n && css[i + 2] == '\n') len = 3;
+        put(css.substr(i, len));
+        i += len - 1;
+        continue;
+      }
+    } else if (state == State::kComment) {
+      if (c == '*' && next == '/') {
+        put("*/");
+        ++i;
+        state = State::kNormal;
+        continue;
+      }
+    } else if (state == State::kString) {
+      // A string ends at its quote, or (a bad string) at a newline.
+      if (c == quote || IsCssNewline(c)) state = State::kNormal;
+    } else if (c == '/' && next == '*') {
+      put("/*");
+      ++i;
+      state = State::kComment;
+      continue;
+    } else if (c == '"' || c == '\'') {
+      quote = c;
+      state = State::kString;
+    }
+    put(css.substr(i, 1));
+  }
+}
+
 // Build the style tag with critical CSS.
 // Returns empty string if the CSS contains a style-closing sequence
 // (XSS prevention: attacker-controlled CSS must not break out of the
 // <style> element).
 std::string BuildStyleTag(std::string_view critical_css) {
-  // Strip null bytes.
-  std::string sanitized;
-  sanitized.reserve(critical_css.size());
+  // Strip null bytes, then write every `<` in a CSS string or comment as an
+  // escape, as the serve path does (HtmlTransformFilter::InjectCriticalCss):
+  // the validator's candidate document must carry the served block's text.
+  std::string without_nul;
+  without_nul.reserve(critical_css.size());
   for (char c : critical_css) {
     if (c != '\0') {
-      sanitized.push_back(c);
+      without_nul.push_back(c);
     }
   }
+  const std::string sanitized = EscapeLessThanForStyleElement(without_nul);
 
   // Abort if CSS contains </style (case-insensitive).  Without the
   // closing '>' requirement, this also catches </style\t, </style ,
@@ -89,6 +167,19 @@ std::string BuildStyleTag(std::string_view critical_css) {
 }
 
 }  // namespace
+
+bool CssOpensMarkupOutsideStrings(std::string_view css) {
+  bool opens_markup = false;
+  ScanCssLessThan(css, nullptr, &opens_markup);
+  return opens_markup;
+}
+
+std::string EscapeLessThanForStyleElement(std::string_view css) {
+  std::string out;
+  out.reserve(css.size());
+  ScanCssLessThan(css, &out, nullptr);
+  return out;
+}
 
 namespace html_scan {
 

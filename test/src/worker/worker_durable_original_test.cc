@@ -847,6 +847,7 @@ class VariantSizeTest : public WorkerTest {
   }
 
   void ReplayReportedClients(Layout layout);
+  void ReplayWarmupMatrix(Layout layout);
 };
 
 void VariantSizeTest::ReplayReportedClients(Layout layout) {
@@ -970,63 +971,67 @@ TEST_F(VariantSizeTest, ReportedClientsIdentitySlotLayout) {
 }
 
 // The warmup (hot URL) matrix writes variants through its own path; it
-// keeps the same size rules.
-TEST_F(VariantSizeTest, WarmupMatrixKeepsTheSizeRules) {
+// keeps the same size rules.  One test per storage layout: the two replays
+// are independent and each is slow, so separate test ids let gtest sharding
+// place them on different shards.
+void VariantSizeTest::ReplayWarmupMatrix(Layout layout) {
   if (pagespeed::test::kThreadSanitizerBuild) {
     GTEST_SKIP() << "checks the encoder byte-size rules on a 1200x800 "
                     "plasma, not concurrency; too slow under TSan (issue "
                     "#436) and still covered by the plain and ASan lanes";
   }
-  for (Layout layout : {Layout::kDurableOriginal, Layout::kIdentitySlot}) {
-    SCOPED_TRACE(layout == Layout::kIdentitySlot ? "identity slot"
-                                                 : "durable original");
-    TearDown();
-    SetUp();
-    WorkerConfig config;
-    config.socket_path = socket_path_;
-    config.cache_path = cache_path_;
-    config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
-    config.enable_warmup = true;
-    // Desktop 1x with and without Save-Data: enough to exercise both gates
-    // without the full viewport matrix.
-    config.proactive_viewport_variants = false;
-    config.proactive_density_variants = false;
-    config.proactive_savedata_variants = true;
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+  config.enable_warmup = true;
+  // Desktop 1x with and without Save-Data: enough to exercise both gates
+  // without the full viewport matrix.
+  config.proactive_viewport_variants = false;
+  config.proactive_density_variants = false;
+  config.proactive_savedata_variants = true;
 
-    NullMessageHandler handler;
-    Worker worker(config, &handler);
-    ASSERT_TRUE(worker.Initialize());
-    const std::string url = "http://example.com/warm.jpg";
-    const std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
-    ASSERT_FALSE(jpeg.empty());
-    StoreOriginal(worker, url, jpeg, layout);
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string url = "http://example.com/warm.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  StoreOriginal(worker, url, jpeg, layout);
 
-    std::thread worker_thread([&worker]() { worker.Run(); });
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    CacheNotification warm;
-    warm.url = url;
-    warm.scheme = "https";
-    warm.content_type = ContentType::kImage;
-    warm.capability_mask = kWarmupSentinel;
-    SendNotification(warm);
-    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
-        worker, 1, kWorkerStallBudget));
-    EXPECT_GT(worker.stats().variants_written.load(), 0u);
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  CacheNotification warm;
+  warm.url = url;
+  warm.scheme = "https";
+  warm.content_type = ContentType::kImage;
+  warm.capability_mask = kWarmupSentinel;
+  SendNotification(warm);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_GT(worker.stats().variants_written.load(), 0u);
 
-    ExpectStoredSlotsSmallerThanFallback(worker, url);
-    const std::string desktop_jpeg =
-        ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x08));
-    EXPECT_LT(desktop_jpeg.size(), jpeg.size());
-    EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x0A))
-                  .size(),
-              desktop_jpeg.size());
-    EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x28))
-                  .size(),
-              desktop_jpeg.size());
+  ExpectStoredSlotsSmallerThanFallback(worker, url);
+  const std::string desktop_jpeg =
+      ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x08));
+  EXPECT_LT(desktop_jpeg.size(), jpeg.size());
+  EXPECT_LE(
+      ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x0A)).size(),
+      desktop_jpeg.size());
+  EXPECT_LE(
+      ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x28)).size(),
+      desktop_jpeg.size());
 
-    worker.Shutdown();
-    worker_thread.join();
-  }
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+TEST_F(VariantSizeTest, WarmupMatrixKeepsTheSizeRulesDurableOriginalLayout) {
+  ReplayWarmupMatrix(Layout::kDurableOriginal);
+}
+
+TEST_F(VariantSizeTest, WarmupMatrixKeepsTheSizeRulesIdentitySlotLayout) {
+  ReplayWarmupMatrix(Layout::kIdentitySlot);
 }
 
 // An identity slot that already holds a worker variant is not the origin's

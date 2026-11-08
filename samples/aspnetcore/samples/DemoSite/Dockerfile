@@ -20,7 +20,7 @@
 
 # ── Stage 1: Build native binaries ───────────────────────────────────────────
 
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS build-native
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS build-native
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -120,7 +120,7 @@ ENTRYPOINT ["dotnet", "DemoSite.dll"]
 
 # ── Stage 2b: Build web console (SvelteKit static) ──────────────────────────
 
-FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS build-console
+FROM node:22-slim@sha256:4b150b48b4116e2a22f2c39cc27025fbf4f153e2078fd3b14d159fdb5c7279da AS build-console
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -132,7 +132,7 @@ RUN pnpm -C packages/web-shell build
 
 # ── Stage 3b: Worker runtime ────────────────────────────────────────────────
 
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS worker-runtime
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS worker-runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \

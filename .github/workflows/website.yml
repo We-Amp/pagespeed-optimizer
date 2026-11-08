@@ -29,9 +29,21 @@ name: Website
 # (fetch-pricing.js refuses without this). Deploying the site is the
 # operator's step, from this tree; nothing in this workflow deploys.
 #
-# Triggers mirror the CI workflow (push to main + pull requests), filtered
-# to the tree this gate owns. A push that merges a website pull request
-# re-runs it on main; the concurrency group keeps only the newest run.
+# Two ways in for a pull request, switched by the repository variable
+# WEBSITE_GATE (docs/ci/pipelines.md, "WEBSITE_GATE"):
+#   * off (unset, the default): this workflow's own pull_request trigger runs
+#     it, as an advisory check outside `CI gate`;
+#   * `on`: the CI pipeline calls it (pipeline-pr.yml, job `website`) for a
+#     pull request or merge group that changes the site or its sources, so
+#     its result feeds the required `CI gate`, and every job of a direct
+#     pull_request run skips (the `direct_pr_off` term below), so nothing
+#     runs twice.
+# A called run has inputs.called set (its default); a direct run has no
+# inputs. In the merge queue only the build and reference drift run: the
+# browser suite and Lighthouse ran on the same change in the pull request. A
+# push to main that changes the tree this gate owns runs it directly, and the
+# nightly runs the full-width geometry sweep. The concurrency group keeps only
+# the newest run per caller and ref.
 
 on:
   push:
@@ -53,13 +65,23 @@ on:
       - 'src/worker/main.cc'
       - 'src/nginx/ngx_pagespeed_module.cc'
       - 'docker/nginx-version.txt'
+  # Called by pipeline-pr.yml for pull requests and merge groups once
+  # WEBSITE_GATE is on.
+  workflow_call:
+    inputs:
+      called:
+        description: Set by the caller; a direct run has no inputs
+        type: boolean
+        default: true
   # Nightly full-width geometry sweep (website-playwright only; the other
   # jobs skip on a schedule). Pull requests run the 375px column.
   schedule:
     - cron: '30 2 * * *'
 
 concurrency:
-  group: website-${{ github.ref }}
+  # github.workflow is the caller's name when called, so a called run and a
+  # direct one never share a group.
+  group: website-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions: {}
@@ -68,9 +90,14 @@ jobs:
   website-build:
     permissions:
       contents: read
+      # Only the merge queue lookup of the release window step reads a pull request.
+      pull-requests: read
     name: Website unit tests & build (ubuntu)
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    # direct_pr_off: a direct pull_request run skips once WEBSITE_GATE is on
+    # (the CI pipeline runs the gate then). Same term on every job.
+    if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:
@@ -103,6 +130,26 @@ jobs:
           fi
           echo "No version-pinned URLs in non-frozen content."
 
+      # Release window: the live-state guards below and in the unit tests
+      # compare the repository with state a release moves in two steps (the
+      # tag, packages and chart first; the site's manifest, version map and
+      # literals in the sync pull request after). On the pull request that is
+      # the second step (`auto/sync-release-manifests`) or the release lane's
+      # own (`release/*`), from this repository, they warn instead of failing;
+      # on main pushes and every ordinary pull request they fail as before.
+      # RELEASE_WINDOW=1 reaches the later steps through GITHUB_ENV. The
+      # built-output content lint is NOT part of this: it reads committed
+      # content, so a failure there is a real content defect and stays one.
+      - name: Detect a release window
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: bash website/scripts/release-window.sh
+
       # The 2.1 manifest (website/src/content/releases-2.1/release.yaml) is
       # what <Version /> and getRelease() render, so if it lags the latest
       # shipped release the whole site quietly advertises an old version.
@@ -115,83 +162,20 @@ jobs:
       # while, so a lag is a warning until the tag is GRACE_HOURS old and an
       # error after that. The tag date comes from the GitHub API (ls-remote
       # carries no dates); if it cannot be read the lag is treated as stale
-      # and fails -- closed, not open.
+      # and fails -- closed, not open. In a release window (above) a lag or a
+      # stale image tag is a warning at any tag age.
       #
       # Only the current line is checked here. The 2.0 and 1.1 manifests
       # describe frozen or end-of-life lines whose versions no longer move,
       # and the Helm chart's appVersion is checked where the chart is
-      # packaged, not here.
+      # packaged, not here. The logic lives in scripts/check-version-drift.sh
+      # (tested by test/release-window.test.ts).
       - name: Guard against 2.1 version drift
         working-directory: ${{ github.workspace }}
         env:
           GH_TOKEN: ${{ github.token }}
           GRACE_HOURS: "6"
-        run: |
-          set -euo pipefail
-          manifest=$(grep -E '^[[:space:]]*semver:' website/src/content/releases-2.1/release.yaml \
-            | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
-          if [ -z "$manifest" ]; then
-            echo "::error::could not read release.semver from website/src/content/releases-2.1/release.yaml"
-            exit 1
-          fi
-          latest_stable=$(git ls-remote --tags --refs https://github.com/We-Amp/mod_pagespeed.git 'v2.*' \
-            | awk '{ print $2 }' | sed 's#^refs/tags/##' \
-            | grep -vE -- '-(rc|beta|alpha|preview)' | sort -V | tail -1 | sed 's/^v//')
-          if [ -z "$latest_stable" ]; then
-            echo "::error::no stable v2.* tag found on We-Amp/mod_pagespeed -- cannot verify the manifest (network?)"
-            exit 1
-          fi
-          fail=0
-          if [ "$(printf '%s\n%s\n' "$latest_stable" "$manifest" | sort -V | tail -1)" != "$manifest" ]; then
-            # Resolve the tag's date: an annotated tag carries its own
-            # tagger date, a lightweight tag borrows its commit's.
-            tag_date=""
-            ref_json=$(gh api "repos/We-Amp/mod_pagespeed/git/refs/tags/v${latest_stable}" 2>/dev/null || true)
-            if [ -n "$ref_json" ]; then
-              obj_type=$(printf '%s' "$ref_json" | jq -r '.object.type // empty')
-              obj_sha=$(printf '%s' "$ref_json" | jq -r '.object.sha // empty')
-              case "$obj_type" in
-                tag)    tag_date=$(gh api "repos/We-Amp/mod_pagespeed/git/tags/${obj_sha}" --jq '.tagger.date // empty' 2>/dev/null || true) ;;
-                commit) tag_date=$(gh api "repos/We-Amp/mod_pagespeed/git/commits/${obj_sha}" --jq '.committer.date // empty' 2>/dev/null || true) ;;
-              esac
-            fi
-            tag_ct=0
-            if [ -n "$tag_date" ]; then
-              tag_ct=$(date -u -d "$tag_date" +%s 2>/dev/null || echo 0)
-            fi
-            now=$(date -u +%s)
-            tag_age_h=$(( (now - tag_ct) / 3600 ))
-            if [ "$tag_ct" -gt 0 ] && [ "$tag_age_h" -lt "$GRACE_HOURS" ]; then
-              echo "::warning::the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable}, tagged ${tag_age_h}h ago -- within the ${GRACE_HOURS}h grace window. Passing; this fails once the tag is older than that. Bump release.yaml."
-            else
-              echo "::error::the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable} (tag age ${tag_age_h}h, or tag date unreadable). Bump website/src/content/releases-2.1/release.yaml."
-              fail=1
-            fi
-          fi
-          # Hand-pinned image tags: a ghcr.io/we-amp/pagespeed-*:2.X.Y literal
-          # in non-frozen content (same scope as the URL guard: blog exempt)
-          # must equal the manifest semver. These are copy-paste install
-          # commands, and a stale one pulls an old image. .md cannot use the
-          # <ImageTag /> component, so this keeps those literals honest. The
-          # same holds for a Compose default (`${PAGESPEED_VERSION:-2.X.Y}`) or
-          # an .env value (`PAGESPEED_VERSION=2.X.Y`), and `latest` is never a
-          # valid tag for the worker or nginx image (only the combined image
-          # publishes one), so those fail too.
-          esc="${manifest//./\\.}"
-          stale=$(find website/src/content website/src/pages website/src/components website/src/layouts \
-            -type f \( -name '*.md' -o -name '*.mdx' -o -name '*.astro' \) \
-            -not -path '*/content/blog/*' \
-            -exec grep -Eoh 'ghcr\.io/we-amp/pagespeed-[a-z]+:2\.[0-9]+\.[0-9]+|PAGESPEED_VERSION(:-|=)(2\.[0-9]+\.[0-9]+|latest)|pagespeed-(worker|nginx):(\$\{PAGESPEED_VERSION:-)?latest' {} + 2>/dev/null \
-            | sort -u | grep -vE "(:|:-|=)${esc}\$" || true)
-          if [ -n "$stale" ]; then
-            echo "::error::stale image tag(s) in non-frozen content (must be :${manifest}):"
-            echo "$stale"
-            fail=1
-          fi
-          if [ "$fail" = 0 ]; then
-            echo "2.1 version-drift guard OK: manifest=${manifest} latest_stable_tag=v${latest_stable}; no stale image tags."
-          fi
-          exit "$fail"
+        run: bash website/scripts/check-version-drift.sh
 
       # Node 22 LTS, matching the site's own test environment. npm cache is
       # keyed on the site's lockfile so dependency installs stay warm across
@@ -211,6 +195,8 @@ jobs:
       - name: format:check
         run: npm run format:check
 
+      # Live-state tests (the package index, the Helm chart) read
+      # RELEASE_WINDOW from the "Detect a release window" step.
       - name: Unit tests (vitest)
         run: npx vitest run
 
@@ -250,8 +236,9 @@ jobs:
     permissions:
       contents: read
     name: Reference data matches the pinned module source (ubuntu)
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -302,7 +289,10 @@ jobs:
     permissions:
       contents: read
     name: Website browser suite (Playwright, ubuntu)
-    runs-on: ubuntu-latest
+    # Not in the merge queue: it ran on the same change in the pull request.
+    if: github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: ${{ github.event_name == 'schedule' && 75 || 30 }}
     defaults:
       run:
@@ -373,8 +363,10 @@ jobs:
     permissions:
       contents: read
     name: Website Lighthouse budgets (ubuntu)
-    if: github.event_name != 'schedule'
-    runs-on: ubuntu-latest
+    # Not in the merge queue: it ran on the same change in the pull request.
+    if: github.event_name != 'schedule' && github.event_name != 'merge_group' && !(github.event_name == 'pull_request' && !inputs.called && vars.WEBSITE_GATE == 'on')
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:

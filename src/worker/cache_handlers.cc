@@ -190,7 +190,10 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
                                "Missing 'url' query parameter");
   }
 
-  auto result = ctx.cache->ListAlternates(url, hostname, scheme);
+  auto site = request.QueryParam("site");
+  if (auto err = CheckSiteParam(ctx, site)) return std::move(*err);
+
+  auto result = ctx.cache->ListAlternates(url, hostname, scheme, site);
   if (!result) {
     return HttpResponse::Error(ApiErrorCode::kNotFound,
                                "No alternates found for URL");
@@ -251,7 +254,7 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
       // before the set_header() change (header will be empty).
       if (!meta) {
         auto read_result = ctx.cache->ReadAlternate(
-            url, hostname, scheme, static_cast<AlternateId>(alt_byte));
+            url, hostname, scheme, static_cast<AlternateId>(alt_byte), site);
         if (read_result) {
           j["size"] = read_result->content_length();
           auto raw = read_result->handle.content();
@@ -330,9 +333,13 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
   // Add the composed cache key (matches ComposeKey output).
   std::string normalized_host =
       NormalizeHostnameForApi(hostname, ctx.url_norm_config);
-  std::string cache_key_str = absl::StrCat(PageSpeedCache::kKeyNamespace,
-                                           scheme, "://", normalized_host, url);
-  resp["cache_key"] = cache_key_str;
+  std::string cache_key_str = absl::StrCat(scheme, "://", normalized_host, url);
+  if (!site.empty()) {
+    cache_key_str = absl::StrCat("st1:", site, "@", cache_key_str);
+    resp["site"] = site;
+  }
+  resp["cache_key"] =
+      absl::StrCat(PageSpeedCache::kKeyNamespace, cache_key_str);
 
   resp["alternates"] = std::move(alternates);
   resp["count"] = resp["alternates"].size();
@@ -341,7 +348,7 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
   // Add cooldown info if callback is available and URL is in cooldown.
   if (ctx.get_cooldown) {
     auto cd = ctx.get_cooldown(std::string(url), std::string(hostname), scheme,
-                               /*site=*/"");
+                               std::string(site));
     if (cd) {
       resp["cooldown"] = {{"reason", cd->reason},
                           {"remaining_seconds", cd->remaining_seconds},

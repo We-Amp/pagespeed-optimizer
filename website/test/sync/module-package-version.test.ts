@@ -14,6 +14,7 @@ import {
   PKG_APACHE_MODULE,
   PKG_NGINX_MODULE,
 } from '../../src/data/product-facts.mjs';
+import { expectOrWarn } from '../lib/release-window';
 
 const INDEX = 'https://packages.modpagespeed.com/apt';
 
@@ -92,7 +93,12 @@ describe('MODULE_PACKAGE_VERSION', () => {
         .filter((v): v is string => v !== null)
         .sort(compare)
         .pop();
-      expect(newest, `${pkg} in ${suites.join(', ')}`).toBe(MODULE_PACKAGE_VERSION);
+      // A release publishes the packages before the sync pull request moves
+      // MODULE_PACKAGE_VERSION, so in a release window the index being ahead
+      // is a warning (test/lib/release-window.ts); elsewhere it fails.
+      expectOrWarn(`${pkg} in ${suites.join(', ')}`, () => {
+        expect(newest, `${pkg} in ${suites.join(', ')}`).toBe(MODULE_PACKAGE_VERSION);
+      });
     }
   }, 60000);
 });

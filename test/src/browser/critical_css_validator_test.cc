@@ -698,8 +698,10 @@ TEST(BuildValidationDocumentsTest, FullCssContainsStyleTerminatorFailsClosed) {
   // `success` would hand an empty reference to the renderer, which would then
   // diff a blank page against a blank page and validate a page it never looked
   // at. This is the sharpest fail-closed case in the file.
+  // Outside a CSS string: inside one, `</style` is escaped (see
+  // LessThanInCssStringsIsEscapedAsTheServePathWritesIt).
   auto docs = BuildValidationDocuments(
-      kPage, ".a{content:\"</style>\"}\n.b{color:blue}", ".a{color:red}");
+      kPage, ".a{color:red}</style>\n.b{color:blue}", ".a{color:red}");
   EXPECT_FALSE(docs.ok);
   EXPECT_TRUE(docs.reference.empty());
   EXPECT_TRUE(docs.candidate.empty());
@@ -707,8 +709,8 @@ TEST(BuildValidationDocumentsTest, FullCssContainsStyleTerminatorFailsClosed) {
 }
 
 TEST(BuildValidationDocumentsTest, CriticalCssStyleTerminatorFailsClosed) {
-  auto docs = BuildValidationDocuments(kPage, ".a{color:red}",
-                                       ".a{content:\"</style \"}");
+  auto docs =
+      BuildValidationDocuments(kPage, ".a{color:red}", ".a{color:red}</style ");
   EXPECT_FALSE(docs.ok);
   EXPECT_TRUE(docs.candidate.empty());
 }
@@ -719,14 +721,70 @@ TEST(BuildValidationDocumentsTest, CssCarryingTheInjectionMarkerFailsClosed) {
   // one place, and the fairness invariant is what the whole comparison rests
   // on. The invariant is checked before either document is rendered.
   auto docs = BuildValidationDocuments(
-      kPage, ".a{color:red}",
-      ".a{content:\"<style data-pagespeed-critical>\"}");
+      kPage, ".a{color:red}<style data-pagespeed-critical>", ".a{color:red}");
   EXPECT_FALSE(docs.ok);
   EXPECT_NE(docs.error.find("outside the injected style body"),
             std::string::npos)
       << docs.error;
   EXPECT_TRUE(docs.reference.empty());
   EXPECT_TRUE(docs.candidate.empty());
+}
+
+// Both documents carry the text the serve path writes: each `<` in a CSS
+// string or comment as the escape `\3c ` (HtmlTransformFilter::
+// InjectCriticalCss), so a Tailwind CSS v4 sheet, whose `@property` rules
+// carry `syntax: "<color>"`, is compared, and a `</style>` in a string no
+// longer refuses the reference.
+TEST(BuildValidationDocumentsTest,
+     LessThanInCssStringsIsEscapedAsTheServePathWritesIt) {
+  auto docs = BuildValidationDocuments(
+      kPage,
+      "@property --tw-x{syntax:\"<color>\";inherits:false;initial-value:red}"
+      ".a{content:\"</style>\"}.b{color:blue}",
+      "@property --tw-x{syntax:\"<color>\";inherits:false;initial-value:red}"
+      ".a{color:var(--tw-x)}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_NE(docs.candidate.find("<style data-pagespeed-critical>"
+                                "@property --tw-x{syntax:\"\\3c color>\";"),
+            std::string::npos)
+      << docs.candidate;
+  EXPECT_NE(docs.reference.find(".a{content:\"\\3c /style>\"}"),
+            std::string::npos)
+      << docs.reference;
+  EXPECT_EQ(docs.reference.find("<color>"), std::string::npos)
+      << docs.reference;
+}
+
+// A candidate block the serve path would refuse (a `<` that opens markup
+// outside its strings and comments) is not validated either.
+TEST(BuildValidationDocumentsTest, ACandidateTheServePathRefusesIsRefused) {
+  for (const char* css : {".a{color:red}<b>", ".a{--x:a<!--}"}) {
+    SCOPED_TRACE(css);
+    auto docs = BuildValidationDocuments(kPage, ".a{color:red}", css);
+    EXPECT_FALSE(docs.ok);
+    EXPECT_NE(docs.error.find("could read as markup"), std::string::npos)
+        << docs.error;
+  }
+  // The reference may hold one (a page's old `<!--` inside <style>).
+  EXPECT_TRUE(
+      BuildValidationDocuments(kPage, "<!-- .a{color:red} -->", ".a{color:red}")
+          .ok);
+}
+
+// A stylesheet source inside a <select> never anchors the block, as on the
+// serve path (IsNonDocumentSubtreeRoot): the block goes where the next
+// source stood, not into the <select>.
+TEST(BuildValidationDocumentsTest, ASourceInsideSelectDoesNotAnchor) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title><select><style>.s{}</style></select>"
+      "<link rel=stylesheet href=/a.css><meta name=x content=y></head>"
+      "<body>x</body></html>",
+      ".a{color:red}", ".a{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title><select></select>"
+            "<style data-pagespeed-critical>.a{color:red}</style>"
+            "<meta name=x content=y></head><body>x</body></html>");
 }
 
 TEST(BuildValidationDocumentsTest, EmptyInputsFailClosed) {
