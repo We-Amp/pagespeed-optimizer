@@ -17,18 +17,19 @@ Three modes, selected by ASYNC_CSS_PROBE_MODE (see conftest.py):
 * ``TestForcedDeferral`` — floor raised, switch on: it defers, and every piece
   of the deferred markup must be correct. The pair is the switch's end-to-end
   proof, and the gate's.
-* ``TestForcedRefusesBroadRule`` — the same switch on a page whose stylesheet
-  the optimizer will not inline (see below): nothing is inlined or deferred.
+* ``TestForcedInlinesTailwindStrings`` — the same switch on a page whose
+  stylesheet holds `<` inside a CSS string (see below): the `<` is escaped, the
+  block is inlined and the sheet deferred.
 
 * ``TestShippedConfiguration`` — stock flags: what the product does today.
 
 Two fixture pages. The primary one (modpagespeed.com, Tailwind v4) carries
-`@property ... syntax:"<color>"` in its stylesheet, and the optimizer never
-inlines CSS that holds a `<` followed by a letter, `/`, `!` or `?`: that page
-gets no inline critical block and its stylesheet stays render-blocking in every
-mode, the switch included. The second ("plain", stock Bootstrap 5.3.3) has no
-such sequence, so it is the page the deferral and its inline block are checked
-on. Tests are routed to the page that matches them; the invariants that hold
+`@property ... syntax:"<color>"` in its stylesheet. The optimizer refuses CSS
+that holds a `<` followed by a letter, `/`, `!` or `?` outside strings and
+comments, but inside a string it writes the `<` as `\\3c ` and inlines the block
+(#681); with the switch on, that page defers. The second ("plain", stock
+Bootstrap 5.3.3) has no such sequence at all, so it is the page the deferral
+and its inline block are checked on in the other modes. Tests are routed to the page that matches them; the invariants that hold
 for both run on both.
 """
 
@@ -264,42 +265,57 @@ class TestForcedDeferral:
 
 
 @forced_only
-class TestForcedRefusesBroadRule:
+class TestForcedInlinesTailwindStrings:
     """The switch on, on the primary page. Its Tailwind v4 stylesheet holds
-    `@property ... syntax:"<color>"`, and CSS with a `<` followed by a letter,
-    `/`, `!` or `?` is never inlined, so the stylesheet stays render-blocking
-    and nothing is deferred: forcing the deferral cannot override that, because
-    the deferral exists only together with the inline block."""
+    `@property ... syntax:"<color>"`: a `<` inside a CSS string. Since the
+    string-aware scanner (#681) that no longer refuses the block; the `<` is
+    written as the CSS escape `\\3c ` and the page is inlined and deferred like
+    any other. Before #681 (2.8.0) this page got no inline block and its
+    stylesheet stayed render-blocking in every mode; the tests below fail if
+    that comes back."""
 
-    def test_no_inline_critical_block(self, home_markup):
-        assert not home_markup.critical_block_positions(), (
-            f"a <style {CRITICAL_BLOCK_MARKER}> was inlined from a stylesheet "
-            "the optimizer refuses to inline"
+    # A `<` that could open markup inside the inlined text.
+    MARKUP_OPENER = re.compile(r"<[A-Za-z/!?]")
+
+    def test_critical_block_is_inlined(self, home_markup):
+        assert home_markup.critical_block_positions(), (
+            f"no <style {CRITICAL_BLOCK_MARKER}> for a stylesheet whose only "
+            "`<` sits inside a CSS string"
         )
-        assert max((len(s) for s in home_markup.styles), default=0) <= 4096, (
-            "a substantial inline <style> sits next to the render-blocking stylesheet"
+        assert max((len(s) for s in home_markup.styles), default=0) > 4096, (
+            "no substantial inline <style> next to the deferred stylesheet"
         )
 
-    def test_stylesheet_stays_render_blocking_and_nothing_is_deferred(
-        self, home_markup
-    ):
+    def test_inlined_text_cannot_open_markup(self, home_markup):
+        """Inlining is only safe because the `<` inside strings is escaped:
+        the served block must hold no `<` followed by a letter, `/`, `!` or `?`
+        and `</style` must not appear."""
+        assert home_markup.critical_block_positions()
+        big = max(home_markup.styles, key=len)
+        assert not self.MARKUP_OPENER.search(big), (
+            "the inlined critical CSS holds a raw `<` that could open markup: "
+            f"{self.MARKUP_OPENER.search(big).group(0)!r}"
+        )
+
+    def test_stylesheet_is_deferred(self, home_markup):
         deferred = [e for e in home_markup.deferred_links() if not e.in_noscript]
-        assert not deferred, f"the refused page was deferred anyway: {deferred}"
+        assert deferred, (
+            "the Tailwind page was not deferred: the stylesheet stays "
+            "render-blocking as it did before #681"
+        )
         sheets = [
             e
             for e in home_markup.stylesheet_links()
             if FIXTURE_CSS_PATH in (e.attrs.get("href") or "") and not e.in_noscript
         ]
-        assert sheets, "the fixture stylesheet vanished from the served markup"
-        for sheet in sheets:
-            assert sheet.attrs.get(PRIMITIVE_ATTR) != PRIMITIVE_VALUE, (
-                f"stylesheet carries the deferral primitive: {sheet}"
-            )
+        assert not sheets, (
+            f"the fixture stylesheet is still a render-blocking link: {sheets}"
+        )
 
-    def test_no_loader_and_no_fallback(self, home_markup, async_css_loader_path):
-        assert not home_markup.loader_scripts(async_css_loader_path)
-        assert not [e for e in home_markup.elements if e.has(FALLBACK_MARKER)], (
-            "async-CSS fallback markup present without a deferral"
+    def test_loader_and_fallback_are_present(self, home_markup, async_css_loader_path):
+        assert len(home_markup.loader_scripts(async_css_loader_path)) == 1
+        assert [e for e in home_markup.elements if e.has(FALLBACK_MARKER)], (
+            "deferred without the <noscript> fallback"
         )
 
 
