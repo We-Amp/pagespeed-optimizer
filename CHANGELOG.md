@@ -9,7 +9,7 @@ All notable changes to mod_pagespeed are documented in this file.
 Changed: the Helm chart 0.3.15 is published with this release; its default
 image version is 2.8.1.
 
-Fixed: the cache detail view of the admin console and the `GET /v1/cache/alternates` endpoint now find entries stored per site; the endpoint takes the `site` listed by `GET /v1/cache/urls`. In 2.8.0 every such entry showed as not in the index. Affected: 2.8.0.
+Fixed: the cache detail view of the admin console and `GET /v1/cache/alternates` find entries stored per site. The endpoint takes the `site` listed by `GET /v1/cache/urls`. In 2.8.0 every such entry showed as not in the index. Affected: 2.8.0.
 
 Fixed: pages built with Tailwind CSS v4 get inlined critical CSS and deferred stylesheets again. In 2.8.0 those pages kept render-blocking stylesheets and no inlined critical CSS. Affected: 2.8.0.
 
