@@ -109,8 +109,9 @@ FIXTURE_FOLD_SUBRESOURCE_PATHS = (
 # /plain/ with its stylesheet at /bootstrap.min.css. Its stylesheet holds no
 # `<` followed by a letter, `/`, `!` or `?`, which is what lets the optimizer
 # inline a critical block for it. The primary page's Tailwind v4 sheet holds
-# `@property ... syntax:"<color>"`, so the optimizer never inlines into it and
-# never defers its stylesheet: the pair covers both outcomes of that rule.
+# `@property ... syntax:"<color>"`: a `<` inside a CSS string, which the
+# optimizer escapes and inlines (#681). The pair covers a sheet with and without
+# such a `<`.
 PLAIN_HTML_PATH = "/plain/"
 PLAIN_CSS_PATH = "/bootstrap.min.css"
 PLAIN_FIXTURE_DIR = os.path.join(PROBE_DIR, "fixtures", "bootstrap-5.3.3")
