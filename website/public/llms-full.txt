@@ -4323,7 +4323,7 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.8.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.8.0): 334 directives.
+Generated from the mod_pagespeed source at tag [`v2.8.1`](https://github.com/We-Amp/mod_pagespeed/tree/v2.8.1): 334 directives.
 
 Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (7) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (30) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (44) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (10) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (9) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (48) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (4) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (6) · [Other](https://modpagespeed.com/docs/configuration/#area-other) (2) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (35).
 
@@ -21786,7 +21786,7 @@ mod_pagespeed is released as two parts: the module, which runs inside Apache or 
 
 ## The current release
 
-**mod_pagespeed 2.8.1** (TBD, module + optimizer worker)
+**mod_pagespeed 2.8.1** (2026-11-09, module + optimizer worker)
 
 **mod_pagespeed 2.8.1 is a maintenance release of the module and the optimizer
 worker, released together and installed as a matching pair.** The packages in the
@@ -21805,7 +21805,7 @@ the fixes on each server.
 
 Each line has its own page with the full entry for every release, collapsed and newest first.
 
-- [mod_pagespeed 2.8](https://modpagespeed.com/docs/release-notes-2-8/): 2.8.1, TBD, and 2.8.0, 2026-11-05. The current release: the module and the optimizer worker together; 2.8.1 fixes critical CSS for Tailwind CSS v4 and large stylesheets, cache flushes and several IIS issues.
+- [mod_pagespeed 2.8](https://modpagespeed.com/docs/release-notes-2-8/): 2.8.1, 2026-11-09, and 2.8.0, 2026-11-05. The current release: the module and the optimizer worker together; 2.8.1 fixes critical CSS for Tailwind CSS v4 and large stylesheets, cache flushes and several IIS issues.
 - [mod_pagespeed 2.7](https://modpagespeed.com/docs/release-notes-2-7/): 2.7.0, 2026-11-01. The module and the optimizer worker together, with security fixes.
 - [mod_pagespeed 2.6](https://modpagespeed.com/docs/release-notes-2-6/): 2.6.0, 2026-10-28. The module and the optimizer worker together, with security fixes in the nginx and Apache modules.
 - [mod_pagespeed 2.5](https://modpagespeed.com/docs/release-notes-2-5/): 2.5.2, 2026-10-22, and 2.5.0, 2026-10-19. The module and the optimizer worker together, security updates, and one version number from 2.5.0 on.
@@ -21823,7 +21823,7 @@ Which version each artifact of a release carries: the apt and yum packages, the 
 
 | Release | Date | apt/yum packages (module + optimizer worker) | Container images | Helm chart (app version) | NuGet WeAmp.PageSpeed.AspNetCore | IIS installer |
 | --- | --- | --- | --- | --- | --- | --- |
-| 2.8.1 | TBD | 2.8.1 | 2.8.1 | 0.3.15 (2.8.1) | 2.8.1 | pagespeed-iis-2.8.1-win-x64.msi |
+| 2.8.1 | 2026-11-09 | 2.8.1 | 2.8.1 | 0.3.15 (2.8.1) | 2.8.1 | pagespeed-iis-2.8.1-win-x64.msi |
 | 2.8.0 | 2026-11-05 | 2.8.0 | 2.8.0 | 0.3.14 (2.8.0) | 2.8.0 | pagespeed-iis-2.8.0-win-x64.msi |
 | 2.7.0 | 2026-11-01 | 2.7.0 | 2.7.0 | 0.3.13 (2.7.0) | 2.7.0 | pagespeed-iis-2.7.0-win-x64.msi |
 | 2.6.0 | 2026-10-28 | 2.6.0 | 2.6.0 | 0.3.12 (2.6.0) | 2.6.0 | pagespeed-iis-2.6.0-win-x64.msi |
@@ -21844,7 +21844,7 @@ Every release, grouped into four periods and newest first inside each. Each line
 
 mod_pagespeed 2.1.0, 2.2.0, 2.3.0, 2.4.0, 2.5.0, 2.5.2, 2.6.0, 2.7.0, 2.8.0 and 2.8.1 are the module and the optimizer worker released together; there is no module release 2.5.1. The [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists the version each artifact carries. See [the current release](https://modpagespeed.com/docs/release-notes/#current-release) above and the [2.8](https://modpagespeed.com/docs/release-notes-2-8/), [2.7](https://modpagespeed.com/docs/release-notes-2-7/), [2.6](https://modpagespeed.com/docs/release-notes-2-6/), [2.5](https://modpagespeed.com/docs/release-notes-2-5/), [2.4](https://modpagespeed.com/docs/release-notes-2-4/), [2.3](https://modpagespeed.com/docs/release-notes-2-3/), [2.2](https://modpagespeed.com/docs/release-notes-2-2/) and [2.1](https://modpagespeed.com/docs/release-notes-2-1/) pages for the full entries.
 
-**[2.8.1](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-1)** (TBD, module + optimizer worker) — Maintenance release, released together with the optimizer worker: inlined critical CSS again for pages built with Tailwind CSS v4 and pages with stylesheets over 64 KiB, cache flushes that reach every server process, an ASP.NET Core sidecar that starts on Debian 13 and Ubuntu 26.04, and several IIS fixes.
+**[2.8.1](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-1)** (2026-11-09, module + optimizer worker) — Maintenance release, released together with the optimizer worker: inlined critical CSS again for pages built with Tailwind CSS v4 and pages with stylesheets over 64 KiB, cache flushes that reach every server process, an ASP.NET Core sidecar that starts on Debian 13 and Ubuntu 26.04, and several IIS fixes.
 
 **[2.8.0](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-0)** (2026-11-05, module + optimizer worker) — Security update, released together with the optimizer worker: six classes of security fix, and new nginx module packages for Ubuntu 26.04 and for nginx.org's stable nginx. Update recommended.
 
@@ -22271,11 +22271,11 @@ mod_pagespeed 2.8 release notes: 2.8.1, fixes for critical CSS, cache flushes, I
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-8/
 
-mod_pagespeed 2.8 was released as 2.8.0 on 2026-11-05 and 2.8.1 on TBD: the module and the optimizer worker together, installed as a matching pair. 2.8.1 is the current release. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+mod_pagespeed 2.8 was released as 2.8.0 on 2026-11-05 and 2.8.1 on 2026-11-09: the module and the optimizer worker together, installed as a matching pair. 2.8.1 is the current release. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
 
-**mod_pagespeed 2.8.1** (TBD, module + optimizer worker)
+**mod_pagespeed 2.8.1** (2026-11-09, module + optimizer worker)
 
-**Release date:** TBD
+**Release date:** 2026-11-09
 
 **Status:** Stable
 
