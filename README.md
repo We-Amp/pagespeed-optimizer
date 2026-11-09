@@ -1,5 +1,11 @@
 # mod_pagespeed — pagespeed-optimizer
 
+[![CI](https://github.com/We-Amp/pagespeed-optimizer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/We-Amp/pagespeed-optimizer/actions/workflows/ci.yml?query=branch%3Amain)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/We-Amp/pagespeed-optimizer/badge)](https://scorecard.dev/viewer/?uri=github.com/We-Amp/pagespeed-optimizer)
+[![Release](https://img.shields.io/github/v/release/We-Amp/pagespeed-optimizer?filter=optimizer-v*&label=release)](https://github.com/We-Amp/pagespeed-optimizer/releases)
+[![NuGet](https://img.shields.io/nuget/v/WeAmp.PageSpeed)](https://www.nuget.org/packages/WeAmp.PageSpeed)
+[![License](https://img.shields.io/github/license/We-Amp/pagespeed-optimizer)](LICENSE)
+
 The optimization worker, nginx serving module and management console of
 mod_pagespeed. The same worker also backs the Apache module
 (shipped from the [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed)
