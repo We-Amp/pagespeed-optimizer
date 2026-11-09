@@ -3,9 +3,9 @@ entries:
   pagespeed:
   - apiVersion: v2
     appVersion: 2.8.1
-    created: "2026-11-08T16:11:06.510422+01:00"
+    created: "2026-11-09T06:40:01.623563+01:00"
     description: mod_pagespeed - Nginx image/CSS/JS/HTML optimization
-    digest: cd382d0f925499e88c1a7d332be6ac9de147270e6719df1683ffc57eaff331c2
+    digest: 41900fceb03a7ab690528155056bb8c8f13ee1299e81ef616630fed60de76d0f
     home: https://modpagespeed.com
     keywords:
     - pagespeed
@@ -463,4 +463,4 @@ entries:
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.0.tgz
     version: 0.2.0
-generated: "2026-11-08T16:11:06.509642+01:00"
+generated: "2026-11-09T06:40:01.623097+01:00"
