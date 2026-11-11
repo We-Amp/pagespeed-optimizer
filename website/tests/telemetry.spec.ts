@@ -3,6 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import { expectErrorPage, isBuiltServer } from './helpers/server-mode';
 
 // Expected fallback values come from the committed capture file; the live
 // upgrade is tested with a fictitious header value (9.9.9-test), never a real
@@ -317,7 +318,11 @@ test.describe('Telemetry strip', () => {
   });
 
   test('the strip is not rendered on the 404 page', async ({ page }) => {
-    await page.goto('/404/');
+    // A built server answers /404/ with a redirect stub, not the page; the
+    // page production serves for a 404 is the prerendered /error/404/ copy.
+    await page.goto((await isBuiltServer(page.request)) ? '/error/404/' : '/404/');
+    // Assert on the real page, so a stub without a strip cannot pass.
+    await expectErrorPage(page, '404');
     await expect(page.locator(STRIP)).toHaveCount(0);
   });
 });
