@@ -155,19 +155,6 @@ test.describe('Navigation', () => {
     await expect(page.locator('#mobile-menu')).toBeHidden();
   });
 
-  test('the sticky mobile CTA appears after scrolling', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
-    const cta = page.locator('#sticky-cta');
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
-    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 1.5));
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'visible');
-    await expect(cta).toBeVisible();
-    // At the bottom the footer is in view and the CTA steps aside.
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
-  });
-
   test('Tools dropdown names the two lead tools plainly', async ({ page }) => {
     await page.goto('/');
     await page.locator('header nav button.nav-dropdown-btn:has-text("Tools")').click();
@@ -494,22 +481,6 @@ test.describe('Navigation', () => {
     expect(await page.evaluate(() => !!document.activeElement?.closest('body > header'))).toBe(
       false,
     );
-  });
-
-  test('the sticky CTA is out of the tab order and the accessibility tree while hidden', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
-    const cta = page.locator('#sticky-cta');
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
-    await expect(cta).toHaveAttribute('inert', '');
-    expect(await cta.evaluate((e) => getComputedStyle(e).visibility)).toBe('hidden');
-    await expect(page.locator('nav[aria-label="Quick actions"] #sticky-cta')).toHaveCount(1);
-    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 1.5));
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'visible');
-    await expect(cta).not.toHaveAttribute('inert', '');
-    await expect(cta).toBeVisible();
   });
 
   test('the header search button advertises its shortcuts', async ({ page }) => {

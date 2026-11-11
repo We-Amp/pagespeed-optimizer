@@ -426,8 +426,8 @@ const emptyLinks = [
           ? pathQuery()
           : '';
       if (!dialog.open) dialog.showModal();
-      // While a modal dialog is up, the floating share/message launchers hide
-      // (data-dialog-open rule in global.css); close any of their panels too.
+      // While a modal dialog is up, the floating message launcher hides
+      // (data-dialog-open rule in global.css); close its panel too.
       document.documentElement.setAttribute('data-dialog-open', '');
       window.dispatchEvent(new CustomEvent('weamp:fab-open', { detail: { source: 'search' } }));
       if (state === 'ready') return focusInput();
