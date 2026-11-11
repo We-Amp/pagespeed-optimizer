@@ -145,19 +145,30 @@ test.describe('SEO', () => {
   });
 
   // /download/ must actually offer the current release: a bare integration
-  // grid with no current row was a past defect. One card per integration,
-  // each labelled with the product and the exact release from the manifest
-  // (the download page is where the version is the point).
-  test('/download/ offers the current release on every integration card', async ({ page }) => {
+  // grid with no current row was a past defect. The exact release from the
+  // manifest is named once, on the chip above the grid (the download page is
+  // where the version is the point), and there is one card per integration.
+  // Only a card for another line carries its own product label.
+  test('/download/ offers the current release above one card per integration', async ({ page }) => {
     await page.goto('/download/');
+    const grid = page.locator('#integrations');
+    await expect(grid.locator('p', { hasText: 'see release notes' })).toContainText(
+      `v${MANIFEST_SEMVER}`,
+    );
     for (const name of ['Apache', 'nginx', 'nginx (Docker)', 'Helm']) {
       await test.step(name, async () => {
-        const card = page.locator('a.card', {
+        const card = grid.locator('a.card', {
           has: page.getByRole('heading', { level: 3, name, exact: true }),
         });
-        await expect(card).toContainText(`mod_pagespeed ${MANIFEST_SEMVER}`);
+        await expect(card).toHaveCount(1);
+        await expect(card).not.toContainText(`mod_pagespeed ${MANIFEST_SEMVER}`);
       });
     }
+    await expect(
+      grid.locator('a.card', {
+        has: page.getByRole('heading', { level: 3, name: 'ASP.NET Core Sidecar', exact: true }),
+      }),
+    ).toContainText('mod_pagespeed 1.15');
   });
 
   // One product node everywhere (src/data/software-jsonld.ts): the plain
