@@ -17,11 +17,17 @@
  * skips every page without that attribute, which also covers the legacy
  * /1.0/ archive (static HTML that never carries it). `data-pagefind-ignore`
  * on navigation chrome keeps sidebar titles out of the excerpts.
+ *
+ * The written output is checked before the script reports success: a missing
+ * or 0-byte file under dist/client/pagefind/ fails the build (see
+ * lib/search-index-output.mjs), because the dialog would load it without
+ * complaint. Rebuilding is the remedy.
  */
 import * as pagefind from 'pagefind';
 import { existsSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findBadSearchOutput } from './lib/search-index-output.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const site = resolve(root, 'dist/client');
@@ -48,6 +54,9 @@ if (page_count === 0) fail(`no HTML files found under ${site}.`);
 const { errors: writeErrors } = await index.writeFiles({ outputPath });
 if (writeErrors.length) fail('writing the index failed.', writeErrors);
 await pagefind.close();
+
+const bad = findBadSearchOutput(outputPath);
+if (bad.length) fail('Pagefind wrote missing or empty files; rebuild.', bad);
 
 // `page_count` above counts the HTML files Pagefind looked at; the entry file
 // records how many it actually indexed (the ones carrying data-pagefind-body).

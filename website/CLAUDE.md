@@ -79,7 +79,9 @@ suites, because the dev server has no index: after changing either, build, serve
 run `node scripts/search-probes.mjs http://127.0.0.1:<port>`, which prints where each probe
 query's page lands. The dialog mirrors Pagefind's result count into a visually hidden
 `role="status"` element and shows a fixed row of links when a search finds nothing; the 404
-page opens the dialog with the last segment of the missing path as the query.
+page opens the dialog with the last segment of the missing path as the query. The index
+step fails the build when a Pagefind output file is missing or empty
+(`scripts/lib/search-index-output.mjs`); rebuild if it does.
 
 ## Directory map
 

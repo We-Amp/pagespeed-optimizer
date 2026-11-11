@@ -269,6 +269,23 @@ test.describe('404 page', () => {
     await expect(page.locator('#site-search img')).toHaveCount(0);
   });
 
+  // The prerendered copy's own URL is not a page anyone asked for: opening the
+  // search from it must not search for "404".
+  test('the prerendered 404 copy opens the search with an empty input', async ({ page }) => {
+    await stubUmami(page);
+    await stubPagefind(page);
+    await page.goto('/error/404/');
+    await page.locator('main button[data-search-open]').click();
+    await expect(page.locator('dialog#site-search')).toBeVisible();
+    await expect(input(page)).toBeFocused();
+    await expect(input(page)).toHaveValue('');
+    // Longer than the announcement delay: nothing was searched or reported.
+    await page.waitForTimeout(1000);
+    await expect(page.locator('#site-search-count')).toHaveText('');
+    await expect(page.locator('#site-search .pagefind-ui__message')).toHaveCount(0);
+    expect((await trackedEvents(page)).filter((e) => e.name.startsWith('search_'))).toEqual([]);
+  });
+
   test('the header search opens empty on a 404', async ({ page }) => {
     await stubPagefind(page);
     await page.goto('/no-such-page/');
