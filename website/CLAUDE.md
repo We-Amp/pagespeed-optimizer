@@ -53,6 +53,20 @@ such a session start the dev server first (`npm run dev`, which backgrounds itse
 The site CSS stays an external sheet (Astro's default): in production the site's own optimizer inlines the critical CSS and defers the full sheet, so first paint is not blocked and nothing flashes unstyled.
 Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process; fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
 
+## Theme and error pages
+
+- **The site is dark-only.** `BaseLayout.astro` always renders `<html class="dark">` with
+  `color-scheme: dark`; there is no toggle and no light theme. Review, screenshot and
+  contrast-check pages in dark only.
+- The light values in the `@theme` block of `src/styles/global.css` are only the defaults
+  Tailwind needs to generate its utilities; the `.dark` block overrides them
+  and is what visitors see. Do not design against the light values or treat them as a
+  second theme. The same goes for the light half of the Shiki code theme.
+- **Review the 404 page locally at `/error/404/`** (and the 500 page at `/error/500/`). The
+  local production server (`node dist/server/entry.mjs`) answers an unknown URL with a 404
+  status and a bare redirect stub, not the designed page; in production the web server
+  maps failing URLs onto the prerendered `/error/` pages. The stub is expected, not a bug.
+
 ## Site search
 
 Search is [Pagefind](https://pagefind.app/), a static index built after the Astro build:

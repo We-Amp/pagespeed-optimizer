@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 import sitemap from '@astrojs/sitemap';
 import mdx from '@astrojs/mdx';
 import node from '@astrojs/node';
+import { unified } from '@astrojs/markdown-remark';
 import remarkCustomHeadingId from 'remark-custom-heading-id';
 import remarkDirective from 'remark-directive';
 import remarkCallouts from './src/lib/remark-callouts.mjs';
@@ -220,7 +221,10 @@ export default defineConfig({
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts
     // then turns those nodes into styled callout asides. Order matters — the
     // directive parser must run before the transform that consumes its nodes.
-    remarkPlugins: [remarkCustomHeadingId, remarkDirective, remarkCallouts],
+    // The plugins go to the remark/rehype processor itself; .mdx inherits it.
+    processor: unified({
+      remarkPlugins: [remarkCustomHeadingId, remarkDirective, remarkCallouts],
+    }),
     // Dual-theme Shiki. `defaultColor: false` emits CSS variables instead of
     // baking one theme's colors into the HTML — the styles in global.css then
     // switch between --shiki-light and --shiki-dark based on `.dark` on <html>.
