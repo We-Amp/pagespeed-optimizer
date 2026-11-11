@@ -371,9 +371,6 @@ const jsonLd = [webApp, faqPage];
        --color-text-*, --color-interactive, --color-success, --color-accent) so it
        follows the light/dark theme and reads as a first-class property. -->
   <style is:global>
-    #ar-form {
-      scroll-margin-top: 5rem;
-    }
     /* Reserve the result area while a scan runs: a real scan takes 5–10 s,
        so the loading → result swap falls outside the CLS input-exclusion
        window. Pushing the content below out of view at click time is
@@ -400,7 +397,6 @@ const jsonLd = [webApp, faqPage];
       padding: 1.4rem;
       margin-top: 1.4rem;
       color: var(--color-text-body);
-      scroll-margin-top: 5rem;
     }
     .ar-card:focus {
       outline: none;
