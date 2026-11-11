@@ -379,12 +379,10 @@
   html:has(#platform-selector) {
     scroll-padding-top: 8.5rem;
   }
-  /* Below lg, fixed controls sit along the bottom edge; keep focused elements
-     clear of them as well. */
-  @media (width < 64rem) {
-    html {
-      scroll-padding-bottom: 5rem;
-    }
+  /* The message launcher is pinned to the bottom right corner; keep focused
+     elements clear of it as well. */
+  html {
+    scroll-padding-bottom: 5rem;
   }
 
   /* <summary> in <details> ships with outline:none in some UA stylesheets;
@@ -1010,29 +1008,30 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     border-color: var(--color-border-strong);
   }
 
-  /* Floating widgets (QuickMessage, ShareFloat) vs overlays and the hero.
+  /* The floating message launcher (QuickMessage) vs overlays and the hero.
      While a modal dialog is open — the search dialog or the blog chart
-     lightbox, both setting data-dialog-open on <html> — the launchers hide.
-     At handset widths they also stay out of the first viewport (a fixed
+     lightbox, both setting data-dialog-open on <html> — the launcher hides.
+     At handset widths it also stays out of the first viewport (a fixed
      launcher would sit on top of the hero) until it has been scrolled past,
      signalled by data-fab-reveal on <html>; an already-open panel stays. */
-  html[data-dialog-open] .qm-root,
-  html[data-dialog-open] .share-fab-root {
+  html[data-dialog-open] .qm-root {
     display: none;
   }
-  /* While the site footer is on screen the launchers step aside at every width,
-     so they never sit on top of the footer text. */
-  html[data-footer-in-view] .qm-root:not([data-state='open']),
-  html[data-footer-in-view] .share-fab-root:not([data-state='open']) {
-    display: none;
+  /* While the site footer is on screen the launcher steps aside at every width,
+     so it never sits on top of the footer text. Not on a very short viewport:
+     there the launcher is not pinned (QuickMessage.astro), it sits in the page
+     flow after the footer and covers nothing. */
+  @media not (max-height: 480px) {
+    html[data-footer-in-view] .qm-root:not([data-state='open']) {
+      display: none;
+    }
   }
   /* The open mobile menu is modal: the page behind it does not scroll. */
   html[data-menu-open] {
     overflow: hidden;
   }
-  @media (max-width: 639px) {
-    html:not([data-fab-reveal]) .qm-root:not([data-state='open']),
-    html:not([data-fab-reveal]) .share-fab-root:not([data-state='open']) {
+  @media (max-width: 639px) and (not (max-height: 480px)) {
+    html:not([data-fab-reveal]) .qm-root:not([data-state='open']) {
       display: none;
     }
   }
@@ -1265,14 +1264,12 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
 
   /* Chrome that does not belong on paper. Only the site header (the one
      wrapping the main nav) goes; section and page headers carry content and
-     must print. The strip, overlays, the sticky mobile CTA, the search
+     must print. The strip, the message launcher, the search
      dialog, the docs menu disclosure and the inline "On this page" details
      are interactive-only; so is the code copy button. */
   [data-ui='telemetry-strip'],
   header:has(> nav[aria-label='Main navigation']),
   .qm-root,
-  .share-fab-root,
-  #sticky-cta,
   #site-search,
   #docs-menu,
   details:has(> nav[aria-label='On this page']),

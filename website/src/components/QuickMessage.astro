@@ -327,9 +327,6 @@
     function open() {
       if (root!.dataset.state === 'open') return;
       root!.dataset.state = 'open';
-      // Single-popup law: tell any sibling floating widget (Share) to close, so
-      // the two stacked corner popups are never open at once.
-      window.dispatchEvent(new CustomEvent('weamp:fab-open', { detail: { source: 'qm' } }));
       panel.hidden = false;
       launcher.setAttribute('aria-expanded', 'true');
       showForm(); // reset success->form if reopened after a send
@@ -379,10 +376,9 @@
       }
     });
 
-    // Single-popup law: close when a sibling floating widget (Share) opens.
-    window.addEventListener('weamp:fab-open', (e) => {
-      if ((e as CustomEvent).detail?.source !== 'qm') close();
-    });
+    // Close when another overlay (the search dialog, the blog chart lightbox)
+    // opens.
+    window.addEventListener('weamp:fab-open', () => close());
 
     // ---- view swap ----------------------------------------------------------
     function showForm() {
@@ -489,16 +485,30 @@
   /* ── Root + launcher ─────────────────────────────────────────────────── */
   .qm-root {
     position: fixed;
-    right: 1.5rem;
-    bottom: 1.5rem;
-    /* above content + sticky header (z-50) + mobile CTA (z-40); below the
-       skip-link (z-[100]). */
+    right: 1rem;
+    bottom: 1rem;
+    /* above content + sticky header (z-50); below the skip-link (z-[100]). */
     z-index: 60;
     font-family: var(--font-sans);
   }
   @supports (bottom: env(safe-area-inset-bottom)) {
     .qm-root {
-      bottom: calc(1.5rem + env(safe-area-inset-bottom));
+      bottom: calc(1rem + env(safe-area-inset-bottom));
+    }
+  }
+  /* A very short viewport (a phone on its side, a heavily zoomed window) has
+     no room to spare for a pinned control: the launcher leaves the corner and
+     sits in the page flow after the footer, so it never covers content or a
+     focused element (WCAG 2.4.11). The rules in global.css that keep a
+     pinned launcher off the hero and the footer are scoped to taller
+     viewports for the same reason. */
+  @media (max-height: 480px) {
+    .qm-root {
+      position: relative;
+      right: auto;
+      bottom: auto;
+      width: fit-content;
+      margin: 0 1rem 1rem auto;
     }
   }
 
@@ -506,8 +516,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 3rem;
-    height: 3rem;
+    width: 2.5rem;
+    height: 2.5rem;
     border-radius: var(--radius-control);
     background-color: var(--color-bg-recessed);
     color: var(--color-text-body);
@@ -545,7 +555,7 @@
   .qm-panel {
     position: absolute;
     right: 0;
-    bottom: calc(3rem + 0.75rem); /* sit above the launcher */
+    bottom: calc(2.5rem + 0.75rem); /* sit above the launcher */
     width: min(360px, calc(100vw - 2rem));
     background-color: var(--color-bg-elevated);
     border: 1px solid var(--color-border-strong);
@@ -788,18 +798,6 @@
     }
     .qm-launcher {
       transition: none;
-    }
-  }
-
-  /* ── Small screens: full-width sheet near the bottom ─────────────────── */
-  @media (max-width: 420px) {
-    .qm-root {
-      right: 0.75rem;
-      bottom: 0.75rem;
-    }
-    .qm-panel {
-      width: calc(100vw - 1.5rem);
-      right: 0;
     }
   }
 </style>

@@ -128,7 +128,7 @@ src/layouts/BaseLayout.astro The one layout: the page shell, the critical-CSS
                              dark-mode overrides, the global stylesheet import
 src/layouts/parts/           The layout's pieces: HeadMeta (meta tags, JSON-LD),
                              SiteHeader (nav), SiteFooter (links, the provenance
-                             notice), StickyCta. Menu and footer links: src/data/nav.ts
+                             notice). Menu and footer links: src/data/nav.ts
 src/lib/release.ts           getRelease(line) and artifactUrl(): typed manifest access
 src/lib/docs-markdown.mjs    The docs collection as Markdown: the render behind
                              /docs/<slug>.md and public/llms-full.txt

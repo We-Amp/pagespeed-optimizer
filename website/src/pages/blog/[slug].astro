@@ -449,9 +449,8 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         lastFocus = document.activeElement;
         lb.hidden = false;
         document.body.style.overflow = 'hidden';
-        // Marks the page as hosting a modal overlay: the floating share and
-        // message widgets hide while this attribute is set. Also close any
-        // of them that is open (single-popup law).
+        // Marks the page as hosting a modal overlay: the floating message
+        // widget hides while this attribute is set, and closes if it is open.
         document.documentElement.setAttribute('data-dialog-open', '');
         window.dispatchEvent(new CustomEvent('weamp:fab-open', { detail: { source: 'lightbox' } }));
         closeBtn?.focus();

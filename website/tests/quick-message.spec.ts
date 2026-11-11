@@ -119,30 +119,77 @@ test.describe('QuickMessage widget', () => {
     await expect(privacy.locator('a[href="https://we-amp.com/privacy/"]')).toBeVisible();
   });
 
-  test('launchers hide while the search dialog is open', async ({ page }) => {
+  test('the launcher hides while the search dialog is open', async ({ page }) => {
     await page.goto('/');
     const qm = page.locator('[data-qm-launcher]');
-    const share = page.locator('[data-share-fab-launcher]');
     await expect(qm).toBeVisible();
-    await expect(share).toBeVisible();
     await page.keyboard.press('/');
     await expect(page.locator('#site-search')).toBeVisible();
     await expect(qm).toBeHidden();
-    await expect(share).toBeHidden();
     await page.keyboard.press('Escape');
     await expect(qm).toBeVisible();
-    await expect(share).toBeVisible();
   });
 
   test('at handset width the launcher waits for the first viewport to pass', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     const qm = page.locator('[data-qm-launcher]');
-    const share = page.locator('[data-share-fab-launcher]');
     await expect(qm).toBeHidden();
-    await expect(share).toBeHidden();
     await page.evaluate(() => window.scrollTo(0, window.innerHeight));
     await expect(qm).toBeVisible();
-    await expect(share).toBeVisible();
+  });
+
+  test('the launcher is the only floating control: 40 px, 16 px from the corner', async ({
+    page,
+  }) => {
+    for (const path of ['/', '/docs/configuration/', '/blog/']) {
+      await page.goto(path);
+      await expect(page.locator('[data-share-fab], #sticky-cta')).toHaveCount(0);
+      // Past the first viewport: at handset width the launcher waits for that.
+      await page.evaluate(() => window.scrollTo(0, window.innerHeight));
+      await expect(page.locator('[data-qm-launcher]')).toBeVisible();
+      const box = await page.locator('[data-qm-launcher]').boundingBox();
+      const vp = page.viewportSize()!;
+      expect(box, path).not.toBeNull();
+      expect(Math.round(box!.width)).toBe(40);
+      expect(Math.round(box!.height)).toBe(40);
+      expect(Math.round(vp.width - (box!.x + box!.width))).toBe(16);
+      expect(Math.round(vp.height - (box!.y + box!.height))).toBe(16);
+    }
+  });
+
+  test('on a very short viewport the launcher is not pinned', async ({ page }) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto('/pricing/');
+    const root = page.locator('[data-qm]');
+    expect(await root.evaluate((e) => getComputedStyle(e).position)).not.toBe('fixed');
+    // It sits in the page flow after the footer and still opens.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const launcher = page.locator('[data-qm-launcher]');
+    await expect(launcher).toBeVisible();
+    const order = await page.evaluate(() => {
+      const footer = document.querySelector('[data-site-footer]')!.getBoundingClientRect();
+      const qm = document.querySelector('[data-qm-launcher]')!.getBoundingClientRect();
+      return qm.top >= footer.bottom - 1;
+    });
+    expect(order).toBe(true);
+    await launcher.click();
+    await expect(page.locator('[data-qm-panel]')).toBeVisible();
+
+    // The boundary itself, at handset width: in the flow from the start, so
+    // the page does not grow when the first viewport has been scrolled past.
+    await page.setViewportSize({ width: 390, height: 480 });
+    await page.goto('/');
+    expect(await root.evaluate((e) => getComputedStyle(e).position)).not.toBe('fixed');
+    expect(await root.evaluate((e) => getComputedStyle(e).display)).not.toBe('none');
+  });
+
+  test('the launcher is inert while the mobile menu is open', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.locator('#mobile-menu-btn').click();
+    await expect(page.locator('[data-qm]')).toHaveAttribute('inert', '');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('[data-qm]')).not.toHaveAttribute('inert', '');
   });
 });

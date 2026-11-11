@@ -2,18 +2,16 @@
 import { PRODUCT_DISPLAY_NAME, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 import HeadMeta from './parts/HeadMeta.astro';
 import QuickMessage from '../components/QuickMessage.astro';
-import ShareFloat from '../components/ShareFloat.astro';
 import SearchDialog from '../components/SearchDialog.astro';
 import Icon from '../components/Icon.astro';
 import TelemetryStrip from '../components/instrument/TelemetryStrip.astro';
 import SiteHeader from './parts/SiteHeader.astro';
 import SiteFooter from './parts/SiteFooter.astro';
-import StickyCta from './parts/StickyCta.astro';
 import { searchTitle, searchWeight } from '../lib/search-index';
 
 // The page shell. The pieces live next to this file: parts/HeadMeta.astro
 // (document metadata), parts/SiteHeader.astro and parts/SiteFooter.astro
-// (navigation, with its data in src/data/nav.ts) and parts/StickyCta.astro.
+// (navigation, with its data in src/data/nav.ts).
 // What stays here is what must: the inline critical styles and pre-paint
 // script, the global stylesheet import, the banner, <main>, and the scripts.
 //
@@ -320,16 +318,11 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
          the search bundle loads from /pagefind/ on first open. */}
     <SearchDialog />
 
-    {/* Site-wide floating "Share this page" widget — stacked above the Message
-        launcher; popup on desktop, native share sheet on mobile. */}
-    <ShareFloat title={title} />
-
-    {/* Handset widths: the fixed share/message launchers would sit on top of
-        the hero, so they stay hidden until the first viewport has been
-        scrolled past (same trigger as the sticky CTA below). While the footer
-        is on screen, at any width, the launchers hide so they never sit on top
-        of the footer text. Toggles data attributes; the hide/show itself is
-        pure CSS in global.css. */}
+    {/* Handset widths: the fixed message launcher would sit on top of the
+        hero, so it stays hidden until the first viewport has been scrolled
+        past. While the footer is on screen, at any width, the launcher hides
+        so it never sits on top of the footer text. Toggles data attributes;
+        the hide/show itself is pure CSS in global.css. */}
     <script is:inline>
       (function () {
         function update() {
@@ -350,7 +343,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         }
       })();
     </script>
-    <StickyCta />
 
     <!-- Dark class is now set in <head> to prevent FOUC on iOS -->
 
@@ -367,7 +359,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       const behindMenu = () =>
         Array.from(
           document.querySelectorAll<HTMLElement>(
-            'main, footer, a[href="#main-content"], [data-ui="telemetry-strip"], #coming-soon-banner, #sticky-cta, .qm-root, .share-fab-root',
+            'main, footer, a[href="#main-content"], [data-ui="telemetry-strip"], #coming-soon-banner, .qm-root',
           ),
         );
       const menuOpen = () => btn?.getAttribute('aria-expanded') === 'true';
@@ -384,15 +376,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         if (!btn || !menu) return;
         btn.setAttribute('aria-expanded', String(open));
         document.documentElement.toggleAttribute('data-menu-open', open);
-        behindMenu().forEach((el) => {
-          if (el.id === 'sticky-cta') {
-            // The sticky CTA owns its own inert state; only force it on.
-            if (open) el.setAttribute('inert', '');
-            else el.dispatchEvent(new Event('menuclose'));
-          } else {
-            el.toggleAttribute('inert', open);
-          }
-        });
+        behindMenu().forEach((el) => el.toggleAttribute('inert', open));
         menu.classList.toggle('hidden', !open);
         iconOpen?.classList.toggle('hidden', open);
         iconClose?.classList.toggle('hidden', !open);
