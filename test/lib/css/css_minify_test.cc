@@ -168,6 +168,17 @@ TEST(CssMinifyTest, PreservedCommentInCustomPropertyValue) {
   ExpectMinify(":root{--x:/*! keep */ v}", ":root{--x:/*! keep */ v}");
 }
 
+TEST(CssMinifyTest, PreservedCommentMarkerInsideStringOrUrlIsNotAComment) {
+  // A "/*!" inside a string or url() is content, not a comment: it is
+  // neither parsed as a preserved comment nor altered.
+  ExpectMinify("h1::after { content: \"/*! x */\"; }",
+               "h1::after{content:\"/*! x */\"}");
+  ExpectMinify("h1 { background: url(\"a/*!b*/c.png\"); }",
+               "h1{background:url(\"a/*!b*/c.png\")}");
+  ExpectMinify("h1 { background: url(a/*!b*/c.png); }",
+               "h1{background:url(a/*!b*/c.png)}");
+}
+
 TEST(CssMinifyTest, PreservedCommentUnterminated) {
   // No "*/" and no crash: the comment runs to end of input and is
   // closed on output, so the result stays well-formed when it is
