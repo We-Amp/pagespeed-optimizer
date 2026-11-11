@@ -9,6 +9,7 @@ import TelemetryStrip from '../components/instrument/TelemetryStrip.astro';
 import SiteHeader from './parts/SiteHeader.astro';
 import SiteFooter from './parts/SiteFooter.astro';
 import StickyCta from './parts/StickyCta.astro';
+import { searchTitle, searchWeight } from '../lib/search-index';
 
 // The page shell. The pieces live next to this file: parts/HeadMeta.astro
 // (document metadata), parts/SiteHeader.astro and parts/SiteFooter.astro
@@ -302,7 +303,9 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       class="flex-1"
       data-pagefind-body={searchExcluded ? undefined : ''}
       data-pagefind-meta={searchExcluded ? undefined : `section:${searchSection}`}
+      data-pagefind-weight={searchExcluded ? undefined : searchWeight(rawPath)}
     >
+      {searchTitle(rawPath) && <span hidden data-pagefind-meta={`title:${searchTitle(rawPath)}`} />}
       <slot />
     </main>
 

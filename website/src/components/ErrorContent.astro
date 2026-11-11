@@ -11,16 +11,28 @@
 // is filled from location.pathname on load (nginx's internal redirect keeps
 // the browser URL). The /error/500/ copy also serves 502/503/504, so there the
 // status reads 5xx; the /error/404/ copy only ever serves 404.
+// A 404 is a lost visitor, so instead of one onward link it offers the site
+// search (opened with the last segment of the missing path as the query; see
+// SearchDialog.astro) and a short row of the pages most people were after.
+// Its readout is two lines of status, not something to paste: no copy button.
 import TermPanel from './instrument/TermPanel.astro';
 
 interface Props {
   code: string;
   heading: string;
   body: string;
-  linkHref: string;
-  linkLabel: string;
+  linkHref?: string;
+  linkLabel?: string;
 }
 const { code, heading, body, linkHref, linkLabel } = Astro.props;
+const notFound = code === '404';
+const startLinks = [
+  { href: '/docs/getting-started/', label: 'Install' },
+  { href: '/docs/configuration/', label: 'Configuration reference' },
+  { href: '/docs/filters/', label: 'Filter reference' },
+  { href: '/download/', label: 'Download' },
+  { href: '/support/', label: 'Support' },
+];
 
 const path = Astro.url.pathname;
 const isPrerenderedCopy = path.startsWith('/error/');
@@ -37,6 +49,7 @@ const statusLine = isPrerenderedCopy && code === '500' ? '→ 5xx' : `→ ${code
   <div class="mt-10 mx-auto max-w-md text-left" data-error-readout>
     <TermPanel
       labelledby="error-heading"
+      copy={!notFound}
       lines={[
         { text: requestLine, tone: 'strong' },
         { text: statusLine, tone: 'hl' },
@@ -52,17 +65,50 @@ const statusLine = isPrerenderedCopy && code === '500' ? '→ 5xx' : `→ ${code
       if (line) line.textContent = 'GET ' + location.pathname + '\n';
     })();
   </script>
-  <div class="mt-10 flex items-center justify-center gap-4">
+  <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
     <a href="/" class="btn-primary">
       {' '}
       Go home{' '}
     </a>
-    <a
-      href={linkHref}
-      class="text-sm font-semibold text-text-muted hover:text-text-body transition-colors"
-    >
-      {linkLabel}
-      <span aria-hidden="true">&rarr;</span>
-    </a>
+    {notFound ? (
+      <button
+        type="button"
+        class="btn-secondary"
+        data-search-open
+        data-search-prefill-path
+        data-umami-event="error_404_search"
+        aria-haspopup="dialog"
+        aria-controls="site-search"
+      >
+        Search the site
+      </button>
+    ) : (
+      linkHref &&
+      linkLabel && (
+        <a
+          href={linkHref}
+          class="text-sm font-semibold text-text-muted hover:text-text-body transition-colors"
+        >
+          {linkLabel}
+          <span aria-hidden="true">&rarr;</span>
+        </a>
+      )
+    )}
   </div>
+  {notFound && (
+    <ul class="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 list-none p-0">
+      {startLinks.map((link) => (
+        <li>
+          <a
+            href={link.href}
+            data-umami-event="error_404_link"
+            data-umami-event-to={link.href}
+            class="inline-flex min-h-11 items-center px-3 text-sm font-semibold text-text-muted underline underline-offset-4 decoration-border-strong hover:text-text-body hover:decoration-interactive transition-colors"
+          >
+            {link.label}
+          </a>
+        </li>
+      ))}
+    </ul>
+  )}
 </section>
