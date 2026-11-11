@@ -5,7 +5,7 @@ seoTitle: 'Install mod_pagespeed: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-11
 faq:
   - q: 'Which mod_pagespeed integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
@@ -24,10 +24,6 @@ web server and an optimizer worker that does the heavy work beside it. Pick the
 integration that matches how you serve pages, run the few lines under it, then
 check the result with the same two requests. Every path below is free to
 install and run; the software is licensed under the Apache License 2.0.
-Since 2.5.0 every artifact of a release carries the release number (the Helm
-chart keeps its own chart version, and the Sidecar package is versioned on its
-own); the [version map](/docs/release-notes/#version-map) lists them per
-release.
 
 ## Pick an integration
 
@@ -233,3 +229,8 @@ recommended mode while you validate your setup. See
   per deployment shape
 - [Monitoring](/docs/monitoring/): health, metrics and what to alert on
 - [Troubleshooting](/docs/troubleshooting/): common issues and diagnostics
+
+Since 2.5.0 every artifact of a release carries the release number (the Helm
+chart keeps its own chart version, and the Sidecar package is versioned on its
+own); the [version map](/docs/release-notes/#version-map) lists them per
+release.

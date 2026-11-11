@@ -306,10 +306,6 @@ web server and an optimizer worker that does the heavy work beside it. Pick the
 integration that matches how you serve pages, run the few lines under it, then
 check the result with the same two requests. Every path below is free to
 install and run; the software is licensed under the Apache License 2.0.
-Since 2.5.0 every artifact of a release carries the release number (the Helm
-chart keeps its own chart version, and the Sidecar package is versioned on its
-own); the [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists them per
-release.
 
 ## Pick an integration
 
@@ -513,6 +509,11 @@ recommended mode while you validate your setup. See
   per deployment shape
 - [Monitoring](https://modpagespeed.com/docs/monitoring/): health, metrics and what to alert on
 - [Troubleshooting](https://modpagespeed.com/docs/troubleshooting/): common issues and diagnostics
+
+Since 2.5.0 every artifact of a release carries the release number (the Helm
+chart keeps its own chart version, and the Sidecar package is versioned on its
+own); the [version map](https://modpagespeed.com/docs/release-notes/#version-map) lists them per
+release.
 
 ## Frequently asked questions
 
@@ -2921,19 +2922,23 @@ Upgrade mod_pagespeed per shape: apt or dnf, Docker tag, Helm, the Windows insta
 
 Canonical URL: https://modpagespeed.com/docs/upgrade/
 
+## Where are you coming from
+
+| You run | Read |
+| --- | --- |
+| mod_pagespeed 2.x | This page |
+| mod_pagespeed 1.15 | [Migrate from mod_pagespeed 1.15](https://modpagespeed.com/docs/migrate-from-1-15/) |
+| The archived Google module | [Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/) |
+| ngx_pagespeed | [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/) |
+| IISpeed | [Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/) |
+| ModPageSpeed 2.0 | [Migrate from ModPageSpeed 2.0](https://modpagespeed.com/docs/migrating-to-2-1/) |
+
 The current release is v2.8.1. Upgrading is a
 package, image or chart update on whichever shape you run, with one rule across
 all of them: the module and the optimizer worker move together, and the
 optimizer starts first. Read the current release's notes before you start; the
 one-time steps a release needs are listed under "Before you upgrade" in the
 [release notes](https://modpagespeed.com/docs/release-notes/#current-release).
-
-Coming from another line or project? See
-[Migrate from mod_pagespeed 1.15](https://modpagespeed.com/docs/migrate-from-1-15/),
-[Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/),
-[Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/),
-[Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/) or
-[Migrate from ModPageSpeed 2.0](https://modpagespeed.com/docs/migrating-to-2-1/).
 
 ## Before you upgrade
 

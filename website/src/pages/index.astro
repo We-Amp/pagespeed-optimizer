@@ -266,10 +266,10 @@ const jsonLd = [organization, website, product, faqPage];
           <a href="/download/" class="btn-primary" data-umami-event="cta_primary_home_hero">
             Download &amp; run
           </a>
-          <a href="/demo/" class="btn-secondary">
+          <a href="/demo/" class="btn-secondary" data-umami-event="cta_home_hero_demo">
             See the demo
           </a>
-          <a href="/docs/" class="btn-secondary">
+          <a href="/docs/" class="btn-secondary" data-umami-event="cta_home_hero_docs">
             Read the docs
           </a>
         </div>
@@ -292,10 +292,20 @@ const jsonLd = [organization, website, product, faqPage];
           Running IIS or ASP.NET Core?{' '}
           <a
             href="/download/"
-            data-umami-event="cta_home_hero_11"
+            data-umami-event="cta_home_hero_iis_aspnet"
             class="font-medium text-interactive hover:underline"
           >
             see the IIS and ASP.NET Core packages &rarr;
+          </a>
+        </p>
+        <p class="mt-2 text-sm text-text-muted">
+          Already running mod_pagespeed 1.x or ngx_pagespeed? Your pagespeed directives carry over.{' '}
+          <a
+            href="/docs/upgrade/"
+            data-umami-event="cta_home_hero_upgrade"
+            class="font-medium text-interactive hover:underline"
+          >
+            Upgrade guide &rarr;
           </a>
         </p>
         <p class="mt-4 text-sm text-text-annotation">
@@ -724,7 +734,7 @@ const jsonLd = [organization, website, product, faqPage];
                 &rarr;{' '}
                 <a
                   href="/download/"
-                  data-umami-event="cta_home_disambiguator_11"
+                  data-umami-event="cta_home_disambiguator_iis"
                   class="font-semibold text-interactive hover:underline"
                 >
                   the IIS module
