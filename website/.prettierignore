@@ -4,6 +4,11 @@
 # intact.
 src/layouts/BaseLayout.astro
 
+# The layout's parts are hand-formatted too. The build does not compress HTML,
+# so the indentation in these files is the whitespace of every page; they keep
+# the indentation their markup has inside the layout's <head> and <body>.
+src/layouts/parts/
+
 # Prettier rewrites the tile fragment in a way the Astro compiler output
 # does not round-trip cleanly; the file is kept in its hand-formatted shape.
 src/components/scan/ResultsView.astro
