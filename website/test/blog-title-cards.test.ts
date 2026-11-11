@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// blog-title-cards.test.ts: every published blog post needs its generated title
-// card (public/og-cards/<slug>.png) committed with it. The build renders a
-// missing card on the fly, so a post that lands without one still gets a social
-// image, but every later build then leaves an untracked PNG in the tree. A post
-// that sets `coverImage` brings its own image and needs no card.
+// blog-title-cards.test.ts: every blog post needs its generated title card
+// (public/og-cards/<slug>.png) committed with it. The build renders a missing
+// card on the fly, so a post that lands without one still gets a social image,
+// but every later build then leaves an untracked PNG in the tree. A post that
+// sets `coverImage` brings its own image and needs no card.
+//
+// This follows scripts/generate-title-cards.mjs: drafts get a card too. The
+// one difference is .mdx: the generator reads only .md posts, while the post
+// page points an .mdx post at a card as well, so such a post is checked here
+// and needs the generator extended before its card can exist.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -25,7 +30,7 @@ function postsNeedingCard(): string[] {
       const fm =
         /^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(path.join(blogDir, file), 'utf8'))?.[1] ??
         '';
-      return !/^draft:\s*true\s*$/m.test(fm) && !/^coverImage:\s*\S/m.test(fm);
+      return !/^coverImage:\s*\S/m.test(fm);
     })
     .map((file) => file.replace(/\.mdx?$/, ''));
 }
@@ -41,7 +46,7 @@ function trackedCards(): Set<string> | null {
 }
 
 describe('blog title cards', () => {
-  it('every published post has its title card committed', () => {
+  it('every post has its title card committed', () => {
     const slugs = postsNeedingCard();
     expect(slugs.length).toBeGreaterThan(0);
     const tracked = trackedCards();
@@ -50,7 +55,7 @@ describe('blog title cards', () => {
     );
     expect(
       missing,
-      'run the build once and commit the generated public/og-cards/<slug>.png',
+      'run the build once and commit the generated public/og-cards/<slug>.png (.md posts)',
     ).toEqual([]);
   });
 });

@@ -56,12 +56,16 @@ Inlining the whole sheet at build time would add its gzip size to every page vie
 ## Theme and error pages
 
 - **The site is dark-only.** `BaseLayout.astro` always renders `<html class="dark">` with
-  `color-scheme: dark`; there is no toggle and no light theme. Review, screenshot and
-  contrast-check pages in dark only.
+  `color-scheme: dark`; there is no toggle and no light theme on screen. Review, screenshot
+  and contrast-check pages in dark only.
 - The light values in the `@theme` block of `src/styles/global.css` are only the defaults
   Tailwind needs to generate its utilities; the `.dark` block overrides them
-  and is what visitors see. Do not design against the light values or treat them as a
-  second theme. The same goes for the light half of the Shiki code theme.
+  and is what visitors see on screen. Do not design against the light values or treat
+  them as a second screen theme.
+- **The one light rendering is print.** The `@media print` block in `global.css` re-declares
+  the tokens with the same light values and prints code blocks in the light half of the
+  Shiki theme. Keep the two sets of light values in step, check the print view when a
+  change touches tokens, and do not remove the light Shiki theme.
 - **Review the 404 page locally at `/error/404/`** (and the 500 page at `/error/500/`). The
   local production server (`node dist/server/entry.mjs`) answers an unknown URL with a 404
   status and a bare redirect stub, not the designed page; in production the web server
