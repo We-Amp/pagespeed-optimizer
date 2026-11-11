@@ -1,0 +1,79 @@
+---
+// Mobile-only sticky CTA (CONV): a fixed bottom pill that surfaces the primary
+// "Install" funnel after the user scrolls past the hero. Scoped to the four
+// conversion routes only — content/docs/tool pages don't get it. Normalize the
+// inbound path to a trailing slash so a non-trailing URL still matches. It's a
+// fixed overlay (no layout shift / no CLS) and is hidden (opacity-0 +
+// pointer-events-none) until the scroll script flips it on, so it's never a
+// hidden tap target.
+const rawPath = Astro.url.pathname;
+const stickyCtaPath = rawPath.endsWith('/') ? rawPath : `${rawPath}/`;
+const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(stickyCtaPath);
+
+// Markup here keeps the layout's indentation: the build does not compress
+// HTML, so whitespace in this file is whitespace in every page.
+---
+    {/* Mobile-only sticky conversion CTA. Fixed overlay (never pushes content,
+         so no CLS), anchored above the iOS home-indicator via the safe-area
+         inset. Starts hidden (visibility:hidden + inert, so it is neither focusable nor
+         announced while invisible, plus opacity for the fade) and the inline
+         script below flips data-sticky-cta="visible" — revealed by fading in
+         (opacity only) once the user scrolls past ~90% of the first viewport.
+         Do NOT animate it in with a downward translate (translate-y): a
+         transform that pushes a position:fixed box below the viewport bottom
+         makes real iOS Safari add that distance to the page's scrollable height
+         (a restable phantom void below the footer), even though Chromium and
+         headless WebKit don't reproduce it. Horizontal centering keeps
+         -translate-x-1/2 (its extent stays within the viewport, so it's safe).
+         The global prefers-reduced-motion reset in global.css caps the
+         transition to a single frame. z-40 sits below the sticky header (z-50)
+         and the skip link (z-[100]). */}
+    {showStickyCta && (
+      <nav aria-label="Quick actions" class="lg:hidden">
+        <a
+          id="sticky-cta"
+          href="/download/"
+          data-umami-event="cta_sticky_mobile"
+          data-sticky-cta="hidden"
+          inert
+          class="btn-primary fixed bottom-0 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full invisible opacity-0 shadow-lg transition-[opacity,visibility] duration-150 ease-out pointer-events-none data-[sticky-cta=visible]:visible data-[sticky-cta=visible]:opacity-100 data-[sticky-cta=visible]:pointer-events-auto"
+          style="margin-bottom: calc(1rem + env(safe-area-inset-bottom));"
+        >
+          Download &amp; run
+        </a>
+      </nav>
+    )}
+
+    {showStickyCta && <script is:inline>
+      /* Reveal the mobile sticky CTA once the user scrolls past the hero
+             (~90% of the first viewport). Toggles a data attribute; the fade is
+             pure CSS so reduced-motion users still get an instant flip via the
+             global motion reset. */
+      (function () {
+        var cta = document.getElementById('sticky-cta');
+        if (!cta) return;
+        var footerInView = false;
+        function update() {
+          var past = window.scrollY > window.innerHeight * 0.9;
+          var show = past && !footerInView;
+          cta.setAttribute('data-sticky-cta', show ? 'visible' : 'hidden');
+          cta.toggleAttribute(
+            'inert',
+            !show || document.documentElement.hasAttribute('data-menu-open'),
+          );
+        }
+        /* Hide it while the footer is on screen so it never covers the
+               provenance line. */
+        var footer = document.querySelector('[data-site-footer]');
+        if (footer && 'IntersectionObserver' in window) {
+          new IntersectionObserver(function (entries) {
+            footerInView = entries[0].isIntersecting;
+            update();
+          }).observe(footer);
+        }
+        cta.addEventListener('menuclose', update);
+        update();
+        window.addEventListener('scroll', update, { passive: true });
+        window.addEventListener('resize', update, { passive: true });
+      })();
+    </script>}

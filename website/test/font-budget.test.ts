@@ -38,8 +38,8 @@ describe('Inter subset budget', () => {
 
   it('the @font-face and the preload name the same file', () => {
     expect(fontFace('Inter')).toContain("url('/fonts/inter-variable-subset.woff2')");
-    const layout = readFileSync(path('../src/layouts/BaseLayout.astro'), 'utf8');
-    expect(layout).toContain('href="/fonts/inter-variable-subset.woff2"');
+    const head = readFileSync(path('../src/layouts/parts/HeadMeta.astro'), 'utf8');
+    expect(head).toContain('href="/fonts/inter-variable-subset.woff2"');
   });
 });
 
