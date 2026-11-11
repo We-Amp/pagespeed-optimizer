@@ -86,7 +86,14 @@ test.describe('/download/ install command', () => {
   });
 });
 
-test.describe('/download/ integration cards', () => {
+test.describe('/download/ signposts', () => {
+  test('upgraders get a link to the upgrade guide', async ({ page }) => {
+    await page.goto('/download/');
+    const link = page.locator('a[data-umami-event="cta_download_upgrade"]');
+    await expect(link).toHaveAttribute('href', '/docs/upgrade/');
+    await expect(link).toContainText('Upgrade guide');
+  });
+
   test('every integration card has its own anchor', async ({ page }) => {
     await page.goto('/download/');
     const anchors: Array<[string, string]> = [
@@ -103,5 +110,15 @@ test.describe('/download/ integration cards', () => {
       await expect(card).toHaveCount(1);
       await expect(card.getByRole('heading', { level: 3 })).toHaveText(name);
     }
+    await expect(page.locator('a.card#apache')).toContainText('Install on Apache');
+    await expect(page.locator('a.card#nginx')).toContainText('Install on nginx');
+  });
+
+  test('the nginx walkthrough link stays on this site', async ({ page }) => {
+    await page.goto('/download/');
+    await expect(page.locator('main a[href*="ngxpagespeed.com"]')).toHaveCount(0);
+    await expect(
+      page.locator('main').getByRole('link', { name: 'nginx install guide', exact: true }),
+    ).toHaveAttribute('href', '/docs/installation-module/#native-nginx-module');
   });
 });

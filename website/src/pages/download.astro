@@ -20,8 +20,9 @@ import { productJsonLd } from '../data/software-jsonld';
 import VersionMap from '../components/release/VersionMap.astro';
 
 const rel21 = await getRelease('2.1');
-// The download page is where the version is the point: every current card and
-// the title carry the exact release from the manifest.
+// The download page is where the version is the point: the title, the chip
+// above the integration grid and the versions section carry the exact release
+// from the manifest.
 const CURRENT_RELEASE = `mod_pagespeed ${rel21.release.semver}`;
 
 // The install commands shown under the heading. They repeat, character for
@@ -83,38 +84,37 @@ const rel21DockerTag = dockerTag(rel21);
 // your integration" grid, not a separate .NET section. requirements + the umami
 // event live on each entry so the grid renders straight from this array. `id`
 // is the card's anchor, so other pages can link straight to one integration.
+// `product` is set only where a card is not the current release: the chip
+// above the grid names the current one once.
 // Row order: current-line native integrations first (Apache, nginx), then
 // Docker, Helm, IIS, the ASP.NET Core middleware, and the sidecar.
 const integrations = [
   {
     id: 'apache',
     name: 'Apache',
-    product: CURRENT_RELEASE,
     badge: 'Native module',
     description:
       'Prebuilt signed package from the apt/yum repository — apt-get on Debian and Ubuntu, dnf on Enterprise Linux. Drop-in replacement for the open-source build.',
     requirements: `Debian 12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) & 10 (x86_64); Apache ${rel21.compat.apache.apache_versions.join('/')}.`,
     href: '/download/apt-yum/',
-    cta: 'Repo setup guide',
+    cta: 'Install on Apache',
     umamiEvent: 'cta_download_apache',
   },
   {
     id: 'nginx',
     name: 'nginx',
-    product: CURRENT_RELEASE,
     badge: 'Native module',
     description:
       "Prebuilt signed dynamic module from the apt/yum repository, pinned to each distro's stock nginx. Loads alongside your existing nginx binary — no rebuild, no traffic detour.",
     requirements:
       "Debian 12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) via dnf, EL10 (x86_64). Each module is pinned to its distro's exact stock nginx — running a different nginx version? Contact us for a matching build.",
     href: '/download/apt-yum/',
-    cta: 'Repo setup guide',
+    cta: 'Install on nginx',
     umamiEvent: 'cta_download_nginx',
   },
   {
     id: 'docker',
     name: 'nginx (Docker)',
-    product: CURRENT_RELEASE,
     badge: 'Reverse proxy',
     description:
       'Run the optimizer worker and an nginx with the thin nginx module as Docker containers in front of your origin. The image brings its own nginx and module, so your nginx binary and config stay as they are.',
@@ -126,7 +126,6 @@ const integrations = [
   {
     id: 'helm',
     name: 'Helm',
-    product: CURRENT_RELEASE,
     badge: 'Kubernetes',
     description:
       'Official Helm chart deploys nginx and the worker as a two-container pod, sharing a Cyclone cache volume. Pulls the public images directly — no registry credentials required.',
@@ -138,7 +137,6 @@ const integrations = [
   {
     id: 'iis',
     name: 'IIS',
-    product: CURRENT_RELEASE,
     badge: 'Native module',
     description:
       'MSI installer for Windows Server. Enable in IIS Manager, iisreset, and the optimization pipeline is live.',
@@ -151,7 +149,6 @@ const integrations = [
   {
     id: 'aspnet-core',
     name: 'ASP.NET Core',
-    product: CURRENT_RELEASE,
     badge: 'NuGet middleware',
     description:
       'Two lines in Program.cs add the optimization pipeline to any ASP.NET Core app. Runs in-process — no sidecar, no Docker.',
@@ -202,17 +199,26 @@ const jsonLd = await productJsonLd({
     <p class="lede mt-8 max-w-2xl mx-auto">
       {LICENSE_CLAUSE_CAP} — free to install and run, in development and in production.
     </p>
+    <p class="mt-4 max-w-2xl mx-auto text-sm text-text-muted">
+      Already running mod_pagespeed 1.x or ngx_pagespeed? Your pagespeed directives carry over.{' '}
+      <a
+        href="/docs/upgrade/"
+        data-umami-event="cta_download_upgrade"
+        class="text-interactive hover:text-interactive-hover underline"
+      >
+        Upgrade guide <span aria-hidden="true">&rarr;</span>
+      </a>
+    </p>
   </section>
 
   <!-- One merged "pick your integration" section: native servers + Docker/Helm + ASP.NET Core -->
   <section id="integrations" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-8 lg:pt-12">
     <h2 class="h2-section text-text-body">Apache, nginx, Docker, Helm, IIS &amp; ASP.NET Core</h2>
-    <p class="mt-4 text-lg text-text-body">
-      Every way to run it, in one place. mod_pagespeed's native module installs on Apache and nginx
-      from the signed apt/yum repository, or runs as a Docker container fronting nginx — deploy that
-      with Helm on Kubernetes. Windows/IIS gets a signed installer from the GitHub release, and
-      ASP.NET Core apps get a NuGet middleware or a Linux sidecar. Each card shows which package it
-      comes from and how it integrates.
+    <p class="mt-4 max-w-3xl text-text-muted">
+      Apache and nginx get a native module from the signed apt/yum repository. Docker runs a
+      container fronting nginx, with a Helm chart for Kubernetes. Windows/IIS gets a signed
+      installer. ASP.NET Core gets a NuGet middleware or a Linux sidecar. Each card shows which
+      package it comes from and how it integrates.
     </p>
     <p class="mt-3 text-sm text-text-annotation inline-flex items-center gap-3">
       <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 font-mono text-xs text-text-body">
@@ -240,7 +246,9 @@ const jsonLd = await productJsonLd({
         >
           <div class="flex items-baseline justify-between gap-3">
             <h3 class="text-xl font-semibold text-text-body">{integration.name}</h3>
-            <span class="text-xs font-semibold text-text-body">{integration.product}</span>
+            {integration.product && (
+              <span class="text-xs font-semibold text-text-body">{integration.product}</span>
+            )}
           </div>
           <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-text-body">
             {integration.badge}
@@ -366,14 +374,14 @@ const jsonLd = await productJsonLd({
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-20">
     <h2 class="text-base font-semibold text-text-body">Other integration paths</h2>
     <p class="mt-3 text-sm text-text-muted">
-      Running nginx specifically?{' '}
+      The{' '}
       <a
-        href="https://ngxpagespeed.com/"
+        href="/docs/installation-module/#native-nginx-module"
         class="text-interactive hover:text-interactive-hover underline"
       >
-        ngxpagespeed.com
+        nginx install guide
       </a>{' '}
-      has the nginx install walkthrough.
+      has the full walkthrough for the native module.
     </p>
     <p class="mt-3 text-sm text-text-muted">
       IISpeed customer? Contact us about moving to mod_pagespeed — IIS deployments run on the native
