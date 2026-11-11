@@ -3,7 +3,7 @@ title: 'Upgrade and migrate'
 description: 'Upgrade mod_pagespeed per shape: apt or dnf, Docker tag, Helm, the Windows installer and NuGet; what to read first, security updates, rollback.'
 order: 10
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-11-11
 datePublished: 2026-10-08
 faq:
   - q: 'Do I upgrade the module and the optimizer worker separately?'
@@ -16,13 +16,6 @@ import ImageTag from '../../components/release/ImageTag.astro';
 import Version from '../../components/release/Version.astro';
 import NugetCmd from '../../components/release/NugetCmd.astro';
 
-The current release is <Version line="2.1" style="badge" />. Upgrading is a
-package, image or chart update on whichever shape you run, with one rule across
-all of them: the module and the optimizer worker move together, and the
-optimizer starts first. Read the current release's notes before you start; the
-one-time steps a release needs are listed under "Before you upgrade" in the
-[release notes](/docs/release-notes/#current-release).
-
 ## Where are you coming from
 
 | You run | Read |
@@ -33,6 +26,13 @@ one-time steps a release needs are listed under "Before you upgrade" in the
 | ngx_pagespeed | [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/) |
 | IISpeed | [Migrate from IISpeed](/docs/migrate-from-iispeed/) |
 | ModPageSpeed 2.0 | [Migrate from ModPageSpeed 2.0](/docs/migrating-to-2-1/) |
+
+The current release is <Version line="2.1" style="badge" />. Upgrading is a
+package, image or chart update on whichever shape you run, with one rule across
+all of them: the module and the optimizer worker move together, and the
+optimizer starts first. Read the current release's notes before you start; the
+one-time steps a release needs are listed under "Before you upgrade" in the
+[release notes](/docs/release-notes/#current-release).
 
 ## Before you upgrade
 

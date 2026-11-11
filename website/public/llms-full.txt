@@ -2922,13 +2922,6 @@ Upgrade mod_pagespeed per shape: apt or dnf, Docker tag, Helm, the Windows insta
 
 Canonical URL: https://modpagespeed.com/docs/upgrade/
 
-The current release is v2.8.1. Upgrading is a
-package, image or chart update on whichever shape you run, with one rule across
-all of them: the module and the optimizer worker move together, and the
-optimizer starts first. Read the current release's notes before you start; the
-one-time steps a release needs are listed under "Before you upgrade" in the
-[release notes](https://modpagespeed.com/docs/release-notes/#current-release).
-
 ## Where are you coming from
 
 | You run | Read |
@@ -2939,6 +2932,13 @@ one-time steps a release needs are listed under "Before you upgrade" in the
 | ngx_pagespeed | [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/) |
 | IISpeed | [Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/) |
 | ModPageSpeed 2.0 | [Migrate from ModPageSpeed 2.0](https://modpagespeed.com/docs/migrating-to-2-1/) |
+
+The current release is v2.8.1. Upgrading is a
+package, image or chart update on whichever shape you run, with one rule across
+all of them: the module and the optimizer worker move together, and the
+optimizer starts first. Read the current release's notes before you start; the
+one-time steps a release needs are listed under "Before you upgrade" in the
+[release notes](https://modpagespeed.com/docs/release-notes/#current-release).
 
 ## Before you upgrade
 
