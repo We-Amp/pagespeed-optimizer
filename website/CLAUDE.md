@@ -116,6 +116,11 @@ src/content/releases-1.1/    data for the pages that still describe them)
 src/content.config.ts        Collection schemas: the frontmatter contracts below
 src/components/              UI components. src/components/release/ holds the
                              release-aware components; its README.md is the manual.
+                             src/components/home/ holds the home page, one file per
+                             section; src/pages/index.astro keeps the metadata, the
+                             JSON-LD and the shared style block. Those files are
+                             hand-formatted (.prettierignore) and their copy is
+                             scanned by test/content-accuracy.test.ts like a page.
 src/data/                    product-facts.mjs (single-source facts; re-exports the
                              repo-root shared/product-facts.mjs), agent-files.mjs
                              (the prose and page list of the generated agent

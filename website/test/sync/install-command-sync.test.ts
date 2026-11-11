@@ -9,8 +9,9 @@
 //   1. src/pages/download.astro            — REPOSITORY_INSTALL_COMMAND (the
 //                                            Apache and nginx commands) and
 //                                            DOCKER_QUICK_TRY_COMMAND
-//   2. src/pages/index.astro               — the repository line of the nginx
+//   2. src/components/home/Install.astro   — the repository line of the nginx
 //                                            and Apache quick-start transcripts
+//                                            on the home page
 //   3. src/pages/download/apt-yum.astro    — the one-line install panel
 //   4. src/content/docs/installation-docker.md and getting-started.md
 //                                          — the one-container quick try
@@ -38,7 +39,7 @@ function extract(source: string, re: RegExp, label: string): string {
 }
 
 const download = read('../../src/pages/download.astro');
-const home = read('../../src/pages/index.astro');
+const home = read('../../src/components/home/Install.astro');
 const aptYum = read('../../src/pages/download/apt-yum.astro');
 
 const repositoryCommand = extract(
@@ -57,7 +58,7 @@ function homeTranscript(name: string): string {
   return extract(
     home,
     new RegExp(`const ${name}: TermLine\\[\\] = \\[([\\s\\S]*?)\\n\\];`),
-    `${name} in index.astro`,
+    `${name} in components/home/Install.astro`,
   );
 }
 
