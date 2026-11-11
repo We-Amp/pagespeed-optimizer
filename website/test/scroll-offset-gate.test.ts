@@ -64,26 +64,27 @@ function violationsIn(text: string): { line: number; match: string }[] {
 
 describe('scroll offset for the sticky header', () => {
   it('the detector recognises every spelling of a scroll margin', () => {
-    // Class names are assembled here, never written out: Tailwind scans this
-    // file for class candidates too and would emit a utility for each one.
-    const u = (name: string) => `scroll-${name}`;
+    // Names are assembled from parts here, never written out: Tailwind scans
+    // this file for class candidates too and would emit a utility for any
+    // class-shaped token it finds.
+    const u = (...parts: string[]) => ['scroll', ...parts].join('-');
     const samples = [
-      `<section id="tiers" class="px-4 ${u('mt-20')}">`,
-      `<h2 class="${u('mt-[5rem]')}">`,
-      `<div class="lg:${u('my-8')}">`,
-      `<div class="-${u('mt-4')}">`,
-      `  ${u('margin-top')}: 5rem;`,
+      `<section id="tiers" class="px-4 ${u('mt', '20')}">`,
+      `<h2 class="${u('mt', '[5rem]')}">`,
+      `<div class="lg:${u('my', '8')}">`,
+      `<div class="-${u('mt', '4')}">`,
+      `  ${u('margin', 'top')}: 5rem;`,
       `  ${u('margin')}: 5rem 0;`,
-      `  ${u('margin-block-start')}: 5rem;`,
+      `  ${u('margin', 'block', 'start')}: 5rem;`,
       "el.style.scrollMarginTop = '5rem';",
     ];
     for (const sample of samples) {
       expect(violationsIn(sample), sample).not.toHaveLength(0);
     }
     const clean = [
-      `  ${u('padding-top')}: 5rem;`,
+      `  ${u('padding', 'top')}: 5rem;`,
       `<html class="${u('smooth')} dark">`,
-      `<div class="${u('pt-20')} overflow-y-auto">`,
+      `<div class="${u('pt', '20')} overflow-y-auto">`,
       `  ${u('behavior')}: auto !important;`,
     ];
     for (const sample of clean) {
