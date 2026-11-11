@@ -8,7 +8,7 @@
 // HTML, so whitespace in this file is whitespace in every page.
 import Icon from '../../components/Icon.astro';
 import { PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
-import { docsHome, docsSections, navLinks, umamiAttrs } from '../../data/nav';
+import { docsHome, docsSections, headerPricing, navLinks, umamiAttrs } from '../../data/nav';
 
 const currentLabel = PRODUCT_DISPLAY_NAME;
 const logoLight = '/logo.svg';
@@ -207,14 +207,18 @@ const isExact = (href: string) => normPath === href;
               </kbd>
             </button>
             <a
-              href="https://github.com/sponsors/We-Amp"
-              rel="noopener"
-              aria-label="Sponsor We-Amp on GitHub"
-              data-umami-event="cta_sponsor_nav"
-              class="hidden xl:inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border px-2.5 py-1 text-sm font-medium text-text-muted transition-colors hover:text-text-body hover:border-text-annotation"
+              href={headerPricing.href}
+              data-umami-event={headerPricing.umamiEvent}
+              {...umamiAttrs(headerPricing.umamiProps)}
+              aria-current={currentPath.startsWith(headerPricing.href) ? 'page' : undefined}
+              class:list={[
+                'hidden xl:inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-sm font-medium transition-colors',
+                currentPath.startsWith(headerPricing.href)
+                  ? 'border-interactive text-interactive'
+                  : 'border-border text-text-muted hover:text-text-body hover:border-text-annotation',
+              ]}
             >
-              <Icon name="heart" class="h-4 w-4" />
-              Sponsor
+              {headerPricing.label}
             </a>
             <a
               href="https://github.com/We-Amp/mod_pagespeed"
@@ -423,15 +427,6 @@ const isExact = (href: string) => normPath === href;
               </a>
             ),
           )}
-          <a
-            href="https://github.com/sponsors/We-Amp"
-            rel="noopener"
-            data-umami-event="cta_sponsor_nav_mobile"
-            class="flex items-center gap-2 py-3 text-sm font-medium text-text-muted hover:text-text-body"
-          >
-            <Icon name="heart" class="h-4 w-4" />
-            Sponsor
-          </a>
         </div>
       </nav>
       <div class="rule-ticked" role="presentation" aria-hidden="true"></div>

@@ -256,6 +256,31 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/support/');
   });
 
+  test('header has a Pricing link next to search; Sponsor stays in the footer and on the home page', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const nav = page.locator('header nav');
+    const pricing = nav.locator('a[data-umami-event-position="header_pricing"]');
+    await expect(pricing).toBeVisible();
+    await expect(pricing).toHaveText('Pricing');
+    await expect(pricing).toHaveAttribute('href', '/pricing/');
+    await expect(pricing).toHaveAttribute('data-umami-event', 'cta_commercial');
+    await expect(pricing).toHaveAttribute('data-umami-event-offer', 'pricing');
+    await expect(pricing).toHaveAttribute('data-umami-event-surface', 'nav');
+    await expect(pricing).not.toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('header a[href*="github.com/sponsors"]')).toHaveCount(0);
+    await expect(page.locator('footer a[href="https://github.com/sponsors/We-Amp"]')).toBeVisible();
+    await expect(page.locator('main a[href="https://github.com/sponsors/We-Amp"]')).toBeVisible();
+
+    await pricing.click();
+    await expect(page).toHaveURL('/pricing/');
+    await expect(
+      page.locator('header nav a[data-umami-event-position="header_pricing"]'),
+    ).toHaveAttribute('aria-current', 'page');
+  });
+
   test('header has no separate Message entry; the floating launcher stays', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('header [data-qm-open]')).toHaveCount(0);
@@ -399,14 +424,19 @@ test.describe('Navigation', () => {
     const support = mobileMenu.locator('a[href="/support/"]');
     await expect(support).toHaveAttribute('data-umami-event', 'cta_commercial');
     await expect(support).toHaveAttribute('data-umami-event-position', 'support_plans_mobile');
+    // Pricing is listed once, inside the Support group; the menu has no
+    // Sponsor entry.
     const pricing = mobileMenu.locator('a[href="/pricing/"]');
+    await expect(pricing).toHaveCount(1);
+    await expect(pricing).toBeVisible();
     await expect(pricing).toHaveAttribute('data-umami-event', 'cta_commercial');
     await expect(pricing).toHaveAttribute(
       'data-umami-event-position',
       'nav_support_pricing_mobile',
     );
+    await expect(mobileMenu.locator('a[href*="github.com/sponsors"]')).toHaveCount(0);
+    await expect(mobileMenu.locator('a').last()).toHaveAttribute('href', '/contact/');
     for (const href of [
-      '/pricing/',
       '/support/#hardened-builds',
       '/hosting-partners/',
       'https://we-amp.com/consulting/',
