@@ -82,11 +82,6 @@ const auditPoints = [
         {PRODUCT} is {LICENSE_CLAUSE}. Install it and run it, in development and in production, on
         any number of servers. No registration.
       </p>
-      <p class="mt-4 text-text-muted max-w-3xl mx-auto">
-        What we sell is support: a direct line to the people who build the software, security notice
-        ahead of public releases, and from Priority up, the release SBOM and VEX on request. None of
-        the tiers changes what the software does.
-      </p>
       <p class="mt-4 text-sm text-text-annotation" data-pricing-terms>
         {PRICING_TERMS_LINE}
       </p>
@@ -96,6 +91,11 @@ const auditPoints = [
   <section id="tiers" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8">
     <h2 class="sr-only">Support tiers</h2>
     <SupportTiers surface="pricing" />
+    <p class="mt-6 max-w-3xl text-text-muted" data-pricing-what>
+      What we sell is support: a direct line to the people who build the software, security notice
+      ahead of public releases, and from Priority up, the release SBOM and VEX on request. None of
+      the tiers changes what the software does.
+    </p>
     <div class="mt-6 rounded-lg border border-border bg-bg-secondary p-5 text-sm text-text-muted">
       <p data-response-targets>
         {RESPONSE_TARGETS_LINE} What each tier covers in detail, and how releases are signed and
