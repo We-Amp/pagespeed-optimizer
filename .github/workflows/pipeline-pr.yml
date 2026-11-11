@@ -275,7 +275,7 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           trap 'rm -rf "$tmp"' EXIT
-          bash tools/ci/fetch_retry.sh \
+          FETCH_RETRY_MAX_TIME=300 bash tools/ci/fetch_retry.sh \
             "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
             "$tmp/helm.tgz" "${HELM_SHA256}"
           tar -xzf "$tmp/helm.tgz" -C "$tmp" linux-amd64/helm
@@ -306,6 +306,12 @@ jobs:
       # directory. Skips itself where zstd is absent.
       - name: Vendor-tarball extractor - self-test
         run: bash tools/ci/test_extract_vendor_tarball.sh
+
+      - name: Download retry helper - self-test
+        run: bash tools/ci/test_fetch_retry.sh
+
+      - name: Pinned-tool installer aborts on checksum mismatch - self-test
+        run: bash tools/ci/test_install_pinned_tool.sh
 
       # Self-test for tools/ci/validate-local-bundle.sh, the completeness and
       # producer check stage-artifacts.sh applies to a runner-local bundle,
