@@ -41,6 +41,14 @@ test.describe('Support page', () => {
     );
   });
 
+  test('the hero price button jumps to the tiers on the same page', async ({ page }) => {
+    const button = page.locator('a[data-umami-event-position="hero_pricing"]');
+    await expect(button).toHaveAttribute('href', '#tiers');
+    await button.click();
+    await expect(page).toHaveURL(/\/support\/#tiers$/);
+    await expect(page.locator('#tiers h2')).toBeInViewport();
+  });
+
   test('what a subscription buys names channel, response, updates and scope', async ({ page }) => {
     const readout = page.locator('#what-you-get dl');
     for (const key of ['channel:', 'response:', 'security updates:', 'scope:']) {

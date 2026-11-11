@@ -47,6 +47,10 @@ test.describe('Telemetry strip', () => {
     const strip = page.locator(STRIP);
     await expect(strip.locator('[data-t="state"]').first()).toHaveText('this view · live');
     await expect(strip.locator('[data-t="xmps"]')).toHaveText('9.9.9-test');
+    // The state link is named for its destination; its visible text stays the state.
+    await expect(
+      strip.getByRole('link', { name: 'How to read these response measurements' }),
+    ).toHaveAttribute('href', '/pagespeed-markers/');
     await expect(strip.locator('[data-t="vary"]')).toHaveText('Save-Data,Accept-Encoding');
   });
 
