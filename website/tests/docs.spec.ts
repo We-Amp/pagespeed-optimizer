@@ -455,9 +455,13 @@ test.describe('Docs structure', () => {
   test('sidebar groups appear in the audience order', async ({ page }) => {
     await page.goto('/docs/getting-started/');
     const labels = await page
-      .locator('nav[aria-label="Documentation"] > div > p')
+      .locator('nav[aria-label="Documentation"] button[aria-expanded]')
       .allTextContents();
-    expect(labels.map((l) => l.trim())).toEqual(GROUP_ORDER);
+    // The per-line release notes have one entry, under Reference; they are a
+    // group on the hub only.
+    expect(labels.map((l) => l.trim())).toEqual(
+      GROUP_ORDER.filter((g) => g !== 'Release notes by line'),
+    );
   });
 
   test('the hub lists every group once, in order, and links the new pages', async ({ page }) => {
@@ -575,5 +579,403 @@ test.describe('Admin console docs', () => {
     await expect(tip).toContainText('See it running');
     await expect(tip.locator('a[href="https://we-amp.com/pagespeed_global_admin/"]')).toBeVisible();
     await expect(tip).toContainText('public on purpose');
+  });
+});
+
+// The docs sidebar: collapsible groups with the current one open, one entry
+// for the release notes, the filter reference under Filters, and a rail that
+// stays in view and scrolls on its own.
+test.describe('Docs sidebar', () => {
+  const rail = 'nav[aria-label="Documentation"]';
+
+  test('groups are disclosure buttons and only the current group is open', async ({ page }) => {
+    await page.goto('/docs/configuration/');
+    const toggles = page.locator(`${rail} button[aria-expanded]`);
+    expect(await toggles.count()).toBeGreaterThanOrEqual(8);
+    const open = page.locator(`${rail} button[aria-expanded="true"]`);
+    await expect(open).toHaveCount(1);
+    await expect(open).toHaveText('Configure');
+
+    // Every toggle names the list it controls; the list is shown exactly when
+    // the toggle says expanded.
+    const states = await toggles.evaluateAll((buttons) =>
+      buttons.map((b) => {
+        const list = document.getElementById(b.getAttribute('aria-controls') ?? '');
+        return {
+          expanded: b.getAttribute('aria-expanded'),
+          list: list?.tagName ?? null,
+          hidden: list?.hidden ?? null,
+        };
+      }),
+    );
+    for (const s of states) {
+      expect(s.list).toBe('UL');
+      expect(s.hidden).toBe(s.expanded !== 'true');
+    }
+
+    const current = page.locator(`${rail} a[aria-current="page"]`);
+    await expect(current).toHaveCount(1);
+    await expect(current).toBeVisible();
+    await expect(current).toHaveAttribute('href', '/docs/configuration/');
+    await expect(page.locator(`${rail} a[href="/docs/monitoring/"]`)).toBeHidden();
+  });
+
+  test('a group opens and closes from the keyboard and focus stays on its button', async ({
+    page,
+  }) => {
+    await page.goto('/docs/getting-started/');
+    const toggle = page.locator(`${rail} button[aria-expanded]`, { hasText: 'Operate' });
+    const link = page.locator(`${rail} a[href="/docs/deployment/"]`);
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(link).toBeHidden();
+
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(toggle).toBeFocused();
+    await expect(link).toBeVisible();
+    // The current group stays open: opening one group closes no other.
+    await expect(page.locator(`${rail} a[aria-current="page"]`)).toBeVisible();
+
+    // The next Tab stop is the first link of the group just opened.
+    await page.keyboard.press('Tab');
+    await expect(link).toBeFocused();
+
+    await toggle.focus();
+    await page.keyboard.press('Space');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
+    await expect(link).toBeHidden();
+  });
+
+  test('the release notes are one entry, and a per-line page opens its group', async ({ page }) => {
+    await page.goto('/docs/release-notes-2-5/');
+    const nav = page.locator(rail);
+    await expect(nav.locator('a[href^="/docs/release-notes"]')).toHaveCount(1);
+    const entry = nav.locator('a[href="/docs/release-notes/"]');
+    await expect(entry).toHaveText('Release notes');
+    await expect(entry).toBeVisible();
+    await expect(nav.locator('button[aria-expanded="true"]')).toHaveText('Reference');
+    // The entry leads to this page but is not this page.
+    await expect(nav.locator('a[aria-current]')).toHaveCount(0);
+    // Reading order still walks the per-line pages.
+    await expect(page.locator('nav[aria-label="Previous and next pages"] a')).not.toHaveCount(0);
+  });
+
+  test('the filter reference is an entry under Filters', async ({ page }) => {
+    await page.goto('/docs/image-filters/');
+    const nav = page.locator(rail);
+    await expect(nav.locator('button[aria-expanded="true"]')).toHaveText('Filters');
+    const entry = nav.locator('a[href="/docs/filters/"]');
+    await expect(entry).toHaveText('Filter reference');
+    await expect(entry).toBeVisible();
+    await expect(entry).not.toHaveAttribute('aria-current', 'page');
+  });
+
+  test('the filter reference and a filter page sit in the docs frame', async ({ page }) => {
+    await page.goto('/docs/filters/');
+    const nav = page.locator(rail);
+    await expect(nav).toHaveCount(1);
+    await expect(nav).toBeVisible();
+    await expect(nav.locator('button[aria-expanded="true"]')).toHaveText('Filters');
+    await expect(nav.locator('a[aria-current="page"]')).toHaveAttribute('href', '/docs/filters/');
+    await expect(page.locator('main h1')).toHaveCount(1);
+    // The table keeps a row per filter, with the filter name as its id.
+    await expect(page.locator('tr[id="lazyload_images"]')).toHaveCount(1);
+
+    await page.goto('/docs/filters/lazyload_images/');
+    await expect(nav).toBeVisible();
+    await expect(nav.locator('button[aria-expanded="true"]')).toHaveText('Filters');
+    await expect(nav.locator('a[href="/docs/filters/"]')).toBeVisible();
+    await expect(nav.locator('a[aria-current]')).toHaveCount(0);
+    await expect(page.locator('main h1')).toHaveCount(1);
+  });
+
+  test('the rail stays in view and scrolls on its own', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/docs/configuration/');
+    const nav = page.locator(rail);
+    const headerBottom = () =>
+      page.evaluate(() => document.querySelector('body > header')!.getBoundingClientRect().bottom);
+
+    await page.evaluate(() => window.scrollTo(0, 4000));
+    const pinned = await nav.boundingBox();
+    expect(pinned!.y).toBeGreaterThanOrEqual((await headerBottom()) - 1);
+    expect(pinned!.y + pinned!.height).toBeLessThanOrEqual(720);
+
+    // With every group open the rail is taller than the window: it scrolls,
+    // the page does not move, and a focused entry is fully inside its box.
+    const closed = nav.locator('button[aria-expanded="false"]');
+    while ((await closed.count()) > 0) await closed.first().click();
+    const overflow = await nav.evaluate((el) => el.scrollHeight - el.clientHeight);
+    expect(overflow).toBeGreaterThan(0);
+    const pageY = await page.evaluate(() => window.scrollY);
+    const last = nav.locator('ul a').last();
+    await last.focus();
+    expect(await page.evaluate(() => window.scrollY)).toBe(pageY);
+    const box = await nav.boundingBox();
+    const link = await last.boundingBox();
+    expect(link!.y).toBeGreaterThanOrEqual(box!.y);
+    expect(link!.y + link!.height).toBeLessThanOrEqual(box!.y + box!.height);
+
+    // Walking back up with Shift+Tab never leaves a stop clipped by the rail
+    // or behind the header (WCAG 2.4.11 Focus Not Obscured), and never moves
+    // the page: this page has the platform selector, so the page scroller
+    // keeps a taller band clear at its top, and the rail must start below it.
+    const top = await headerBottom();
+    for (let i = 0; i < 80; i++) {
+      await page.keyboard.press('Shift+Tab');
+      const stop = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement;
+        const scroller = el.closest('nav[aria-label="Documentation"]');
+        if (!scroller) return null;
+        const r = el.getBoundingClientRect();
+        const b = scroller.getBoundingClientRect();
+        return {
+          top: r.top,
+          bottom: r.bottom,
+          boxTop: b.top,
+          boxBottom: b.bottom,
+          pageY: window.scrollY,
+        };
+      });
+      if (!stop) break;
+      expect(stop.pageY).toBe(pageY);
+      expect(stop.top).toBeGreaterThanOrEqual(Math.max(stop.boxTop, top) - 1);
+      expect(stop.bottom).toBeLessThanOrEqual(stop.boxBottom + 1);
+    }
+  });
+
+  // Before the page scrolls the rail sits below its sticky top. It must still
+  // end 5rem above the bottom of the window, the band a page scroller may keep
+  // clear for a pinned control: an entry focused inside that band scrolls the
+  // page along with the rail. The band is set here so the test holds on its own.
+  test('at the top of the page the open rail fits the window and Tab never moves the page', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    // getting-started has no platform selector, cache-modes has one. At 40px
+    // the rail is still on its way to its sticky top: its height follows it.
+    for (const [url, startY] of [
+      ['/docs/getting-started/', 0],
+      ['/docs/cache-modes/', 0],
+      ['/docs/cache-modes/', 40],
+    ] as const) {
+      await page.goto(url);
+      await page.addStyleTag({ content: 'html { scroll-padding-bottom: 5rem !important; }' });
+      const nav = page.locator(rail);
+      const closed = nav.locator('button[aria-expanded="false"]');
+      while ((await closed.count()) > 0) await closed.first().click();
+      await page.evaluate((y) => window.scrollTo(0, y), startY);
+      await expect
+        .poll(async () => {
+          const b = await nav.boundingBox();
+          return b!.y + b!.height;
+        })
+        .toBeLessThanOrEqual(720 - 80 + 1);
+      const box = await nav.boundingBox();
+      expect(box!.y).toBeGreaterThan(100);
+      expect(await nav.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(0);
+
+      await nav.locator('button[aria-expanded]').first().focus();
+      const stops = await nav
+        .locator('a[href], button')
+        .evaluateAll((els) => els.filter((e) => e.getClientRects().length > 0).length);
+      const walk = async (key: string) => {
+        for (let i = 0; i < stops - 1; i++) {
+          await page.keyboard.press(key);
+          const stop = await page.evaluate(() => {
+            const el = document.activeElement as HTMLElement;
+            const scroller = el.closest('nav[aria-label="Documentation"]');
+            if (!scroller) return null;
+            const r = el.getBoundingClientRect();
+            const b = scroller.getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom, boxTop: b.top, boxBottom: b.bottom };
+          });
+          expect(stop).not.toBeNull();
+          expect(await page.evaluate(() => window.scrollY)).toBe(startY);
+          expect(stop!.top).toBeGreaterThanOrEqual(stop!.boxTop - 0.5);
+          expect(stop!.bottom).toBeLessThanOrEqual(stop!.boxBottom + 0.5);
+        }
+      };
+      await walk('Tab');
+      await walk('Shift+Tab');
+    }
+  });
+
+  // Keeping a focused entry clear of the rail's edges is for keyboard focus
+  // only: a mouse press on an entry half under the edge must not scroll it
+  // away from the pointer, or the click lands elsewhere and is lost.
+  test('a mouse click on an entry at the rail edge acts on it and leaves the rail still', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/docs/cache-modes/');
+    const nav = page.locator(rail);
+    const closed = nav.locator('button[aria-expanded="false"]');
+    while ((await closed.count()) > 0) await closed.first().click();
+    await page.evaluate(() => window.scrollTo(0, 1200));
+    // Scroll the rail so a toggle shows only its top 8px above the bottom edge.
+    const target = await nav.evaluate((el) => {
+      el.scrollTop = 0;
+      const box = el.getBoundingClientRect();
+      const toggles = [...el.querySelectorAll<HTMLElement>('button[aria-expanded]')];
+      const toggle = toggles.find((t) => t.getBoundingClientRect().top > box.top + 300)!;
+      el.scrollTop += toggle.getBoundingClientRect().top - (box.bottom - 8);
+      (document.activeElement as HTMLElement | null)?.blur();
+      const r = toggle.getBoundingClientRect();
+      return {
+        index: toggles.indexOf(toggle),
+        x: r.left + 20,
+        y: box.bottom - 4,
+        expanded: toggle.getAttribute('aria-expanded'),
+        scrollTop: el.scrollTop,
+      };
+    });
+    expect(target.scrollTop).toBeGreaterThan(0);
+    const toggle = nav.locator('button[aria-expanded]').nth(target.index);
+    await page.mouse.click(target.x, target.y);
+    await expect(toggle).toHaveAttribute(
+      'aria-expanded',
+      target.expanded === 'true' ? 'false' : 'true',
+    );
+    // Two frames: the keyboard correction would have run by then.
+    await page.evaluate(
+      () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+    );
+    expect(await nav.evaluate((el) => el.scrollTop)).toBe(target.scrollTop);
+  });
+
+  // Without JavaScript nothing can toggle a group, so every group is open and
+  // every link can be followed, in the rail and in the phone menu.
+  test('without JavaScript every sidebar link is shown', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    const shown = (scope: string) =>
+      page.locator(`${scope} ul a`).evaluateAll((links) => ({
+        total: links.length,
+        visible: links.filter((a) => (a as HTMLElement).getClientRects().length > 0).length,
+      }));
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/docs/getting-started/');
+    const inRail = await shown(rail);
+    expect(inRail.total).toBeGreaterThan(40);
+    expect(inRail.visible).toBe(inRail.total);
+    await expect(page.locator(`${rail} a[aria-current="page"]`)).toBeVisible();
+
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.goto('/docs/getting-started/');
+    await page.locator('details#docs-menu > summary').click();
+    const inMenu = await shown('details#docs-menu');
+    expect(inMenu.total).toBe(inRail.total);
+    expect(inMenu.visible).toBe(inMenu.total);
+    await context.close();
+  });
+
+  // The browser can paint between the sidebar markup and the script that
+  // closes its groups. Remove that script from the served page: what is left
+  // is what such a paint shows, and it must already be the closed sidebar.
+  test('before its script runs the sidebar already shows only the current group', async ({
+    page,
+  }) => {
+    // Fetched once, up front: the handler below then answers every load of
+    // the page (the dev server can reload it once) without a request of its own.
+    const html = await (await page.request.get('/docs/configuration/')).text();
+    // Drop every script element that carries the marker (rail and menu).
+    const kept: string[] = [];
+    let pos = 0;
+    let dropped = 0;
+    for (;;) {
+      const open = html.indexOf('<script', pos);
+      if (open < 0) break;
+      const close = html.indexOf('</script>', open);
+      if (close < 0) break;
+      const end = close + '</script>'.length;
+      const element = html.slice(open, end);
+      kept.push(html.slice(pos, open));
+      if (element.includes('data-docs-nav-ready')) dropped += 1;
+      else kept.push(element);
+      pos = end;
+    }
+    kept.push(html.slice(pos));
+    const stripped = kept.join('');
+    expect(dropped).toBe(2);
+    expect(stripped.length).toBeLessThan(html.length);
+    await page.route('**/docs/configuration/', (route) =>
+      route.fulfill({ status: 200, contentType: 'text/html', body: stripped }),
+    );
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/docs/configuration/');
+    const nav = page.locator(rail);
+    await expect(nav.locator('[data-docs-nav-ready]')).toHaveCount(0);
+    await expect(nav.locator('a[aria-current="page"]')).toBeVisible();
+    const state = await nav.locator('ul a').evaluateAll((links) => {
+      const shown = links.filter((a) => (a as HTMLElement).getClientRects().length > 0);
+      return {
+        shown: shown.length,
+        outsideCurrent: shown.filter((a) => !a.closest('[data-docs-nav-current]')).length,
+      };
+    });
+    expect(state.shown).toBeGreaterThan(0);
+    expect(state.outsideCurrent).toBe(0);
+    // Only the current group's chevron reads as open.
+    const turned = await nav
+      .locator('button[aria-expanded] svg')
+      .evaluateAll((icons) => icons.filter((i) => getComputedStyle(i).transform !== 'none').length);
+    expect(turned).toBe(1);
+  });
+
+  // Loading a docs page on a slow processor must not shift the layout in the
+  // sidebar: the groups never collapse after they were painted.
+  test('the sidebar does not shift while the page loads', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 6 });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __sidebarShift: number };
+      w.__sidebarShift = 0;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const shift = entry as unknown as {
+            value: number;
+            hadRecentInput: boolean;
+            sources?: { node?: Node | null }[];
+          };
+          if (shift.hadRecentInput) continue;
+          const inSidebar = (shift.sources ?? []).some(
+            (s) => s.node instanceof Element && s.node.closest('nav[aria-label="Documentation"]'),
+          );
+          if (inSidebar) w.__sidebarShift += shift.value;
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    for (const path of ['/docs/configuration/', '/docs/filters/']) {
+      await page.goto(path, { waitUntil: 'load' });
+      await expect(page.locator(`${rail} button[aria-expanded="true"]`)).toHaveCount(1);
+      await page.waitForTimeout(500);
+      const shift = await page.evaluate(
+        () => (window as unknown as { __sidebarShift: number }).__sidebarShift,
+      );
+      expect(shift, `layout shift in the sidebar on ${path}`).toBe(0);
+    }
+  });
+
+  test('on a phone the same groups sit in the Docs menu, current group open', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 740 });
+    await page.goto('/docs/filters/lazyload_images/');
+    await expect(page.locator(rail)).toBeHidden();
+    const menu = page.locator('details#docs-menu');
+    await expect(menu).toBeVisible();
+    await menu.locator('summary').click();
+    await expect(menu.locator('button[aria-expanded="true"]')).toHaveText('Filters');
+    await expect(menu.locator('a[href="/docs/filters/"]')).toBeVisible();
+    const closed = menu.locator('button[aria-expanded]', { hasText: 'Install' });
+    await closed.click();
+    await expect(closed).toHaveAttribute('aria-expanded', 'true');
+    await expect(menu.locator('a[href="/docs/installation-docker/"]')).toBeVisible();
   });
 });

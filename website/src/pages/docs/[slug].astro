@@ -1,6 +1,7 @@
 ---
 import { OG_DEFAULT_IMAGE } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import DocsSidebar from '../../components/docs/DocsSidebar.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
 import Icon from '../../components/Icon.astro';
@@ -85,8 +86,10 @@ const sidebarGroups: { label: string; docs: typeof allDocs }[] = [];
   }
 }
 
-// Previous / next: neighbours in the sidebar's reading order (group, then
-// `order`), taken from the groups themselves so the two can never disagree.
+// Previous / next: neighbours in the reading order (group, then `order`) over
+// the whole collection. The sidebar (src/lib/docs-nav.ts) lists the same pages
+// in the same order, minus the per-line release notes and plus the filter
+// reference, which is not a collection page.
 const navDocs = sidebarGroups.flatMap((g) => g.docs);
 const docIndex = navDocs.findIndex((d) => d.id === doc.id);
 const prevDoc = docIndex > 0 ? navDocs[docIndex - 1] : undefined;
@@ -292,87 +295,7 @@ const showReferralOrientation = [
         showToc && 'xl:grid-cols-[240px_minmax(0,1fr)_200px]',
       ]}
     >
-      <!-- Sidebar navigation -->
-      <nav class="hidden lg:block" aria-label="Documentation" data-pagefind-ignore>
-        {sidebarGroups.map((group) => (
-          <div class="mb-6">
-            <p class="eyebrow px-3 mb-2">{group.label}</p>
-            <ul class="space-y-1">
-              {group.docs.map((d) => (
-                <li>
-                  <a
-                    href={`/docs/${d.id}/`}
-                    aria-current={d.id === doc.id ? 'page' : undefined}
-                    class:list={[
-                      'block rounded-md px-3 py-2 text-sm transition-colors',
-                      d.id === doc.id
-                        ? 'bg-interactive-wash font-medium text-interactive shadow-[inset_2px_0_0_var(--color-interactive)]'
-                        : 'text-text-muted hover:bg-bg-secondary hover:text-text-body',
-                    ]}
-                  >
-                    {d.data.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-        {/* Release notes are a docs collection entry (release-notes.mdx) and
-            appear in `sidebarGroups` like every other page — no second,
-            hand-written link to a different destination. */}
-
-        {/* Sidebar install CTA — quietly persistent on every docs page */}
-        <a
-          href="/download/"
-          data-umami-event="cta_docs_sidebar_install"
-          class="block rounded-md border border-interactive/45 bg-interactive-wash px-3 py-3 text-sm font-medium text-interactive hover:border-interactive transition-colors text-center"
-        >
-          Download &amp; run
-        </a>
-        <p class="mt-2 px-1 text-xs text-text-annotation text-center">{FREE_TO_RUN_LINE}</p>
-      </nav>
-
-      <!-- Mobile navigation: a disclosure listing the same groups as the
-           sidebar. Plain links, so nothing navigates on a change of input
-           (WCAG 3.2.2); it works without JavaScript. -->
-      <details
-        id="docs-menu"
-        class="lg:hidden mb-8 rounded-lg border border-border bg-bg-elevated"
-        data-pagefind-ignore
-      >
-        <summary class="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-body">
-          Docs menu
-          <Icon
-            name="chevron-down"
-            class="docs-menu-chevron h-4 w-4 shrink-0 text-text-annotation"
-          />
-        </summary>
-        <nav aria-label="Documentation menu" class="border-t border-border px-2 pb-3">
-          {sidebarGroups.map((group) => (
-            <div class="pt-3">
-              <p class="eyebrow px-2 mb-1">{group.label}</p>
-              <ul class="space-y-0.5">
-                {group.docs.map((d) => (
-                  <li>
-                    <a
-                      href={`/docs/${d.id}/`}
-                      aria-current={d.id === doc.id ? 'page' : undefined}
-                      class:list={[
-                        'block rounded-md px-2 py-2 text-sm transition-colors',
-                        d.id === doc.id
-                          ? 'bg-interactive-wash font-medium text-interactive shadow-[inset_2px_0_0_var(--color-interactive)]'
-                          : 'text-text-muted hover:bg-bg-secondary hover:text-text-body',
-                      ]}
-                    >
-                      {d.data.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
-      </details>
+      <DocsSidebar current={doc.id} />
 
       <!-- Content -->
       <article class="min-w-0">
@@ -626,9 +549,6 @@ const showReferralOrientation = [
     }
     details > summary::-webkit-details-marker {
       display: none;
-    }
-    #docs-menu[open] > summary .docs-menu-chevron {
-      transform: rotate(180deg);
     }
 
     /* Platform selector tabs — dark-only tokens (no light-mode pair). */

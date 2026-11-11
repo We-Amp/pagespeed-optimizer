@@ -13,6 +13,9 @@ const PAGES_FOR_AXE_SCAN = [
   '/platform/',
   '/demo/',
   '/docs/',
+  '/docs/getting-started/',
+  '/docs/filters/',
+  '/docs/filters/lazyload_images/',
   '/license/',
   '/contact/',
   '/calculator/',
@@ -28,6 +31,7 @@ const PAGES_FOR_AXE_SCAN = [
 // is where small or crowded targets (WCAG 2.5.8) and overflowing regions show.
 const PAGES_FOR_PHONE_AXE_SCAN = [
   '/docs/filters/',
+  '/docs/filters/lazyload_images/',
   '/download/',
   '/docs/getting-started/',
   '/examples/',
@@ -164,7 +168,13 @@ test.describe('Accessibility', () => {
   // and, on docs pages that have one, the platform selector pinned under it.
   // Every stop must come to rest below both, not behind them.
   // /docs/cache-modes/ is a page with the platform selector.
-  for (const pagePath of ['/', '/pricing/', '/docs/getting-started/', '/docs/cache-modes/']) {
+  for (const pagePath of [
+    '/',
+    '/pricing/',
+    '/docs/getting-started/',
+    '/docs/cache-modes/',
+    '/docs/filters/lazyload_images/',
+  ]) {
     test(`Shift+Tab never puts focus behind the sticky header: ${pagePath}`, async ({ page }) => {
       test.setTimeout(90_000);
       // Reduced motion makes focus scrolling instant, so each stop can be
