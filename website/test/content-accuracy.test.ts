@@ -138,8 +138,13 @@ const SCAN_EXCLUSIONS: Array<{ test: (rel: string) => boolean; why: string }> = 
     // Presentational only. Components render claims that arrive as PROPS from
     // the pages and data modules already in scope, so the claim is caught at
     // its source rather than at each render site.
-    test: (rel) => rel.startsWith('src/components/'),
-    why: 'src/components/** — presentational; claims arrive as props from scanned pages',
+    //
+    // EXCEPT src/components/home/: the home page's sections. They are the
+    // home page's own copy, split out of src/pages/index.astro one file per
+    // section, so they carry product claims as literals and stay in scope
+    // (the "home" bucket below).
+    test: (rel) => rel.startsWith('src/components/') && !rel.startsWith('src/components/home/'),
+    why: 'src/components/** except home/ — presentational; claims arrive as props from scanned pages',
   },
 ];
 
@@ -232,6 +237,15 @@ const SCAN_BUCKETS: ScanBucket[] = [
     extFloors: { '.mjs': 1 },
   },
   { name: 'layouts', files: walk(path.join(WEBSITE_ROOT, 'src/layouts'), ['.astro']), floor: 1 },
+  {
+    // The home page's sections (hero, the seven numbered sections, sponsor,
+    // closing): page copy that lives under src/components/. Ten files today;
+    // the floor catches the directory moving or the exclusion above swallowing
+    // it again.
+    name: 'home',
+    files: walk(path.join(WEBSITE_ROOT, 'src/components/home'), ['.astro']),
+    floor: 8,
+  },
   {
     // One template is left: the AI-plugin manifest. llms.txt and llms-full.txt
     // are generated from the docs collection (scanned as content), the release
@@ -2981,6 +2995,29 @@ describe('sentence-bounded windows', () => {
       'f4',
       'i',
     ]);
+  });
+});
+
+describe('scan surface: the home page sections stay in scope', () => {
+  const HOME_DIR = path.join(WEBSITE_ROOT, 'src/components/home');
+
+  it('every home section file is scanned', () => {
+    const onDisk = readdirSync(HOME_DIR)
+      .filter((n) => n.endsWith('.astro'))
+      .map((n) => path.join(HOME_DIR, n));
+    expect(onDisk.length).toBeGreaterThan(0);
+    const unscanned = onDisk.filter((f) => !SCAN_FILES.includes(f));
+    expect(unscanned, unscanned.length ? `\n${unscanned.join('\n')}\n` : undefined).toEqual([]);
+  });
+
+  it('the exclusion covers the other components, not the home sections', () => {
+    expect(isExcluded(path.join(HOME_DIR, 'Hero.astro'))).toBe(false);
+    expect(isExcluded(path.join(WEBSITE_ROOT, 'src/components/CTAButton.astro'))).toBe(true);
+    expect(isExcluded(path.join(WEBSITE_ROOT, 'src/components/instrument/Chip.astro'))).toBe(true);
+  });
+
+  it('the home page itself is still scanned', () => {
+    expect(SCAN_FILES).toContain(path.join(WEBSITE_ROOT, 'src/pages/index.astro'));
   });
 });
 

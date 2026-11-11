@@ -19,3 +19,8 @@ src/components/scan/ResultsView.astro
 # keeps it that way for an ad-hoc `prettier --write .`.
 src/content/
 src/data/*.md
+
+# The home page sections are hand-formatted for the same reason: each keeps the
+# indentation its markup has inside the page layout, which is the whitespace
+# of the built home page.
+src/components/home/
