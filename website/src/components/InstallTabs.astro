@@ -265,6 +265,28 @@ const { name, groupLabel, copyLabel, copiedLabel, platforms } = Astro.props;
     border-color: transparent;
   }
 
+  /* Narrow screens: the command gets the full width, so a package URL stays on
+     one line, and the copy button moves up beside the platform choices. */
+  @media (max-width: 480px) {
+    .install-tabs {
+      position: relative;
+    }
+    .install-picker {
+      padding-inline-end: 3.25rem;
+    }
+    .install-panel {
+      padding: 0.25rem 0.75rem;
+    }
+    .install-command {
+      font-size: 0.75rem;
+    }
+    .install-copy {
+      position: absolute;
+      top: 0;
+      right: 0;
+    }
+  }
+
   /* Forced colors drop the wash that marks the chosen platform; a system-colour
      border carries the state instead. */
   @media (forced-colors: active) {
