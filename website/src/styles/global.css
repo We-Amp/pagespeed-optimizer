@@ -364,14 +364,27 @@
     outline-offset: 2px;
   }
 
-  /* The header is sticky (h-16 = 64px) and <html> uses scroll-smooth, so any
-     in-page anchor (#faq, feature section IDs, ToC links, the skip link's
-     #main-content) would otherwise land behind the header. One global rule
-     replaces the scattered per-element scroll-mt-* / -mt pt hacks. */
-  :is(h1, h2, h3, h4, h5, h6)[id],
-  [id]:target,
-  #main-content {
-    scroll-margin-top: 5rem;
+  /* The header is sticky (h-16 = 64px). Scroll padding on the page scroller
+     keeps everything that scrolls into view clear of it: in-page anchors
+     (#faq, section ids, ToC links, the skip link's #main-content) and keyboard
+     focus moving back up the page (WCAG 2.4.11 Focus Not Obscured). This is
+     the only offset: a scroll margin on a target would add to it, so no
+     element sets one (test/scroll-offset-gate.test.ts). */
+  html {
+    scroll-padding-top: 5rem;
+  }
+  /* Docs pages with the platform selector pin it right under the header
+     (top: 4rem; 3.75rem tall: a 2.75rem tab plus 0.5rem padding each side),
+     so the clear area starts lower there: 4rem + 3.75rem + 0.75rem of air. */
+  html:has(#platform-selector) {
+    scroll-padding-top: 8.5rem;
+  }
+  /* Below lg, fixed controls sit along the bottom edge; keep focused elements
+     clear of them as well. */
+  @media (width < 64rem) {
+    html {
+      scroll-padding-bottom: 5rem;
+    }
   }
 
   /* <summary> in <details> ships with outline:none in some UA stylesheets;
@@ -537,6 +550,51 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
 .qs-tab:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
+}
+
+/* Short viewports (a phone in landscape, or a desktop window at 400% zoom):
+   a pinned header would take a quarter of the screen (WCAG 1.4.10 Reflow), so
+   it scrolls away with the page, as does the docs platform selector pinned
+   under it, and the scroll padding that kept content clear of them goes too.
+   Outside the layers so it beats the `sticky` utility on both. */
+@media (max-height: 480px) {
+  body > header,
+  #platform-selector {
+    position: static;
+  }
+  html,
+  html:has(#platform-selector) {
+    scroll-padding-top: 0;
+    scroll-padding-bottom: 1rem;
+  }
+}
+
+/* Forced colors (Windows contrast themes) drop author backgrounds and
+   shadows, so every state that is carried by a fill alone gets a system-colour
+   equivalent here. Nothing in this block applies outside that mode. */
+@media (forced-colors: active) {
+  /* The primary button is a fill with no border: give it a button outline. */
+  .btn-primary {
+    border: 1px solid ButtonText;
+  }
+  /* The pressed tab keeps a fill, in the system's selection colours. */
+  .qs-tab[aria-pressed='true'],
+  .product-tab[aria-pressed='true'] {
+    forced-color-adjust: none;
+    background: SelectedItem;
+    color: SelectedItemText;
+  }
+  /* Opting out of the forced palette also opts the focus ring out of it. */
+  .qs-tab[aria-pressed='true']:focus-visible,
+  .product-tab[aria-pressed='true']:focus-visible {
+    outline-color: CanvasText;
+  }
+  /* The current page in the header navigation and the docs sidebar is marked
+     by colour, a wash and an inset shadow. A real border survives; an outline
+     would read as the focus ring. */
+  nav a[aria-current='page'] {
+    border-inline-start: 3px solid Highlight;
+  }
 }
 
 @layer components {
