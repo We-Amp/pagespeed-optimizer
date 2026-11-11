@@ -14,13 +14,38 @@
  * and the next open tries again.
  *
  * Openers: any element with `data-search-open` (header buttons, the docs hub
- * search box), the `/` key outside form fields, and Cmd/Ctrl+K.
+ * search box), the `/` key outside form fields, and Cmd/Ctrl+K. An opener
+ * that also carries `data-search-prefill-path` (the 404 page) starts the
+ * search with the last segment of the current path as the query; that text
+ * is only ever assigned to the input's value.
+ *
+ * Two status regions. #site-search-status is the visible one: loading and
+ * unavailable messages. #site-search-count is visually hidden and always in
+ * the tree: Pagefind's "N results for …" line is plain text that a screen
+ * reader never hears, so it is mirrored there once typing pauses (WCAG 4.1.3).
+ * When a search finds nothing, a fixed row of links shows under Pagefind's
+ * message.
+ *
+ * Result order is tuned in two places: the `ranking` options below (applied
+ * at search time), and the per-page weight and short titles the layout puts
+ * on <main> (src/lib/search-index.ts, applied when the index is built).
+ * `node scripts/search-probes.mjs <origin>` prints where the probe queries
+ * land on a built site.
  *
  * Styling maps Pagefind's CSS variables onto the site tokens — no new
  * colours. Pagefind's own classes are scoped with hashed Svelte classes, so
  * the few overrides that must beat them hang off the #site-search id.
  */
 import Icon from './Icon.astro';
+
+const emptyLinks = [
+  { href: '/docs/getting-started/', label: 'Install' },
+  { href: '/docs/configuration/', label: 'Configuration reference' },
+  { href: '/docs/filters/', label: 'Filter reference' },
+  { href: '/download/', label: 'Download' },
+  { href: '/pricing/', label: 'Pricing' },
+  { href: '/contact/', label: 'Contact' },
+];
 ---
 
 <dialog id="site-search" class="site-search" aria-labelledby="site-search-title">
@@ -37,7 +62,18 @@ import Icon from './Icon.astro';
       </button>
     </div>
     <div id="site-search-ui" class="site-search__ui"></div>
+    <div id="site-search-empty" class="site-search__empty" hidden>
+      <p>Try a directive or filter name, or start here:</p>
+      <ul>
+        {emptyLinks.map((link) => (
+          <li>
+            <a href={link.href}>{link.label}</a>
+          </li>
+        ))}
+      </ul>
+    </div>
     <p id="site-search-status" class="site-search__status" role="status" hidden></p>
+    <p id="site-search-count" class="site-search__count" role="status"></p>
   </div>
 </dialog>
 
@@ -127,6 +163,47 @@ import Icon from './Icon.astro';
     line-height: 1.5;
     color: var(--color-text-muted);
   }
+  /* Visually hidden, never display:none: a live region has to stay in the
+     accessibility tree to be announced. */
+  .site-search__count {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .site-search__empty {
+    padding: 0 1rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+  }
+  .site-search__empty p {
+    margin: 0;
+  }
+  .site-search__empty ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 1rem;
+    margin: 0.25rem 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .site-search__empty a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    color: var(--color-interactive);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .site-search__empty a:hover {
+    color: var(--color-text-body);
+  }
 
   /* Pagefind renders with hashed Svelte classes; the id wins where a plain
      class would lose. */
@@ -166,6 +243,14 @@ import Icon from './Icon.astro';
     var dialog = document.getElementById('site-search');
     if (!dialog || typeof dialog.showModal !== 'function') return;
     var status = document.getElementById('site-search-status');
+    var ui = document.getElementById('site-search-ui');
+    var count = document.getElementById('site-search-count');
+    var empty = document.getElementById('site-search-empty');
+    /* Must stay in step with the zero_results translation below. */
+    var ZERO_RESULTS = 'No results for ';
+    var announceTimer = 0;
+    var lastZero = '';
+    var pendingQuery = '';
     var openers = document.querySelectorAll('[data-search-open]');
     var closers = dialog.querySelectorAll('[data-search-close]');
     var state = 'idle'; /* idle | loading | ready | failed */
@@ -177,9 +262,76 @@ import Icon from './Icon.astro';
       status.hidden = !text;
     }
 
+    function track(name) {
+      if (window.umami && typeof window.umami.track === 'function') window.umami.track(name);
+    }
+
     function focusInput() {
       var input = dialog.querySelector('input.pagefind-ui__search-input');
-      if (input) input.focus();
+      if (!input) return;
+      input.focus();
+      if (pendingQuery && !input.value) {
+        input.value = pendingQuery;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      pendingQuery = '';
+    }
+
+    /* The last segment of the current path as search words: "/docs/image-
+       filters.html" gives "image filters". Empty on the prerendered error
+       copy's own URL, where no page was asked for. */
+    function pathQuery() {
+      if (/^\/error\//.test(location.pathname)) return '';
+      var parts = location.pathname.split('/').filter(Boolean);
+      var last = parts.length ? parts[parts.length - 1] : '';
+      try {
+        last = decodeURIComponent(last);
+      } catch (e) {
+        /* Malformed escape: search for the raw segment. */
+      }
+      return last
+        .replace(/\.[a-z0-9]{1,5}$/i, '')
+        .replace(/[-_+.\s]+/g, ' ')
+        .trim()
+        .slice(0, 60);
+    }
+
+    function message() {
+      var el = ui && ui.querySelector('.pagefind-ui__message');
+      return el ? el.textContent.replace(/\s+/g, ' ').trim() : '';
+    }
+
+    /* Pagefind rewrites its message line on every keystroke. The link row
+       follows it at once; the hidden status region and the no-results event
+       wait until typing pauses, so a screen reader hears one settled line. */
+    function onResultsChanged() {
+      var text = message();
+      var zero = text.indexOf(ZERO_RESULTS) === 0;
+      if (empty) empty.hidden = !zero;
+      clearTimeout(announceTimer);
+      announceTimer = setTimeout(function () {
+        var settled = message();
+        if (count && count.textContent !== settled) count.textContent = settled;
+        if (settled.indexOf(ZERO_RESULTS) !== 0) {
+          lastZero = '';
+        } else if (settled !== lastZero) {
+          lastZero = settled;
+          track('search_no_results');
+        }
+      }, 700);
+    }
+
+    function watchResults() {
+      if (!ui || typeof MutationObserver === 'undefined') return;
+      new MutationObserver(onResultsChanged).observe(ui, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+      ui.addEventListener('click', function (e) {
+        var t = e.target;
+        if (t && t.closest && t.closest('.pagefind-ui__result a')) track('search_result_click');
+      });
     }
 
     /* 'failed' is not terminal: the next open probes and loads again, so a
@@ -220,6 +372,15 @@ import Icon from './Icon.astro';
           excerptLength: 24,
           pageSize: 8,
           autofocus: true,
+          /* Search-time ranking (the index-time half is src/lib/search-index.ts).
+             A word repeated through a long blog post should not outrank the
+             page named after it, so repeats count for little; and the
+             directive references are very long pages that must not be marked
+             down for their length, so length is not scored at all. */
+          ranking: {
+            termFrequency: 0.2,
+            pageLength: 0,
+          },
           translations: {
             placeholder: 'Search the docs, blog and site',
             clear_search: 'Clear',
@@ -228,6 +389,7 @@ import Icon from './Icon.astro';
         });
         state = 'ready';
         setStatus('');
+        watchResults();
         focusInput();
       } catch (e) {
         failed();
@@ -259,6 +421,10 @@ import Icon from './Icon.astro';
 
     function open(source) {
       opener = source || document.activeElement;
+      pendingQuery =
+        source && source.hasAttribute && source.hasAttribute('data-search-prefill-path')
+          ? pathQuery()
+          : '';
       if (!dialog.open) dialog.showModal();
       // While a modal dialog is up, the floating share/message launchers hide
       // (data-dialog-open rule in global.css); close any of their panels too.

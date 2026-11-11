@@ -12,6 +12,9 @@
 // button gets its own space instead of covering the transcript. The panel
 // inherits the global pre:has(code) tick strip; the panel's own border is the
 // frame, so the pre's inset bezel is suppressed here to avoid a double ring.
+// `copy={false}` is for a readout nobody would paste anywhere: the pre is
+// marked as already handled, which the copy-button script skips, and with no
+// command and no chip either the then-empty head row is not rendered.
 
 import Chip from './Chip.astro';
 
@@ -25,21 +28,26 @@ interface Props {
     tone?: 'plain' | 'strong' | 'hl' | 'ok' | 'dim';
     event?: string;
   }>;
+  copy?: boolean;
 }
 
-const { command, label, labelledby, chip, lines } = Astro.props;
+const { command, label, labelledby, chip, lines, copy = true } = Astro.props;
+const showHead = copy || Boolean(command) || Boolean(chip);
 ---
 
 {/* The head row is a div, not a figcaption: a figcaption names the figure, and
     once the copy button is docked in the head that name would start with
     "Copy code to clipboard". The command line is the figure's name instead. */}
 <figure class="term-panel" data-ui="term-panel" aria-label={command ? `$ ${command}` : undefined}>
-  <div class="term-head">
-    {command && <span class="font-mono text-xs text-text-muted">$ {command}</span>}
-    {chip && <Chip tone={chip.tone} label={chip.label} />}
-  </div>
+  {showHead && (
+    <div class="term-head">
+      {command && <span class="font-mono text-xs text-text-muted">$ {command}</span>}
+      {chip && <Chip tone={chip.tone} label={chip.label} />}
+    </div>
+  )}
   <pre
     class="term-body"
+    data-copy-attached={copy ? undefined : '1'}
     tabindex="0"
     role="region"
     aria-label={label}

@@ -89,6 +89,18 @@ Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `
 the dialog probes for that before loading and reports a blocked policy visibly. The docs
 sitemap `lastmod` comes from the same git-derived date as the page (`src/lib/git-date.ts`).
 
+Result order is tuned in two places. At build time the layout gives `<main>` a
+`data-pagefind-weight` and, for the pages people search for by name, a short result title
+(`src/lib/search-index.ts`, from the path alone; no page file carries search attributes). At
+search time the dialog passes Pagefind `ranking` options. Neither is covered by the test
+suites, because the dev server has no index: after changing either, build, serve the build and
+run `node scripts/search-probes.mjs http://127.0.0.1:<port>`, which prints where each probe
+query's page lands. The dialog mirrors Pagefind's result count into a visually hidden
+`role="status"` element and shows a fixed row of links when a search finds nothing; the 404
+page opens the dialog with the last segment of the missing path as the query. The index
+step fails the build when a Pagefind output file is missing or empty
+(`scripts/lib/search-index-output.mjs`); rebuild if it does.
+
 ## Directory map
 
 ```
