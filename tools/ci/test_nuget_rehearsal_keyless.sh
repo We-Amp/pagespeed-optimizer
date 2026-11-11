@@ -161,7 +161,7 @@ mutate 'a job calling release.yml'                $C "s.replace('pipeline-nuget-
 mutate 'a call to the real lane'                  $C "s.replace('pipeline-nuget-rehearsal.yml@main', 'pipeline-release-nuget.yml@main')"
 mutate 'a second job in the caller'               $C "s + '\n  second:\n    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nuget-rehearsal.yml@main\n'"
 mutate 'a persistent runner label'                $P "s.replace('runs-on: ubuntu-24.04', 'runs-on: fleet-heavy')"
-mutate 'an unpinned action'                       $P "s.replace('actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68', 'actions/setup-dotnet@v6')"
+mutate 'an unpinned action'                       $P "__import__('re').sub(r'(actions/setup-dotnet@)[0-9a-f]{40}', r'\1v6', s)"
 mutate 'NuGet/login step'                         $P "s.replace('      - name: Ensure .NET 10 SDK', '      - uses: NuGet/login@v1\n      - name: Ensure .NET 10 SDK')"
 mutate 'a nuget push in the workflow'             $P "s.replace('run: tools/ci/nupkg_checks.sh nuget-org nupkg', 'run: dotnet nuget push nupkg/*.nupkg')"
 mutate 'feed_url pointing at nuget.org'           $SCRIPT "s.replace('feed_url=\"http://127.0.0.1:\${port}/v3/index.json\"', 'feed_url=\"https://api.nuget.org/v3/index.json\"')"
