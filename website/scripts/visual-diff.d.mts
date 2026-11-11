@@ -11,6 +11,7 @@ export type PixelComparison = {
   width: number;
   height: number;
   total: number;
+  sameSize: boolean;
   changed: number;
   maxDelta: number;
   top: number | null;
@@ -19,6 +20,9 @@ export type PixelComparison = {
 };
 export type DistDiff = {
   empty: boolean;
+  baseId: string | null;
+  headId: string | null;
+  sameBuild: boolean;
   html: {
     compared: number;
     onlyBase: string[];
@@ -41,7 +45,21 @@ export const DEFAULT_MASKS: string[];
 export function normalizeText(text: string): string;
 export function splitCssRules(css: string, context?: string): string[];
 export function multisetDiff(a: string[], b: string[]): { onlyA: string[]; onlyB: string[] };
-export function distDiff(baseInput: string, headInput: string): DistDiff;
+export function distDiff(
+  baseInput: string,
+  headInput: string,
+  options?: { allowSameBuild?: boolean },
+): DistDiff;
+export type RoundResult = Pick<PixelComparison, 'changed' | 'maxDelta' | 'sameSize'>;
+export const SAME_BUILD_MARKER: string;
+export const NOISE_MAX_PIXELS: number;
+export const NOISE_MAX_DELTA: number;
+export function isRasterNoise(cmp: RoundResult): boolean;
+export function shouldReshoot(rounds: RoundResult[], maxRounds?: number): boolean;
+export function summarizeRounds(
+  rounds: RoundResult[],
+  kept: number,
+): { reshot: boolean; flaky: boolean; note: string | null };
 export function comparePixels(a: RawImage, b: RawImage, threshold?: number): PixelComparison;
 export function formatPercent(changed: number, total: number): string;
 export function slugForPath(path: string): string;

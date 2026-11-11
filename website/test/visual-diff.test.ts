@@ -6,21 +6,26 @@
 // the rule-level CSS split, the pixel comparison, and the preconditions that
 // make the tool refuse to run. No browser and no server is involved.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_PATHS,
+  NOISE_MAX_DELTA,
+  NOISE_MAX_PIXELS,
   comparePixels,
   distDiff,
   formatPercent,
   freezeSvg,
+  isRasterNoise,
   main,
   multisetDiff,
   normalizeText,
+  shouldReshoot,
   slugForPath,
   splitCssRules,
+  summarizeRounds,
 } from '../scripts/visual-diff.mjs';
 
 const image = (width: number, height: number, fill = 0) => ({
@@ -111,6 +116,36 @@ describe('distDiff', () => {
     expect(result.css.onlyBase).toEqual([' | .x{color:red}']);
     expect(result.css.onlyHead).toEqual([' | .x{color:blue}']);
   });
+
+  it('reports both build ids', () => {
+    const a = build('e', 'AAAAaaaa', 'abc123', 'same', '.x{color:red}');
+    const b = build('f', 'BBBBbbbb', 'def456', 'same', '.x{color:red}');
+    expect(distDiff(a, b)).toMatchObject({ baseId: 'e', headId: 'f', sameBuild: false });
+  });
+
+  it('refuses the same directory given twice, however it is spelled', () => {
+    const a = build('g', 'AAAAaaaa', 'abc123', 'same', '.x{color:red}');
+    expect(() => distDiff(a, a)).toThrow(/same build output/);
+    expect(() => distDiff(join(a, 'dist'), join(a, 'dist', 'client'))).toThrow(/same build output/);
+  });
+
+  it('refuses two builds with equal ids and a build without an id', () => {
+    const a = build('h', 'AAAAaaaa', 'abc123', 'same', '.x{color:red}');
+    const twin = join(root, 'twin', 'h');
+    mkdirSync(join(root, 'twin'), { recursive: true });
+    cpSync(a, twin, { recursive: true });
+    expect(() => distDiff(a, twin)).toThrow(/build ids are equal/);
+
+    const b = build('i', 'BBBBbbbb', 'def456', 'same', '.x{color:red}');
+    writeFileSync(join(b, 'dist', 'client', 'index.html'), '<main>same</main>');
+    expect(() => distDiff(a, b)).toThrow(/no build-id tag/);
+  });
+
+  it('compares a build with itself only on request, and marks the result', () => {
+    const a = build('j', 'AAAAaaaa', 'abc123', 'same', '.x{color:red}');
+    const result = distDiff(a, a, { allowSameBuild: true });
+    expect(result).toMatchObject({ empty: true, sameBuild: true });
+  });
 });
 
 describe('comparePixels', () => {
@@ -130,6 +165,46 @@ describe('comparePixels', () => {
   it('counts the pixels only one image has as changed', () => {
     const cmp = comparePixels(image(4, 3), image(4, 5));
     expect(cmp).toMatchObject({ width: 4, height: 5, total: 20, changed: 8, top: 3, bottom: 4 });
+  });
+});
+
+describe('re-shoot decision', () => {
+  const noise = { changed: 24, maxDelta: 2, sameSize: true };
+  const equal = { changed: 0, maxDelta: 0, sameSize: true };
+  const shift = { changed: 57600, maxDelta: 158, sameSize: true };
+
+  it('treats only a small, faint, same-size difference as raster noise', () => {
+    expect(isRasterNoise(noise)).toBe(true);
+    expect(isRasterNoise(equal)).toBe(false);
+    expect(isRasterNoise(shift)).toBe(false);
+    expect(isRasterNoise({ ...noise, changed: NOISE_MAX_PIXELS + 1 })).toBe(false);
+    expect(isRasterNoise({ ...noise, maxDelta: NOISE_MAX_DELTA + 1 })).toBe(false);
+    expect(isRasterNoise({ ...noise, sameSize: false })).toBe(false);
+  });
+
+  it('shoots again only after noise, never after a real change, three rounds at most', () => {
+    expect(shouldReshoot([noise])).toBe(true);
+    expect(shouldReshoot([noise, noise])).toBe(true);
+    expect(shouldReshoot([noise, noise, noise])).toBe(false);
+    expect(shouldReshoot([equal])).toBe(false);
+    expect(shouldReshoot([shift])).toBe(false);
+    expect(shouldReshoot([noise, equal])).toBe(false);
+    expect(shouldReshoot([noise, shift])).toBe(false);
+  });
+
+  it('reports a discarded round that differed, and flags one that was not noise', () => {
+    expect(summarizeRounds([equal], 0)).toEqual({ reshot: false, flaky: false, note: null });
+    expect(summarizeRounds([shift], 0)).toEqual({ reshot: false, flaky: false, note: null });
+    expect(summarizeRounds([noise, equal], 1)).toEqual({
+      reshot: true,
+      flaky: false,
+      note: 're-shot: an earlier pair differed by 24 px, max channel delta 2',
+    });
+    expect(summarizeRounds([noise, shift], 0)).toEqual({
+      reshot: true,
+      flaky: true,
+      note: 'FLAKY: a discarded pair differed by 57600 px, max channel delta 158',
+    });
   });
 });
 
@@ -219,6 +294,12 @@ describe('preconditions', () => {
     ]);
     expect(code).toBe(2);
     expect(message).toContain('nothing answers');
+  });
+
+  it('refuses a build-output diff of one directory against itself', async () => {
+    const { code, message } = await run(['dist', '--base', 'dist', '--head', 'dist/client']);
+    expect(code).toBe(2);
+    expect(message).toMatch(/same build output|no build output found/);
   });
 
   it('rejects an unknown mode', async () => {

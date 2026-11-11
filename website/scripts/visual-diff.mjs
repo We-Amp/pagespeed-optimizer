@@ -37,9 +37,25 @@
 // captures are byte-equal. The telemetry strip (live timing values) and the
 // footer copyright year are masked; --mask <selector> adds more.
 //
+// dist applies the same identity rule to the two directories: it reads the
+// build-id tag from each side's index.html and refuses a side without one,
+// two equal ids, or the same directory given twice. Any run made with
+// --allow-same-build is marked "SAME-BUILD SELF-TEST, NOT EVIDENCE" in every
+// output.
+//
+// What dist does not cover: client JavaScript bundles, images, fonts and
+// other static files are not compared, and the CSS comparison ignores rule
+// order (a rule that moves between sheets is not a difference, and neither
+// is a reordering of two rules). "empty" therefore means "same prerendered
+// markup and the same set of CSS rules", not "identical build".
+//
 // Exit codes: 0 done (shots: whatever the diff; dist: no difference),
-// 1 a difference was found (dist always; shots only with --fail-on-diff),
-// 2 usage error or a failed precondition.
+// 1 a difference was found (dist always; shots only with --fail-on-diff,
+// which also fails on an unstable capture and on a discarded round that
+// differed by more than raster noise), 2 usage error or a failed
+// precondition.
+
+/* eslint-disable no-console */
 
 import {
   existsSync,
@@ -210,9 +226,46 @@ function firstDifference(a, b) {
   return { offset: i, base: clip(a), head: clip(b) };
 }
 
-export function distDiff(baseInput, headInput) {
+const BUILD_ID_TAG = /<meta\s+name="build-id"\s+content="([^"]*)"/;
+export const SAME_BUILD_MARKER = 'SAME-BUILD SELF-TEST, NOT EVIDENCE';
+
+function distBuildId(clientDir) {
+  const index = join(clientDir, 'index.html');
+  if (!existsSync(index)) return null;
+  const m = BUILD_ID_TAG.exec(readFileSync(index, 'utf8'));
+  return m ? m[1] : null;
+}
+
+export function distDiff(baseInput, headInput, { allowSameBuild = false } = {}) {
   const baseDir = resolveClientDir(baseInput);
   const headDir = resolveClientDir(headInput);
+  const baseId = distBuildId(baseDir);
+  const headId = distBuildId(headDir);
+  const sameDir = realpathSync(baseDir) === realpathSync(headDir);
+  const sameBuild = sameDir || baseId === null || headId === null || baseId === headId;
+  if (!allowSameBuild) {
+    if (sameDir) {
+      throw new UsageError(
+        `base and head are the same build output (${baseDir}): refusing to compare a build with itself.`,
+      );
+    }
+    for (const [label, id, dir] of [
+      ['base', baseId, baseDir],
+      ['head', headId, headDir],
+    ]) {
+      if (id === null) {
+        throw new UsageError(
+          `${label} ${dir}: no build-id tag in index.html. Build with SITE_BUILD_ID set.`,
+        );
+      }
+    }
+    if (baseId === headId) {
+      throw new UsageError(
+        `base and head build ids are equal (${baseId}): refusing to compare a build with itself. ` +
+          'Build the two sides with distinct SITE_BUILD_ID values.',
+      );
+    }
+  }
 
   const baseHtml = walk(baseDir, '.html');
   const headHtml = walk(headDir, '.html');
@@ -264,12 +317,15 @@ export function distDiff(baseInput, headInput) {
     css.onlyHead.length === 0 &&
     css.sheetsOnlyBase.length === 0 &&
     css.sheetsOnlyHead.length === 0;
-  return { empty, html, css };
+  return { empty, baseId, headId, sameBuild, html, css };
 }
 
 function printDistDiff(result, limit) {
   const { html, css } = result;
   const lines = [];
+  if (result.sameBuild)
+    lines.push(`${SAME_BUILD_MARKER} (the two sides are not two distinct builds)`);
+  lines.push(`base build-id ${result.baseId ?? 'none'}, head build-id ${result.headId ?? 'none'}`);
   const list = (title, items, fmt = (x) => x) => {
     if (items.length === 0) return;
     lines.push(`${title} (${items.length}):`);
@@ -296,7 +352,13 @@ function printDistDiff(result, limit) {
   list('css sheets only in head', css.sheetsOnlyHead);
   list('css rules only in base', css.onlyBase, clip);
   list('css rules only in head', css.onlyHead, clip);
-  lines.push(result.empty ? 'normalized dist diff: empty' : 'normalized dist diff: NOT empty');
+  lines.push(
+    'not compared: client JavaScript, images and other static files; CSS rule order is ignored',
+  );
+  lines.push(
+    `normalized dist diff: ${result.empty ? 'empty' : 'NOT empty'}` +
+      `${result.sameBuild ? ` (${SAME_BUILD_MARKER})` : ''}`,
+  );
   console.log(lines.join('\n'));
 }
 
@@ -315,7 +377,17 @@ export function comparePixels(a, b, threshold = 0) {
   const height = Math.max(a.height, b.height);
   const total = width * height;
   if (a.width === b.width && a.height === b.height && a.data.equals(b.data)) {
-    return { width, height, total, changed: 0, maxDelta: 0, top: null, bottom: null, mask: null };
+    return {
+      width,
+      height,
+      total,
+      sameSize: true,
+      changed: 0,
+      maxDelta: 0,
+      top: null,
+      bottom: null,
+      mask: null,
+    };
   }
   const mask = new Uint8Array(total);
   let changed = 0;
@@ -354,7 +426,63 @@ export function comparePixels(a, b, threshold = 0) {
       bottom = y;
     }
   }
-  return { width, height, total, changed, maxDelta, top, bottom, mask: changed ? mask : null };
+  const sameSize = a.width === b.width && a.height === b.height;
+  return {
+    width,
+    height,
+    total,
+    sameSize,
+    changed,
+    maxDelta,
+    top,
+    bottom,
+    mask: changed ? mask : null,
+  };
+}
+
+// Raster noise, as measured on two captures of one build: a few antialiased
+// edge pixels that round differently, one or two steps per channel, with no
+// change in page size. Only a difference of this shape is worth a second
+// capture; anything larger is a result.
+export const NOISE_MAX_PIXELS = 200;
+export const NOISE_MAX_DELTA = 2;
+
+/** True when a comparison differs, and only in the way raster noise does. */
+export function isRasterNoise(cmp) {
+  return (
+    cmp.changed > 0 &&
+    cmp.sameSize === true &&
+    cmp.changed <= NOISE_MAX_PIXELS &&
+    cmp.maxDelta <= NOISE_MAX_DELTA
+  );
+}
+
+/**
+ * Whether to capture a pair again, given the comparisons of the rounds so
+ * far (oldest first). Only while every round differed and every difference
+ * was noise-shaped, and three rounds at most: a real change is shot once.
+ */
+export function shouldReshoot(rounds, maxRounds = 3) {
+  return rounds.length < maxRounds && rounds.every(isRasterNoise);
+}
+
+/**
+ * What the discarded rounds say about a capture. rounds: every round's
+ * comparison, oldest first; kept: the index of the round whose pair was kept.
+ */
+export function summarizeRounds(rounds, kept) {
+  const discarded = rounds.filter((r, i) => i !== kept && r.changed > 0);
+  const flaky = discarded.filter((r) => !isRasterNoise(r));
+  const worst = (list) => list.reduce((w, r) => (r.changed > w.changed ? r : w), list[0]);
+  let note = null;
+  if (flaky.length > 0) {
+    const w = worst(flaky);
+    note = `FLAKY: a discarded pair differed by ${w.changed} px, max channel delta ${w.maxDelta}`;
+  } else if (discarded.length > 0) {
+    const w = worst(discarded);
+    note = `re-shot: an earlier pair differed by ${w.changed} px, max channel delta ${w.maxDelta}`;
+  }
+  return { reshot: discarded.length > 0, flaky: flaky.length > 0, note };
 }
 
 /** The diff picture: the base image dimmed to grey, changed pixels in magenta. */
@@ -546,7 +674,7 @@ function contactSheet(report) {
         r.files?.[side]
           ? `<td><a href="${r.files[side]}"><img loading="lazy" src="${r.files[side]}" alt="${side}"></a></td>`
           : `<td class="none">${side === 'diff' && r.changed === 0 ? 'identical' : 'n/a'}</td>`;
-      const state = r.error ? 'error' : r.changed === 0 ? 'same' : 'changed';
+      const state = r.error || r.flaky ? 'error' : r.changed === 0 ? 'same' : 'changed';
       return (
         `<tr class="${state}"><th>${escapeHtml(r.path)}<br><small>${r.viewport}` +
         `${r.width ? ` · ${r.width}x${r.height}` : ''}</small><br><b>${escapeHtml(r.percent)}</b>` +
@@ -567,10 +695,13 @@ th{width:16em;font-weight:400}
 img{width:100%;max-width:420px;max-height:640px;object-fit:cover;object-position:top;display:block}
 tr.changed b{color:#ff6ad5}tr.error b{color:#ff6a6a}tr.same b{color:#7c7}
 .none{color:#777}
+.banner{background:#ff00ff;color:#000;font-weight:700;padding:12px;font-size:18px}
 </style></head><body>
 <h1>Visual diff</h1>
+${report.sameBuild ? `<p class="banner">${SAME_BUILD_MARKER}: the same build is on both sides, so this shows render noise only and is not before/after evidence.</p>` : ''}
 <p>base <code>${escapeHtml(report.baseId)}</code> vs head <code>${escapeHtml(report.headId)}</code>
  · ${report.results.length} captures · ${report.summary.changed} changed · ${report.summary.errors} errors
+ · ${report.summary.reshot} re-shot · ${report.summary.flaky} flaky${report.threshold ? ` · threshold ${report.threshold}` : ''}
  · masked: <code>${escapeHtml(report.masks.join(', '))}</code></p>
 <table><tr><th>page</th><th>base</th><th>head</th><th>diff</th></tr>
 ${rows}
@@ -579,9 +710,27 @@ ${rows}
 }
 
 function markdownTable(report) {
-  const lines = ['| page | viewport | changed % |', '|---|---|---|'];
+  const lines = [];
+  if (report.sameBuild) {
+    lines.push(
+      `**${SAME_BUILD_MARKER}**: the same build is on both sides, so this table shows render noise only.`,
+      '',
+    );
+  }
+  if (report.threshold > 0) {
+    lines.push(`Per-channel differences up to ${report.threshold} are treated as equal.`, '');
+  }
+  lines.push('| page | viewport | changed % |', '|---|---|---|');
   for (const r of report.results) {
     lines.push(`| \`${r.path}\` | ${r.viewport} | ${r.percent}${r.note ? ` (${r.note})` : ''} |`);
+  }
+  const s = report.summary;
+  if (s.reshot > 0) {
+    lines.push(
+      '',
+      `${s.reshot} capture(s) were shot again after an earlier pair differed` +
+        `${s.flaky > 0 ? `; ${s.flaky} of them by more than raster noise (FLAKY)` : ''}.`,
+    );
   }
   return `${lines.join('\n')}\n`;
 }
@@ -645,13 +794,13 @@ async function runShots(opts) {
         const baseFile = join(out, 'base', name);
         const headFile = join(out, 'head', name);
         // A handful of antialiased edge pixels can differ by a rounding step
-        // between two captures of the same page. A pair that differs is
-        // therefore shot again (twice at most) and the closest pair is kept:
-        // noise goes away, a real change stays.
+        // between two captures of the same page. Only a pair that differs in
+        // that way is shot again (twice at most) and the closest pair kept.
+        // Every round is recorded, and a discarded round that differed is
+        // reported with the result, so an intermittent render cannot hide.
         let best = null;
-        let rounds = 0;
-        while (rounds < 3 && (!best || best.cmp.changed > 0)) {
-          rounds++;
+        const roundLog = [];
+        do {
           const tmpBase = join(out, 'base', `.tmp-${name}`);
           const tmpHead = join(out, 'head', `.tmp-${name}`);
           const b = await shootOne(browser, baseOrigin, path, viewport, masks, tmpBase);
@@ -659,16 +808,26 @@ async function runShots(opts) {
           const imgA = await decode(tmpBase);
           const imgB = await decode(tmpHead);
           const cmp = comparePixels(imgA, imgB, opts.threshold);
+          roundLog.push({
+            changed: cmp.changed,
+            maxDelta: cmp.maxDelta,
+            sameSize: cmp.sameSize,
+            size: { base: `${imgA.width}x${imgA.height}`, head: `${imgB.width}x${imgB.height}` },
+            noise: isRasterNoise(cmp),
+          });
           if (!best || cmp.changed < best.cmp.changed) {
             renameSync(tmpBase, baseFile);
             renameSync(tmpHead, headFile);
-            best = { b, h, imgA, imgB, cmp };
+            best = { b, h, imgA, imgB, cmp, index: roundLog.length - 1 };
           } else {
             rmSync(tmpBase);
             rmSync(tmpHead);
           }
-        }
+        } while (shouldReshoot(roundLog));
         const { b, h, imgA, imgB, cmp } = best;
+        const rounds = roundLog.length;
+        const discarded = summarizeRounds(roundLog, best.index);
+        roundLog.forEach((r, i) => (r.kept = i === best.index));
         Object.assign(result, {
           status: { base: b.status, head: h.status },
           blockedRequests: { base: b.blocked, head: h.blocked },
@@ -683,6 +842,9 @@ async function runShots(opts) {
           total: cmp.total,
           maxDelta: cmp.maxDelta,
           rounds,
+          roundLog,
+          reshot: discarded.reshot,
+          flaky: discarded.flaky,
           percent: formatPercent(cmp.changed, cmp.total),
           top: cmp.top,
           bottom: cmp.bottom,
@@ -693,6 +855,7 @@ async function runShots(opts) {
         if (imgA.height !== imgB.height) notes.push(`height ${imgA.height} -> ${imgB.height}`);
         if (!result.stable) notes.push('capture not stable');
         if (cmp.changed > 0) notes.push(`${cmp.changed} px, max channel delta ${cmp.maxDelta}`);
+        if (discarded.note) notes.push(discarded.note);
         if (notes.length) result.note = notes.join('; ');
         if (cmp.changed > 0) {
           await sharp(renderDiff(imgA, cmp), {
@@ -711,7 +874,10 @@ async function runShots(opts) {
         });
       }
       results[index] = result;
-      console.error(`${result.percent.padStart(7)}  ${viewport.name.padEnd(7)} ${path}`);
+      console.error(
+        `${result.percent.padStart(7)}  ${viewport.name.padEnd(7)} ${path}` +
+          `${result.reshot ? `  [${result.note}]` : ''}`,
+      );
     }
   };
   try {
@@ -732,6 +898,8 @@ async function runShots(opts) {
       changed: results.filter((r) => r.changed > 0).length,
       errors: results.filter((r) => r.error).length,
       unstable: results.filter((r) => r.stable === false).length,
+      reshot: results.filter((r) => r.reshot).length,
+      flaky: results.filter((r) => r.flaky).length,
     },
     results,
   };
@@ -742,12 +910,13 @@ async function runShots(opts) {
   process.stdout.write(markdownTable(report));
   const s = report.summary;
   console.log(
-    `\n${s.captures} captures, ${s.changed} changed, ${s.errors} errors, ${s.unstable} unstable` +
-      `${report.sameBuild ? ' (same build on both sides: this measures render noise only)' : ''}`,
+    `\n${s.captures} captures, ${s.changed} changed, ${s.errors} errors, ${s.unstable} unstable, ` +
+      `${s.reshot} re-shot, ${s.flaky} flaky` +
+      `${report.sameBuild ? `\n${SAME_BUILD_MARKER}: same build on both sides, this measures render noise only` : ''}`,
   );
   console.log(`contact sheet: ${join(out, 'index.html')}`);
   if (s.errors > 0) return 2;
-  if (opts.failOnDiff && (s.changed > 0 || s.unstable > 0)) return 1;
+  if (opts.failOnDiff && (s.changed > 0 || s.unstable > 0 || s.flaky > 0)) return 1;
   return 0;
 }
 
@@ -758,7 +927,8 @@ const USAGE = `usage:
   node scripts/visual-diff.mjs shots --base <origin> --head <origin> --base-id <id> --head-id <id>
        --out <dir> [--paths <file>] [--viewports desktop,tablet,phone] [--mask <selector>]...
        [--threshold <0-255>] [--jobs <n>] [--fail-on-diff] [--allow-same-build] [path...]
-  node scripts/visual-diff.mjs dist --base <dist dir> --head <dist dir> [--limit <n>] [--json <file>]`;
+  node scripts/visual-diff.mjs dist --base <dist dir> --head <dist dir> [--limit <n>] [--json <file>]
+       [--allow-same-build]`;
 
 function parseArgs(argv) {
   const [mode, ...rest] = argv;
@@ -812,7 +982,7 @@ export async function main(argv) {
     }
     if (opts.mode === 'dist') {
       if (!opts.base || !opts.head) throw new UsageError('--base and --head are required');
-      const result = distDiff(opts.base, opts.head);
+      const result = distDiff(opts.base, opts.head, { allowSameBuild: opts.allowSameBuild });
       if (opts.json) writeFileSync(opts.json, `${JSON.stringify(result, null, 2)}\n`);
       printDistDiff(result, opts.limit);
       return result.empty ? 0 : 1;
