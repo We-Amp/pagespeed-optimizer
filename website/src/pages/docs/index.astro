@@ -103,11 +103,10 @@ const docsJsonLd = {
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap">
       <div class="flex items-center gap-3 flex-wrap min-w-0">
         <h1 class="h1-hero break-words text-text-body">Documentation</h1>
-        <span
-          class="inline-flex items-center rounded-md bg-interactive px-2 py-1 text-xs font-mono font-medium text-on-accent"
-          aria-label={`mod_pagespeed ${rel21.display.badge_version} documentation`}
-        >
+        <span class="inline-flex items-center rounded-md bg-interactive px-2 py-1 text-xs font-mono font-medium text-on-accent">
+          <span class="sr-only">mod_pagespeed </span>
           {rel21.display.badge_version}
+          <span class="sr-only"> documentation</span>
         </span>
       </div>
     </div>

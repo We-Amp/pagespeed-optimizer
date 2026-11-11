@@ -341,7 +341,10 @@ const siteData = sites.map((site) => {
                 <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-2">
                   Before &mdash; {formatBytes(site.resources.css.before)}
                 </p>
-                <pre class="text-xs text-text-muted bg-bg-secondary rounded p-3 overflow-x-auto max-h-56 overflow-y-auto">
+                <pre
+                  tabindex="0"
+                  class="text-xs text-text-muted bg-bg-secondary rounded p-3 overflow-x-auto max-h-56 overflow-y-auto"
+                >
                     <code>{site.cssSnippet.before}</code>
                   </pre>
               </div>
@@ -349,7 +352,10 @@ const siteData = sites.map((site) => {
                 <p class="text-xs font-semibold uppercase tracking-wider text-success mb-2">
                   After &mdash; {formatBytes(site.resources.css.minified)}
                 </p>
-                <pre class="text-xs text-text-muted bg-success-wash rounded p-3 overflow-x-auto max-h-56 overflow-y-auto">
+                <pre
+                  tabindex="0"
+                  class="text-xs text-text-muted bg-success-wash rounded p-3 overflow-x-auto max-h-56 overflow-y-auto"
+                >
                     <code set:text={site.cssSnippet.after} />
                   </pre>
               </div>
@@ -502,7 +508,10 @@ const siteData = sites.map((site) => {
       </p>
       <div class="mt-8 rounded-lg bg-bg-elevated border border-border p-6">
         <p class="text-sm font-medium text-text-body mb-3">Quick start:</p>
-        <pre class="rounded-md bg-bg-recessed text-text-body p-4 text-sm overflow-x-auto"><code>docker compose -f deploy/docker-compose.yml up -d
+        <pre
+          tabindex="0"
+          class="rounded-md bg-bg-recessed text-text-body p-4 text-sm overflow-x-auto"
+        ><code>docker compose -f deploy/docker-compose.yml up -d
 curl -I http://localhost:8080/          # X-PageSpeed: MISS (original)
 sleep 2                                 # Wait for worker optimization
 curl -I http://localhost:8080/          # X-PageSpeed: HIT  (optimized)</code></pre>

@@ -165,14 +165,36 @@ const statusId = `${uid}-status`;
     const statusEl = form.querySelector<HTMLElement>('[data-newsletter-status]');
     if (!emailEl || !consentEl || !submitBtn || !statusEl) return;
 
-    function setStatus(kind: 'success' | 'error' | null, msg: string) {
+    // A validation error is tied to the control it is about (aria-invalid plus
+    // aria-describedby to the status line), so the message is read again when
+    // focus returns to that control, not only once by the live region.
+    function clearInvalid() {
+      for (const el of [emailEl!, consentEl!]) {
+        el.removeAttribute('aria-invalid');
+        el.removeAttribute('aria-describedby');
+      }
+    }
+
+    function setStatus(kind: 'success' | 'error' | null, msg: string, field?: HTMLInputElement) {
       // The live region stays in the DOM and is never hidden: only its text
       // changes, which is what assistive technology announces.
       statusEl!.textContent = msg;
       statusEl!.classList.remove('text-interactive', 'text-accent');
+      clearInvalid();
       if (kind === null) return;
       statusEl!.classList.add(kind === 'success' ? 'text-interactive' : 'text-accent');
+      if (kind === 'error' && field) {
+        field.setAttribute('aria-invalid', 'true');
+        field.setAttribute('aria-describedby', statusEl!.id);
+      }
     }
+
+    emailEl.addEventListener('input', () => {
+      if (emailEl.hasAttribute('aria-invalid')) setStatus(null, '');
+    });
+    consentEl.addEventListener('change', () => {
+      if (consentEl.hasAttribute('aria-invalid')) setStatus(null, '');
+    });
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -180,18 +202,22 @@ const statusId = `${uid}-status`;
 
       // The field comes first, so an empty form names the empty field.
       if (!email) {
-        setStatus('error', 'Enter your email address.');
+        setStatus('error', 'Enter your email address.', emailEl!);
         emailEl!.focus();
         return;
       }
       if (!EMAIL_RE.test(email)) {
-        setStatus('error', "That email address doesn't look right. Check it and try again.");
+        setStatus(
+          'error',
+          "That email address doesn't look right. Check it and try again.",
+          emailEl!,
+        );
         emailEl!.focus();
         return;
       }
       // Genuine consent gate: no submit path without an affirmative tick.
       if (!consentEl!.checked) {
-        setStatus('error', "Tick the box to confirm you'd like the emails.");
+        setStatus('error', "Tick the box to confirm you'd like the emails.", consentEl!);
         consentEl!.focus();
         return;
       }

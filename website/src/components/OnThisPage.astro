@@ -109,7 +109,11 @@ const show = items.length >= minItems;
      Hidden until the heading is hovered/focused or the anchor itself is
      focused, so they never clutter the reading experience. */
   .prose :is(h2, h3, h4) > .heading-anchor {
-    margin-left: 0.4rem;
+    /* The "#" alone is narrower than the 24px minimum target size (WCAG
+       2.5.8). Padding widens the target; the negative margins take the same
+       amount back, so the heading text does not move or wrap differently. */
+    padding: 0.25rem 0.5rem;
+    margin: 0 -0.5rem 0 -0.1rem;
     color: var(--color-text-muted);
     text-decoration: none;
     opacity: 0;

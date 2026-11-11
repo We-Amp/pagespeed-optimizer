@@ -180,7 +180,7 @@
       </div>
 
       {/* aria-live status (validation / sending / error). */}
-      <p data-qm-status class="qm-status" role="status" aria-live="polite"></p>
+      <p id="qm-status" data-qm-status class="qm-status" role="status" aria-live="polite"></p>
 
       {/* GDPR transparency notice — names email delivery, optionality, privacy link. */}
       <p class="qm-privacy">
@@ -264,15 +264,33 @@
     syncCount();
 
     // ---- status helpers -----------------------------------------------------
+    // A validation error is tied to the control it is about (aria-invalid plus
+    // aria-describedby to the status line), so the message is read again when
+    // focus returns to that control, not only once by the live region.
+    function clearInvalid() {
+      for (const el of [messageEl, emailEl]) {
+        el.removeAttribute('aria-invalid');
+        el.removeAttribute('aria-describedby');
+      }
+    }
     function clearStatus() {
       statusEl.textContent = '';
       statusEl.classList.remove('is-error', 'is-busy');
+      clearInvalid();
     }
-    function setStatus(kind: 'error' | 'busy', msg: string) {
+    function setStatus(kind: 'error' | 'busy', msg: string, field?: HTMLElement) {
       statusEl.textContent = msg;
       statusEl.classList.remove('is-error', 'is-busy');
       statusEl.classList.add(kind === 'error' ? 'is-error' : 'is-busy');
+      clearInvalid();
+      if (kind === 'error' && field) {
+        field.setAttribute('aria-invalid', 'true');
+        field.setAttribute('aria-describedby', statusEl.id);
+      }
     }
+    emailEl.addEventListener('input', () => {
+      if (emailEl.hasAttribute('aria-invalid')) clearStatus();
+    });
 
     // ---- focus trap ---------------------------------------------------------
     function focusables(): HTMLElement[] {
@@ -396,13 +414,13 @@
       const email = emailEl.value.trim();
 
       if (message.length < 2) {
-        setStatus('error', 'Type a message first.');
+        setStatus('error', 'Type a message first.', messageEl);
         messageEl.focus();
         return;
       }
       // Email is optional, but if given it must be valid.
       if (email !== '' && !EMAIL_RE.test(email)) {
-        setStatus('error', "That email doesn't look right — fix it or clear it.");
+        setStatus('error', "That email doesn't look right — fix it or clear it.", emailEl);
         emailEl.focus();
         return;
       }
