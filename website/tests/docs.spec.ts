@@ -885,10 +885,25 @@ test.describe('Docs sidebar', () => {
     // Fetched once, up front: the handler below then answers every load of
     // the page (the dev server can reload it once) without a request of its own.
     const html = await (await page.request.get('/docs/configuration/')).text();
-    const stripped = html.replace(
-      /<script(?:(?!<\/script>)[\s\S])*data-docs-nav-ready(?:(?!<\/script>)[\s\S])*<\/script>/g,
-      '',
-    );
+    // Drop every script element that carries the marker (rail and menu).
+    const kept: string[] = [];
+    let pos = 0;
+    let dropped = 0;
+    for (;;) {
+      const open = html.indexOf('<script', pos);
+      if (open < 0) break;
+      const close = html.indexOf('</script>', open);
+      if (close < 0) break;
+      const end = close + '</script>'.length;
+      const element = html.slice(open, end);
+      kept.push(html.slice(pos, open));
+      if (element.includes('data-docs-nav-ready')) dropped += 1;
+      else kept.push(element);
+      pos = end;
+    }
+    kept.push(html.slice(pos));
+    const stripped = kept.join('');
+    expect(dropped).toBe(2);
     expect(stripped.length).toBeLessThan(html.length);
     await page.route('**/docs/configuration/', (route) =>
       route.fulfill({ status: 200, contentType: 'text/html', body: stripped }),
