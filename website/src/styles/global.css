@@ -176,8 +176,20 @@
 }
 
 .prose :not(pre) > code {
+  /* A name such as a package or a directive moves to the next line whole and
+     breaks inside the word only when it cannot fit a line of its own. */
   overflow-wrap: anywhere;
-  word-break: break-all;
+}
+/* In a table `anywhere` lets a column shrink to a few characters, which
+   splits a short name over three lines while other columns have room. From
+   tablet width up, the first column (the name a reference table is looked up
+   by) uses `break-word`: it wraps the same way but keeps the whole name as
+   the column's minimum width. The other columns still shrink, so the table
+   keeps fitting its box; on a phone every column does. */
+@media (width >= 48rem) {
+  .prose :is(td, th):first-child code {
+    overflow-wrap: break-word;
+  }
 }
 
 /* The filter topic pages (/docs/filters/<name>/) carry the same filter names
@@ -397,6 +409,9 @@
      text-text-muted. .prose overrides below handle typography-plugin content. */
   :not(pre) > code {
     color: var(--color-text-body);
+    /* A code chip that wraps keeps its padding and corners on each line. */
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
   /* Terminal chrome — applies to any <pre> containing a <code> child.
@@ -571,8 +586,10 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
    shadows, so every state that is carried by a fill alone gets a system-colour
    equivalent here. Nothing in this block applies outside that mode. */
 @media (forced-colors: active) {
-  /* The primary button is a fill with no border: give it a button outline. */
-  .btn-primary {
+  /* The primary and inverse buttons are fills with no border: give them a
+     button outline. */
+  .btn-primary,
+  .btn-inverse {
     border: 1px solid ButtonText;
   }
   /* The pressed tab keeps a fill, in the system's selection colours. */
@@ -647,11 +664,58 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   }
 
   /* Typography tokens */
+  /* Display headings: weight 700 and -0.02em on every page (Inter's optical
+     size axis already tightens at these sizes, so tighter tracking makes
+     glyphs touch), and balanced lines so a heading never ends on a lone word. */
   .h1-hero {
-    @apply text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1];
+    @apply text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1];
+    letter-spacing: -0.02em;
+    text-wrap: balance;
   }
   .h2-section {
-    @apply text-3xl sm:text-4xl font-bold tracking-tight;
+    @apply text-3xl sm:text-4xl font-bold;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  /* Text roles for marketing copy: size and leading only, colour comes from
+     the usual text utilities.
+     .text-body   card descriptions, answers, list items
+     .text-small  captions, requirement lines, table cells
+     .text-micro  mono only: eyebrows, chips, code captions; nothing smaller */
+  .text-body {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  .text-small {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .text-micro {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  /* Standalone "go here" link (a card's destination, a link under a hero):
+     cyan, medium weight, a trailing arrow that stays with the last word, and
+     an underline on hover and keyboard focus. Links inside running text stay
+     underlined prose links and do not use this class. */
+  .link-arrow {
+    color: var(--color-interactive);
+    font-weight: 500;
+    text-decoration: none;
+    text-underline-offset: 4px;
+    transition: color 150ms ease;
+  }
+  .link-arrow::after {
+    /* The arrow is decoration: the second form gives it empty alternative
+       text where supported, so it is not read out. */
+    content: '\00a0\2192';
+    content: '\00a0\2192' / '';
+  }
+  .link-arrow:hover,
+  .link-arrow:focus-visible {
+    color: var(--color-interactive-hover);
+    text-decoration: underline;
   }
   .lede {
     /* font-weight 400 (not 300) — light weight loses contrast on the dark ground. */
@@ -870,6 +934,41 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     color: var(--color-interactive-hover);
     text-decoration: underline;
     text-underline-offset: 4px;
+  }
+  /* Inverse: the one button that sits ON a cyan band (closing sections), so
+     the fill is the dark elevated surface and the label is cyan. The focus
+     ring uses the on-accent ink, which is the colour that contrasts with the
+     band around it. */
+  .btn-inverse {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-colors;
+    min-height: 2.75rem;
+    border-radius: var(--radius-control);
+    background-color: var(--color-bg-elevated);
+    color: var(--color-interactive);
+  }
+  .btn-inverse:hover {
+    background-color: var(--color-bg-primary);
+  }
+  .btn-inverse:focus-visible {
+    outline: 2px solid var(--color-on-accent);
+    outline-offset: 2px;
+  }
+  /* Compact size for a button inside the header bar, added to .btn-primary or
+     .btn-secondary: 36px tall, so the full-size button in the page stays the
+     clear primary. Still above the 24px minimum target (WCAG 2.5.8). The
+     vertical padding leaves room for the secondary button's 1px border. */
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0.4375rem 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+  }
+  /* Touch input (a tablet in landscape shows the desktop header): the compact
+     button keeps the 44px target of the other buttons. */
+  @media (pointer: coarse) {
+    .btn-sm {
+      min-height: 2.75rem;
+    }
   }
   .btn-primary:disabled,
   .btn-primary[aria-disabled='true'],
