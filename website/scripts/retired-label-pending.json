@@ -16,7 +16,7 @@
     "public/llms.txt lists the same title. Delete this file if the title is ever retired."
   ],
   "pages": {
-    "/blog/": 2,
+    "/blog/": 1,
     "/blog/aspnet-core-middleware/": 1,
     "/blog/mod-pagespeed-2-8-release/": 1,
     "/blog/why-i-rebuilt-mod-pagespeed/": 1
