@@ -279,6 +279,10 @@ test.describe('Telemetry strip', () => {
       (route) => route.abort(),
     );
     await page.route(/\/$/, async (route) => {
+      // Only the document is rewritten. The strip's own same-origin HEAD
+      // request also ends in "/" and can still be in flight when the test
+      // ends, so it must not wait on a fetch here.
+      if (!route.request().isNavigationRequest()) return route.continue();
       const response = await route.fetch();
       const body = (await response.text()).replace(
         /<style data-vite-dev-id=[^>]*>[\s\S]*?<\/style>/g,
