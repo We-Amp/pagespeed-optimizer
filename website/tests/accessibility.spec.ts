@@ -148,9 +148,11 @@ test.describe('Accessibility', () => {
   });
 
   // WCAG 2.4.11 Focus Not Obscured: walking back up a page with Shift+Tab
-  // scrolls each stop into view at the top edge, where the sticky header is.
-  // Every stop must come to rest below the header, not behind it.
-  for (const pagePath of ['/', '/pricing/', '/docs/getting-started/']) {
+  // scrolls each stop into view at the top edge, where the sticky header is
+  // and, on docs pages that have one, the platform selector pinned under it.
+  // Every stop must come to rest below both, not behind them.
+  // /docs/cache-modes/ is a page with the platform selector.
+  for (const pagePath of ['/', '/pricing/', '/docs/getting-started/', '/docs/cache-modes/']) {
     test(`Shift+Tab never puts focus behind the sticky header: ${pagePath}`, async ({ page }) => {
       test.setTimeout(90_000);
       // Reduced motion makes focus scrolling instant, so each stop can be
@@ -174,15 +176,29 @@ test.describe('Accessibility', () => {
           if (header.contains(el)) return { done: true };
           const rect = el.getBoundingClientRect();
           const headerBottom = header.getBoundingClientRect().bottom;
+          // The header only covers anything while it is pinned to the top.
+          let edge = headerBottom > 0 ? headerBottom : 0;
+          let what = 'header';
+          // The platform selector covers its own column while it is pinned
+          // under the header.
+          const selector = document.getElementById('platform-selector');
+          if (selector && !selector.contains(el)) {
+            const bar = selector.getBoundingClientRect();
+            const pinned =
+              getComputedStyle(selector).position === 'sticky' && bar.top <= headerBottom + 1;
+            if (pinned && rect.right > bar.left && rect.left < bar.right && bar.bottom > edge) {
+              edge = bar.bottom;
+              what = 'platform selector';
+            }
+          }
           const name = (el.getAttribute('aria-label') ?? el.textContent ?? '')
             .trim()
             .replace(/\s+/g, ' ')
             .slice(0, 50);
           return {
             done: false,
-            // The header only covers anything while it is pinned to the top.
-            covered: headerBottom > 0 && rect.top < headerBottom - 1,
-            label: `<${el.tagName.toLowerCase()}> "${name}" top ${Math.round(rect.top)} < header bottom ${Math.round(headerBottom)}`,
+            covered: rect.top < edge - 1,
+            label: `<${el.tagName.toLowerCase()}> "${name}" top ${Math.round(rect.top)} < ${what} bottom ${Math.round(edge)}`,
           };
         });
         if (stop.done) break;
@@ -191,7 +207,7 @@ test.describe('Accessibility', () => {
 
       expect(stops, 'the walk reaches the header').toBeLessThan(600);
       expect(stops, 'the walk passes through the page content').toBeGreaterThan(5);
-      expect(obscured, `focus stops behind the header:\n${obscured.join('\n')}`).toHaveLength(0);
+      expect(obscured, `focus stops behind a pinned bar:\n${obscured.join('\n')}`).toHaveLength(0);
     });
   }
 

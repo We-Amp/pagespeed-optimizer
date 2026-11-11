@@ -43,13 +43,15 @@ function scanFiles(dir: string): string[] {
   return out;
 }
 
-// The Tailwind utilities: scroll-m, -mt, -mb, -my, -mx, -ms, -me, -ml plus a
-// value, with or without a leading minus or a variant prefix.
-const UTILITY = /(?<![\w-])-?scroll-m[tbyxsel]?-[\w[]/;
-// scroll-margin: ..., scroll-margin-top: ..., scroll-margin-block-start: ...
-const PROPERTY = /scroll-margin(?:-[a-z-]+)?\s*:/;
-// el.style.scrollMarginTop = ...
-const STYLE_PROPERTY = /\bscrollMargin(?:Top|Bottom|Block|BlockStart|BlockEnd|Inline)?\b/;
+// The Tailwind utilities: every margin side and logical variant (mt, mb, my,
+// mx, ms, me, ml, mr, mbs, mbe, ...) followed by a value, a bracketed value or
+// a parenthesised variable, with or without a leading minus or variant prefix.
+const UTILITY = /(?<![\w-])-?scroll-m[a-z]{0,2}-[\w[(]/;
+// The CSS property in any position: a declaration, a quoted object key, an
+// arbitrary-property class, or the name passed to style.setProperty().
+const PROPERTY = /scroll-margin/;
+// The style properties: el.style.scrollMarginTop, scrollMarginBlockStart, ...
+const STYLE_PROPERTY = /scrollMargin/;
 
 function violationsIn(text: string): { line: number; match: string }[] {
   const found: { line: number; match: string }[] = [];
@@ -76,7 +78,19 @@ describe('scroll offset for the sticky header', () => {
       `  ${u('margin', 'top')}: 5rem;`,
       `  ${u('margin')}: 5rem 0;`,
       `  ${u('margin', 'block', 'start')}: 5rem;`,
+      `<h2 class="${u('mt', '(--header-h)')}">`,
+      `<h2 class="${u('mbs', '20')}">`,
+      `<h2 class="${u('mbe', '20')}">`,
+      `<div class="${u('mr', '4')}">`,
+      `<div class="md:!${u('mt', '20')}">`,
+      `<div class="[${u('margin', 'top')}:5rem]">`,
+      `  @apply ${u('mt', '20')};`,
+      `el.style.setProperty('${u('margin', 'top')}', '5rem');`,
+      `const style = { '${u('margin', 'block', 'start')}': '5rem' };`,
       "el.style.scrollMarginTop = '5rem';",
+      'el.style.scrollMarginBlockStart = "5rem";',
+      'el.style.scrollMarginInlineStart = "1rem";',
+      '<div style={{ scrollMarginTop: 80 }}>',
     ];
     for (const sample of samples) {
       expect(violationsIn(sample), sample).not.toHaveLength(0);

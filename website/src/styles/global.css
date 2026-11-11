@@ -373,6 +373,12 @@
   html {
     scroll-padding-top: 5rem;
   }
+  /* Docs pages with the platform selector pin it right under the header
+     (top: 4rem; 3.75rem tall: a 2.75rem tab plus 0.5rem padding each side),
+     so the clear area starts lower there: 4rem + 3.75rem + 0.75rem of air. */
+  html:has(#platform-selector) {
+    scroll-padding-top: 8.5rem;
+  }
   /* Below lg, fixed controls sit along the bottom edge; keep focused elements
      clear of them as well. */
   @media (width < 64rem) {
@@ -548,14 +554,16 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
 
 /* Short viewports (a phone in landscape, or a desktop window at 400% zoom):
    a pinned header would take a quarter of the screen (WCAG 1.4.10 Reflow), so
-   it scrolls away with the page and the scroll padding that kept content
-   clear of it goes too. Outside the layers so it beats the `sticky` utility
-   on the header. */
+   it scrolls away with the page, as does the docs platform selector pinned
+   under it, and the scroll padding that kept content clear of them goes too.
+   Outside the layers so it beats the `sticky` utility on both. */
 @media (max-height: 480px) {
-  body > header {
+  body > header,
+  #platform-selector {
     position: static;
   }
-  html {
+  html,
+  html:has(#platform-selector) {
     scroll-padding-top: 0;
     scroll-padding-bottom: 1rem;
   }
