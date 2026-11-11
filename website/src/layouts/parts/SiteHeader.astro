@@ -297,6 +297,13 @@ const isExact = (href: string) => normPath === href;
           id="mobile-menu"
           class="hidden lg:hidden pb-4 max-h-[calc(100dvh-121px)] overflow-y-auto"
         >
+          <a
+            href="/download/"
+            data-umami-event="cta_nav_download_mobile"
+            class="btn-primary mb-3 w-full"
+          >
+            Download &amp; run
+          </a>
           {navLinks.map((link) =>
             link.docsMenu ? (
               <div>
@@ -349,9 +356,8 @@ const isExact = (href: string) => normPath === href;
                 ))}
               </div>
             ) : link.children ? (
-              <div>
-                <p class="eyebrow py-2">{link.label}</p>
-                {link.children.map((child) => (
+              ((children) => {
+                const items = children.map((child) => (
                   <a
                     href={child.href}
                     data-umami-event={
@@ -378,8 +384,28 @@ const isExact = (href: string) => normPath === href;
                       {child.subtitle}
                     </span>
                   </a>
-                ))}
-              </div>
+                ));
+                return link.mobileCollapsed ? (
+                  <details
+                    class="group"
+                    open={children.some((c) => currentPath.startsWith(c.href))}
+                  >
+                    <summary class="flex min-h-12 cursor-pointer items-center justify-between py-2">
+                      <span class="eyebrow">{link.label}</span>
+                      <Icon
+                        name="chevron-down"
+                        class="h-4 w-4 text-text-muted opacity-50 group-open:rotate-180"
+                      />
+                    </summary>
+                    {items}
+                  </details>
+                ) : (
+                  <div>
+                    <p class="eyebrow py-2">{link.label}</p>
+                    {items}
+                  </div>
+                );
+              })(link.children)
             ) : (
               <a
                 href={link.href}
@@ -405,13 +431,6 @@ const isExact = (href: string) => normPath === href;
           >
             <Icon name="heart" class="h-4 w-4" />
             Sponsor
-          </a>
-          <a
-            href="/download/"
-            data-umami-event="cta_nav_download_mobile"
-            class="btn-primary mt-2 w-full"
-          >
-            Download &amp; run
           </a>
         </div>
       </nav>

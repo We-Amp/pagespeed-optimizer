@@ -367,7 +367,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       const behindMenu = () =>
         Array.from(
           document.querySelectorAll<HTMLElement>(
-            'main, footer, a[href="#main-content"], #sticky-cta, .qm-root, .share-fab-root',
+            'main, footer, a[href="#main-content"], [data-ui="telemetry-strip"], #coming-soon-banner, #sticky-cta, .qm-root, .share-fab-root',
           ),
         );
       const menuOpen = () => btn?.getAttribute('aria-expanded') === 'true';

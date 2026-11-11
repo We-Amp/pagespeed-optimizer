@@ -37,7 +37,7 @@ export const docsSections: DocsSection[] = [
     title: 'Get started',
     position: 'getting_started',
     links: [
-      { href: '/docs/getting-started/', label: 'Quick start' },
+      { href: '/docs/getting-started/', label: 'Getting started' },
       { href: '/docs/is-it-working/', label: 'Is it working?' },
       { href: '/docs/installation-module/', label: 'Install on Apache and nginx' },
       { href: '/docs/installation-docker/', label: 'Install with Docker' },
@@ -94,11 +94,14 @@ export const navLinks: Array<{
   badge?: string;
   umamiEvent?: string;
   docsMenu?: boolean;
+  // Phone menu only: the group starts collapsed behind its label.
+  mobileCollapsed?: boolean;
   children?: NavChild[];
 }> = [
   { label: 'Docs', docsMenu: true },
   {
     label: 'Tools',
+    mobileCollapsed: true,
     children: [
       {
         href: '/ai-readability/',
@@ -153,6 +156,13 @@ export const navLinks: Array<{
         subtitle: 'Three tiers, from the engineers who build it',
         umamiEvent: 'cta_commercial',
         umamiProps: commercial('support', 'support_plans'),
+      },
+      {
+        href: '/pricing/',
+        label: 'Pricing',
+        subtitle: 'Prices for the three support tiers',
+        umamiEvent: 'cta_commercial',
+        umamiProps: commercial('pricing', 'nav_support_pricing'),
       },
       {
         href: '/support/#hardened-builds',

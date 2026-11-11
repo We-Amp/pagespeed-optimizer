@@ -42,6 +42,7 @@ test.describe('Navigation', () => {
     ]) {
       await expect(panel.getByText(title, { exact: true })).toBeVisible();
     }
+    await expect(panel.locator('a[href="/docs/getting-started/"]')).toHaveText('Getting started');
     const packs = panel.locator('a[href="/packs/"]');
     await expect(packs).toContainText('Browse rule packs');
     await expect(packs).toHaveAttribute('data-umami-event', 'nav-packs');
@@ -113,6 +114,15 @@ test.describe('Navigation', () => {
     const open = page.locator('#mobile-menu details[open]');
     await expect(open).toHaveCount(1);
     await expect(open.locator('summary')).toContainText('Configure');
+  });
+
+  test('mobile Tools group is open on a tool page', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/calculator/');
+    await page.locator('#mobile-menu-btn').click();
+    const open = page.locator('#mobile-menu details[open]');
+    await expect(open).toHaveCount(1);
+    await expect(open.locator('summary')).toContainText('Tools');
   });
 
   for (const width of [1024, 1280, 1440]) {
@@ -216,12 +226,15 @@ test.describe('Navigation', () => {
     ).toHaveCount(1);
   });
 
-  test('Support dropdown carries the four offers as commercial CTAs', async ({ page }) => {
+  test('Support dropdown carries the plans, pricing and three offers as commercial CTAs', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.locator('header nav button.nav-dropdown-btn:has-text("Support")').click();
     const panel = page.locator('.nav-dropdown-panel:visible');
     const expected = [
       { href: '/support/', label: 'Support plans', offer: 'support' },
+      { href: '/pricing/', label: 'Pricing', offer: 'pricing' },
       { href: '/support/#hardened-builds', label: 'Signed artifacts', offer: 'hardened' },
       { href: '/hosting-partners/', label: 'Hosting partners', offer: 'hosting' },
       { href: 'https://we-amp.com/consulting/', label: 'Consulting', offer: 'consulting' },
@@ -234,6 +247,11 @@ test.describe('Navigation', () => {
       await expect(a).toHaveAttribute('data-umami-event-offer', item.offer);
       await expect(a).toHaveAttribute('data-umami-event-surface', 'nav');
     }
+    // Pricing sits directly under the plans and reports its own position.
+    const pricing = panel.locator('a').nth(1);
+    await expect(pricing).toHaveAttribute('href', '/pricing/');
+    await expect(pricing).toContainText('Prices for the three support tiers');
+    await expect(pricing).toHaveAttribute('data-umami-event-position', 'nav_support_pricing');
     await panel.locator('a[href="/support/"]').click();
     await expect(page).toHaveURL('/support/');
   });
@@ -381,14 +399,35 @@ test.describe('Navigation', () => {
     const support = mobileMenu.locator('a[href="/support/"]');
     await expect(support).toHaveAttribute('data-umami-event', 'cta_commercial');
     await expect(support).toHaveAttribute('data-umami-event-position', 'support_plans_mobile');
+    const pricing = mobileMenu.locator('a[href="/pricing/"]');
+    await expect(pricing).toHaveAttribute('data-umami-event', 'cta_commercial');
+    await expect(pricing).toHaveAttribute(
+      'data-umami-event-position',
+      'nav_support_pricing_mobile',
+    );
     for (const href of [
+      '/pricing/',
       '/support/#hardened-builds',
       '/hosting-partners/',
       'https://we-amp.com/consulting/',
-      '/ai-readability/',
-      '/analyze/',
     ]) {
       await expect(mobileMenu.locator(`a[href="${href}"]`), href).toBeVisible();
+    }
+
+    // The download button is the first link of the menu.
+    await expect(mobileMenu.locator('a').first()).toHaveAttribute('href', '/download/');
+    await expect(mobileMenu.locator('a').first()).toHaveAttribute(
+      'data-umami-event',
+      'cta_nav_download_mobile',
+    );
+
+    // Tools start collapsed behind their label and open on a tap.
+    const tools = mobileMenu.locator('details', { hasText: 'Tools' });
+    await expect(tools).not.toHaveAttribute('open', '');
+    await expect(tools.locator('a[href="/analyze/"]')).toBeHidden();
+    await tools.locator('summary').click();
+    for (const href of ['/ai-readability/', '/analyze/']) {
+      await expect(tools.locator(`a[href="${href}"]`), href).toBeVisible();
     }
     await expect(mobileMenu.locator('[data-qm-open]')).toHaveCount(0);
 
@@ -413,6 +452,7 @@ test.describe('Navigation', () => {
 
     await expect(page.locator('main')).toHaveAttribute('inert', '');
     await expect(page.locator('footer[data-site-footer]')).toHaveAttribute('inert', '');
+    await expect(page.locator('[data-ui="telemetry-strip"]')).toHaveAttribute('inert', '');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe(
       'hidden',
     );
@@ -429,6 +469,7 @@ test.describe('Navigation', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('main')).not.toHaveAttribute('inert', '');
     await expect(page.locator('footer[data-site-footer]')).not.toHaveAttribute('inert', '');
+    await expect(page.locator('[data-ui="telemetry-strip"]')).not.toHaveAttribute('inert', '');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe(
       'hidden',
     );
