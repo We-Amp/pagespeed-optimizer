@@ -3,6 +3,7 @@ import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
+import InstallTabs from '../components/InstallTabs.astro';
 import { getRelease, artifactUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import {
@@ -22,6 +23,38 @@ const rel21 = await getRelease('2.1');
 // The download page is where the version is the point: every current card and
 // the title carry the exact release from the manifest.
 const CURRENT_RELEASE = `mod_pagespeed ${rel21.release.semver}`;
+
+// The install commands shown under the heading. They repeat, character for
+// character, the commands the home page, the apt/yum page and the Docker
+// guide already show; test/sync/install-command-sync.test.ts fails when one
+// of them changes without the others.
+const REPOSITORY_INSTALL_COMMAND =
+  'curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh';
+const DOCKER_QUICK_TRY_COMMAND = String.raw`docker run --rm -p 80:80 \
+  --add-host=host.docker.internal:host-gateway \
+  -e BACKEND_HOST=host.docker.internal -e BACKEND_PORT=8081 \
+  -e ACCEPT_EULA=Y \
+  ghcr.io/we-amp/pagespeed-combined:latest`;
+const installPlatforms = [
+  {
+    id: 'apache',
+    label: 'Apache',
+    command: REPOSITORY_INSTALL_COMMAND,
+    copyEvent: 'cta_download_cmd_apache',
+  },
+  {
+    id: 'nginx',
+    label: 'nginx',
+    command: REPOSITORY_INSTALL_COMMAND,
+    copyEvent: 'cta_download_cmd_nginx',
+  },
+  {
+    id: 'docker',
+    label: 'Docker',
+    command: DOCKER_QUICK_TRY_COMMAND,
+    copyEvent: 'cta_download_cmd_docker',
+  },
+];
 
 // The IIS installer is hosted on the module's GitHub release, not under
 // /releases/; its SHA256SUMS sits beside it on the same release.
@@ -48,11 +81,13 @@ const rel21DockerTag = dockerTag(rel21);
 // One unified integration list. ASP.NET Core (2.0 middleware + 1.15 sidecar) is
 // merged in alongside the native-server modules so the page has a single "pick
 // your integration" grid, not a separate .NET section. requirements + the umami
-// event live on each entry so the grid renders straight from this array.
+// event live on each entry so the grid renders straight from this array. `id`
+// is the card's anchor, so other pages can link straight to one integration.
 // Row order: current-line native integrations first (Apache, nginx), then
 // Docker, Helm, IIS, the ASP.NET Core middleware, and the sidecar.
 const integrations = [
   {
+    id: 'apache',
     name: 'Apache',
     product: CURRENT_RELEASE,
     badge: 'Native module',
@@ -64,6 +99,7 @@ const integrations = [
     umamiEvent: 'cta_download_apache',
   },
   {
+    id: 'nginx',
     name: 'nginx',
     product: CURRENT_RELEASE,
     badge: 'Native module',
@@ -76,6 +112,7 @@ const integrations = [
     umamiEvent: 'cta_download_nginx',
   },
   {
+    id: 'docker',
     name: 'nginx (Docker)',
     product: CURRENT_RELEASE,
     badge: 'Reverse proxy',
@@ -87,6 +124,7 @@ const integrations = [
     umamiEvent: 'cta_download_nginx_docker',
   },
   {
+    id: 'helm',
     name: 'Helm',
     product: CURRENT_RELEASE,
     badge: 'Kubernetes',
@@ -98,6 +136,7 @@ const integrations = [
     umamiEvent: 'cta_download_helm',
   },
   {
+    id: 'iis',
     name: 'IIS',
     product: CURRENT_RELEASE,
     badge: 'Native module',
@@ -110,6 +149,7 @@ const integrations = [
     umamiEvent: 'cta_download_iis',
   },
   {
+    id: 'aspnet-core',
     name: 'ASP.NET Core',
     product: CURRENT_RELEASE,
     badge: 'NuGet middleware',
@@ -121,6 +161,7 @@ const integrations = [
     umamiEvent: 'cta_download_aspnet',
   },
   {
+    id: 'sidecar',
     name: 'ASP.NET Core Sidecar',
     product: 'mod_pagespeed 1.15',
     badge: 'NuGet · Linux',
@@ -149,7 +190,16 @@ const jsonLd = await productJsonLd({
 >
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20 text-center">
     <h1 class="h1-hero text-text-body">Pick your integration. Install in a few minutes.</h1>
-    <p class="lede mt-6 max-w-2xl mx-auto">
+    <div class="mt-8 max-w-2xl mx-auto">
+      <InstallTabs
+        name="install"
+        groupLabel="Select platform"
+        copyLabel="Copy install command"
+        copiedLabel="Copied"
+        platforms={installPlatforms}
+      />
+    </div>
+    <p class="lede mt-8 max-w-2xl mx-auto">
       {LICENSE_CLAUSE_CAP} — free to install and run, in development and in production.
     </p>
   </section>
@@ -178,6 +228,7 @@ const jsonLd = await productJsonLd({
     <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
       {integrations.map((integration, index) => (
         <a
+          id={integration.id}
           href={integration.href}
           data-umami-event={integration.umamiEvent}
           class:list={[
