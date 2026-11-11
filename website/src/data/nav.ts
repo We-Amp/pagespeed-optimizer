@@ -88,6 +88,15 @@ const commercial = (offer: string, position: string): UmamiProps => ({
   surface: 'nav',
   position,
 });
+// The header's own Pricing link, next to the search button on wide screens.
+// Same page as the Pricing item in the Support menu; it reports its own
+// position. The phone menu has the Support group's item only.
+export const headerPricing = {
+  href: '/pricing/',
+  label: 'Pricing',
+  umamiEvent: 'cta_commercial',
+  umamiProps: commercial('pricing', 'header_pricing'),
+};
 export const navLinks: Array<{
   href?: string;
   label: string;
