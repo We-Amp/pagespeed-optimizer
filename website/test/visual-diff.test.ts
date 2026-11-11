@@ -72,6 +72,35 @@ describe('splitCssRules', () => {
     ]);
   });
 
+  it('does not read an escaped quote in a selector as the start of a string', () => {
+    expect(splitCssRules(String.raw`.a\:content-\[\'\'\]:after{content:""}.b{color:red}`)).toEqual([
+      String.raw` | .a\:content-\[\'\'\]:after{content:""}`,
+      ' | .b{color:red}',
+    ]);
+    expect(
+      splitCssRules(
+        String.raw`@media (min-width:1px){.a\:content-\[\"\"\]:after{x:y}.b{c:d}}.e{f:g}`,
+      ),
+    ).toEqual([
+      String.raw`@media (min-width:1px) | .a\:content-\[\"\"\]:after{x:y}`,
+      '@media (min-width:1px) | .b{c:d}',
+      ' | .e{f:g}',
+    ]);
+  });
+
+  it('does not read an escaped brace or semicolon as syntax', () => {
+    expect(splitCssRules(String.raw`.a\{b\}{color:red}.c\;d{top:0}.e{f:g}`)).toEqual([
+      String.raw` | .a\{b\}{color:red}`,
+      String.raw` | .c\;d{top:0}`,
+      ' | .e{f:g}',
+    ]);
+    expect(splitCssRules(String.raw`@media (x){.a\}b{c:d}.e{f:"\"}"}}.g{h:i}`)).toEqual([
+      String.raw`@media (x) | .a\}b{c:d}`,
+      String.raw`@media (x) | .e{f:"\"}"}`,
+      ' | .g{h:i}',
+    ]);
+  });
+
   it('feeds a multiset diff that ignores order and reports each side', () => {
     const base = splitCssRules('.a{x:1}.b{x:2}.b{x:2}');
     const head = splitCssRules('.b{x:2}.a{x:1}.c{x:3}');
@@ -300,6 +329,12 @@ describe('preconditions', () => {
     const { code, message } = await run(['dist', '--base', 'dist', '--head', 'dist/client']);
     expect(code).toBe(2);
     expect(message).toMatch(/same build output|no build output found/);
+  });
+
+  it('rejects a capture time limit that is not a positive number', async () => {
+    const { code, message } = await run([...shots, '--timeout', '0']);
+    expect(code).toBe(2);
+    expect(message).toContain('--timeout');
   });
 
   it('rejects an unknown mode', async () => {

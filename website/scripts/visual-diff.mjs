@@ -35,7 +35,9 @@
 // awaited, lazy images forced to load, animations inside SVG images switched
 // off, the page captured unscrolled, each page shot until two consecutive
 // captures are byte-equal. The telemetry strip (live timing values) and the
-// footer copyright year are masked; --mask <selector> adds more.
+// footer copyright year are masked; --mask <selector> adds more. --timeout
+// <ms> (default 45000) limits the navigation and each capture of a page;
+// raise it for a very tall page or a busy machine.
 //
 // dist applies the same identity rule to the two directories: it reads the
 // build-id tag from each side's index.html and refuses a side without one,
@@ -139,7 +141,11 @@ export function splitCssRules(css, context = '') {
   };
   while (i < n) {
     const c = css[i];
-    if (c === '"' || c === "'") {
+    if (c === '\\') {
+      // An escaped character (a quote, brace or semicolon inside an
+      // identifier, as in `.after\:content-\[\'\'\]`) is never syntax.
+      i += 2;
+    } else if (c === '"' || c === "'") {
       skipString(c);
     } else if (c === '/' && css[i + 1] === '*') {
       const end = css.indexOf('*/', i + 2);
@@ -155,6 +161,10 @@ export function splitCssRules(css, context = '') {
       const bodyStart = ++i;
       while (i < n && depth > 0) {
         const d = css[i];
+        if (d === '\\') {
+          i += 2;
+          continue;
+        }
         if (d === '"' || d === "'") {
           skipString(d);
           continue;
@@ -599,7 +609,7 @@ export function freezeSvg(svg) {
     .replace(/<\/svg>\s*$/, '<style>*{animation:none !important}</style></svg>');
 }
 
-async function shootOne(browser, origin, path, viewport, masks, file) {
+async function shootOne(browser, origin, path, viewport, masks, file, timeout) {
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 1,
@@ -611,6 +621,10 @@ async function shootOne(browser, origin, path, viewport, masks, file) {
   });
   const info = { status: null, blocked: 0, attempts: 0, stable: false };
   try {
+    // One limit for the navigation and for each capture: a very tall page
+    // (a hundred screens and more) needs longer than a short one.
+    context.setDefaultTimeout(timeout);
+    context.setDefaultNavigationTimeout(timeout);
     await context.clock.setFixedTime(new Date(FIXED_DATE));
     await context.route('**/*', async (route) => {
       const url = route.request().url();
@@ -627,7 +641,7 @@ async function shootOne(browser, origin, path, viewport, masks, file) {
     const page = await context.newPage();
     const response = await page.goto(new URL(path, origin).href, {
       waitUntil: 'load',
-      timeout: 45000,
+      timeout,
     });
     info.status = response?.status() ?? null;
     await page.addStyleTag({ content: 'html{scroll-behavior:auto !important}' });
@@ -803,8 +817,24 @@ async function runShots(opts) {
         do {
           const tmpBase = join(out, 'base', `.tmp-${name}`);
           const tmpHead = join(out, 'head', `.tmp-${name}`);
-          const b = await shootOne(browser, baseOrigin, path, viewport, masks, tmpBase);
-          const h = await shootOne(browser, headOrigin, path, viewport, masks, tmpHead);
+          const b = await shootOne(
+            browser,
+            baseOrigin,
+            path,
+            viewport,
+            masks,
+            tmpBase,
+            opts.timeout,
+          );
+          const h = await shootOne(
+            browser,
+            headOrigin,
+            path,
+            viewport,
+            masks,
+            tmpHead,
+            opts.timeout,
+          );
           const imgA = await decode(tmpBase);
           const imgB = await decode(tmpHead);
           const cmp = comparePixels(imgA, imgB, opts.threshold);
@@ -926,7 +956,7 @@ async function runShots(opts) {
 const USAGE = `usage:
   node scripts/visual-diff.mjs shots --base <origin> --head <origin> --base-id <id> --head-id <id>
        --out <dir> [--paths <file>] [--viewports desktop,tablet,phone] [--mask <selector>]...
-       [--threshold <0-255>] [--jobs <n>] [--fail-on-diff] [--allow-same-build] [path...]
+       [--threshold <0-255>] [--jobs <n>] [--timeout <ms>] [--fail-on-diff] [--allow-same-build] [path...]
   node scripts/visual-diff.mjs dist --base <dist dir> --head <dist dir> [--limit <n>] [--json <file>]
        [--allow-same-build]`;
 
@@ -938,6 +968,7 @@ function parseArgs(argv) {
     masks: [],
     threshold: 0,
     jobs: 3,
+    timeout: 45000,
     limit: 20,
     failOnDiff: false,
     allowSameBuild: false,
@@ -958,6 +989,7 @@ function parseArgs(argv) {
     else if (arg === '--mask') opts.masks.push(value(++i, arg));
     else if (arg === '--threshold') opts.threshold = Number(value(++i, arg));
     else if (arg === '--jobs') opts.jobs = Number(value(++i, arg));
+    else if (arg === '--timeout') opts.timeout = Number(value(++i, arg));
     else if (arg === '--limit') opts.limit = Number(value(++i, arg));
     else if (arg === '--json') opts.json = value(++i, arg);
     else if (arg === '--fail-on-diff') opts.failOnDiff = true;
@@ -970,6 +1002,9 @@ function parseArgs(argv) {
   }
   if (!Number.isInteger(opts.jobs) || opts.jobs < 1)
     throw new UsageError('--jobs: a positive integer');
+  if (!Number.isInteger(opts.timeout) || opts.timeout < 1) {
+    throw new UsageError('--timeout: a positive number of milliseconds');
+  }
   return opts;
 }
 
