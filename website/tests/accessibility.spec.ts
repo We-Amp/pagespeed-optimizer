@@ -24,6 +24,18 @@ const PAGES_FOR_AXE_SCAN = [
   // suite in terms-privacy.spec.ts
 ];
 
+// Scanned at phone width as well: narrow layouts stack and wrap links, which
+// is where small or crowded targets (WCAG 2.5.8) and overflowing regions show.
+const PAGES_FOR_PHONE_AXE_SCAN = [
+  '/docs/filters/',
+  '/download/',
+  '/docs/getting-started/',
+  '/examples/',
+  '/alternatives/',
+  '/blog/avif-vs-webp-2026/',
+  '/error/404/',
+];
+
 test.describe('Accessibility', () => {
   test('skip-to-content link is first focusable element', async ({ page }) => {
     await page.goto('/');
@@ -211,4 +223,53 @@ test.describe('Accessibility', () => {
       ).toHaveLength(0);
     });
   }
+
+  test.describe('phone width', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+
+    for (const pagePath of PAGES_FOR_PHONE_AXE_SCAN) {
+      test(`axe-core WCAG 2.2 AA scan at 390px: ${pagePath}`, async ({ page }) => {
+        // Same settling as the scans above: resting colours, and a scan that
+        // is repeated when a dev-server reload destroys its context.
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        test.setTimeout(90_000);
+        let loads = 0;
+        page.on('load', () => {
+          loads += 1;
+        });
+        const scan = async () => {
+          await page.goto(pagePath, { waitUntil: 'networkidle' });
+          for (let quiet = 0; quiet < 3; quiet++) {
+            const seen = loads;
+            await page.waitForTimeout(500);
+            if (loads !== seen) quiet = -1;
+          }
+          return new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+            .analyze();
+        };
+        let results: Awaited<ReturnType<typeof scan>>;
+        try {
+          results = await scan();
+        } catch (err) {
+          if (!String(err).includes('Execution context was destroyed')) throw err;
+          results = await scan();
+        }
+
+        const violations = results.violations.filter(
+          (v) => v.impact === 'critical' || v.impact === 'serious',
+        );
+
+        expect(
+          violations,
+          `${pagePath} has ${violations.length} serious/critical a11y violations at 390px:\n` +
+            violations
+              .map(
+                (v) => `  [${v.impact}] ${v.id}: ${v.description} (${v.nodes.length} occurrences)`,
+              )
+              .join('\n'),
+        ).toHaveLength(0);
+      });
+    }
+  });
 });
