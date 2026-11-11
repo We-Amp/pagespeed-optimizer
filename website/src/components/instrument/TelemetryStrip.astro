@@ -118,13 +118,20 @@ const fields = [
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 telemetry-row">
     <span class="t-state">
       <i class="t-led" aria-hidden="true"></i>
+      {/* The name is the visible state plus the destination: the state text
+          must stay part of the accessible name (WCAG 2.5.3). */}
       <a
         class="t-state-link"
         href="/pagespeed-markers/"
-        aria-label="How to read these response measurements"
+        aria-labelledby="telemetry-state telemetry-state-hint"
       >
-        <span data-t="state">{stateText}</span>
+        <span id="telemetry-state" data-t="state">
+          {stateText}
+        </span>
       </a>
+      <span id="telemetry-state-hint" hidden>
+        How to read these response measurements
+      </span>
     </span>
     <dl class="t-fields">
       {fields.map((f) => (
