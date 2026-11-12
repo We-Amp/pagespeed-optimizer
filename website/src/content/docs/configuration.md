@@ -2098,7 +2098,7 @@ Makes prioritize_critical_css inline only the rules for content in the first scr
 
 Number of bytes below which stylesheets will be flattened.
 
-Set it in the server or directory configuration. After 2.7.0 it can no longer
+Set it in the server or directory configuration. From 2.8.0 it can no longer
 be set on a single request: a `PageSpeedCssFlattenMaxBytes` query parameter,
 request or response header, or cookie has no effect. In 2.7.0 and earlier it
 could also be set per request.

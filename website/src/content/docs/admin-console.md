@@ -286,7 +286,7 @@ Statistics are enabled by default and required for features like image rewrite c
 
 ```nginx
 pagespeed Statistics on;
-pagespeed UsePerVhostStatistics on;
+pagespeed UsePerVHostStatistics on;
 ```
 
 </div>
@@ -297,7 +297,7 @@ pagespeed UsePerVhostStatistics on;
 
 ```apache
 ModPagespeedStatistics on
-ModPagespeedUsePerVhostStatistics on
+ModPagespeedUsePerVHostStatistics on
 ```
 
 </div>
@@ -308,14 +308,14 @@ ModPagespeedUsePerVhostStatistics on
 
 ```text
 pagespeed Statistics on
-pagespeed UsePerVhostStatistics on
+pagespeed UsePerVHostStatistics on
 ```
 
 Per-vhost statistics are enabled by default on IIS. Each website gets its own set of counters, accessible at `/pagespeed_admin/statistics` on that site; site-wide aggregates remain at `/pagespeed_global_admin/statistics`.
 
 </div>
 
-`UsePerVhostStatistics` enables per-virtual-host stats while still exposing aggregates at the global admin path.
+`UsePerVHostStatistics` enables per-virtual-host stats while still exposing aggregates at the global admin path.
 
 ## Cache telemetry
 

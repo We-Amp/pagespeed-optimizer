@@ -110,7 +110,7 @@ pagespeed AddResourceHeader "X-Custom" "value";
 
 ## CssFlattenMaxBytes
 
-Set it in the server or directory configuration. After 2.7.0 it can no longer
+Set it in the server or directory configuration. From 2.8.0 it can no longer
 be set on a single request: a `PageSpeedCssFlattenMaxBytes` query parameter,
 request or response header, or cookie has no effect. In 2.7.0 and earlier it
 could also be set per request.

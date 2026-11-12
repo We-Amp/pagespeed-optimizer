@@ -38,7 +38,7 @@ evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
 independently — see [Run in production](/docs/deployment/) for the hardened
 setup. `:latest` is published only on the combined image — the worker
-and nginx images ship immutable version tags (for example `:2.2.0`).
+and nginx images ship immutable version tags (for example `:X.Y.Z`).
 
 `ACCEPT_EULA=Y` acknowledges the
 [Terms of Service](https://modpagespeed.com/terms/), which govern your use of the
