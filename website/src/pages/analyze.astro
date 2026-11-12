@@ -404,6 +404,7 @@ const jsonLd = [
           <button
             id="psi-config-copy"
             type="button"
+            aria-label="Copy"
             class="btn-secondary text-xs"
             data-umami-event="psi-result-config-copy"
           >
@@ -1531,18 +1532,29 @@ const jsonLd = [
     });
 
     // Copy-to-clipboard for the config snippet.
+    // Spoken through the layout's one status writer (window.siteAnnounce),
+    // like the code-block buttons; the button's own name never changes.
+    const announceCopy = (ok: boolean) =>
+      (window as { siteAnnounce?: (_message: string) => void }).siteAnnounce?.(
+        ok ? 'Copied to clipboard' : 'Copy failed, select the text to copy',
+      );
     configCopyBtn?.addEventListener('click', () => {
       const text = configSnippet?.textContent ?? '';
       if (!text) return;
       if (!navigator.clipboard?.writeText) return;
-      void navigator.clipboard.writeText(text).then(() => {
-        if (configCopyLabel) {
-          configCopyLabel.textContent = 'Copied';
-          setTimeout(() => {
-            if (configCopyLabel) configCopyLabel.textContent = 'Copy';
-          }, 1500);
-        }
-      });
+      void navigator.clipboard.writeText(text).then(
+        () => {
+          announceCopy(true);
+          // Visible feedback only: the button's aria-label stays "Copy".
+          if (configCopyLabel) {
+            configCopyLabel.textContent = 'Copied';
+            setTimeout(() => {
+              if (configCopyLabel) configCopyLabel.textContent = 'Copy';
+            }, 1500);
+          }
+        },
+        () => announceCopy(false),
+      );
     });
 
     // Report download: builds a small Markdown file from the current result and

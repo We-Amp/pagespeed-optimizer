@@ -64,7 +64,9 @@ test.describe('/download/ install command', () => {
       await expect(button).toBeVisible();
       await expect(button).toHaveAttribute('data-umami-event', event);
       await button.click();
-      await expect(panel.getByRole('button', { name: 'Copied' })).toBeVisible();
+      // The button shows its done state; its name stays the same.
+      await expect(button).toHaveAttribute('data-copied', 'true');
+      await expect(button).toHaveAccessibleName('Copy install command');
       const copied = await page.evaluate(() => navigator.clipboard.readText());
       expect(copied).toBe(await panel.locator('.install-command').textContent());
       // The prompt is decoration: it is never part of what is copied.

@@ -90,10 +90,18 @@ const targets = buildShareTargets(shareUrl, title);
 </aside>
 
 <script>
+  // Spoken through the layout's one status writer (window.siteAnnounce),
+  // like the code-block buttons; the button's own name never changes.
+  const announceCopy = (ok: boolean) =>
+    (window as { siteAnnounce?: (_message: string) => void }).siteAnnounce?.(
+      ok ? 'Copied to clipboard' : 'Copy failed, select the text to copy',
+    );
+
   document.querySelectorAll<HTMLButtonElement>('[data-share-copy]').forEach((btn) => {
     const label = btn.querySelector<HTMLElement>('[data-share-copy-label]');
     btn.addEventListener('click', async () => {
       const url = btn.dataset.shareUrl ?? window.location.href;
+      let copied = true;
       try {
         await navigator.clipboard.writeText(url);
       } catch {
@@ -103,9 +111,11 @@ const targets = buildShareTargets(shareUrl, title);
         ta.style.opacity = '0';
         document.body.appendChild(ta);
         ta.select();
-        document.execCommand('copy');
+        copied = document.execCommand('copy');
         ta.remove();
       }
+      announceCopy(copied);
+      if (!copied) return;
       if (label) {
         const prev = label.textContent;
         label.textContent = 'Copied';

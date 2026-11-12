@@ -63,6 +63,10 @@ interface Props {
   // false omits the canonical link (the error pages: their own URL is not
   // the page a visitor asked for, so it must not be declared canonical).
   canonical?: string | false;
+  // Id of the element the skip link moves to. Pages whose <main> opens with a
+  // navigation column (the docs sidebar) point it at their content column, so
+  // the skip link lands past that navigation.
+  skipTarget?: string;
 }
 
 const {
@@ -80,6 +84,7 @@ const {
   articlePublished,
   articleModified,
   canonical,
+  skipTarget = 'main-content',
 } = Astro.props;
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
@@ -261,7 +266,8 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
   </head>
   <body class="min-h-screen flex flex-col bg-bg-primary text-text-body antialiased">
     <a
-      href="#main-content"
+      href={`#${skipTarget}`}
+      data-skip-link
       class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-interactive focus:px-4 focus:py-2 focus:text-on-accent"
     >
       Skip to main content
@@ -301,7 +307,8 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     <SiteHeader />
     <main
       id="main-content"
-      class="flex-1"
+      tabindex="-1"
+      class="flex-1 focus:outline-none"
       data-pagefind-body={searchExcluded ? undefined : ''}
       data-pagefind-meta={searchExcluded ? undefined : `section:${searchSection}`}
       data-pagefind-weight={searchExcluded ? undefined : searchWeight(rawPath)}
@@ -320,6 +327,33 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     {/* Site search modal (Pagefind). Costs one small inline script per page;
          the search bundle loads from /pagefind/v<version>/ on first open. */}
     <SearchDialog />
+
+    {/* One polite live region for the outcome of every copy button on the
+        page (code blocks, term panels, install commands): a changed button
+        label alone is not reliably spoken. Scripts write it through the id. */}
+    <p id="copy-status" class="sr-only" role="status" aria-live="polite"></p>
+    {/* The one writer of #copy-status, shared by every copy script on the page
+        (window.siteAnnounce). One timer covers both steps, so a new message
+        always replaces the previous one and nothing wipes it early: the region
+        is emptied, the message is written a moment later (so a repeat of the
+        same text is spoken again), and it is cleared after a few seconds. */}
+    <script is:inline>
+      (function () {
+        var timer;
+        window.siteAnnounce = function (message) {
+          var status = document.getElementById('copy-status');
+          if (!status) return;
+          clearTimeout(timer);
+          status.textContent = '';
+          timer = setTimeout(function () {
+            status.textContent = message;
+            timer = setTimeout(function () {
+              status.textContent = '';
+            }, 4000);
+          }, 50);
+        };
+      })();
+    </script>
 
     {/* Handset widths: the fixed message launcher would sit on top of the
         hero, so it stays hidden until the first viewport has been scrolled
@@ -362,7 +396,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       const behindMenu = () =>
         Array.from(
           document.querySelectorAll<HTMLElement>(
-            'main, footer, a[href="#main-content"], [data-ui="telemetry-strip"], #coming-soon-banner, .qm-root',
+            'main, footer, a[data-skip-link], [data-ui="telemetry-strip"], #coming-soon-banner, .qm-root',
           ),
         );
       const menuOpen = () => btn?.getAttribute('aria-expanded') === 'true';
@@ -555,6 +589,13 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         var CHECK_SVG =
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
+        /* The outcome is spoken through the page's live region, by its one
+           writer (window.siteAnnounce, defined next to #copy-status). The
+           button's own name never changes, so it is not spoken twice. */
+        function announce(message) {
+          if (typeof window.siteAnnounce === 'function') window.siteAnnounce(message);
+        }
+
         function attach(pre) {
           if (!pre || pre.dataset.copyAttached === '1') return;
           var code = pre.querySelector('code');
@@ -580,19 +621,18 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             navigator.clipboard.writeText(text).then(
               function () {
                 btn.dataset.copied = 'true';
-                btn.setAttribute('aria-label', 'Copied');
-                btn.setAttribute('title', 'Copied');
                 btn.innerHTML = CHECK_SVG;
+                announce('Copied to clipboard');
                 setTimeout(function () {
                   delete btn.dataset.copied;
-                  btn.setAttribute('aria-label', 'Copy code to clipboard');
-                  btn.setAttribute('title', 'Copy');
                   btn.innerHTML = COPY_SVG;
                 }, 1500);
               },
               function () {
-                /* Permission denied or other failure — leave button visible,
-                   no error UI; the user can still select+copy manually. */
+                /* Permission denied or other failure: the button stays as it
+                   is and the text can still be selected and copied by hand,
+                   which the live region says. */
+                announce('Copy failed, select the text to copy');
               },
             );
           });

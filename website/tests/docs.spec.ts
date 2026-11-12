@@ -392,7 +392,9 @@ test.describe('Docs mechanics', () => {
 
     await button.click();
     await expect(button).toHaveAttribute('data-copied', 'true');
-    await expect(button).toHaveAttribute('aria-label', /copied/i);
+    // The name stays put; the page's live region reports the copy.
+    await expect(button).toHaveAttribute('aria-label', 'Copy code to clipboard');
+    await expect(page.locator('#copy-status')).toHaveText('Copied to clipboard');
     const expected = (await pre.locator('code').textContent()) ?? '';
     const clipboard = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboard).toBe(expected);

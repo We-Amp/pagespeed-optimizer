@@ -278,6 +278,7 @@ const showReferralOrientation = [
 ---
 
 <BaseLayout
+  skipTarget="doc-content"
   title={pageTitle}
   description={doc.data.description}
   jsonLd={jsonLdEntries}
@@ -299,7 +300,7 @@ const showReferralOrientation = [
       <DocsSidebar current={doc.id} />
 
       <!-- Content -->
-      <article class="min-w-0">
+      <article id="doc-content" tabindex="-1" class="min-w-0 focus:outline-none">
         {showReferralOrientation && <ReferralOrientation />}
         <nav
           class="mb-6 text-sm font-mono text-text-annotation"
