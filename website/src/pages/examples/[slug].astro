@@ -22,6 +22,8 @@ import {
 import { topicForExample } from '../../data/filters';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 import examplesData from '../../data/examples-data.json';
+import { productRef } from '../../data/software-jsonld';
+import { ORGANIZATION_PUBLISHER, ORGANIZATION_REF } from '../../data/organization';
 
 export function getStaticPaths() {
   return EXAMPLES.map((ex) => ({ params: { slug: ex.slug }, props: { ex } }));
@@ -129,37 +131,23 @@ const titleTails = [
 ];
 const pageTitle = `${ex.title}${titleTails.find((tail) => [...`${ex.title}${tail}`].length <= 60) ?? ''}`;
 
-// TechArticle JSON-LD, mirroring /1.1/docs/[slug].astro. Emitted only on
-// indexable pages (settled before/after data from a filter that acted); when
-// the page is noindex, no structured data is passed. The product
-// `about` facts use the literal '1.15' (matching the docs template and the
-// module package the demo origin runs) — not examples-data.json's psHeader,
-// which is the engine tag and would reintroduce an old-version string
-// (content accuracy). No example-specific share image exists, so
-// `image` is omitted (BaseLayout's og:image falls back to the shared default).
+// TechArticle JSON-LD. Emitted only on indexable pages (settled before/after
+// data from a filter that acted); when the page is noindex, no structured data
+// is passed. `about` is the shared product reference (the site-wide product
+// node's `@id` and the current release), and author and publisher reference the
+// site-wide organization node by its `@id`. No example-specific share
+// image exists, so `image` is omitted (BaseLayout's og:image falls back to the
+// shared default).
 const jsonLd: Record<string, unknown> | undefined = impact.indexable
   ? {
       '@context': 'https://schema.org',
       '@type': 'TechArticle',
       headline: ex.title,
       description: pageDescription,
-      author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-      publisher: {
-        '@type': 'Organization',
-        name: 'We-Amp B.V.',
-        logo: {
-          '@type': 'ImageObject',
-          url: 'https://modpagespeed.com/logo.svg',
-        },
-      },
+      author: ORGANIZATION_REF,
+      publisher: ORGANIZATION_PUBLISHER,
       mainEntityOfPage: `https://modpagespeed.com/examples/${ex.slug}/`,
-      about: {
-        '@type': 'SoftwareApplication',
-        name: 'mod_pagespeed',
-        version: '1.15',
-        applicationCategory: 'WebApplication',
-        operatingSystem: 'Linux, Windows Server',
-      },
+      about: await productRef(),
     }
   : undefined;
 ---
@@ -255,14 +243,20 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
                   'text-sm font-semibold',
                   frame.kind === 'Optimized' ? 'text-success' : 'text-text-muted',
                 ]}
+                id={`frame-${frame.kind.toLowerCase()}-kind`}
               >
                 {frame.kind}
               </span>
+              {/* Both frames have an "Open in new tab" link; the frame's own
+                  label leads the link's name ("Original Open in new tab"), so
+                  the two stay apart in a list of links. */}
               <a
                 href={frame.url}
                 target="_blank"
                 rel="nofollow noopener"
                 class="text-xs text-interactive hover:underline"
+                id={`frame-${frame.kind.toLowerCase()}-open`}
+                aria-labelledby={`frame-${frame.kind.toLowerCase()}-kind frame-${frame.kind.toLowerCase()}-open`}
               >
                 Open in new tab
               </a>
@@ -290,6 +284,8 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
                   target="_blank"
                   rel="nofollow noopener"
                   class="text-sm font-medium text-interactive hover:underline"
+                  id={`frame-${frame.kind.toLowerCase()}-fallback-open`}
+                  aria-labelledby={`frame-${frame.kind.toLowerCase()}-kind frame-${frame.kind.toLowerCase()}-fallback-open`}
                 >
                   Open in new tab
                 </a>
@@ -423,17 +419,25 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
           <div class="mt-5 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
             {requestsTile && (
               <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
-                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-2">
+                <h3 class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-2">
                   {requestsTile.label}
-                </p>
-                <div class="flex items-baseline justify-center gap-3">
-                  <span class="display-num text-lg text-text-annotation line-through">
-                    {requestsTile.before}
-                  </span>
-                  <span class="display-num text-3xl font-bold text-text-body">
-                    {requestsTile.after}
-                  </span>
-                </div>
+                </h3>
+                {/* The struck-through figure is the original count: the terms
+                    (the byte plates' own row labels) say so to a screen reader. */}
+                <dl class="flex items-baseline justify-center gap-3">
+                  <div>
+                    <dt class="sr-only">original</dt>
+                    <dd class="display-num text-lg text-text-annotation line-through">
+                      {requestsTile.before}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt class="sr-only">optimized</dt>
+                    <dd class="display-num text-3xl font-bold text-text-body">
+                      {requestsTile.after}
+                    </dd>
+                  </div>
+                </dl>
                 <span class="badge-success mt-2">{requestsTile.pill}</span>
               </div>
             )}
@@ -457,7 +461,9 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
       {/* Source diff */}
       {diff && diff.length > 0 && substantive && (
         <div class="mt-12">
-          <h2 class="h2-section text-text-body">What changed in the source</h2>
+          <h2 id="source-diff-title" class="h2-section text-text-body">
+            What changed in the source
+          </h2>
           <p class="mt-2 text-sm text-text-annotation">
             The page's HTML, before and after this filter.
             <span class="diff-legend-del">Red</span> lines are removed,
@@ -466,6 +472,8 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
           <div
             class="mt-5 overflow-x-auto rounded-lg border border-border bg-bg-secondary"
             tabindex="0"
+            role="region"
+            aria-labelledby="source-diff-title"
           >
             <pre class="text-xs leading-relaxed font-mono py-3" data-copy-attached="1">
                 <code>
@@ -507,7 +515,7 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
       {/* Footer nav */}
       <div class="mt-10 border-t border-border pt-6">
         <a class="tap-area text-sm font-medium text-interactive hover:underline" href="/examples/">
-          ← All optimization examples
+          <span aria-hidden="true">← </span>All optimization examples
         </a>
       </div>
     </div>

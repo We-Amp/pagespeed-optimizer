@@ -13,7 +13,7 @@
 import { BUILTWITH_AS_OF, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
 interface Props {
-  // The live-site count as a rounded-down lower bound, e.g. "230,000+".
+  // The live-site count as a rounded-down lower bound (roundDownDisplay).
   liveSites: string;
 }
 
@@ -29,7 +29,6 @@ const { liveSites } = Astro.props;
             <span class="font-semibold text-text-body">{liveSites} live sites</span>{' '}
             <a
               href="https://trends.builtwith.com/Server/mod_pagespeed"
-              target="_blank"
               rel="noopener noreferrer"
               class="underline decoration-control-border underline-offset-2 hover:text-text-body"
             >

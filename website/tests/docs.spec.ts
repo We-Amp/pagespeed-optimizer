@@ -343,7 +343,7 @@ test.describe('Docs mechanics', () => {
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toMatch(/^text\/markdown/);
     const body = await res.text();
-    expect(body.startsWith('# Getting started\n')).toBe(true);
+    expect(body.startsWith('# Install mod_pagespeed\n')).toBe(true);
     expect(body).toContain('Canonical URL: https://modpagespeed.com/docs/getting-started/');
     expect(body).toContain('](https://modpagespeed.com/docs/is-it-working/)');
     expect(body).not.toContain('](/docs/');

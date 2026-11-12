@@ -3,8 +3,9 @@
 //
 // The per-filter topic pages (/docs/filters/<name>/): three representative
 // pages render (one with a live example, one compound name, one noindex), the
-// group pages keep their anchors and link each section to its topic page, and
-// the /docs/filters/ table links each row to one.
+// group pages keep their anchors and link each section to its topic page, the
+// /docs/filters/ table links each row to one, and a related-filters list sends
+// a thin filter to its group-page entry.
 
 import { test, expect } from '@playwright/test';
 import { loadFilterTopics } from '../src/lib/filter-topics.mjs';
@@ -63,6 +64,29 @@ test.describe('Filter topic pages', () => {
     await page.goto('/docs/image-filters/#convert_jpeg_to_webp');
     await expect(page.locator('[id="convert_jpeg_to_webp"]')).toHaveCount(1);
     await expect(page.locator('a[href="/docs/filters/convert_jpeg_to_webp/"]')).toBeVisible();
+  });
+
+  test('the related filters list links a thin filter to its group-page entry', async ({ page }) => {
+    const topics = loadFilterTopics();
+    const byPath = new Map(topics.map((t) => [t.path, t]));
+    const byGroup = new Map(topics.map((t) => [t.groupPath, t]));
+    // add_base_tag's related list includes thin HTML filters such as add_head.
+    await page.goto('/docs/filters/add_base_tag/');
+    const hrefs = await page
+      .locator('#related ~ ul a')
+      .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+    expect(hrefs.length).toBeGreaterThan(0);
+    let toGroup = 0;
+    for (const href of hrefs) {
+      const target = byPath.get(href) ?? byGroup.get(href);
+      expect(target, href).toBeDefined();
+      if (target!.indexable) expect(href).toBe(target!.path);
+      else {
+        expect(href).toBe(target!.groupPath);
+        toGroup++;
+      }
+    }
+    expect(toGroup).toBeGreaterThan(0);
   });
 
   test('the filters table links rows to topic pages', async ({ page }) => {

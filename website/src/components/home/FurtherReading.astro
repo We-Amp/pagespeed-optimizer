@@ -3,7 +3,9 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // Home further reading: four docs and blog cards, just above the closing
-// panel.
+// panel. Each card is clickable as a whole, but only its title is the link
+// (a stretched link, .card-stretch in global.css), so the link is named by
+// the title and not by every word on the card.
 //
 // The markup keeps the indentation it has inside the page layout: the build
 // does not compress HTML, so this indentation is the whitespace of the page.
@@ -11,18 +13,22 @@
 // src/pages/index.astro.
 ---
 
-  <section class="home-reading" aria-labelledby="s-reading">
+  <section class="home-reading">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div>
         <h2 id="s-reading" class="eyebrow">Further reading</h2>
         <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <a
-            href="/docs/configuration/"
-            class="card-resource"
-            data-umami-event="cta_home_featured_docs_configuration"
-          >
+          <div class="card-resource card-stretch">
             <p class="eyebrow text-text-body">Docs</p>
-            <h3 class="mt-2 text-lg font-semibold text-text-body">Configuration</h3>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              <a
+                href="/docs/configuration/"
+                class="card-stretch-link"
+                data-umami-event="cta_home_featured_docs_configuration"
+              >
+                Configuration
+              </a>
+            </h3>
             <p class="mt-2 text-body text-text-muted">
               Configuration options for Apache and nginx: directives, cache modes, worker settings,
               and per-location overrides.
@@ -30,14 +36,18 @@
             <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
               Read the docs <span aria-hidden="true">&rarr;</span>
             </p>
-          </a>
-          <a
-            href="/docs/filters/"
-            class="card-resource"
-            data-umami-event="cta_home_featured_docs_filters"
-          >
+          </div>
+          <div class="card-resource card-stretch">
             <p class="eyebrow text-text-body">Docs</p>
-            <h3 class="mt-2 text-lg font-semibold text-text-body">PageSpeed filters reference</h3>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              <a
+                href="/docs/filters/"
+                class="card-stretch-link"
+                data-umami-event="cta_home_featured_docs_filters"
+              >
+                PageSpeed filters reference
+              </a>
+            </h3>
             <p class="mt-2 text-body text-text-muted">
               Every rewrite filter and what it does: image transcoding, CSS and JS minification,
               combining, spriting, IPRO, and domain mapping.
@@ -45,15 +55,17 @@
             <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
               Read the docs <span aria-hidden="true">&rarr;</span>
             </p>
-          </a>
-          <a
-            href="/blog/economics-of-image-optimization/"
-            class="card-resource"
-            data-umami-event="cta_home_blog_economics_images"
-          >
+          </div>
+          <div class="card-resource card-stretch">
             <p class="eyebrow text-text-body">Blog</p>
             <h3 class="mt-2 text-lg font-semibold text-text-body">
-              Image optimization cost: self-hosted vs CDN (2026)
+              <a
+                href="/blog/economics-of-image-optimization/"
+                class="card-stretch-link"
+                data-umami-event="cta_home_blog_economics_images"
+              >
+                Image optimization cost: self-hosted vs CDN (2026)
+              </a>
             </h3>
             <p class="mt-2 text-body text-text-muted">
               Cost comparison at 100K, 1M, and 10M monthly image requests &mdash; with break-even
@@ -62,15 +74,17 @@
             <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
               Read post <span aria-hidden="true">&rarr;</span>
             </p>
-          </a>
-          <a
-            href="/blog/mod-pagespeed-alternatives/"
-            class="card-resource"
-            data-umami-event="cta_home_blog_mps_alternatives"
-          >
+          </div>
+          <div class="card-resource card-stretch">
             <p class="eyebrow text-text-body">Blog</p>
             <h3 class="mt-2 text-lg font-semibold text-text-body">
-              mod_pagespeed Alternatives in 2026
+              <a
+                href="/blog/mod-pagespeed-alternatives/"
+                class="card-stretch-link"
+                data-umami-event="cta_home_blog_mps_alternatives"
+              >
+                mod_pagespeed Alternatives in 2026
+              </a>
             </h3>
             <p class="mt-2 text-body text-text-muted">
               The original mod_pagespeed and ngx_pagespeed &mdash; developed at Google &mdash; are
@@ -79,7 +93,7 @@
             <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
               Read post <span aria-hidden="true">&rarr;</span>
             </p>
-          </a>
+          </div>
         </div>
       </div>
     </div>

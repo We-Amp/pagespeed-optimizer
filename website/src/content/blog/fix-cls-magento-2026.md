@@ -120,6 +120,8 @@ ModPagespeedRewriteLevel CoreFilters
 ModPagespeedEnableFilters insert_image_dimensions
 ModPagespeedEnableFilters lazyload_images
 ModPagespeedEnableFilters prioritize_critical_css
+# Magento serves a lot of media from /pub/media — make sure it's fetchable:
+ModPagespeedDomain https://example.com
 ```
 
 ## Limits of the server-layer fix

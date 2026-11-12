@@ -39,7 +39,7 @@ const faqEntries = [
   },
   {
     q: 'Which mod_pagespeed versions are supported?',
-    a: `mod_pagespeed ${V1_LINE} (v${V1_LINE}.0+r3 or later) or ModPageSpeed 2.0 (v2.0.0 or later). The plugin auto-detects which one is running and adjusts its behavior accordingly.`,
+    a: `The plugin is tested with mod_pagespeed ${V1_LINE} (v${V1_LINE}.0+r3 or later) and ModPageSpeed 2.0 (v2.0.0 or later). It uses APIs that current mod_pagespeed still provides, but it has not yet been tested with it, and its license-tier display does not apply to current versions.`,
   },
 ];
 
@@ -53,7 +53,11 @@ const jsonLd = [
     description: `WordPress control panel for ${PRODUCT_DISPLAY_NAME} full-page caching: adds Cache-Control headers to anonymous pages, purges the mod_pagespeed cache on publish, update, and delete, and exposes per-post-type TTLs in WP Admin and WP-CLI. Requires mod_pagespeed on the server.`,
     softwareHelp: 'https://modpagespeed.com/docs/cache-control/',
     downloadUrl: WP_URL,
-    offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
+    offers: offerJsonLd({
+      url: 'https://modpagespeed.com/pricing/',
+      description:
+        'Free WordPress plugin, GPL-2.0-or-later, from the wordpress.org plugin directory.',
+    }),
     publisher: {
       '@type': 'Organization',
       name: 'We-Amp B.V.',

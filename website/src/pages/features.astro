@@ -144,98 +144,85 @@ const jsonLd = [softwareApplication, faqPage];
   <section class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <a href="#image-optimization" class="card">
+        <div class="card card-stretch">
           <Icon name="image" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">Image optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#image-optimization" class="card-stretch-link">
+              Image optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             WebP/AVIF transcoding, viewport-aware resizing, ML quality, up to 37 variants per image
           </p>
-        </a>
-        <a href="#css-optimization" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="paintbrush" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">CSS optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#css-optimization" class="card-stretch-link">
+              CSS optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Minification, critical CSS extraction, async loading, @import flattening
           </p>
-        </a>
-        <a href="#js-optimization" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="braces" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">JS optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#js-optimization" class="card-stretch-link">
+              JS optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Safe minification, automatic script deferral — no AST transforms
           </p>
-        </a>
-        <a href="#html-optimization" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="code-xml" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">HTML optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#html-optimization" class="card-stretch-link">
+              HTML optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Critical CSS injection, async CSS, script deferral, Early Hints (103), lazy loading
           </p>
-        </a>
-        <a href="#variant-caching" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="database" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">Variant-aware caching</p>
+          <p class="font-semibold text-text-body">
+            <a href="#variant-caching" class="card-stretch-link">
+              Variant-aware caching
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             32-bit capability mask, best-fit fallback, per-client variants
           </p>
-        </a>
-        <a href="#zero-copy" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="gauge" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">Zero-copy serving</p>
+          <p class="font-semibold text-text-body">
+            <a href="#zero-copy" class="card-stretch-link">
+              Zero-copy serving
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Sub-millisecond cache hits via mmap — no copies, no allocations
           </p>
-        </a>
-        <a href="#ai-readability" class="card lg:col-start-2">
+        </div>
+        <div class="card card-stretch lg:col-start-2">
           <Icon name="bot" class="h-5 w-5 text-interactive mb-3" />
           <p class="flex items-center gap-2 font-semibold text-text-body">
-            AI-readability
+            <a href="#ai-readability" class="card-stretch-link">
+              AI-readability
+            </a>
             <span class="badge-neutral">Experimental</span>
           </p>
           <p class="mt-1 text-body text-text-muted">
             Serve fully-rendered content to AI crawlers that never run your JavaScript
           </p>
-        </a>
+        </div>
       </div>
-    </div>
-  </section>
-  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
-  </div>
-
-  <!-- Not in scope -->
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
-    <h2 class="h2-section text-text-body">Not in scope</h2>
-    <div class="panel mt-6">
-      <p class="text-text-body">mod_pagespeed is an origin-side optimizer. It does not replace:</p>
-      <ul class="mt-4 space-y-2 text-body text-text-muted list-disc pl-6">
-        <li>
-          <span class="font-semibold text-text-body">Edge delivery</span>: use your CDN for caching,
-          geography, and TLS termination.
-        </li>
-        <li>
-          <span class="font-semibold text-text-body">
-            Web application firewall / bot protection
-          </span>
-          : use your WAF; we do not inspect request payloads or enforce policy.
-        </li>
-        <li>
-          <span class="font-semibold text-text-body">RUM / observability platforms</span>: we expose
-          metrics; we do not replace your APM.
-        </li>
-        <li>
-          <span class="font-semibold text-text-body">Build-time bundlers</span>: if your CSS/JS is
-          already optimized, we add less &mdash; we mainly add origin-side image transcoding and
-          critical CSS.
-        </li>
-      </ul>
-      <p class="mt-4 text-body text-text-muted">
-        For how the optimizations above map to the metrics Google measures, see the{' '}
-        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline">
-          Core Web Vitals
-        </a>{' '}
-        hub.
-      </p>
     </div>
   </section>
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -1330,31 +1317,15 @@ const jsonLd = [softwareApplication, faqPage];
         image transcoding, same CSS extraction, same variant-aware caching.
       </p>
 
-      <div class="mt-10 grid gap-8 lg:grid-cols-2">
-        <div>
-          <img
-            src="/images/aspnet-architecture.svg"
-            alt="ASP.NET Core middleware architecture — request flows through other middleware to the PageSpeed middleware and back"
-            width="960"
-            height="540"
-            loading="lazy"
-            class="rounded-lg border border-border"
-          />
-        </div>
-        <div>
-          <picture>
-            <source srcset="/images/console-variants.avif" type="image/avif" />
-            <source srcset="/images/console-variants.webp" type="image/webp" />
-            <img
-              src="/images/console-variants.png"
-              alt="Admin console showing cached variants for a single URL across formats and viewports"
-              width="1280"
-              height="720"
-              loading="lazy"
-              class="rounded-lg border border-border"
-            />
-          </picture>
-        </div>
+      <div class="mt-10 max-w-3xl">
+        <img
+          src="/images/aspnet-architecture.svg"
+          alt="ASP.NET Core middleware architecture — request flows through other middleware to the PageSpeed middleware and back"
+          width="960"
+          height="540"
+          loading="lazy"
+          class="rounded-lg border border-border"
+        />
       </div>
 
       <div class="mt-10 max-w-2xl">
@@ -1383,6 +1354,45 @@ const jsonLd = [softwareApplication, faqPage];
     </div>
   </section>
 
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  <!-- What it does not replace -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
+    <h2 class="h2-section text-text-body">What it does not replace</h2>
+    <div class="panel mt-6">
+      <p class="text-text-body">mod_pagespeed is an origin-side optimizer. It does not replace:</p>
+      <ul class="mt-4 space-y-2 text-body text-text-muted list-disc pl-6">
+        <li>
+          <span class="font-semibold text-text-body">Edge delivery</span>: use your CDN for caching,
+          geography, and TLS termination.
+        </li>
+        <li>
+          <span class="font-semibold text-text-body">
+            Web application firewall / bot protection
+          </span>
+          : use your WAF; we do not inspect request payloads or enforce policy.
+        </li>
+        <li>
+          <span class="font-semibold text-text-body">RUM / observability platforms</span>: we expose
+          metrics; we do not replace your APM.
+        </li>
+        <li>
+          <span class="font-semibold text-text-body">Build-time bundlers</span>: if your CSS/JS is
+          already optimized, we add less &mdash; we mainly add origin-side image transcoding and
+          critical CSS.
+        </li>
+      </ul>
+      <p class="mt-4 text-body text-text-muted">
+        For how the optimizations above map to the metrics Google measures, see the{' '}
+        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline">
+          Core Web Vitals
+        </a>{' '}
+        hub.
+      </p>
+    </div>
+  </section>
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>

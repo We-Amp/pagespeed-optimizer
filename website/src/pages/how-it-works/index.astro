@@ -56,15 +56,17 @@ const jsonLd = {
   <section class="container-prose pb-16">
     <div class="space-y-4">
       {pages.map((p) => (
-        <a href={`/how-it-works/${p.id}/`} class="group card-resource block">
+        <div class="group card-resource card-stretch block">
           <h2 class="text-lg font-semibold text-text-body group-hover:text-interactive">
-            {p.data.title}
+            <a href={`/how-it-works/${p.id}/`} class="card-stretch-link">
+              {p.data.title}
+            </a>
           </h2>
           <p class="mt-2 text-sm text-text-muted">{p.data.summary ?? p.data.description}</p>
           <span class="mt-3 inline-block text-sm font-medium text-interactive">
             Read it <span aria-hidden="true">&rarr;</span>
           </span>
-        </a>
+        </div>
       ))}
     </div>
 

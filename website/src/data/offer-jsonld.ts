@@ -4,10 +4,10 @@
 // Single source of truth for the schema.org offer node emitted across the site.
 //
 // Converged model: the standard signed packages are free, so the node is a
-// single $0 Offer. Google
+// single €0 Offer. Google
 // requires a Product node to carry offers/review/aggregateRating — silently
 // dropping offers would invalidate the Product markup on every importing page,
-// and a $0 Offer is accurate (the standard packages cost nothing) and
+// and a €0 Offer is accurate (the standard packages cost nothing) and
 // rich-result-valid. (The pre-GA AggregateOffer spanned the paid per-site
 // license rungs; the license ladder is retired.) The three support tiers are
 // separate priced Offer nodes (supportTierOffersJsonLd) — never emit a
@@ -33,7 +33,7 @@ export { PRICE_VALID_UNTIL };
 // product-facts.mjs (publication-derived: "licensed under" today, "open source
 // under" once the source is published); support plans are
 // sold separately and are deliberately not part of this offer (the standard
-// packages cost $0).
+// packages cost €0).
 export const DEFAULT_OFFER_DESCRIPTION =
   `${LICENSE_CLAUSE_CAP} — the standard signed packages are free ` +
   `to install and run. Support plans are sold separately; Priority and Enterprise add a private package repository (being set up): ${SUPPORT_URL}`;
@@ -54,7 +54,7 @@ export interface OfferOptions {
 }
 
 /**
- * Build the canonical schema.org Offer node: the standard packages are free ($0).
+ * Build the canonical schema.org Offer node: the standard packages are free (€0).
  * Pass `url`/`description` to keep a page's existing values; everything else
  * (price, currency, priceValidUntil, availability) comes from the shared
  * constants above.
@@ -64,7 +64,7 @@ export function offerJsonLd(opts: OfferOptions = {}) {
     '@type': 'Offer',
     availability: 'https://schema.org/InStock',
     price: 0,
-    priceCurrency: 'USD',
+    priceCurrency: 'EUR',
     priceValidUntil: PRICE_VALID_UNTIL,
     url: opts.url ?? 'https://modpagespeed.com/pricing/',
     description: opts.description ?? DEFAULT_OFFER_DESCRIPTION,

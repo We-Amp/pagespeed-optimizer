@@ -264,7 +264,7 @@ export const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
       { href: '/features/', label: 'Features' },
       { href: '/download/', label: 'Download & install', umamiEvent: 'cta_footer_download' },
       { href: '/how-it-works/', label: 'How it works' },
-      { href: '/packs/', label: 'Rule packs' },
+      { href: '/packs/', label: 'Rule pack catalogue' },
       {
         href: '/platform/',
         label: 'Transform packs',

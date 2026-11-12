@@ -113,12 +113,12 @@ test.describe('/download/ signposts', () => {
       ['sidecar', 'ASP.NET Core Sidecar'],
     ];
     for (const [id, name] of anchors) {
-      const card = page.locator(`a.card#${id}`);
+      const card = page.locator(`.card#${id}`);
       await expect(card).toHaveCount(1);
       await expect(card.getByRole('heading', { level: 3 })).toHaveText(name);
     }
-    await expect(page.locator('a.card#apache')).toContainText('Install on Apache');
-    await expect(page.locator('a.card#nginx')).toContainText('Install on nginx');
+    await expect(page.locator('.card#apache')).toContainText('Install on Apache');
+    await expect(page.locator('.card#nginx')).toContainText('Install on nginx');
   });
 
   test('the nginx walkthrough link stays on this site', async ({ page }) => {

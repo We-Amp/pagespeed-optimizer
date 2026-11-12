@@ -27,6 +27,8 @@ function git(args: string[], cwd: string): string {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
     timeout: 10_000,
+    // Room for a whole data file's content (`gitFileHistory`).
+    maxBuffer: 64 * 1024 * 1024,
   }).trim();
 }
 
@@ -63,4 +65,33 @@ export function gitLastModified(filePath: string): string | null {
   }
   dateCache.set(abs, date);
   return date;
+}
+
+/**
+ * Every committed version of `filePath`, newest first, as `{ date, text }`
+ * (committer date YYYY-MM-DD and the file's content at that commit). Null
+ * under the same conditions as `gitLastModified` (no git, not a work tree, a
+ * shallow clone), or when git fails. Renames are not followed.
+ *
+ * @param filePath Path to a tracked file, absolute or relative to the
+ *   process working directory.
+ */
+export function gitFileHistory(filePath: string): Array<{ date: string; text: string }> | null {
+  const abs = resolve(process.cwd(), filePath);
+  const cwd = dirname(abs);
+  if (!existsSync(abs) || !canUseHistory(cwd)) return null;
+  try {
+    const rel = git(['ls-files', '--full-name', '--', abs], cwd);
+    if (!rel) return null;
+    const log = git(['log', '--format=%H %cs', '--', abs], cwd);
+    return log
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => {
+        const [sha, date] = line.split(' ');
+        return { date, text: git(['show', `${sha}:${rel}`], cwd) };
+      });
+  } catch {
+    return null;
+  }
 }

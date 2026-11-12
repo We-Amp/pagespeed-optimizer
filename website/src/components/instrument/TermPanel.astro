@@ -27,6 +27,9 @@ interface Props {
     text: string;
     tone?: 'plain' | 'strong' | 'hl' | 'ok' | 'dim';
     event?: string;
+    // Decoration before the text (an arrow, a prompt sign) that a screen
+    // reader should not read aloud.
+    marker?: string;
   }>;
   copy?: boolean;
 }
@@ -54,7 +57,7 @@ const showHead = copy || Boolean(command) || Boolean(chip);
     aria-labelledby={labelledby}
   ><code>{
         lines.map((line, i) => (
-          <span class={`term-${line.tone ?? 'plain'}`} data-umami-event={line.event}>{line.text + (i < lines.length - 1 ? '\n' : '')}</span>
+          <span class={`term-${line.tone ?? 'plain'}`} data-umami-event={line.event}>{line.marker && <span aria-hidden="true">{line.marker}</span>}{line.text + (i < lines.length - 1 ? '\n' : '')}</span>
         ))
       }</code></pre>
 </figure>

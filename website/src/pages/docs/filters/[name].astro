@@ -11,6 +11,7 @@ import {
   topicFacts,
   topicConfig,
   relatedTopics,
+  topicHref,
   namesGoogleProduct,
   topicMarkdownUrl,
   GROUP_TITLES,
@@ -490,7 +491,7 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
             <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm">
               {related.map((r) => (
                 <li>
-                  <a class="font-mono text-interactive hover:underline" href={r.path}>
+                  <a class="font-mono text-interactive hover:underline" href={topicHref(r)}>
                     {r.name}
                   </a>
                   <span class="text-text-annotation"> — {r.human}</span>

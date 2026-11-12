@@ -50,8 +50,8 @@ such a session start the dev server first (`npm run dev`, which backgrounds itse
 
 ## Stylesheet strategy
 
-The site CSS stays an external sheet (Astro's default): in production the site's own optimizer inlines the critical CSS and defers the full sheet, so first paint is not blocked and nothing flashes unstyled.
-Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process; fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
+The site CSS stays an external sheet (Astro's default). Production does not inline critical CSS at present: the filter is off for this site until We-Amp/mod_pagespeed#713 is fixed, so the sheet blocks the first view and is cached after that.
+Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process once it is back on. Fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
 
 ## Theme and error pages
 
@@ -93,6 +93,11 @@ searching, and the Playwright suite asserts that message. Pagefind runs WebAssem
 Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `script-src`;
 the dialog probes for that before loading and reports a blocked policy visibly. The docs
 sitemap `lastmod` comes from the same git-derived date as the page (`src/lib/git-date.ts`).
+The static pages and the generated route families date from git too
+(`src/lib/page-lastmod.mjs`); each example page dates from its own catalog entry and capture.
+Git dates need full history: a shallow clone answers none, so its build falls back to the
+frontmatter dates and leaves the other sitemap entries undated. Check a date change in a
+full-history clone (`git clone --filter=blob:none`).
 
 Result order is tuned in two places. At build time the layout gives `<main>` a
 `data-pagefind-weight` and, for the pages people search for by name, a short result title

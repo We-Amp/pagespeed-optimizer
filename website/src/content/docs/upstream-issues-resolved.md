@@ -1,5 +1,6 @@
 ---
 title: 'Long-standing upstream issues resolved'
+seoTitle: 'Upstream issues resolved: fixes by release — mod_pagespeed'
 description: 'Open issues in the archived mod_pagespeed and ngx_pagespeed trackers that current mod_pagespeed resolves, with each fix and the release that shipped it.'
 order: 16
 group: 'Upgrade and migrate'

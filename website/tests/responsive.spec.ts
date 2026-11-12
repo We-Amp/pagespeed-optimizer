@@ -303,7 +303,7 @@ test.describe('Phone form fields are at least 16px', () => {
 const cardCopy: Array<{ path: string; selector: string }> = [
   { path: '/docs/', selector: 'main a p' },
   { path: '/examples/', selector: 'main a p' },
-  { path: '/alternatives/', selector: 'main a p' },
+  { path: '/alternatives/', selector: 'main .card-stretch p' },
   { path: '/alternatives/cloudflare-apo/', selector: 'main ul dl dd' },
 ];
 
@@ -332,9 +332,9 @@ test.describe('Hub card descriptions', () => {
 
   test('desktop card copy keeps the compact size', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
-    for (const { path } of cardCopy.slice(0, 3)) {
+    for (const { path, selector } of cardCopy.slice(0, 3)) {
       await page.goto(path);
-      const sizes = await cardCopySizes(page, 'main a p');
+      const sizes = await cardCopySizes(page, selector);
       expect(sizes.length, `${path} has card copy`).toBeGreaterThan(0);
       expect(
         sizes.filter((s) => s.size !== 14),

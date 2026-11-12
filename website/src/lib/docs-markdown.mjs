@@ -9,9 +9,10 @@
 // fetches at /docs/<slug>.md is the body that sits in llms-full.txt.
 //
 // What the render does to a page's source:
-//   - frontmatter off; the title becomes the one H1, the description the lede,
-//     the canonical URL a line under it; the frontmatter `faq` pairs are
-//     appended as the page renders them (a "Frequently asked questions" section)
+//   - frontmatter off; the page's H1 (`h1`, else the title) becomes the one
+//     H1, the description the lede, the canonical URL a line under it; the
+//     frontmatter `faq` pairs are appended as the page renders them (a
+//     "Frequently asked questions" section)
 //   - MDX: `import` and `export const relNN = await getRelease(...)` lines go,
 //     `{relNN.path}` expressions and the release-aware components (<Version />,
 //     <ImageTag />, <NugetCmd />, <XPageSpeedExample />, <VersionMap />) resolve from the release
@@ -41,6 +42,7 @@ export const SITE = 'https://modpagespeed.com';
 /**
  * @typedef {{
  *   title: string,
+ *   h1?: string,
  *   description: string,
  *   order: number,
  *   group?: string,
@@ -515,7 +517,16 @@ export function renderDocMarkdown(doc, m) {
 
   while (out.length && !out[out.length - 1]) out.pop();
   /** @type {string[]} */
-  const parts = [`# ${data.title}`, '', data.description, '', `Canonical URL: ${docUrl(slug)}`, ''];
+  // The H1 is the one the HTML page shows: `h1` when the page sets one (the
+  // sidebar keeps the shorter `title`), else the title.
+  const parts = [
+    `# ${data.h1 ?? data.title}`,
+    '',
+    data.description,
+    '',
+    `Canonical URL: ${docUrl(slug)}`,
+    '',
+  ];
   parts.push(...out);
   if (data.faq?.length) {
     parts.push('', '## Frequently asked questions', '');

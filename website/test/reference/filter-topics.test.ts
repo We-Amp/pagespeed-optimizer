@@ -32,6 +32,7 @@ import {
   topicFacts,
   GOOGLE_PRODUCTS_LINE,
   relatedTopics,
+  topicHref,
   renderTopicMarkdown,
   renderFiltersHubMarkdown,
 } from '../../src/lib/filter-topics.mjs';
@@ -344,9 +345,35 @@ describe('filter topic Markdown twins (source)', () => {
         t.name,
       ).not.toContain(t.name);
       for (const r of related) {
-        expect(body, t.name).toContain(`(https://modpagespeed.com${r.path})`);
+        expect(body, t.name).toContain(`(https://modpagespeed.com${topicHref(r)})`);
       }
     }
+  });
+
+  it('links a related filter to a page search engines index', () => {
+    let toGroup = 0;
+    for (const t of topics) {
+      for (const r of relatedTopics(t, topics)) {
+        const href = topicHref(r);
+        if (r.indexable) expect(href, `${t.name} -> ${r.name}`).toBe(r.path);
+        else {
+          expect(href, `${t.name} -> ${r.name}`).toBe(r.groupPath);
+          expect(href, `${t.name} -> ${r.name}`).toMatch(/^\/docs\/[^/]+\/#/);
+          toGroup++;
+        }
+      }
+      if (!t.indexable) continue;
+      const related = renderTopicMarkdown(t, topics, demosOf(t)).match(
+        /\n## Related filters\n([\s\S]*?)\nThis page is drawn/,
+      )?.[1];
+      for (const r of relatedTopics(t, topics).filter((x) => !x.indexable)) {
+        expect(related, `${t.name} twin -> ${r.name}`).not.toContain(
+          `(https://modpagespeed.com${r.path})`,
+        );
+      }
+    }
+    // Some related filters are thin today; the check must exercise that path.
+    expect(toGroup).toBeGreaterThan(0);
   });
 
   it('lists the same gallery demos as the topic page', () => {
