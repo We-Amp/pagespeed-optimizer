@@ -29,7 +29,7 @@ gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 ```
 
-`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
+`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on all three. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
 ### 2. Remove mod_ruid2 if it is installed {#mod-ruid2}
 
@@ -154,9 +154,9 @@ httpd -M 2>/dev/null | grep pagespeed         # confirm the module is loaded
 
 If it does not appear, re-check the _Apache Modules_ step in WHM Customize and re-provision. See [Troubleshooting](/docs/troubleshooting/) for the general "module not running" checklist.
 
-### `rpm -q` shows a leading `2:` (e.g. `2:1.15.0-...`) — is that version 2?
+### What is the leading `2:`?
 
-No. The leading `2:` is the RPM **epoch**, not a major version — the installed package's version string currently reads **1.15.0**. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places; read it as "epoch 2, version 1.15.0".
+It is the RPM **epoch**, not part of the version: `rpm -q` shows `2:2.8.1-...`, which reads as epoch 2, version 2.8.1. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places.
 
 ---
 

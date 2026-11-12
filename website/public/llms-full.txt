@@ -1226,7 +1226,7 @@ evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
 independently — see [Run in production](https://modpagespeed.com/docs/deployment/) for the hardened
 setup. `:latest` is published only on the combined image — the worker
-and nginx images ship immutable version tags (for example `:2.2.0`).
+and nginx images ship immutable version tags (for example `:X.Y.Z`).
 
 `ACCEPT_EULA=Y` acknowledges the
 [Terms of Service](https://modpagespeed.com/terms/), which govern your use of the
@@ -1973,7 +1973,7 @@ gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 ```
 
-`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
+`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on all three. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
 ### 2. Remove mod_ruid2 if it is installed
 
@@ -2098,9 +2098,9 @@ httpd -M 2>/dev/null | grep pagespeed         # confirm the module is loaded
 
 If it does not appear, re-check the _Apache Modules_ step in WHM Customize and re-provision. See [Troubleshooting](https://modpagespeed.com/docs/troubleshooting/) for the general "module not running" checklist.
 
-### `rpm -q` shows a leading `2:` (e.g. `2:1.15.0-...`) — is that version 2?
+### What is the leading `2:`?
 
-No. The leading `2:` is the RPM **epoch**, not a major version — the installed package's version string currently reads **1.15.0**. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places; read it as "epoch 2, version 1.15.0".
+It is the RPM **epoch**, not part of the version: `rpm -q` shows `2:2.8.1-...`, which reads as epoch 2, version 2.8.1. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places.
 
 ---
 
@@ -3745,10 +3745,10 @@ sudo apachectl configtest && sudo systemctl restart httpd
 transaction. If you edited `/etc/httpd/conf.d/pagespeed.conf`, rpm keeps your
 file and writes the new one beside it as `pagespeed.conf.rpmnew`. On
 Enterprise Linux the `LoadModule` line lives in that file, and yours names
-`mod_pagespeed_ap24.so`, which packages up to 1.19.0 do not ship: the `sed`
-line points it at `mod_pagespeed.so`, without which `configtest` fails. From
-the release that ships `mod_pagespeed_ap24.so` as a link to the module, the
-`sed` line is unnecessary and stays harmless. The `sed` runs only after the
+`mod_pagespeed_ap24.so`, which packages before 2.5.0 do not ship: there the
+`sed` line points it at `mod_pagespeed.so`, without which `configtest` fails.
+From 2.5.0 the package ships `mod_pagespeed_ap24.so` as a link to the module,
+so on current packages the `sed` line is unnecessary and stays harmless. The `sed` runs only after the
 swap succeeded: on the archived package's own configuration it would point
 Apache at that package's `mod_pagespeed.so`, its Apache 2.2 build, which
 Apache 2.4 cannot load. Compare your file with the new defaults:
@@ -3826,7 +3826,7 @@ For cache sizing and storage options, see
 curl -sI http://localhost/ | grep -E 'X-Mod-Pagespeed|X-Page-Speed'
 ```
 
-The header now shows the version of the new package (1.19.0 or later), no
+The header now reads `on` (releases before 2.7.0 print their version), no
 longer `1.13.35.2-0`: `X-Mod-Pagespeed` on Apache, `X-Page-Speed` on nginx. Open
 `/pagespeed_global_admin` on the server to see the configuration and
 statistics; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the rest.
@@ -6061,7 +6061,7 @@ Makes prioritize_critical_css inline only the rules for content in the first scr
 
 Number of bytes below which stylesheets will be flattened.
 
-Set it in the server or directory configuration. After 2.7.0 it can no longer
+Set it in the server or directory configuration. From 2.8.0 it can no longer
 be set on a single request: a `PageSpeedCssFlattenMaxBytes` query parameter,
 request or response header, or cookie has no effect. In 2.7.0 and earlier it
 could also be set per request.
@@ -10240,7 +10240,7 @@ http {
 
 ```ini
 [Unit]
-Description=ModPageSpeed Factory Worker
+Description=PageSpeed Optimizer Worker
 After=network.target
 
 [Service]
@@ -10726,7 +10726,7 @@ pagespeed CycloneRamCacheKb 8192
 
 ### Zero-copy serving
 
-Two related options reduce or skip the per-request copy of cached response bodies. As of v1.15.0+r19, zero-copy serving is **opt-in on all three platforms** while it accrues production soak; on-by-default is planned for a future revision.
+Two related options reduce or skip the per-request copy of cached response bodies. Zero-copy serving is **opt-in on all three platforms** while it accrues production soak; on-by-default is planned for a future revision.
 
 **`CycloneZeroCopy`** reads cached hits directly from the memory-mapped cache file without copying the payload. It is off by default on every platform and is the switch that opts a server in.
 
@@ -11053,7 +11053,7 @@ These directives control how mod_pagespeed fetches resources from your origin an
 
 | Directive                   |        Default | Description                                                                                                                                                                                                                       |
 | --------------------------- | -------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FetcherTimeoutMs`          |           5000 | Maximum time to wait for a resource fetch from origin                                                                                                                                                                             |
+| `FetcherTimeOutMs`          |           5000 | Maximum time to wait for a resource fetch from origin                                                                                                                                                                             |
 | `RewriteDeadlinePerFlushMs` |             10 | Time budget per flush window for rewriting. If rewrites take longer, the original resource is served and the optimized variant is cached for subsequent requests                                                                  |
 | `ImplicitCacheTtlMs`        | 300000 (5 min) | Cache TTL applied to resources that do not have explicit `Cache-Control` headers                                                                                                                                                  |
 | `FetchWithGzip`             |            off | Fetch resources from origin using gzip `Accept-Encoding`. Turn this on if your origin supports gzip and the network between mod_pagespeed and the origin is a bottleneck                                                          |
@@ -11064,7 +11064,7 @@ These directives control how mod_pagespeed fetches resources from your origin an
 **nginx**
 
 ```nginx
-pagespeed FetcherTimeoutMs 10000;
+pagespeed FetcherTimeOutMs 10000;
 pagespeed RewriteDeadlinePerFlushMs 20;
 pagespeed ImplicitCacheTtlMs 600000;
 pagespeed FetchWithGzip on;
@@ -11076,7 +11076,7 @@ pagespeed HttpCacheCompressionLevel 6;
 **Apache**
 
 ```apache
-ModPagespeedFetcherTimeoutMs 10000
+ModPagespeedFetcherTimeOutMs 10000
 ModPagespeedRewriteDeadlinePerFlushMs 20
 ModPagespeedImplicitCacheTtlMs 600000
 ModPagespeedFetchWithGzip on
@@ -11088,7 +11088,7 @@ ModPagespeedHttpCacheCompressionLevel 6
 **IIS**
 
 ```text
-pagespeed FetcherTimeoutMs 10000
+pagespeed FetcherTimeOutMs 10000
 pagespeed RewriteDeadlinePerFlushMs 20
 pagespeed ImplicitCacheTtlMs 600000
 pagespeed FetchWithGzip on
@@ -16728,7 +16728,7 @@ Statistics are enabled by default and required for features like image rewrite c
 
 ```nginx
 pagespeed Statistics on;
-pagespeed UsePerVhostStatistics on;
+pagespeed UsePerVHostStatistics on;
 ```
 
 <!-- platform: apache -->
@@ -16737,7 +16737,7 @@ pagespeed UsePerVhostStatistics on;
 
 ```apache
 ModPagespeedStatistics on
-ModPagespeedUsePerVhostStatistics on
+ModPagespeedUsePerVHostStatistics on
 ```
 
 <!-- platform: iis -->
@@ -16746,12 +16746,12 @@ ModPagespeedUsePerVhostStatistics on
 
 ```text
 pagespeed Statistics on
-pagespeed UsePerVhostStatistics on
+pagespeed UsePerVHostStatistics on
 ```
 
 Per-vhost statistics are enabled by default on IIS. Each website gets its own set of counters, accessible at `/pagespeed_admin/statistics` on that site; site-wide aggregates remain at `/pagespeed_global_admin/statistics`.
 
-`UsePerVhostStatistics` enables per-virtual-host stats while still exposing aggregates at the global admin path.
+`UsePerVHostStatistics` enables per-virtual-host stats while still exposing aggregates at the global admin path.
 
 ## Cache telemetry
 

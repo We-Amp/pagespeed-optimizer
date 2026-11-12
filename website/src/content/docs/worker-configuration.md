@@ -2485,7 +2485,7 @@ http {
 
 ```ini
 [Unit]
-Description=ModPageSpeed Factory Worker
+Description=PageSpeed Optimizer Worker
 After=network.target
 
 [Service]

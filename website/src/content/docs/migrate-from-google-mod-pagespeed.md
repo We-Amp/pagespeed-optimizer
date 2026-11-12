@@ -127,10 +127,10 @@ sudo apachectl configtest && sudo systemctl restart httpd
 transaction. If you edited `/etc/httpd/conf.d/pagespeed.conf`, rpm keeps your
 file and writes the new one beside it as `pagespeed.conf.rpmnew`. On
 Enterprise Linux the `LoadModule` line lives in that file, and yours names
-`mod_pagespeed_ap24.so`, which packages up to 1.19.0 do not ship: the `sed`
-line points it at `mod_pagespeed.so`, without which `configtest` fails. From
-the release that ships `mod_pagespeed_ap24.so` as a link to the module, the
-`sed` line is unnecessary and stays harmless. The `sed` runs only after the
+`mod_pagespeed_ap24.so`, which packages before 2.5.0 do not ship: there the
+`sed` line points it at `mod_pagespeed.so`, without which `configtest` fails.
+From 2.5.0 the package ships `mod_pagespeed_ap24.so` as a link to the module,
+so on current packages the `sed` line is unnecessary and stays harmless. The `sed` runs only after the
 swap succeeded: on the archived package's own configuration it would point
 Apache at that package's `mod_pagespeed.so`, its Apache 2.2 build, which
 Apache 2.4 cannot load. Compare your file with the new defaults:
@@ -208,7 +208,7 @@ For cache sizing and storage options, see
 curl -sI http://localhost/ | grep -E 'X-Mod-Pagespeed|X-Page-Speed'
 ```
 
-The header now shows the version of the new package (1.19.0 or later), no
+The header now reads `on` (releases before 2.7.0 print their version), no
 longer `1.13.35.2-0`: `X-Mod-Pagespeed` on Apache, `X-Page-Speed` on nginx. Open
 `/pagespeed_global_admin` on the server to see the configuration and
 statistics; [Is it working?](/docs/is-it-working/) has the rest.

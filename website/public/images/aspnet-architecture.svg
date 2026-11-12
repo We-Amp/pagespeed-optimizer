@@ -15,7 +15,7 @@
   <rect width="960" height="540" fill="#0b0c0e" rx="8"/>
 
   <!-- Title -->
-  <text x="480" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#e8eaed" letter-spacing="-0.025em">ModPageSpeed middleware in the ASP.NET Core pipeline</text>
+  <text x="480" y="36" text-anchor="middle" font-size="20" font-weight="700" fill="#e8eaed" letter-spacing="-0.025em">mod_pagespeed middleware in the ASP.NET Core pipeline</text>
 
   <!-- Divider line -->
   <line x1="480" y1="52" x2="480" y2="520" stroke="#2a2e34" stroke-width="1.5" stroke-dasharray="8,6"/>
