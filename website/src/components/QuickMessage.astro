@@ -655,6 +655,14 @@
     resize: vertical;
     min-height: 4.5rem;
   }
+  /* iOS Safari zooms the page into any field set below 16px when it takes
+     focus, and leaves it zoomed. Phones get 16px; larger screens keep 14px. */
+  @media (width < 40rem) {
+    .qm-textarea,
+    .qm-input {
+      font-size: 1rem;
+    }
+  }
   .qm-textarea::placeholder,
   .qm-input::placeholder {
     color: var(--color-text-annotation);
