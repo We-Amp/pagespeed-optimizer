@@ -17445,9 +17445,8 @@ make outbound connections even with JavaScript enabled.
 
 ### Configuration
 
-| Flag                           | Default   | Description                      |
-| ------------------------------ | --------- | -------------------------------- |
-| `--no-browser-script-analysis` | (enabled) | Disable script coverage analysis |
+Script analysis has no flag of its own: it runs whenever browser analysis is
+enabled with `--enable-browser-analysis`.
 
 Script analysis results feed into the optimization policy engine, which decides
 whether to enable script deferral for each URL template.
@@ -17578,9 +17577,6 @@ it for accurate analysis) but still enforce the other three layers.
 | `--no-browser-lazy-loading`    | (enabled)                        | Disable browser-based lazy load decisions  |
 | `--no-browser-lcp-preload`     | (enabled)                        | Disable browser-based LCP detection        |
 | `--no-browser-image-sizing`    | (enabled)                        | Disable browser-based image dimensions     |
-| `--no-browser-script-analysis` | (enabled)                        | Disable script coverage analysis           |
-
-All flags are also hot-reloadable via `PATCH /v1/config` from the web console.
 
 ## Monitoring
 
@@ -20611,11 +20607,10 @@ When auth fails, the API returns:
 
 ## CORS
 
-Set `--cors-origin` to enable cross-origin requests. An empty value (default)
-disables CORS headers entirely. Supports a specific origin or `*` for wildcard.
-When auth is configured, the server reflects the actual origin (not `*`) so
-browser credentials work. Preflight `OPTIONS` requests return CORS headers with
-status 204.
+The API sends no CORS headers, and no flag or config key turns them on, so a
+browser page on another origin cannot call it. Use the web console at
+`/console/`, call the API from a server-side client, or put a reverse proxy in
+front that serves your page and the API from one origin.
 
 ---
 
@@ -22211,7 +22206,7 @@ what the three lists below are for.
 Everything published after 1.14.36.1 is on this page, release by release. The
 upstream history up to and including it is archived here, unchanged:
 
-[Release notes for the upstream line, up to 1.14.36.1 →](https://modpagespeed.com/1.0/doc/release_notes)
+[Release notes for the upstream line, up to 1.14.36.1 →](https://modpagespeed.com/1.0/doc/release_notes.html)
 
 ## Install and upgrade
 
