@@ -77,3 +77,19 @@ describe('error routes opt out of the canonical link (source)', () => {
     });
   }
 });
+
+// The top-level 404.html and 500.html are what the built server
+// (node dist/server/entry.mjs) answers with. They must be the branded pages,
+// not a meta-refresh stub that sends the browser to /404 and back again.
+const DIST_CLIENT_DIR = path.join(WEBSITE_ROOT, 'dist/client');
+
+describe.runIf(BUILT)('top-level error pages (built output)', () => {
+  for (const code of ['404', '500']) {
+    it(`${code}.html is the branded page, not a redirect stub`, () => {
+      const html = readFileSync(path.join(DIST_CLIENT_DIR, `${code}.html`), 'utf8');
+      expect(html).not.toMatch(/http-equiv=["']?refresh/i);
+      expect(html).toContain('id="error-heading"');
+      expect(html).toContain('data-error-readout');
+    });
+  }
+});
