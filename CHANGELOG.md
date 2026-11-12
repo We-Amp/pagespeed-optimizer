@@ -4,6 +4,8 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## Unreleased
 
+Changed: the JPEG quality of a desktop (full-size) image variant no longer depends on the smaller mobile and tablet variants built before it. Desktop and other full-size JPEG variants can come out larger or smaller than before. A normal-client WebP or AVIF variant is now always compared against the full-size JPEG, so it is no longer refused because of an earlier viewport.
+
 ## 2.8.1 - 2026-11-08
 
 Changed: the Helm chart 0.3.15 is published with this release; its default
