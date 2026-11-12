@@ -23,10 +23,29 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Use clang-20 (GCC has constexpr bugs with abseil hash_policy_traits.h;
 # libc++-18 lacks std::atomic_ref required by Cyclone, added in libc++-19;
 # clang-20 is not in Ubuntu 22.04 standard repos — requires LLVM apt repo)
-RUN apt-get update && apt-get -y dist-upgrade \
+# apt retries transient fetch failures; the apt.llvm.org key is fetched with
+# retries and only the key with the pinned fingerprint (the one
+# https://apt.llvm.org/ publishes) is trusted, so a failed fetch stops the
+# build instead of leaving an empty key behind.
+ARG LLVM_APT_KEY_FPR=6084F3CF814B57C1CF12EFD515CF4D18AF4F7421
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
+    && apt-get update && apt-get -y dist-upgrade \
     && apt-get install -y wget gnupg \
-    && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-       | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
+    && keytmp="$(mktemp -d)" \
+    && for i in 1 2 3 4 5; do \
+         wget -qO "${keytmp}/key.asc" --timeout=20 --tries=1 https://apt.llvm.org/llvm-snapshot.gpg.key \
+           && [ -s "${keytmp}/key.asc" ] && break; \
+         echo "apt.llvm.org key fetch attempt ${i} failed" >&2; if [ "$i" -lt 5 ]; then sleep $((i * 5)); fi; \
+       done \
+    && { [ -s "${keytmp}/key.asc" ] \
+         || { echo "ERROR: could not fetch https://apt.llvm.org/llvm-snapshot.gpg.key" >&2; exit 1; }; } \
+    && { GNUPGHOME="${keytmp}" gpg --batch --quiet --import "${keytmp}/key.asc"; \
+         GNUPGHOME="${keytmp}" gpg --batch --with-colons --list-keys "${LLVM_APT_KEY_FPR}" 2>/dev/null \
+           | awk -F: -v fpr="${LLVM_APT_KEY_FPR}" '$1=="fpr" && $10==fpr { ok=1 } END { exit !ok }' \
+         || { echo "ERROR: the apt.llvm.org key file does not hold the pinned key ${LLVM_APT_KEY_FPR}" >&2; exit 1; }; } \
+    && GNUPGHOME="${keytmp}" gpg --batch --armor --export "${LLVM_APT_KEY_FPR}" > /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
+    && rm -rf "${keytmp}" \
+    && [ -s /etc/apt/trusted.gpg.d/apt.llvm.org.asc ] \
     && echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-20 main" \
        | tee /etc/apt/sources.list.d/llvm-toolchain-jammy-20.list \
     && apt-get update && apt-get install -y \
