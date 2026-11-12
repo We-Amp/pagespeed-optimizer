@@ -28111,14 +28111,14 @@ Add `ModPagespeedEnableFilters collapse_whitespace` on Apache or `pagespeed Enab
 
 ## Related filters
 
-- [`add_base_tag`](https://modpagespeed.com/docs/filters/add_base_tag/): Add base tag
-- [`add_head`](https://modpagespeed.com/docs/filters/add_head/): Add head
-- [`add_ids`](https://modpagespeed.com/docs/filters/add_ids/): Add IDs
-- [`add_instrumentation`](https://modpagespeed.com/docs/filters/add_instrumentation/): Add instrumentation
+- [`add_base_tag`](https://modpagespeed.com/docs/html-filters/#add_base_tag): Add base tag
+- [`add_head`](https://modpagespeed.com/docs/html-filters/#add_head): Add head
+- [`add_ids`](https://modpagespeed.com/docs/html-filters/#add_ids): Add IDs
+- [`add_instrumentation`](https://modpagespeed.com/docs/html-filters/#add_instrumentation): Add instrumentation
 - [`combine_heads`](https://modpagespeed.com/docs/filters/combine_heads/): Combine heads
-- [`compute_statistics`](https://modpagespeed.com/docs/filters/compute_statistics/): Compute HTML statistics
-- [`convert_meta_tags`](https://modpagespeed.com/docs/filters/convert_meta_tags/): Convert meta tags
-- [`debug`](https://modpagespeed.com/docs/filters/debug/): Debug comments
+- [`compute_statistics`](https://modpagespeed.com/docs/html-filters/#compute_statistics): Compute HTML statistics
+- [`convert_meta_tags`](https://modpagespeed.com/docs/html-filters/#convert_meta_tags): Convert meta tags
+- [`debug`](https://modpagespeed.com/docs/html-filters/#debug): Debug comments
 
 This page is drawn from the [collapse_whitespace entry on HTML filters](https://modpagespeed.com/docs/html-filters/#collapse_whitespace). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -28235,11 +28235,11 @@ Add `ModPagespeedDisableFilters combine_css` on Apache or `pagespeed DisableFilt
 - [`rewrite_css`](https://modpagespeed.com/docs/filters/rewrite_css/): Minify CSS
 - [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/): Inline CSS
 - [`prioritize_critical_css`](https://modpagespeed.com/docs/filters/prioritize_critical_css/): Prioritize critical CSS
-- [`compute_critical_css`](https://modpagespeed.com/docs/filters/compute_critical_css/): Compute critical CSS
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/): Fallback CSS URL rewriting
-- [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/): Flatten CSS @imports
-- [`inline_google_font_css`](https://modpagespeed.com/docs/filters/inline_google_font_css/): Inline Google Fonts CSS
+- [`compute_critical_css`](https://modpagespeed.com/docs/css-filters/#compute_critical_css): Compute critical CSS
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/css-filters/#fallback_rewrite_css_urls): Fallback CSS URL rewriting
+- [`flatten_css_imports`](https://modpagespeed.com/docs/css-filters/#flatten_css_imports): Flatten CSS @imports
+- [`inline_google_font_css`](https://modpagespeed.com/docs/css-filters/#inline_google_font_css): Inline Google Fonts CSS
 
 This page is drawn from the [combine_css entry on CSS filters](https://modpagespeed.com/docs/css-filters/#combine_css). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -28344,14 +28344,14 @@ Add `ModPagespeedEnableFilters combine_heads` on Apache or `pagespeed EnableFilt
 
 ## Related filters
 
-- [`add_base_tag`](https://modpagespeed.com/docs/filters/add_base_tag/): Add base tag
-- [`add_head`](https://modpagespeed.com/docs/filters/add_head/): Add head
-- [`add_ids`](https://modpagespeed.com/docs/filters/add_ids/): Add IDs
-- [`add_instrumentation`](https://modpagespeed.com/docs/filters/add_instrumentation/): Add instrumentation
+- [`add_base_tag`](https://modpagespeed.com/docs/html-filters/#add_base_tag): Add base tag
+- [`add_head`](https://modpagespeed.com/docs/html-filters/#add_head): Add head
+- [`add_ids`](https://modpagespeed.com/docs/html-filters/#add_ids): Add IDs
+- [`add_instrumentation`](https://modpagespeed.com/docs/html-filters/#add_instrumentation): Add instrumentation
 - [`collapse_whitespace`](https://modpagespeed.com/docs/filters/collapse_whitespace/): Collapse whitespace
-- [`compute_statistics`](https://modpagespeed.com/docs/filters/compute_statistics/): Compute HTML statistics
-- [`convert_meta_tags`](https://modpagespeed.com/docs/filters/convert_meta_tags/): Convert meta tags
-- [`debug`](https://modpagespeed.com/docs/filters/debug/): Debug comments
+- [`compute_statistics`](https://modpagespeed.com/docs/html-filters/#compute_statistics): Compute HTML statistics
+- [`convert_meta_tags`](https://modpagespeed.com/docs/html-filters/#convert_meta_tags): Convert meta tags
+- [`debug`](https://modpagespeed.com/docs/html-filters/#debug): Debug comments
 
 This page is drawn from the [combine_heads entry on HTML filters](https://modpagespeed.com/docs/html-filters/#combine_heads). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -28468,9 +28468,9 @@ Add `ModPagespeedDisableFilters combine_javascript` on Apache or `pagespeed Disa
 - [`rewrite_javascript`](https://modpagespeed.com/docs/filters/rewrite_javascript/): Minify JavaScript
 - [`inline_javascript`](https://modpagespeed.com/docs/filters/inline_javascript/): Inline JavaScript
 - [`defer_javascript`](https://modpagespeed.com/docs/filters/defer_javascript/): Defer JavaScript
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
-- [`include_js_source_maps`](https://modpagespeed.com/docs/filters/include_js_source_maps/): Include JS source maps
-- [`make_show_ads_async`](https://modpagespeed.com/docs/filters/make_show_ads_async/): Async AdSense
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
+- [`include_js_source_maps`](https://modpagespeed.com/docs/javascript-filters/#include_js_source_maps): Include JS source maps
+- [`make_show_ads_async`](https://modpagespeed.com/docs/javascript-filters/#make_show_ads_async): Async AdSense
 - [`outline_javascript`](https://modpagespeed.com/docs/filters/outline_javascript/): Outline JavaScript
 - [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minify external JavaScript
 
@@ -28560,14 +28560,14 @@ Add `ModPagespeedDisableFilters convert_gif_to_png` on Apache or `pagespeed Disa
 
 ## Related filters
 
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
-- [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/): Animated WebP
-- [`convert_to_webp_lossless`](https://modpagespeed.com/docs/filters/convert_to_webp_lossless/): Lossless WebP
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Animated AVIF
-- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/): Lossless AVIF
+- [`convert_to_webp_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_animated): Animated WebP
+- [`convert_to_webp_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_lossless): Lossless WebP
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_to_avif_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_animated): Animated AVIF
+- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_lossless): Lossless AVIF
 
 This page is drawn from the [convert_gif_to_png entry on Image filters](https://modpagespeed.com/docs/image-filters/#convert_gif_to_png). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -28667,14 +28667,14 @@ Add `ModPagespeedDisableFilters convert_jpeg_to_webp` on Apache or `pagespeed Di
 
 ## Related filters
 
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
 - [`rewrite_images`](https://modpagespeed.com/docs/filters/rewrite_images/): Optimize images
 - [`recompress_jpeg`](https://modpagespeed.com/docs/filters/recompress_jpeg/): Recompress JPEG
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
-- [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/): Animated WebP
-- [`convert_to_webp_lossless`](https://modpagespeed.com/docs/filters/convert_to_webp_lossless/): Lossless WebP
+- [`convert_to_webp_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_animated): Animated WebP
+- [`convert_to_webp_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_lossless): Lossless WebP
 
 This page is drawn from the [convert_jpeg_to_webp entry on Image filters](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_webp). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -28763,13 +28763,13 @@ Add `ModPagespeedDisableFilters convert_png_to_jpeg` on Apache or `pagespeed Dis
 ## Related filters
 
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
-- [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/): Animated WebP
-- [`convert_to_webp_lossless`](https://modpagespeed.com/docs/filters/convert_to_webp_lossless/): Lossless WebP
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Animated AVIF
-- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/): Lossless AVIF
+- [`convert_to_webp_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_animated): Animated WebP
+- [`convert_to_webp_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_lossless): Lossless WebP
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_to_avif_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_animated): Animated AVIF
+- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_lossless): Lossless AVIF
 
 This page is drawn from the [convert_png_to_jpeg entry on Image filters](https://modpagespeed.com/docs/image-filters/#convert_png_to_jpeg). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -28851,10 +28851,10 @@ Add `ModPagespeedEnableFilters dedup_inlined_images` on Apache or `pagespeed Ena
 
 - [`inline_images`](https://modpagespeed.com/docs/filters/inline_images/): Inline images
 - [`inline_preview_images`](https://modpagespeed.com/docs/filters/inline_preview_images/): Inline preview images
-- [`resize_mobile_images`](https://modpagespeed.com/docs/filters/resize_mobile_images/): Resize images for mobile
+- [`resize_mobile_images`](https://modpagespeed.com/docs/image-filters/#resize_mobile_images): Resize images for mobile
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
 
@@ -28945,9 +28945,9 @@ Add `ModPagespeedEnableFilters defer_javascript` on Apache or `pagespeed EnableF
 - [`inline_javascript`](https://modpagespeed.com/docs/filters/inline_javascript/): Inline JavaScript
 - [`combine_javascript`](https://modpagespeed.com/docs/filters/combine_javascript/): Combine JavaScript
 - [`lazyload_images`](https://modpagespeed.com/docs/filters/lazyload_images/): Lazy-load images
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
-- [`include_js_source_maps`](https://modpagespeed.com/docs/filters/include_js_source_maps/): Include JS source maps
-- [`make_show_ads_async`](https://modpagespeed.com/docs/filters/make_show_ads_async/): Async AdSense
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
+- [`include_js_source_maps`](https://modpagespeed.com/docs/javascript-filters/#include_js_source_maps): Include JS source maps
+- [`make_show_ads_async`](https://modpagespeed.com/docs/javascript-filters/#make_show_ads_async): Async AdSense
 - [`outline_javascript`](https://modpagespeed.com/docs/filters/outline_javascript/): Outline JavaScript
 - [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minify external JavaScript
 
@@ -29024,13 +29024,13 @@ Add `ModPagespeedEnableFilters in_place_optimize_for_browser` on Apache or `page
 ## Related filters
 
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
-- [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Animated AVIF
-- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/): Lossless AVIF
-- [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/): Animated WebP
+- [`convert_to_avif_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_animated): Animated AVIF
+- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_lossless): Lossless AVIF
+- [`convert_to_webp_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_animated): Animated WebP
 
 This page is drawn from the [in_place_optimize_for_browser entry on Image filters](https://modpagespeed.com/docs/image-filters/#in_place_optimize_for_browser). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -29148,10 +29148,10 @@ Add `ModPagespeedDisableFilters inline_css` on Apache or `pagespeed DisableFilte
 - [`combine_css`](https://modpagespeed.com/docs/filters/combine_css/): Combine CSS
 - [`rewrite_css`](https://modpagespeed.com/docs/filters/rewrite_css/): Minify CSS
 - [`inline_javascript`](https://modpagespeed.com/docs/filters/inline_javascript/): Inline JavaScript
-- [`compute_critical_css`](https://modpagespeed.com/docs/filters/compute_critical_css/): Compute critical CSS
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/): Fallback CSS URL rewriting
-- [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/): Flatten CSS @imports
+- [`compute_critical_css`](https://modpagespeed.com/docs/css-filters/#compute_critical_css): Compute critical CSS
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/css-filters/#fallback_rewrite_css_urls): Fallback CSS URL rewriting
+- [`flatten_css_imports`](https://modpagespeed.com/docs/css-filters/#flatten_css_imports): Flatten CSS @imports
 
 This page is drawn from the [inline_css entry on CSS filters](https://modpagespeed.com/docs/css-filters/#inline_css). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -29279,10 +29279,10 @@ Add `ModPagespeedDisableFilters inline_images` on Apache or `pagespeed DisableFi
 - [`dedup_inlined_images`](https://modpagespeed.com/docs/filters/dedup_inlined_images/): Deduplicate inlined images
 - [`inline_preview_images`](https://modpagespeed.com/docs/filters/inline_preview_images/): Inline preview images
 - [`rewrite_images`](https://modpagespeed.com/docs/filters/rewrite_images/): Optimize images
-- [`resize_mobile_images`](https://modpagespeed.com/docs/filters/resize_mobile_images/): Resize images for mobile
+- [`resize_mobile_images`](https://modpagespeed.com/docs/image-filters/#resize_mobile_images): Resize images for mobile
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 
 This page is drawn from the [inline_images entry on Image filters](https://modpagespeed.com/docs/image-filters/#inline_images). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -29397,9 +29397,9 @@ Add `ModPagespeedDisableFilters inline_javascript` on Apache or `pagespeed Disab
 - [`combine_javascript`](https://modpagespeed.com/docs/filters/combine_javascript/): Combine JavaScript
 - [`defer_javascript`](https://modpagespeed.com/docs/filters/defer_javascript/): Defer JavaScript
 - [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/): Inline CSS
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
-- [`include_js_source_maps`](https://modpagespeed.com/docs/filters/include_js_source_maps/): Include JS source maps
-- [`make_show_ads_async`](https://modpagespeed.com/docs/filters/make_show_ads_async/): Async AdSense
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
+- [`include_js_source_maps`](https://modpagespeed.com/docs/javascript-filters/#include_js_source_maps): Include JS source maps
+- [`make_show_ads_async`](https://modpagespeed.com/docs/javascript-filters/#make_show_ads_async): Async AdSense
 - [`outline_javascript`](https://modpagespeed.com/docs/filters/outline_javascript/): Outline JavaScript
 
 This page is drawn from the [inline_javascript entry on JavaScript filters](https://modpagespeed.com/docs/javascript-filters/#inline_javascript). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -29488,10 +29488,10 @@ Add `ModPagespeedEnableFilters inline_preview_images` on Apache or `pagespeed En
 
 - [`dedup_inlined_images`](https://modpagespeed.com/docs/filters/dedup_inlined_images/): Deduplicate inlined images
 - [`inline_images`](https://modpagespeed.com/docs/filters/inline_images/): Inline images
-- [`resize_mobile_images`](https://modpagespeed.com/docs/filters/resize_mobile_images/): Resize images for mobile
+- [`resize_mobile_images`](https://modpagespeed.com/docs/image-filters/#resize_mobile_images): Resize images for mobile
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
 
@@ -29587,14 +29587,14 @@ Add `ModPagespeedEnableFilters insert_dns_prefetch` on Apache or `pagespeed Enab
 
 ## Related filters
 
-- [`add_base_tag`](https://modpagespeed.com/docs/filters/add_base_tag/): Add base tag
-- [`add_head`](https://modpagespeed.com/docs/filters/add_head/): Add head
-- [`add_ids`](https://modpagespeed.com/docs/filters/add_ids/): Add IDs
-- [`add_instrumentation`](https://modpagespeed.com/docs/filters/add_instrumentation/): Add instrumentation
+- [`add_base_tag`](https://modpagespeed.com/docs/html-filters/#add_base_tag): Add base tag
+- [`add_head`](https://modpagespeed.com/docs/html-filters/#add_head): Add head
+- [`add_ids`](https://modpagespeed.com/docs/html-filters/#add_ids): Add IDs
+- [`add_instrumentation`](https://modpagespeed.com/docs/html-filters/#add_instrumentation): Add instrumentation
 - [`collapse_whitespace`](https://modpagespeed.com/docs/filters/collapse_whitespace/): Collapse whitespace
 - [`combine_heads`](https://modpagespeed.com/docs/filters/combine_heads/): Combine heads
-- [`compute_statistics`](https://modpagespeed.com/docs/filters/compute_statistics/): Compute HTML statistics
-- [`convert_meta_tags`](https://modpagespeed.com/docs/filters/convert_meta_tags/): Convert meta tags
+- [`compute_statistics`](https://modpagespeed.com/docs/html-filters/#compute_statistics): Compute HTML statistics
+- [`convert_meta_tags`](https://modpagespeed.com/docs/html-filters/#convert_meta_tags): Convert meta tags
 
 This page is drawn from the [insert_dns_prefetch entry on HTML filters](https://modpagespeed.com/docs/html-filters/#insert_dns_prefetch). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -29684,13 +29684,13 @@ Add `ModPagespeedEnableFilters insert_image_dimensions` on Apache or `pagespeed 
 ## Related filters
 
 - [`resize_images`](https://modpagespeed.com/docs/filters/resize_images/): Resize images
-- [`resize_rendered_image_dimensions`](https://modpagespeed.com/docs/filters/resize_rendered_image_dimensions/): Resize to rendered dimensions
+- [`resize_rendered_image_dimensions`](https://modpagespeed.com/docs/image-filters/#resize_rendered_image_dimensions): Resize to rendered dimensions
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
-- [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Animated AVIF
+- [`convert_to_avif_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_animated): Animated AVIF
 
 This page is drawn from the [insert_image_dimensions entry on Image filters](https://modpagespeed.com/docs/image-filters/#insert_image_dimensions). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -29770,14 +29770,14 @@ Add `ModPagespeedEnableFilters insert_speculation_rules` on Apache or `pagespeed
 
 ## Related filters
 
-- [`add_base_tag`](https://modpagespeed.com/docs/filters/add_base_tag/): Add base tag
-- [`add_head`](https://modpagespeed.com/docs/filters/add_head/): Add head
-- [`add_ids`](https://modpagespeed.com/docs/filters/add_ids/): Add IDs
-- [`add_instrumentation`](https://modpagespeed.com/docs/filters/add_instrumentation/): Add instrumentation
+- [`add_base_tag`](https://modpagespeed.com/docs/html-filters/#add_base_tag): Add base tag
+- [`add_head`](https://modpagespeed.com/docs/html-filters/#add_head): Add head
+- [`add_ids`](https://modpagespeed.com/docs/html-filters/#add_ids): Add IDs
+- [`add_instrumentation`](https://modpagespeed.com/docs/html-filters/#add_instrumentation): Add instrumentation
 - [`collapse_whitespace`](https://modpagespeed.com/docs/filters/collapse_whitespace/): Collapse whitespace
 - [`combine_heads`](https://modpagespeed.com/docs/filters/combine_heads/): Combine heads
-- [`compute_statistics`](https://modpagespeed.com/docs/filters/compute_statistics/): Compute HTML statistics
-- [`convert_meta_tags`](https://modpagespeed.com/docs/filters/convert_meta_tags/): Convert meta tags
+- [`compute_statistics`](https://modpagespeed.com/docs/html-filters/#compute_statistics): Compute HTML statistics
+- [`convert_meta_tags`](https://modpagespeed.com/docs/html-filters/#convert_meta_tags): Convert meta tags
 
 This page is drawn from the [insert_speculation_rules entry on HTML filters](https://modpagespeed.com/docs/html-filters/#insert_speculation_rules). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -29887,10 +29887,10 @@ Add `ModPagespeedEnableFilters lazyload_images` on Apache or `pagespeed EnableFi
 - [`inline_preview_images`](https://modpagespeed.com/docs/filters/inline_preview_images/): Inline preview images
 - [`resize_images`](https://modpagespeed.com/docs/filters/resize_images/): Resize images
 - [`prioritize_critical_images`](https://modpagespeed.com/docs/filters/prioritize_critical_images/): Prioritize critical images
-- [`defer_iframe`](https://modpagespeed.com/docs/filters/defer_iframe/): Defer iframes
+- [`defer_iframe`](https://modpagespeed.com/docs/html-filters/#defer_iframe): Defer iframes
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 
 This page is drawn from the [lazyload_images entry on Image filters](https://modpagespeed.com/docs/image-filters/#lazyload_images). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -29970,8 +29970,8 @@ Add `ModPagespeedEnableFilters local_storage_cache` on Apache or `pagespeed Enab
 
 ## Related filters
 
-- [`extend_cache_pdfs`](https://modpagespeed.com/docs/filters/extend_cache_pdfs/): Extend cache for PDFs
-- [`rewrite_domains`](https://modpagespeed.com/docs/filters/rewrite_domains/): Rewrite domains
+- [`extend_cache_pdfs`](https://modpagespeed.com/docs/cache-control/#extend_cache_pdfs): Extend cache for PDFs
+- [`rewrite_domains`](https://modpagespeed.com/docs/cache-control/#rewrite_domains): Rewrite domains
 - [`extend_cache`](https://modpagespeed.com/docs/filters/extend_cache/): Extend cache
 
 This page is drawn from the [local_storage_cache entry on Cache control](https://modpagespeed.com/docs/cache-control/#local_storage_cache). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -30073,13 +30073,13 @@ Add `ModPagespeedEnableFilters move_css_above_scripts` on Apache or `pagespeed E
 ## Related filters
 
 - [`combine_css`](https://modpagespeed.com/docs/filters/combine_css/): Combine CSS
-- [`compute_critical_css`](https://modpagespeed.com/docs/filters/compute_critical_css/): Compute critical CSS
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/): Fallback CSS URL rewriting
-- [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/): Flatten CSS @imports
+- [`compute_critical_css`](https://modpagespeed.com/docs/css-filters/#compute_critical_css): Compute critical CSS
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/css-filters/#fallback_rewrite_css_urls): Fallback CSS URL rewriting
+- [`flatten_css_imports`](https://modpagespeed.com/docs/css-filters/#flatten_css_imports): Flatten CSS @imports
 - [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/): Inline CSS
-- [`inline_google_font_css`](https://modpagespeed.com/docs/filters/inline_google_font_css/): Inline Google Fonts CSS
-- [`inline_import_to_link`](https://modpagespeed.com/docs/filters/inline_import_to_link/): Convert @import to link
+- [`inline_google_font_css`](https://modpagespeed.com/docs/css-filters/#inline_google_font_css): Inline Google Fonts CSS
+- [`inline_import_to_link`](https://modpagespeed.com/docs/css-filters/#inline_import_to_link): Convert @import to link
 
 This page is drawn from the [move_css_above_scripts entry on CSS filters](https://modpagespeed.com/docs/css-filters/#move_css_above_scripts). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -30190,13 +30190,13 @@ Add `ModPagespeedEnableFilters move_css_to_head` on Apache or `pagespeed EnableF
 ## Related filters
 
 - [`combine_css`](https://modpagespeed.com/docs/filters/combine_css/): Combine CSS
-- [`compute_critical_css`](https://modpagespeed.com/docs/filters/compute_critical_css/): Compute critical CSS
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/): Fallback CSS URL rewriting
-- [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/): Flatten CSS @imports
+- [`compute_critical_css`](https://modpagespeed.com/docs/css-filters/#compute_critical_css): Compute critical CSS
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/css-filters/#fallback_rewrite_css_urls): Fallback CSS URL rewriting
+- [`flatten_css_imports`](https://modpagespeed.com/docs/css-filters/#flatten_css_imports): Flatten CSS @imports
 - [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/): Inline CSS
-- [`inline_google_font_css`](https://modpagespeed.com/docs/filters/inline_google_font_css/): Inline Google Fonts CSS
-- [`inline_import_to_link`](https://modpagespeed.com/docs/filters/inline_import_to_link/): Convert @import to link
+- [`inline_google_font_css`](https://modpagespeed.com/docs/css-filters/#inline_google_font_css): Inline Google Fonts CSS
+- [`inline_import_to_link`](https://modpagespeed.com/docs/css-filters/#inline_import_to_link): Convert @import to link
 
 This page is drawn from the [move_css_to_head entry on CSS filters](https://modpagespeed.com/docs/css-filters/#move_css_to_head). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -30305,13 +30305,13 @@ Add `ModPagespeedEnableFilters outline_css` on Apache or `pagespeed EnableFilter
 ## Related filters
 
 - [`combine_css`](https://modpagespeed.com/docs/filters/combine_css/): Combine CSS
-- [`compute_critical_css`](https://modpagespeed.com/docs/filters/compute_critical_css/): Compute critical CSS
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/): Fallback CSS URL rewriting
-- [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/): Flatten CSS @imports
+- [`compute_critical_css`](https://modpagespeed.com/docs/css-filters/#compute_critical_css): Compute critical CSS
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/css-filters/#fallback_rewrite_css_urls): Fallback CSS URL rewriting
+- [`flatten_css_imports`](https://modpagespeed.com/docs/css-filters/#flatten_css_imports): Flatten CSS @imports
 - [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/): Inline CSS
-- [`inline_google_font_css`](https://modpagespeed.com/docs/filters/inline_google_font_css/): Inline Google Fonts CSS
-- [`inline_import_to_link`](https://modpagespeed.com/docs/filters/inline_import_to_link/): Convert @import to link
+- [`inline_google_font_css`](https://modpagespeed.com/docs/css-filters/#inline_google_font_css): Inline Google Fonts CSS
+- [`inline_import_to_link`](https://modpagespeed.com/docs/css-filters/#inline_import_to_link): Convert @import to link
 
 This page is drawn from the [outline_css entry on CSS filters](https://modpagespeed.com/docs/css-filters/#outline_css). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -30421,10 +30421,10 @@ Add `ModPagespeedEnableFilters outline_javascript` on Apache or `pagespeed Enabl
 
 - [`combine_javascript`](https://modpagespeed.com/docs/filters/combine_javascript/): Combine JavaScript
 - [`defer_javascript`](https://modpagespeed.com/docs/filters/defer_javascript/): Defer JavaScript
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
-- [`include_js_source_maps`](https://modpagespeed.com/docs/filters/include_js_source_maps/): Include JS source maps
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
+- [`include_js_source_maps`](https://modpagespeed.com/docs/javascript-filters/#include_js_source_maps): Include JS source maps
 - [`inline_javascript`](https://modpagespeed.com/docs/filters/inline_javascript/): Inline JavaScript
-- [`make_show_ads_async`](https://modpagespeed.com/docs/filters/make_show_ads_async/): Async AdSense
+- [`make_show_ads_async`](https://modpagespeed.com/docs/javascript-filters/#make_show_ads_async): Async AdSense
 - [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minify external JavaScript
 - [`rewrite_javascript_inline`](https://modpagespeed.com/docs/filters/rewrite_javascript_inline/): Minify inline JavaScript
 
@@ -30515,11 +30515,11 @@ Add `ModPagespeedEnableFilters prioritize_critical_css` on Apache or `pagespeed 
 - [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/): Inline CSS
 - [`combine_css`](https://modpagespeed.com/docs/filters/combine_css/): Combine CSS
 - [`move_css_to_head`](https://modpagespeed.com/docs/filters/move_css_to_head/): Move CSS to head
-- [`compute_critical_css`](https://modpagespeed.com/docs/filters/compute_critical_css/): Compute critical CSS
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/): Fallback CSS URL rewriting
-- [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/): Flatten CSS @imports
-- [`inline_google_font_css`](https://modpagespeed.com/docs/filters/inline_google_font_css/): Inline Google Fonts CSS
+- [`compute_critical_css`](https://modpagespeed.com/docs/css-filters/#compute_critical_css): Compute critical CSS
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/css-filters/#fallback_rewrite_css_urls): Fallback CSS URL rewriting
+- [`flatten_css_imports`](https://modpagespeed.com/docs/css-filters/#flatten_css_imports): Flatten CSS @imports
+- [`inline_google_font_css`](https://modpagespeed.com/docs/css-filters/#inline_google_font_css): Inline Google Fonts CSS
 
 This page is drawn from the [prioritize_critical_css entry on CSS filters](https://modpagespeed.com/docs/css-filters/#prioritize_critical_css). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -30602,13 +30602,13 @@ Add `ModPagespeedEnableFilters prioritize_critical_images` on Apache or `pagespe
 ## Related filters
 
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
-- [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Animated AVIF
-- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/): Lossless AVIF
-- [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/): Animated WebP
+- [`convert_to_avif_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_animated): Animated AVIF
+- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_lossless): Lossless AVIF
+- [`convert_to_webp_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_animated): Animated WebP
 
 This page is drawn from the [prioritize_critical_images entry on Image filters](https://modpagespeed.com/docs/image-filters/#prioritize_critical_images). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -30710,8 +30710,8 @@ Add `ModPagespeedDisableFilters recompress_jpeg` on Apache or `pagespeed Disable
 - [`recompress_png`](https://modpagespeed.com/docs/filters/recompress_png/): Recompress PNG
 - [`recompress_webp`](https://modpagespeed.com/docs/filters/recompress_webp/): Recompress WebP
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
 
@@ -30815,8 +30815,8 @@ Add `ModPagespeedDisableFilters recompress_png` on Apache or `pagespeed DisableF
 - [`recompress_jpeg`](https://modpagespeed.com/docs/filters/recompress_jpeg/): Recompress JPEG
 - [`recompress_webp`](https://modpagespeed.com/docs/filters/recompress_webp/): Recompress WebP
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
 
@@ -30920,8 +30920,8 @@ Add `ModPagespeedDisableFilters recompress_webp` on Apache or `pagespeed Disable
 - [`recompress_jpeg`](https://modpagespeed.com/docs/filters/recompress_jpeg/): Recompress JPEG
 - [`recompress_png`](https://modpagespeed.com/docs/filters/recompress_png/): Recompress PNG
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
 
@@ -31028,14 +31028,14 @@ Add `ModPagespeedEnableFilters remove_comments` on Apache or `pagespeed EnableFi
 
 ## Related filters
 
-- [`add_base_tag`](https://modpagespeed.com/docs/filters/add_base_tag/): Add base tag
-- [`add_head`](https://modpagespeed.com/docs/filters/add_head/): Add head
-- [`add_ids`](https://modpagespeed.com/docs/filters/add_ids/): Add IDs
-- [`add_instrumentation`](https://modpagespeed.com/docs/filters/add_instrumentation/): Add instrumentation
+- [`add_base_tag`](https://modpagespeed.com/docs/html-filters/#add_base_tag): Add base tag
+- [`add_head`](https://modpagespeed.com/docs/html-filters/#add_head): Add head
+- [`add_ids`](https://modpagespeed.com/docs/html-filters/#add_ids): Add IDs
+- [`add_instrumentation`](https://modpagespeed.com/docs/html-filters/#add_instrumentation): Add instrumentation
 - [`collapse_whitespace`](https://modpagespeed.com/docs/filters/collapse_whitespace/): Collapse whitespace
 - [`combine_heads`](https://modpagespeed.com/docs/filters/combine_heads/): Combine heads
-- [`compute_statistics`](https://modpagespeed.com/docs/filters/compute_statistics/): Compute HTML statistics
-- [`convert_meta_tags`](https://modpagespeed.com/docs/filters/convert_meta_tags/): Convert meta tags
+- [`compute_statistics`](https://modpagespeed.com/docs/html-filters/#compute_statistics): Compute HTML statistics
+- [`convert_meta_tags`](https://modpagespeed.com/docs/html-filters/#convert_meta_tags): Convert meta tags
 
 This page is drawn from the [remove_comments entry on HTML filters](https://modpagespeed.com/docs/html-filters/#remove_comments). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -31154,10 +31154,10 @@ Add `ModPagespeedDisableFilters resize_images` on Apache or `pagespeed DisableFi
 - [`responsive_images`](https://modpagespeed.com/docs/filters/responsive_images/): Responsive images
 - [`insert_image_dimensions`](https://modpagespeed.com/docs/filters/insert_image_dimensions/): Insert image dimensions
 - [`rewrite_images`](https://modpagespeed.com/docs/filters/rewrite_images/): Optimize images
-- [`resize_rendered_image_dimensions`](https://modpagespeed.com/docs/filters/resize_rendered_image_dimensions/): Resize to rendered dimensions
+- [`resize_rendered_image_dimensions`](https://modpagespeed.com/docs/image-filters/#resize_rendered_image_dimensions): Resize to rendered dimensions
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 
 This page is drawn from the [resize_images entry on Image filters](https://modpagespeed.com/docs/image-filters/#resize_images). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -31279,8 +31279,8 @@ Add `ModPagespeedEnableFilters responsive_images` on Apache or `pagespeed Enable
 - [`lazyload_images`](https://modpagespeed.com/docs/filters/lazyload_images/): Lazy-load images
 - [`prioritize_critical_images`](https://modpagespeed.com/docs/filters/prioritize_critical_images/): Prioritize critical images
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
 
@@ -31398,11 +31398,11 @@ Add `ModPagespeedDisableFilters rewrite_css` on Apache or `pagespeed DisableFilt
 - [`combine_css`](https://modpagespeed.com/docs/filters/combine_css/): Combine CSS
 - [`inline_css`](https://modpagespeed.com/docs/filters/inline_css/): Inline CSS
 - [`prioritize_critical_css`](https://modpagespeed.com/docs/filters/prioritize_critical_css/): Prioritize critical CSS
-- [`compute_critical_css`](https://modpagespeed.com/docs/filters/compute_critical_css/): Compute critical CSS
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/): Fallback CSS URL rewriting
-- [`flatten_css_imports`](https://modpagespeed.com/docs/filters/flatten_css_imports/): Flatten CSS @imports
-- [`inline_google_font_css`](https://modpagespeed.com/docs/filters/inline_google_font_css/): Inline Google Fonts CSS
+- [`compute_critical_css`](https://modpagespeed.com/docs/css-filters/#compute_critical_css): Compute critical CSS
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`fallback_rewrite_css_urls`](https://modpagespeed.com/docs/css-filters/#fallback_rewrite_css_urls): Fallback CSS URL rewriting
+- [`flatten_css_imports`](https://modpagespeed.com/docs/css-filters/#flatten_css_imports): Flatten CSS @imports
+- [`inline_google_font_css`](https://modpagespeed.com/docs/css-filters/#inline_google_font_css): Inline Google Fonts CSS
 
 This page is drawn from the [rewrite_css entry on CSS filters](https://modpagespeed.com/docs/css-filters/#rewrite_css). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -31500,10 +31500,10 @@ Add `ModPagespeedDisableFilters rewrite_javascript_external` on Apache or `pages
 - [`rewrite_javascript_inline`](https://modpagespeed.com/docs/filters/rewrite_javascript_inline/): Minify inline JavaScript
 - [`combine_javascript`](https://modpagespeed.com/docs/filters/combine_javascript/): Combine JavaScript
 - [`defer_javascript`](https://modpagespeed.com/docs/filters/defer_javascript/): Defer JavaScript
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
-- [`include_js_source_maps`](https://modpagespeed.com/docs/filters/include_js_source_maps/): Include JS source maps
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
+- [`include_js_source_maps`](https://modpagespeed.com/docs/javascript-filters/#include_js_source_maps): Include JS source maps
 - [`inline_javascript`](https://modpagespeed.com/docs/filters/inline_javascript/): Inline JavaScript
-- [`make_show_ads_async`](https://modpagespeed.com/docs/filters/make_show_ads_async/): Async AdSense
+- [`make_show_ads_async`](https://modpagespeed.com/docs/javascript-filters/#make_show_ads_async): Async AdSense
 
 This page is drawn from the [rewrite_javascript_external entry on JavaScript filters](https://modpagespeed.com/docs/javascript-filters/#rewrite_javascript_external). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -31601,10 +31601,10 @@ Add `ModPagespeedDisableFilters rewrite_javascript_inline` on Apache or `pagespe
 - [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minify external JavaScript
 - [`combine_javascript`](https://modpagespeed.com/docs/filters/combine_javascript/): Combine JavaScript
 - [`defer_javascript`](https://modpagespeed.com/docs/filters/defer_javascript/): Defer JavaScript
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
-- [`include_js_source_maps`](https://modpagespeed.com/docs/filters/include_js_source_maps/): Include JS source maps
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
+- [`include_js_source_maps`](https://modpagespeed.com/docs/javascript-filters/#include_js_source_maps): Include JS source maps
 - [`inline_javascript`](https://modpagespeed.com/docs/filters/inline_javascript/): Inline JavaScript
-- [`make_show_ads_async`](https://modpagespeed.com/docs/filters/make_show_ads_async/): Async AdSense
+- [`make_show_ads_async`](https://modpagespeed.com/docs/javascript-filters/#make_show_ads_async): Async AdSense
 
 This page is drawn from the [rewrite_javascript_inline entry on JavaScript filters](https://modpagespeed.com/docs/javascript-filters/#rewrite_javascript_inline). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -31721,13 +31721,13 @@ Add `ModPagespeedEnableFilters sprite_images` on Apache or `pagespeed EnableFilt
 ## Related filters
 
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
-- [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Animated AVIF
-- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/): Lossless AVIF
-- [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/): Animated WebP
+- [`convert_to_avif_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_animated): Animated AVIF
+- [`convert_to_avif_lossless`](https://modpagespeed.com/docs/image-filters/#convert_to_avif_lossless): Lossless AVIF
+- [`convert_to_webp_animated`](https://modpagespeed.com/docs/image-filters/#convert_to_webp_animated): Animated WebP
 
 This page is drawn from the [sprite_images entry on Image filters](https://modpagespeed.com/docs/image-filters/#sprite_images). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -31824,13 +31824,13 @@ Add `ModPagespeedEnableFilters trim_urls` on Apache or `pagespeed EnableFilters 
 
 ## Related filters
 
-- [`left_trim_urls`](https://modpagespeed.com/docs/filters/left_trim_urls/): Trim URLs
-- [`rewrite_domains`](https://modpagespeed.com/docs/filters/rewrite_domains/): Rewrite domains
+- [`left_trim_urls`](https://modpagespeed.com/docs/html-filters/#left_trim_urls): Trim URLs
+- [`rewrite_domains`](https://modpagespeed.com/docs/cache-control/#rewrite_domains): Rewrite domains
 - [`extend_cache`](https://modpagespeed.com/docs/filters/extend_cache/): Extend cache
-- [`add_base_tag`](https://modpagespeed.com/docs/filters/add_base_tag/): Add base tag
-- [`add_head`](https://modpagespeed.com/docs/filters/add_head/): Add head
-- [`add_ids`](https://modpagespeed.com/docs/filters/add_ids/): Add IDs
-- [`add_instrumentation`](https://modpagespeed.com/docs/filters/add_instrumentation/): Add instrumentation
+- [`add_base_tag`](https://modpagespeed.com/docs/html-filters/#add_base_tag): Add base tag
+- [`add_head`](https://modpagespeed.com/docs/html-filters/#add_head): Add head
+- [`add_ids`](https://modpagespeed.com/docs/html-filters/#add_ids): Add IDs
+- [`add_instrumentation`](https://modpagespeed.com/docs/html-filters/#add_instrumentation): Add instrumentation
 - [`collapse_whitespace`](https://modpagespeed.com/docs/filters/collapse_whitespace/): Collapse whitespace
 
 This page is drawn from the [trim_urls entry on HTML filters](https://modpagespeed.com/docs/html-filters/#trim_urls). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -31947,12 +31947,12 @@ Add `ModPagespeedDisableFilters extend_cache` on Apache or `pagespeed DisableFil
 
 ## Related filters
 
-- [`extend_cache_css`](https://modpagespeed.com/docs/filters/extend_cache_css/): Extend cache for CSS
-- [`extend_cache_images`](https://modpagespeed.com/docs/filters/extend_cache_images/): Extend cache for images
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
+- [`extend_cache_css`](https://modpagespeed.com/docs/css-filters/#extend_cache_css): Extend cache for CSS
+- [`extend_cache_images`](https://modpagespeed.com/docs/image-filters/#extend_cache_images): Extend cache for images
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
 - [`trim_urls`](https://modpagespeed.com/docs/filters/trim_urls/): Trim URLs
-- [`extend_cache_pdfs`](https://modpagespeed.com/docs/filters/extend_cache_pdfs/): Extend cache for PDFs
-- [`rewrite_domains`](https://modpagespeed.com/docs/filters/rewrite_domains/): Rewrite domains
+- [`extend_cache_pdfs`](https://modpagespeed.com/docs/cache-control/#extend_cache_pdfs): Extend cache for PDFs
+- [`rewrite_domains`](https://modpagespeed.com/docs/cache-control/#rewrite_domains): Rewrite domains
 - [`local_storage_cache`](https://modpagespeed.com/docs/filters/local_storage_cache/): Local storage cache
 
 This page is drawn from the [extend_cache entry on Cache control](https://modpagespeed.com/docs/cache-control/#extend_cache). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -32093,12 +32093,12 @@ Add `ModPagespeedDisableFilters recompress_images` on Apache or `pagespeed Disab
 
 - [`rewrite_images`](https://modpagespeed.com/docs/filters/rewrite_images/): Optimize images
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
-- [`jpeg_subsampling`](https://modpagespeed.com/docs/filters/jpeg_subsampling/): JPEG chroma subsampling
+- [`jpeg_subsampling`](https://modpagespeed.com/docs/image-filters/#jpeg_subsampling): JPEG chroma subsampling
 - [`recompress_jpeg`](https://modpagespeed.com/docs/filters/recompress_jpeg/): Recompress JPEG
 - [`recompress_png`](https://modpagespeed.com/docs/filters/recompress_png/): Recompress PNG
 - [`recompress_webp`](https://modpagespeed.com/docs/filters/recompress_webp/): Recompress WebP
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
 
 This page is drawn from the [recompress_images entry on Image filters](https://modpagespeed.com/docs/image-filters/#recompress_images). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 
@@ -32257,11 +32257,11 @@ Add `ModPagespeedDisableFilters rewrite_images` on Apache or `pagespeed DisableF
 
 - [`recompress_images`](https://modpagespeed.com/docs/filters/recompress_images/): Recompress images
 - [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Convert JPEG to WebP
-- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Convert JPEG to AVIF
+- [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_avif): Convert JPEG to AVIF
 - [`resize_images`](https://modpagespeed.com/docs/filters/resize_images/): Resize images
 - [`lazyload_images`](https://modpagespeed.com/docs/filters/lazyload_images/): Lazy-load images
 - [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/): Convert GIF to PNG
-- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/): Progressive JPEG
+- [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/image-filters/#convert_jpeg_to_progressive): Progressive JPEG
 - [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/): Convert PNG to JPEG
 
 This page is drawn from the [rewrite_images entry on Image filters](https://modpagespeed.com/docs/image-filters/#rewrite_images). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
@@ -32393,9 +32393,9 @@ Add `ModPagespeedDisableFilters rewrite_javascript` on Apache or `pagespeed Disa
 - [`defer_javascript`](https://modpagespeed.com/docs/filters/defer_javascript/): Defer JavaScript
 - [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minify external JavaScript
 - [`rewrite_javascript_inline`](https://modpagespeed.com/docs/filters/rewrite_javascript_inline/): Minify inline JavaScript
-- [`extend_cache_scripts`](https://modpagespeed.com/docs/filters/extend_cache_scripts/): Extend cache for scripts
-- [`include_js_source_maps`](https://modpagespeed.com/docs/filters/include_js_source_maps/): Include JS source maps
-- [`make_show_ads_async`](https://modpagespeed.com/docs/filters/make_show_ads_async/): Async AdSense
+- [`extend_cache_scripts`](https://modpagespeed.com/docs/javascript-filters/#extend_cache_scripts): Extend cache for scripts
+- [`include_js_source_maps`](https://modpagespeed.com/docs/javascript-filters/#include_js_source_maps): Include JS source maps
+- [`make_show_ads_async`](https://modpagespeed.com/docs/javascript-filters/#make_show_ads_async): Async AdSense
 
 This page is drawn from the [rewrite_javascript entry on JavaScript filters](https://modpagespeed.com/docs/javascript-filters/#rewrite_javascript). Every filter in one table: [PageSpeed filters](https://modpagespeed.com/docs/filters/).
 

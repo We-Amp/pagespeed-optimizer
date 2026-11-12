@@ -932,6 +932,18 @@ export function topicFacts(t) {
 }
 
 /**
+ * Where a link to a topic goes: its topic page when that is indexable, its
+ * entry on the group page otherwise, so in-site lists send readers and
+ * crawlers to a page search engines index. Self-healing: once a topic's
+ * section is enriched past THIN_WORDS, links point back at its topic page.
+ * @param {Topic} t
+ * @returns {string}
+ */
+export function topicHref(t) {
+  return t.indexable ? t.path : t.groupPath;
+}
+
+/**
  * The related filters shown at the foot of a topic: the curated ones, then the
  * filters documented on the same section, then the rest of the category;
  * alternate spellings and deprecated names are skipped unless curated.
@@ -1196,7 +1208,7 @@ export function renderTopicMarkdown(t, topics, alsoIn) {
   const related = relatedTopics(t, topics);
   out.push('## Related filters', '');
   if (related.length) {
-    out.push(...related.map((r) => `- [\`${r.name}\`](${SITE}${r.path}): ${r.human}`), '');
+    out.push(...related.map((r) => `- [\`${r.name}\`](${SITE}${topicHref(r)}): ${r.human}`), '');
   }
   out.push(
     `This page is drawn from the [${t.name} entry on ${groupName}](${groupUrl}). Every filter in one table: [PageSpeed filters](${SITE}${FILTERS_PAGE.path}).`,
@@ -1248,7 +1260,7 @@ export function renderFiltersHubMarkdown(topics) {
       '| --- | --- | --- | --- | --- |',
     );
     for (const t of rows) {
-      const href = t.indexable ? t.path : t.groupPath;
+      const href = topicHref(t);
       const risk = t.dangerous ? 'Dangerous' : t.deprecated ? 'Deprecated' : (t.risk ?? '-');
       out.push(
         `| [\`${t.name}\`](${SITE}${href}) | ${mark(t.core)} | ${mark(t.optimizeForBandwidth)} | ${cell(risk)} | ${cell(t.summary.replace(/<[^>]+>/g, '`$&`'))} |`,
