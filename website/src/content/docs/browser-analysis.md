@@ -238,9 +238,8 @@ make outbound connections even with JavaScript enabled.
 
 ### Configuration
 
-| Flag                           | Default   | Description                      |
-| ------------------------------ | --------- | -------------------------------- |
-| `--no-browser-script-analysis` | (enabled) | Disable script coverage analysis |
+Script analysis has no flag of its own: it runs whenever browser analysis is
+enabled with `--enable-browser-analysis`.
 
 Script analysis results feed into the optimization policy engine, which decides
 whether to enable script deferral for each URL template.
@@ -371,9 +370,6 @@ it for accurate analysis) but still enforce the other three layers.
 | `--no-browser-lazy-loading`    | (enabled)                        | Disable browser-based lazy load decisions  |
 | `--no-browser-lcp-preload`     | (enabled)                        | Disable browser-based LCP detection        |
 | `--no-browser-image-sizing`    | (enabled)                        | Disable browser-based image dimensions     |
-| `--no-browser-script-analysis` | (enabled)                        | Disable script coverage analysis           |
-
-All flags are also hot-reloadable via `PATCH /v1/config` from the web console.
 
 ## Monitoring
 

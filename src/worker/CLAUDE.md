@@ -600,7 +600,6 @@ processed, allowing re-notification to fill gaps. Counter:
 **Logging**: `--log-level debug|info|warning|error`, `--log-format text|json`
 
 **Browser analysis**: `--enable-browser-analysis` (off by default),
-`--no-browser-script-analysis`,
 `--chrome-binary PATH` (default: /usr/bin/chrome-headless-shell),
 `--chrome-recycle-interval N` (default: 100),
 `--chrome-page-timeout MS` (default: 60000),

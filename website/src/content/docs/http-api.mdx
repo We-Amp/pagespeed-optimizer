@@ -172,11 +172,10 @@ When auth fails, the API returns:
 
 ## CORS
 
-Set `--cors-origin` to enable cross-origin requests. An empty value (default)
-disables CORS headers entirely. Supports a specific origin or `*` for wildcard.
-When auth is configured, the server reflects the actual origin (not `*`) so
-browser credentials work. Preflight `OPTIONS` requests return CORS headers with
-status 204.
+The API sends no CORS headers, and no flag or config key turns them on, so a
+browser page on another origin cannot call it. Use the web console at
+`/console/`, call the API from a server-side client, or put a reverse proxy in
+front that serves your page and the API from one origin.
 
 ---
 
