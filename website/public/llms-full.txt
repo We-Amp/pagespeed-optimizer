@@ -18960,7 +18960,7 @@ No. Browsers and crawlers receive your normal HTML at the same URL. Only a reque
 
 **Is it on by default?**
 
-No. The capability ships in every build but stays off until you enable it with the --agent-optimize worker flag. There is no separate build.
+No. The capability ships in every build but stays off until you enable it with the `--agent-optimize` worker flag. There is no separate build.
 
 **Does my content leave my server?**
 

@@ -12,6 +12,7 @@ import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease, dockerTag } from '../../lib/release';
 import { gitLastModified } from '../../lib/git-date';
+import { htmlToPlainText } from '../../lib/jsonld';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { productRef } from '../../data/software-jsonld';
 import { ORGANIZATION_PUBLISHER } from '../../data/organization';
@@ -234,20 +235,22 @@ if (doc.id === 'installation-docker') {
   };
 }
 
-// Optional FAQPage JSON-LD assembled from frontmatter `faq` array.
-// Emitted as a sibling schema (alongside TechArticle or HowTo), not a
+// Optional FAQPage JSON-LD assembled from the same answers as the visible
+// accordion. Each answer is the plain text of its rendered HTML, so the markup
+// carries the words a reader sees, not the Markdown source (code spans, links,
+// bold). Emitted as a sibling schema (alongside TechArticle or HowTo), not a
 // replacement — Google parses each top-level JSON-LD script independently.
 const faqJsonLd =
-  doc.data.faq && doc.data.faq.length > 0
+  faqItems.length > 0
     ? {
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
-        mainEntity: doc.data.faq.map((item) => ({
+        mainEntity: faqItems.map((item) => ({
           '@type': 'Question',
           name: item.q,
           acceptedAnswer: {
             '@type': 'Answer',
-            text: item.a,
+            text: htmlToPlainText(item.a),
           },
         })),
       }
