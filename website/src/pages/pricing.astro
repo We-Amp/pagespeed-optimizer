@@ -11,6 +11,7 @@
 // pricing lines come from product-facts.mjs.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
 import SupportTiers from '../components/SupportTiers.astro';
 import { faqPricing } from '../data/faq-pricing';
 import { stripHtml } from '../data/faq-shared';
@@ -75,18 +76,15 @@ const auditPoints = [
   description="mod_pagespeed is free under the Apache License 2.0. Support costs €490, €1,900 or from €7,500 a year, excl. VAT. Fixed-price agent-readiness audit."
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-8">
-    <div class="text-center">
-      <h1 class="h1-hero text-text-body">Run it on any number of servers. Pay us for support.</h1>
-      <p class="lede mt-6 max-w-3xl mx-auto">
-        {PRODUCT} is {LICENSE_CLAUSE}. Install it and run it, in development and in production, on
-        any number of servers. No registration.
-      </p>
-      <p class="mt-4 text-sm text-text-annotation" data-pricing-terms>
-        {PRICING_TERMS_LINE}
-      </p>
-    </div>
-  </section>
+  <PageHero title="Run it on any number of servers. Pay us for support.">
+    <Fragment slot="lede">
+      {PRODUCT} is {LICENSE_CLAUSE}. Install it and run it, in development and in production, on any
+      number of servers. No registration.
+    </Fragment>
+    <p class="mt-4 text-small text-text-annotation" data-pricing-terms>
+      {PRICING_TERMS_LINE}
+    </p>
+  </PageHero>
 
   <section id="tiers" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8">
     <h2 class="sr-only">Support tiers</h2>
@@ -119,7 +117,7 @@ const auditPoints = [
   </section>
 
   {/* Agent-readiness audit */}
-  <section id="audit" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
+  <section id="audit" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
     <div class="card">
       <h2 class="h2-section text-text-body">
         Want someone to look at your site rather than the software?
@@ -207,7 +205,7 @@ const auditPoints = [
   </section>
 
   {/* FAQ */}
-  <section id="faq" class="border-t border-border py-16">
+  <section id="faq" class="border-t border-border section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-center text-text-body">Pricing questions</h2>
       <div class="mt-8 space-y-3">
@@ -228,7 +226,7 @@ const auditPoints = [
   </section>
 
   {/* Closing CTA */}
-  <section id="start" class="border-t border-border bg-bg-secondary py-16">
+  <section id="start" class="border-t border-border bg-bg-secondary section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
       <h2 class="h2-section text-text-body">Pick a tier, or ask a question first</h2>
       <div class="mt-8 flex flex-wrap justify-center gap-3" data-closing-cta>

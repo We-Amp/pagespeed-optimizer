@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 
 // Core Web Vitals pillar/hub. Consolidates the 15-post programmatic cluster
 // (fix-{cls,inp,lcp}-{aspnet-core,magento,nginx,woocommerce,wordpress}-2026)
@@ -136,28 +136,28 @@ const faqJsonLd = {
   description="What a server optimizer fixes for LCP and CLS, and where INP lives — with per-platform guides for WordPress, WooCommerce, Magento, nginx, and ASP.NET Core."
   jsonLd={[jsonLd, faqJsonLd]}
 >
-  <article class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16">
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+  <PageHero
+    id="cwv"
+    width="prose"
+    class="max-w-5xl"
+    eyebrow="Core Web Vitals"
+    title="Fix Core Web Vitals at the server layer"
+  >
+    <nav slot="before" class="mb-6 text-small text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">
         Home
       </a>
       <span class="mx-1">/</span>
       <span>Core Web Vitals</span>
     </nav>
-
-    <SectionHeader
-      id="cwv"
-      as="h1"
-      eyebrow="Core Web Vitals"
-      title="Fix Core Web Vitals at the server layer"
-    >
+    <Fragment slot="lede">
       <p>
         Core Web Vitals are the three field metrics Google uses to score loading, visual stability,
         and responsiveness: Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and
         Interaction to Next Paint (INP). Each is defined below, with the concrete fix for WordPress,
         WooCommerce, Magento, nginx, and ASP.NET Core.
       </p>
-    </SectionHeader>
+    </Fragment>
     <div class="mt-8 flex flex-wrap gap-3">
       <a href="/analyze/" class="btn-primary" data-umami-event="cta_cwv_hero_analyze">
         Analyze a page &rarr;
@@ -166,9 +166,11 @@ const faqJsonLd = {
         See what mod_pagespeed fixes
       </a>
     </div>
+  </PageHero>
 
+  <article class="container-prose max-w-5xl pb-16">
     <!-- What each metric measures -->
-    <section class="mt-14">
+    <section>
       <h2 class="h2-section text-text-body">What the three metrics measure</h2>
       <p class="mt-4 text-text-body">
         Each metric has a field measurement, taken from real Chrome users over the trailing 28 days

@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { productJsonLd } from '../data/software-jsonld';
 import {
@@ -129,21 +129,20 @@ app.Run();`;
   jsonLd={jsonLd}
   breadcrumbLeafName="ASP.NET Core performance"
 >
-  <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+  <PageHero
+    id="aspnet"
+    width="prose"
+    eyebrow="Server-side optimization for .NET"
+    title="ASP.NET Core performance, optimized at the server layer"
+  >
+    <nav slot="before" class="mb-6 text-small text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">
         Home
       </a>
       <span class="mx-1">/</span>
       <span>ASP.NET Core performance</span>
     </nav>
-
-    <SectionHeader
-      id="aspnet"
-      as="h1"
-      eyebrow="Server-side optimization for .NET"
-      title="ASP.NET Core performance, optimized at the server layer"
-    >
+    <Fragment slot="lede">
       <p>
         nginx and Apache shops have had a server-side page optimizer for over a decade. The official
         .NET performance advice stops at response compression and a CDN, neither of which transcodes
@@ -153,8 +152,7 @@ app.Run();`;
         <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">dotnet add package</code>,
         optimization applied to the responses Kestrel already renders.
       </p>
-    </SectionHeader>
-
+    </Fragment>
     <div class="mt-8 flex flex-wrap gap-3">
       <a href="/go/nuget/?pkg=aspnetcore" class="btn-primary" data-umami-event="cta_aspnet_nuget">
         Get it on NuGet
@@ -168,10 +166,12 @@ app.Run();`;
         <span aria-hidden="true">&rarr;</span>
       </a>
     </div>
-    <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
+    <p class="mt-3 text-small text-text-annotation">{FREE_TO_RUN_LINE}</p>
+  </PageHero>
 
+  <article class="container-prose pb-16">
     <!-- The gap -->
-    <section class="mt-14">
+    <section>
       <h2 class="h2-section text-text-body">The category .NET never had</h2>
       <p class="mt-4 text-text-body">
         Response compression shrinks text bytes on the wire. A CDN moves bytes closer to the user.

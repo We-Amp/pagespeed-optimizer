@@ -1,29 +1,27 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 ---
 
 <BaseLayout
   title="Savings calculator — mod_pagespeed"
   description="Estimate bandwidth and cost savings from automatic image optimization, CSS/JS minification, and variant-aware caching with mod_pagespeed."
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
-    <div class="text-center">
-      <SectionHeader
-        id="calculator"
-        as="h1"
-        align="center"
-        eyebrow="Bandwidth savings only."
-        title="Savings calculator"
-      >
-        <p>
-          Faster load times and better Core Web Vitals are upside this calculator doesn't count.
-        </p>
-      </SectionHeader>
-    </div>
+  <PageHero
+    id="calculator"
+    size="utility"
+    width="prose"
+    eyebrow="Bandwidth savings only."
+    title="Savings calculator"
+  >
+    <Fragment slot="lede">
+      Faster load times and better Core Web Vitals are upside this calculator doesn't count.
+    </Fragment>
+  </PageHero>
 
+  <section class="container-prose pb-20">
     <!-- Inputs -->
-    <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
       <div>
         <label for="pageviews" class="eyebrow">
           {' '}

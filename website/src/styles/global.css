@@ -353,6 +353,20 @@ h1,
   --color-focus-ring: #5eb1c9;
 }
 
+/* Page rhythm: the vertical space of a page hero and of a content section.
+   Phone values first; from tablet width up the larger pair. Used through
+   .page-hero and .section (component layer) rather than per-page padding. */
+:root {
+  --space-section: 3rem;
+  --space-hero: 3.5rem;
+}
+@media (width >= 48rem) {
+  :root {
+    --space-section: 4.5rem;
+    --space-hero: 5rem;
+  }
+}
+
 /* Honor the OS "reduce motion" setting (WCAG 2.3.3 / brand §4.8). Neutralizes
    scroll-smooth and caps any animation/transition to a single frame so motion-
    sensitive users get instant state changes, not movement. !important is the
@@ -655,6 +669,45 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     @apply text-3xl sm:text-4xl font-bold;
     letter-spacing: -0.02em;
     text-wrap: balance;
+  }
+  /* Page hero (components/PageHero.astro): left-aligned, on the same left
+     edge as the header logo. Two title sizes: `marketing` (36px phone, 48px
+     from tablet) for the product and buying pages, `utility` (30px phone,
+     36px from small screens) for listings and tools. The home page keeps its
+     own, larger hero. */
+  .page-hero {
+    padding-top: var(--space-hero);
+    padding-bottom: calc(var(--space-hero) / 2);
+  }
+  .page-hero-title {
+    @apply font-bold leading-[1.1];
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .page-hero--marketing .page-hero-title {
+    @apply text-4xl md:text-5xl;
+  }
+  .page-hero--utility .page-hero-title {
+    @apply text-3xl sm:text-4xl;
+  }
+  .page-hero-lede {
+    @apply mt-6 max-w-2xl;
+  }
+  .page-hero--utility .page-hero-lede {
+    @apply mt-4;
+  }
+  /* A content section: the shared vertical rhythm between sections. */
+  .section {
+    padding-block: var(--space-section);
+  }
+  /* A reading-width column (56rem) that starts on the page's left edge (the
+     edge of the 72rem page container and of the header logo) instead of
+     being centred on its own. */
+  .container-prose {
+    @apply px-4 sm:px-6 lg:px-8;
+    max-width: 56rem;
+    margin-left: max(0px, calc((100% - 72rem) / 2));
+    margin-right: auto;
   }
   /* Text roles for marketing copy: size and leading only, colour comes from
      the usual text utilities.

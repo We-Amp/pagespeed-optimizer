@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import NugetCmd from '../../components/release/NugetCmd.astro';
 import { COMMERCIAL_EMAIL, FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
@@ -78,41 +79,38 @@ const jsonLd = [
   description="IISpeed is deprecated. Its successor is the mod_pagespeed IIS module, with a free license transfer; ASP.NET Core apps use the AspNetCore NuGet package."
   jsonLd={jsonLd}
 >
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
-    <header>
-      <h1 class="h1-hero text-text-body">IISpeed alternative</h1>
-      <p class="lede mt-6">
+  <PageHero id="iispeed-title" width="prose" class="max-w-3xl" title="IISpeed alternative">
+    <Fragment slot="lede">
+      <p>
         IISpeed is deprecated because We-Amp consolidated two IIS code paths into one (mod_pagespeed
         1.15). Existing customers get a free license transfer. IISpeed was We-Amp's native IIS port
         of mod_pagespeed, first released in 2012 &mdash; image optimization, CSS/JS minification,
         and critical CSS injection on the IIS pipeline for Windows-hosted sites.
       </p>
-      <div class="mt-6 flex flex-wrap gap-3">
-        <a
-          href="/download/"
-          class="btn-primary"
-          data-umami-event="cta_alternatives_iispeed_install"
-        >
-          Download &amp; run mod_pagespeed for IIS
-        </a>
-        <a
-          href="/pricing/"
-          class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-          data-umami-event="cta_alternatives_iispeed_pricing"
-        >
-          Support plans
-        </a>
-        <a
-          href="/contact/?topic=iispeed-transfer"
-          class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-        >
-          Transfer my IISpeed license
-        </a>
-      </div>
-      <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
-    </header>
+    </Fragment>
+    <div class="mt-6 flex flex-wrap gap-3">
+      <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_iispeed_install">
+        Download &amp; run mod_pagespeed for IIS
+      </a>
+      <a
+        href="/pricing/"
+        class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
+        data-umami-event="cta_alternatives_iispeed_pricing"
+      >
+        Support plans
+      </a>
+      <a
+        href="/contact/?topic=iispeed-transfer"
+        class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
+      >
+        Transfer my IISpeed license
+      </a>
+    </div>
+    <p class="mt-3 text-small text-text-annotation">{FREE_TO_RUN_LINE}</p>
+  </PageHero>
 
-    <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
+  <article class="container-prose max-w-3xl pb-16">
+    <div class="prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <p>
         IISpeed is now deprecated. Existing customers get a free license transfer to either
         mod_pagespeed (native IIS port) or to the WeAmp.PageSpeed.AspNetCore NuGet package for

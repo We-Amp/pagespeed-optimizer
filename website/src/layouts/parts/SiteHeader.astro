@@ -10,6 +10,14 @@ import Icon from '../../components/Icon.astro';
 import { PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { docsHome, docsSections, headerPricing, navLinks, umamiAttrs } from '../../data/nav';
 
+// `wide`: the docs pages with a three-column body use the wider 80rem box,
+// so their header keeps that width from xl up; every other page shares the
+// 72rem page container with the footer and the page content.
+interface Props {
+  wide?: boolean;
+}
+const { wide = false } = Astro.props;
+
 const currentLabel = PRODUCT_DISPLAY_NAME;
 const logoLight = '/logo.svg';
 const logoDark = '/logo-dark.svg';
@@ -22,7 +30,10 @@ const isExact = (href: string) => normPath === href;
 ---
     <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
       <nav
-        class="relative mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8"
+        class:list={[
+          'relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8',
+          wide && 'xl:max-w-7xl',
+        ]}
         aria-label="Main navigation"
       >
         <div class="flex h-16 items-center justify-between">
@@ -239,7 +250,7 @@ const isExact = (href: string) => normPath === href;
             <a
               href="/download/"
               data-umami-event="cta_nav_download"
-              class="btn-primary ml-2 whitespace-nowrap"
+              class="btn-primary btn-sm ml-2 whitespace-nowrap"
             >
               Download &amp; run
             </a>

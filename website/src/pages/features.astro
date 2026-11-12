@@ -1,6 +1,7 @@
 ---
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
 import BitmaskVisualizer from '../components/BitmaskVisualizer.astro';
 import CTAButton from '../components/CTAButton.astro';
 import Icon from '../components/Icon.astro';
@@ -98,19 +99,19 @@ const jsonLd = [softwareApplication, faqPage];
   jsonLd={jsonLd}
 >
   <!-- Hero -->
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 text-center">
-    <h1 class="h1-hero text-text-body">
+  <PageHero>
+    <Fragment slot="title">
       Server-side image optimization:
       <br />
       <span class="relative inline-block text-text-body border-b-[3px] border-interactive pb-1">
         WebP, AVIF, and critical CSS.
       </span>
-    </h1>
-    <p class="lede mt-8 max-w-xl mx-auto">
+    </Fragment>
+    <Fragment slot="lede">
       One decode pass yields up to 37 cache variants; the right one is served via mmap, in
       microseconds, with no third party in the request path.
-    </p>
-    <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
+    </Fragment>
+    <div class="mt-8 flex flex-wrap items-center gap-3">
       <a href="/download/" class="btn-primary" data-umami-event="cta_features_hero_download">
         Download &amp; run
       </a>
@@ -125,22 +126,22 @@ const jsonLd = [softwareApplication, faqPage];
         See pricing
       </a>
     </div>
-    <div class="mt-4 flex justify-center">
+    <div class="mt-4 flex">
       <a
         href="#aspnet-core"
-        class="inline-flex items-center gap-2 rounded-lg border border-interactive/45 bg-interactive-wash px-4 py-3 text-sm text-interactive hover:border-interactive transition-colors"
+        class="inline-flex items-center gap-2 rounded-lg border border-interactive/45 bg-interactive-wash px-4 py-3 text-small text-interactive hover:border-interactive transition-colors"
       >
         Using .NET? Jump to the ASP.NET Core middleware section
         <span aria-hidden="true">&rarr;</span>
       </a>
     </div>
-  </section>
+  </PageHero>
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
   <!-- Benefits summary -->
-  <section class="py-16">
+  <section class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <a href="#image-optimization" class="card">
@@ -203,7 +204,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Not in scope -->
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
     <h2 class="h2-section text-text-body">Not in scope</h2>
     <div class="panel mt-6">
       <p class="text-text-body">mod_pagespeed is an origin-side optimizer. It does not replace:</p>
@@ -242,7 +243,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Image Optimization -->
-  <section id="image-optimization" class="py-16">
+  <section id="image-optimization" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -452,7 +453,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- CSS Optimization -->
-  <section id="css-optimization" class="py-16">
+  <section id="css-optimization" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -552,7 +553,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- JavaScript Optimization -->
-  <section id="js-optimization" class="py-16">
+  <section id="js-optimization" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -634,7 +635,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- HTML Optimization -->
-  <section id="html-optimization" class="py-16">
+  <section id="html-optimization" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -814,7 +815,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Variant-Aware Caching -->
-  <section id="variant-caching" class="py-16">
+  <section id="variant-caching" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -899,7 +900,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Zero-Copy Serving -->
-  <section id="zero-copy" class="py-16">
+  <section id="zero-copy" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -978,7 +979,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- AI-readability (agent_optimize) -->
-  <section id="ai-readability" class="py-16">
+  <section id="ai-readability" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -1095,7 +1096,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Architecture Overview -->
-  <section class="py-16">
+  <section class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="text-center">
         <h2 class="h2-section text-text-body">Architecture overview</h2>
@@ -1193,7 +1194,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Monitoring & Operations -->
-  <section class="py-16">
+  <section class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -1316,7 +1317,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- ASP.NET Core -->
-  <section id="aspnet" class="py-16">
+  <section id="aspnet" class="section">
     <span id="aspnet-core" class="block -mt-8 pt-8" aria-hidden="true"></span>
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-text-body">ASP.NET Core middleware</h2>
@@ -1391,7 +1392,7 @@ const jsonLd = [softwareApplication, faqPage];
        so the structured data and the visible content are a single source of truth
        and can never drift. Google's FAQ-rich-result policy requires the Q&A to be
        visible on the page. -->
-  <section class="py-16">
+  <section class="section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-text-body">Frequently asked questions</h2>
       <div class="mt-8 space-y-3">

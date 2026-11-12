@@ -21,6 +21,7 @@ import {
 } from '../data/product-facts.mjs';
 import { productJsonLd } from '../data/software-jsonld';
 import VersionMap from '../components/release/VersionMap.astro';
+import PageHero from '../components/PageHero.astro';
 
 const rel21 = await getRelease('2.1');
 // The download page is where the version is the point: the title, the chip
@@ -187,9 +188,8 @@ const jsonLd = await productJsonLd({
   description={`Signed apt/yum packages for Apache and nginx, Docker and Helm, ASP.NET Core middleware and the IIS module. ${LICENSE_CLAUSE_CAP}.`}
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20 text-center">
-    <h1 class="h1-hero text-text-body">Pick your integration. Install in a few minutes.</h1>
-    <div id="install" class="mt-8 max-w-2xl mx-auto">
+  <PageHero title="Pick your integration. Install in a few minutes.">
+    <div id="install" class="mt-8 max-w-2xl">
       <InstallTabs
         name="install"
         groupLabel="Select platform"
@@ -197,10 +197,10 @@ const jsonLd = await productJsonLd({
         platforms={installPlatforms}
       />
     </div>
-    <p class="lede mt-8 max-w-2xl mx-auto">
+    <p class="lede mt-8 max-w-2xl">
       {LICENSE_CLAUSE_CAP} — free to install and run, in development and in production.
     </p>
-    <p class="mt-4 max-w-2xl mx-auto text-sm text-text-muted">
+    <p class="mt-4 max-w-2xl text-small text-text-muted">
       Already running mod_pagespeed 1.x or ngx_pagespeed? Your pagespeed directives carry over.{' '}
       <a
         href="/docs/upgrade/"
@@ -210,7 +210,7 @@ const jsonLd = await productJsonLd({
         Upgrade guide <span aria-hidden="true">&rarr;</span>
       </a>
     </p>
-  </section>
+  </PageHero>
 
   <!-- One merged "pick your integration" section: native servers + Docker/Helm + ASP.NET Core -->
   <section id="integrations" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-8 lg:pt-12">
@@ -400,7 +400,7 @@ const jsonLd = await productJsonLd({
     </p>
   </section>
 
-  <section class="border-t border-border py-16">
+  <section class="border-t border-border section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="text-2xl font-bold text-text-body text-center">How licensing and support work</h2>
       <dl class="mt-10 mx-auto max-w-prose space-y-6 text-body text-text-muted">

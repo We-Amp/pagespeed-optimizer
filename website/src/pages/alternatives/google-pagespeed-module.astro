@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
 import { stripHtml } from '../../data/faq-shared';
@@ -84,43 +85,43 @@ const jsonLd = [
   description="The Google PageSpeed module (mod_pagespeed, ngx_pagespeed) optimized pages on the server. It is archived; mod_pagespeed 2 is its maintained continuation."
   jsonLd={jsonLd}
 >
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
-    <header>
-      <h1 id="google-pagespeed-module-title" class="h1-hero text-text-body">
-        What is the Google PageSpeed module, and what replaced it
-      </h1>
-      <p class="lede mt-6">
+  <PageHero
+    id="google-pagespeed-module-title"
+    width="prose"
+    class="max-w-3xl"
+    title="What is the Google PageSpeed module, and what replaced it"
+  >
+    <Fragment slot="lede">
+      <p>
         The Google PageSpeed module is an open-source web server module, originally developed at
         Google, that optimizes pages as the server sends them: it rewrites HTML, CSS, JavaScript and
         images at request time. It shipped as <code>mod_pagespeed</code> for Apache and
         <code>ngx_pagespeed</code> for nginx. The original project is archived; its maintained
         continuation is mod_pagespeed 2.
       </p>
-      <p class="mt-4 text-text-muted">
-        Two different Google products share the "PageSpeed" name. One is the server-side module that
-        rewrites your pages; the other is PageSpeed Insights, a diagnostic tool that scores them.
-        Here is what the module was, what continues it, and how not to confuse the two.
-      </p>
-      <div class="mt-6 flex flex-wrap gap-3">
-        <a
-          href="/download/"
-          class="btn-primary"
-          data-umami-event="cta_alternatives_google_download"
-        >
-          Download &amp; run
-        </a>
-        <a
-          href="/pricing/"
-          data-umami-event="cta_alternatives_google_buy"
-          class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-        >
-          Support plans
-        </a>
-      </div>
-      <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
-    </header>
+    </Fragment>
+    <p class="mt-4 max-w-2xl text-text-muted">
+      Two different Google products share the "PageSpeed" name. One is the server-side module that
+      rewrites your pages; the other is PageSpeed Insights, a diagnostic tool that scores them. Here
+      is what the module was, what continues it, and how not to confuse the two.
+    </p>
+    <div class="mt-6 flex flex-wrap gap-3">
+      <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_google_download">
+        Download &amp; run
+      </a>
+      <a
+        href="/pricing/"
+        data-umami-event="cta_alternatives_google_buy"
+        class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
+      >
+        Support plans
+      </a>
+    </div>
+    <p class="mt-3 text-small text-text-annotation">{FREE_TO_RUN_LINE}</p>
+  </PageHero>
 
-    <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
+  <article class="container-prose max-w-3xl pb-16">
+    <div class="prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <table tabindex="0" aria-labelledby="google-pagespeed-module-title">
         <thead>
           <tr>

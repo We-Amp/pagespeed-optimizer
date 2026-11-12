@@ -8,7 +8,7 @@
 // pack is described in the conditional: it does not ship. No URL checker
 // here on purpose.
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import SectionHeader from '../../components/instrument/SectionHeader.astro';
+import PageHero from '../../components/PageHero.astro';
 import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 
 const description =
@@ -29,18 +29,21 @@ const jsonLd = {
   ogImage="/og-cards/platform-consent.png?v=2"
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="consent-title">
-    <SectionHeader
-      id="consent-title"
-      eyebrow="Early access · consent enforcement at the origin"
-      title="Does your site leak before consent?"
-      as="h1"
-    >
+  <PageHero
+    id="consent-title"
+    width="prose"
+    class="max-w-3xl"
+    eyebrow="Early access · consent enforcement at the origin"
+    title="Does your site leak before consent?"
+  >
+    <Fragment slot="lede">
       Many do, including sites with a consent banner. The gap is between what the banner promises
       and what the browser sends.
-    </SectionHeader>
+    </Fragment>
+  </PageHero>
 
-    <div class="mt-10 space-y-6 text-text-muted">
+  <section class="container-prose max-w-3xl pb-16">
+    <div class="space-y-6 text-text-muted">
       <div>
         <h2 class="text-lg font-semibold text-text-body">What pre-consent leakage is</h2>
         <p class="mt-2">

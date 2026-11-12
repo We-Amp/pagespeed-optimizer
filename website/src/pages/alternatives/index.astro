@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import { LICENSE_CLAUSE_CAP } from '../../data/product-facts.mjs';
 
 const cards = [
@@ -117,17 +118,14 @@ const jsonLd = {
   description="Side-by-side mod_pagespeed comparisons with WP Rocket, NitroPack, Cloudinary and more, plus the maintained path from ngx_pagespeed and IISpeed."
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
-    <h1 class="h1-hero text-text-body">
-      Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed
-    </h1>
-    <p class="lede mt-6 max-w-2xl">
+  <PageHero title="Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed" width="prose">
+    <Fragment slot="lede">
       Open-source <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code>{' '}
       and <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code> are
       deprecated, and IISpeed is in transition. These pages cover the maintained mod_pagespeed and
       how each server reaches it.
-    </p>
-    <p class="lede-sub mt-4 max-w-2xl text-sm text-text-muted">
+    </Fragment>
+    <p class="lede-sub mt-4 max-w-2xl text-small text-text-muted">
       mod_pagespeed shares the optimization core that powers{' '}
       <span class="font-semibold text-text-body">230,000+ live sites</span> today (
       <a
@@ -140,8 +138,10 @@ const jsonLd = {
       </a>
       ) &mdash; not We-Amp customers, but proof it works at scale.
     </p>
+  </PageHero>
 
-    <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+  <section class="container-prose pb-20">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
       {cards.map((card) => (
         <a
           href={card.href}

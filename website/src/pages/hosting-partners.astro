@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 import Icon from '../components/Icon.astro';
 import { LICENSING_TERMS_URL } from '../data/product-facts.mjs';
 
@@ -32,20 +32,22 @@ const jsonLd = {
   description="mod_pagespeed is free on every host. The hosting partner program adds fleet support and a direct channel for providers."
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="hosting-title">
-    <SectionHeader
-      id="hosting-title"
-      eyebrow="Partner program · for hosting providers"
-      title="Run it across your fleet. We'll back you."
-      as="h1"
-    >
+  <PageHero
+    id="hosting-title"
+    width="prose"
+    eyebrow="Partner program · for hosting providers"
+    title="Run it across your fleet. We'll back you."
+  >
+    <Fragment slot="lede">
       mod_pagespeed is free on every host and every hosted domain — nothing about fleet scale
       changes that. The hosting partner program is the support subscription shaped for providers: a
       direct channel to the people who build the product, for those who make it part of their
       platform.
-    </SectionHeader>
+    </Fragment>
+  </PageHero>
 
-    <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+  <section class="container-prose pb-16">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="card">
         <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
           <Icon name="server" class="h-5 w-5 text-interactive" />

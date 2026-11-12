@@ -1,6 +1,7 @@
 ---
 import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import TermPanel from '../../components/instrument/TermPanel.astro';
 import {
   APACHE_PLATFORM_ROWS,
@@ -40,19 +41,20 @@ const jsonLd = {
   description={pageDescription}
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <p class="eyebrow text-interactive">mod_pagespeed</p>
-    <h1 class="h1-hero mt-2 text-text-body">
+  <PageHero size="utility" width="prose" eyebrow="mod_pagespeed">
+    <Fragment slot="title">
       Install from <code class="font-mono max-lg:wrap-anywhere">packages.modpagespeed.com</code>
-    </h1>
-    <p class="lede mt-6">
+    </Fragment>
+    <Fragment slot="lede">
       A signed apt and yum repository for the mod_pagespeed Apache and nginx modules. One line
       detects the distro, installs the GPG signing key, writes the source file, and pulls the
       package. The nginx module ships prebuilt for {NGINX_APT_SHORT} (amd64 and arm64), and for
       RHEL/AlmaLinux/Rocky {NGINX_RPM_SHORT}, each pinned to that distro's stock nginx.
-    </p>
+    </Fragment>
+  </PageHero>
 
-    <div class="mt-10 rounded-card border border-border bg-bg-secondary p-6">
+  <section class="container-prose pb-16">
+    <div class="rounded-card border border-border bg-bg-secondary p-6">
       <p class="eyebrow" id="apt-yum-install-lead">
         Install
       </p>

@@ -2,7 +2,7 @@
 import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { productJsonLd } from '../data/software-jsonld';
 import {
@@ -143,21 +143,20 @@ const faqJsonLd = {
   jsonLd={[articleJsonLd, softwareJsonLd, faqJsonLd]}
   breadcrumbLeafName="Self-hosted image optimization"
 >
-  <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+  <PageHero
+    id="self-hosted"
+    width="prose"
+    eyebrow="Image delivery"
+    title="Self-hosted image optimization, without the egress bill"
+  >
+    <nav slot="before" class="mb-6 text-small text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">
         Home
       </a>
       <span class="mx-1">/</span>
       <span>Self-hosted image optimization</span>
     </nav>
-
-    <SectionHeader
-      id="self-hosted"
-      as="h1"
-      eyebrow="Image delivery"
-      title="Self-hosted image optimization, without the egress bill"
-    >
+    <Fragment slot="lede">
       <p>
         Hosted image services optimize your images well, then bill you per transformation, per
         stored asset, and per byte of egress. mod_pagespeed does the same work &mdash; transcode to
@@ -165,10 +164,12 @@ const faqJsonLd = {
         server you already run. Images never leave your origin, so there is nothing to meter on the
         way out.
       </p>
-    </SectionHeader>
+    </Fragment>
+  </PageHero>
 
+  <article class="container-prose pb-16">
     <!-- The structural wedge -->
-    <section class="mt-14">
+    <section>
       <h2 class="h2-section text-text-body">The cost is structural, not a discount</h2>
       <p class="mt-4 text-text-body">
         The reason a hosted image pipeline has a bill that grows with traffic is architectural: the

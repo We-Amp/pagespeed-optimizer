@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
 import { COMMERCIAL_EMAIL } from '../data/product-facts.mjs';
 
 // Topics: one per offer, each with a one-line hint shown under the select.
@@ -102,26 +103,25 @@ const nextSteps = [
   title="Contact mod_pagespeed: setup, support and partners"
   description="Setup help, support, Enterprise, audits, hosting partners, consulting and IISpeed transfers. One form; we reply within one business day (CET)."
 >
-  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
-    <div class="text-center">
-      <h1 class="h1-hero text-text-body">One form for setup, support and partnerships.</h1>
-      <p class="mt-4 text-lg text-text-muted max-w-2xl mx-auto">
-        Setup help, support subscriptions, partnerships and consulting all go through this form. We
-        reply within one business day (CET). Security reports have their own channel.
-      </p>
-      <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
-        Setup steps live in the
-        <a href="/docs/" class="text-interactive hover:text-interactive-hover underline">
-          documentation
-        </a>
-        ; what a subscription covers is on the
-        <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
-          support page
-        </a>
-        .
-      </p>
-    </div>
+  <PageHero title="One form for setup, support and partnerships.">
+    <Fragment slot="lede">
+      Setup help, support subscriptions, partnerships and consulting all go through this form. We
+      reply within one business day (CET). Security reports have their own channel.
+    </Fragment>
+    <p class="mt-3 text-small text-text-annotation max-w-2xl">
+      Setup steps live in the
+      <a href="/docs/" class="text-interactive hover:text-interactive-hover underline">
+        documentation
+      </a>
+      ; what a subscription covers is on the
+      <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
+        support page
+      </a>
+      .
+    </p>
+  </PageHero>
 
+  <section class="container-prose max-w-3xl pb-20">
     <ol class="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="What happens next">
       {nextSteps.map((step) => (
         <li class="readout-plate px-4 py-3">

@@ -67,6 +67,9 @@ interface Props {
   // navigation column (the docs sidebar) point it at their content column, so
   // the skip link lands past that navigation.
   skipTarget?: string;
+  // The wider 80rem header box, for the docs pages whose body is three
+  // columns at that width (see parts/SiteHeader.astro).
+  wideHeader?: boolean;
 }
 
 const {
@@ -85,6 +88,7 @@ const {
   articleModified,
   canonical,
   skipTarget = 'main-content',
+  wideHeader = false,
 } = Astro.props;
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
@@ -304,7 +308,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         </button>
       </div>
     )}
-    <SiteHeader />
+    <SiteHeader wide={wideHeader} />
     <main
       id="main-content"
       tabindex="-1"

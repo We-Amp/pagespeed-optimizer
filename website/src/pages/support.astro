@@ -16,8 +16,8 @@
 // packages.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
 import SupportTiers from '../components/SupportTiers.astro';
+import PageHero from '../components/PageHero.astro';
 import Icon from '../components/Icon.astro';
 import { faqSupport } from '../data/faq-support';
 import { stripHtml } from '../data/faq-shared';
@@ -111,19 +111,15 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   description="Support subscriptions for mod_pagespeed: a direct line to its engineers, response targets, a private repository (being set up)."
   jsonLd={jsonLd}
 >
-  <section
-    class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-12"
-    aria-labelledby="support-title"
+  <PageHero
+    id="support-title"
+    eyebrow={`Support · ${PRODUCT}`}
+    title={`Support from the engineers who build ${PRODUCT}`}
   >
-    <SectionHeader
-      id="support-title"
-      eyebrow={`Support · ${PRODUCT}`}
-      title={`Support from the engineers who build ${PRODUCT}`}
-      as="h1"
-    >
+    <Fragment slot="lede">
       The software is {LICENSE_CLAUSE} and does the same thing with or without a subscription. A
       subscription decides who answers when something breaks.
-    </SectionHeader>
+    </Fragment>
     <div class="mt-8 flex flex-wrap gap-3">
       <a
         href="#tiers"
@@ -146,12 +142,12 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
         Talk to an engineer
       </a>
     </div>
-  </section>
+  </PageHero>
 
   <div class="rule-ticked mx-auto max-w-6xl" role="presentation" aria-hidden="true"></div>
 
   {/* What a subscription buys */}
-  <section id="what-you-get" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
+  <section id="what-you-get" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
     <h2 class="h2-section text-text-body">What a subscription buys</h2>
     <dl class="mt-8 readout-plate divide-y divide-border">
       {buys.map((row) => (
@@ -178,7 +174,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   </section>
 
   {/* Tiers */}
-  <section id="tiers" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
+  <section id="tiers" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
     <h2 class="h2-section text-text-body">Three tiers</h2>
     <p class="mt-4 text-text-muted max-w-3xl">
       Tiers differ in fleet size, response targets and what each adds. The software, and everything
@@ -194,7 +190,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   </section>
 
   {/* Signed packages and images */}
-  <section id="hardened-builds" class="border-t border-border bg-bg-secondary py-16">
+  <section id="hardened-builds" class="border-t border-border bg-bg-secondary section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <p class="eyebrow">For your security team</p>
       <h2 class="mt-3 h2-section text-text-body">Signed packages and images</h2>
@@ -340,7 +336,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   </section>
 
   {/* Hosting partners + consulting */}
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <div id="hosting-partners" class="card flex flex-col">
         <h2 class="text-xl font-semibold text-text-body">Hosting partner program</h2>
@@ -436,7 +432,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   </section>
 
   {/* FAQ */}
-  <section id="faq" class="border-t border-border py-16">
+  <section id="faq" class="border-t border-border section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-center text-text-body">Support questions</h2>
       <div class="mt-8 space-y-3">
