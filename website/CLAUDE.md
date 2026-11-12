@@ -234,16 +234,18 @@ the two pages. Prose the source does not carry lives in `src/data/reference/note
 and the two `*-overlay.json` files; never hand-edit the JSON or a generated region.
 
 The Markdown of the directive reference stays flat (an `h3` per area, an `h4` per
-directive). `src/lib/rehype-directive-blocks.mjs` groups it when the page is rendered:
-one element per directive, one section per area, and the "Find a directive" field above
-the first area; `src/components/DirectiveFinder.astro` carries the filter script and the
+directive). `src/lib/rehype-directive-blocks.mjs` marks it when the page is rendered:
+each directive heading and each area heading gets an attribute, and the "Find a directive"
+field goes above the first area. It adds no wrapper per directive or per area (hundreds of
+wrappers cost layout time on phones); the script hides a directive's heading and the
+elements after it up to the next heading; `src/components/DirectiveFinder.astro` carries the filter script and the
 styles, and `src/lib/directive-match.ts` the rule that turns typed text into a name to
 look for. Only the HTML page changes:
 the Markdown source, `/docs/configuration.md` and `llms-full.txt` do not. Astro caches
 rendered content, so after editing the plugin delete `.astro/data-store.json` and
 `node_modules/.astro/data-store.json` before the next local build or dev run (CI builds
 start clean). `test/reference/directive-blocks.test.ts`, `test/directive-match.test.ts` and
-`tests/directive-finder.spec.ts` cover the grouping, the matching rule and the finder.
+`tests/directive-finder.spec.ts` cover the markup, the matching rule and the finder.
 
 ## The agent files
 

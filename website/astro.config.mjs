@@ -227,8 +227,9 @@ export default defineConfig({
     // remarkLiteralTextDirectives puts inline `:word` text (host:port) back as
     // written; the site has no inline directives.
     // The plugins go to the remark/rehype processor itself; .mdx inherits it.
-    // rehypeDirectiveBlocks groups the generated directive reference (one
-    // element per directive and per area) and adds the directive finder; it
+    // rehypeDirectiveBlocks marks the generated directive reference (an
+    // attribute on every directive and area heading) and adds the directive
+    // finder; it
     // leaves every page without that region untouched.
     processor: unified({
       remarkPlugins: [
