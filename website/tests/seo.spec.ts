@@ -23,6 +23,10 @@ const allPages = [
   '/license/',
   '/terms/',
   '/pagespeed-markers/',
+  // Hand-written HTML in public/, outside the layout's head tags. The dev
+  // server serves a public/ file only by its full name (the directory URL is
+  // its 404 page there), so name the file.
+  '/cyclone-benchmark/index.html',
   // /privacy/ points at the notice on we-amp.com; it is covered by its own
   // suite in terms-privacy.spec.ts
 ];
@@ -58,7 +62,8 @@ test.describe('SEO', () => {
 
   test('every page has canonical URL', async ({ page }) => {
     for (const path of allPages) {
-      await page.goto(path);
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(200);
       const canonical = page.locator('link[rel="canonical"]');
       const href = await canonical.getAttribute('href');
       expect(href).toContain('modpagespeed.com');
