@@ -1378,7 +1378,7 @@ test.describe('PageSpeed analyzer report download', () => {
     await runAnalysis(page);
 
     const ctas = page.locator('#psi-ctas');
-    await expect(ctas.locator('a[href="/download/"]').first()).toBeVisible();
+    await expect(ctas.locator('a[href="/download/#install"]').first()).toBeVisible();
     const consulting = ctas.locator('a[href="https://we-amp.com/consulting/"]');
     await expect(consulting).toBeVisible();
     await expect(consulting).toContainText('Have us fix it for you');

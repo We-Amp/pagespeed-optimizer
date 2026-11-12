@@ -51,6 +51,52 @@ test.describe('Blog', () => {
     await expect(page.getByRole('contentinfo')).toBeVisible();
   });
 
+  test('a fix post links to the install cards for its servers', async ({ page }) => {
+    await page.goto('/blog/fix-lcp-wordpress-2026/');
+    const links = page.locator('[data-blog-install-links] a');
+    await expect(links).toHaveCount(2);
+    await expect(links.nth(0)).toHaveAttribute('href', '/download/#apache');
+    await expect(links.nth(0)).toHaveAttribute(
+      'data-umami-event',
+      'cta_blog_bottom_platform_apache',
+    );
+    await expect(links.nth(0)).toHaveAccessibleName('Install on Apache');
+    await expect(links.nth(1)).toHaveAttribute('href', '/download/#nginx');
+    await expect(links.nth(1)).toHaveAttribute(
+      'data-umami-event',
+      'cta_blog_bottom_platform_nginx',
+    );
+
+    await page.goto('/blog/fix-cls-nginx-2026/');
+    await expect(links).toHaveCount(1);
+    await expect(links.first()).toHaveAttribute('href', '/download/#nginx');
+  });
+
+  test('an ASP.NET Core fix post links to the ASP.NET Core card', async ({ page }) => {
+    for (const slug of [
+      'fix-lcp-aspnet-core-2026',
+      'fix-cls-aspnet-core-2026',
+      'fix-inp-aspnet-core-2026',
+    ]) {
+      await page.goto(`/blog/${slug}/`);
+      const block = page.locator('[data-blog-install-links]');
+      await expect(block).toContainText('Install the middleware this guide configures:');
+      const links = block.locator('a');
+      await expect(links).toHaveCount(1);
+      await expect(links.first()).toHaveAttribute('href', '/download/#aspnet-core');
+      await expect(links.first()).toHaveAttribute(
+        'data-umami-event',
+        'cta_blog_bottom_platform_aspnet',
+      );
+      await expect(links.first()).toHaveAccessibleName('Install on ASP.NET Core');
+    }
+  });
+
+  test('other posts carry no extra install links', async ({ page }) => {
+    await page.goto('/blog/why-i-rebuilt-mod-pagespeed/');
+    await expect(page.locator('[data-blog-install-links]')).toHaveCount(0);
+  });
+
   test('blog post page has publication date', async ({ page }) => {
     await page.goto('/blog/why-i-rebuilt-mod-pagespeed/');
     await expect(page.locator('time[datetime]')).toBeAttached();
