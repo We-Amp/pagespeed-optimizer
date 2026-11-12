@@ -481,6 +481,51 @@
   }
 </script>
 
+<script>
+  // Handset widths: a code block's copy button scrolls through the corner the
+  // launcher is pinned to. While one is inside that corner the launcher steps
+  // aside (the CSS rule on data-fab-corner-busy in global.css), so a tap meant
+  // for the copy button lands on it. The corner is the launcher's box plus a
+  // little slack. Nothing runs from 640 px up.
+  const narrow = window.matchMedia('(max-width: 639px)');
+  const html = document.documentElement;
+  const covered = new Set<Element>();
+  let observer: IntersectionObserver | null = null;
+
+  function watchCorner() {
+    observer?.disconnect();
+    observer = null;
+    covered.clear();
+    html.removeAttribute('data-fab-corner-busy');
+    if (!narrow.matches || !('IntersectionObserver' in window)) return;
+    const top = Math.max(0, window.innerHeight - 72);
+    const left = Math.max(0, window.innerWidth - 72);
+    observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) covered.add(e.target);
+          else covered.delete(e.target);
+        }
+        html.toggleAttribute('data-fab-corner-busy', covered.size > 0);
+      },
+      { rootMargin: `-${top}px 0px 0px -${left}px` },
+    );
+    document.querySelectorAll('.code-copy-btn, .install-copy').forEach((b) => observer!.observe(b));
+  }
+
+  function start() {
+    narrow.addEventListener('change', watchCorner);
+    window.addEventListener('resize', () => narrow.matches && watchCorner(), { passive: true });
+    watchCorner();
+  }
+  function begin() {
+    if (document.readyState === 'complete') start();
+    else window.addEventListener('load', start, { once: true });
+  }
+  if (narrow.matches) begin();
+  else narrow.addEventListener('change', begin, { once: true });
+</script>
+
 <style>
   /* ── Root + launcher ─────────────────────────────────────────────────── */
   .qm-root {

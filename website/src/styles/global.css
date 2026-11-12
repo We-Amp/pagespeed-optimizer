@@ -1100,6 +1100,23 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     border-color: var(--color-border-strong);
   }
 
+  /* Small text links on phones (breadcrumbs, "back to" links, the inline
+     copy button on the contact page): the tappable area reaches 10px above
+     and below the text without moving anything. The extension is an
+     invisible box on the link itself, so a tap on it is a tap on the link. */
+  @media (max-width: 639px) {
+    nav[aria-label='Breadcrumb'] a,
+    .tap-area {
+      position: relative;
+    }
+    nav[aria-label='Breadcrumb'] a::after,
+    .tap-area::after {
+      content: '';
+      position: absolute;
+      inset: -0.625rem -0.25rem;
+    }
+  }
+
   /* The floating message launcher (QuickMessage) vs overlays and the hero.
      While a modal dialog is open — the search dialog or the blog chart
      lightbox, both setting data-dialog-open on <html> — the launcher hides.
@@ -1124,6 +1141,12 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   }
   @media (max-width: 639px) and (not (max-height: 480px)) {
     html:not([data-fab-reveal]) .qm-root:not([data-state='open']) {
+      display: none;
+    }
+    /* A copy button is passing through the launcher's corner (set by the
+       script in QuickMessage.astro): step aside so the tap reaches the copy
+       button. A focused launcher stays where it is. */
+    html[data-fab-corner-busy] .qm-root:not([data-state='open']):not(:focus-within) {
       display: none;
     }
   }

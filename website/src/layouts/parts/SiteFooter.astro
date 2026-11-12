@@ -43,13 +43,13 @@ const logoDark = '/logo-dark.svg';
               Built by We-Amp &mdash; the team that helped build ngx_pagespeed, maintaining
               mod_pagespeed today.
             </p>
-            <div class="mt-4 flex items-center gap-3">
+            <div class="mt-4 flex items-center gap-3 max-sm:gap-6">
               <a
                 href="https://github.com/We-Amp/mod_pagespeed"
                 rel="noopener"
                 aria-label={`${PRODUCT_DISPLAY_NAME} on GitHub`}
                 title="GitHub"
-                class="text-text-annotation hover:text-text-body transition-colors"
+                class="max-sm:-m-3 max-sm:p-3 text-text-annotation hover:text-text-body transition-colors"
               >
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path
@@ -63,7 +63,7 @@ const logoDark = '/logo-dark.svg';
                 href="/blog/rss.xml"
                 aria-label="Blog RSS feed"
                 title="RSS feed"
-                class="text-text-annotation hover:text-text-body transition-colors"
+                class="max-sm:-m-3 max-sm:p-3 text-text-annotation hover:text-text-body transition-colors"
               >
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path d="M6.18 15.64a2.18 2.18 0 110 4.36 2.18 2.18 0 010-4.36zM4 4.44A15.56 15.56 0 0119.56 20h-2.83A12.73 12.73 0 004 7.27V4.44zm0 5.66a9.9 9.9 0 019.9 9.9h-2.83A7.07 7.07 0 004 12.93V10.1z"></path>
@@ -97,7 +97,7 @@ const logoDark = '/logo-dark.svg';
               <p class="eyebrow uppercase text-text-annotation tracking-[0.08em] sm:whitespace-nowrap [&::before]:hidden">
                 {group.title}
               </p>
-              <ul class="mt-3 space-y-2">
+              <ul class="mt-3 space-y-2 max-sm:space-y-0.5">
                 {group.links.map((item) => (
                   <li>
                     <a
@@ -105,7 +105,7 @@ const logoDark = '/logo-dark.svg';
                       data-umami-event={item.umamiEvent}
                       {...umamiAttrs(item.umamiProps)}
                       rel={item.external ? 'noopener noreferrer' : undefined}
-                      class="text-sm text-text-muted hover:text-text-body"
+                      class="text-sm text-text-muted hover:text-text-body max-sm:inline-block max-sm:py-1.5"
                     >
                       {item.label}
                     </a>

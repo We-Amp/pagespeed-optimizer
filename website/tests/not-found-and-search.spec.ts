@@ -66,6 +66,20 @@ test.describe('site search: status, empty state and events', () => {
     await expect(input(page)).toBeFocused();
   });
 
+  test('the field asks for the search keyboard, results are taller rows on a phone', async ({
+    page,
+  }) => {
+    await expect(input(page)).toHaveAttribute('inputmode', 'search');
+    await expect(input(page)).toHaveAttribute('autocomplete', 'off');
+    await page.setViewportSize({ width: 360, height: 800 });
+    await input(page).pressSequentially('image');
+    const heights = await page
+      .locator('#site-search .pagefind-ui__result-link')
+      .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
+    expect(heights.length).toBeGreaterThan(0);
+    expect(heights.filter((h) => h < 28)).toEqual([]);
+  });
+
   test('the result count reaches a status region that is always in the tree', async ({ page }) => {
     const count = page.locator('#site-search-count');
     await expect(count).toHaveAttribute('role', 'status');
