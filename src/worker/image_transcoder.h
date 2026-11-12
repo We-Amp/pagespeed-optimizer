@@ -162,6 +162,8 @@ struct JpegQualityInputs {
   // Encoder quality already discovered for THIS image by an earlier call in
   // the same variant loop (-1 = none).  Reuses that result instead of
   // repeating the quality search; it is a target, not a source measurement.
+  // Ignored when no resize applies: a full-size pass never runs the search,
+  // so its JPEG must not depend on the passes before it (#482).
   int carried_hint = -1;
 
   // Source JPEG quality estimated from the input's DQT tables
