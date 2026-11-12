@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// Home section 06: the lineage. Heritage stats as engraved readout plates.
+// Home section 06: the lineage. Heritage stats as engraved readout plates,
+// beside the heading from 1024px.
 //
 // The markup keeps the indentation it has inside the page layout: the build
 // does not compress HTML, so this indentation is the whitespace of the page.
@@ -32,7 +33,7 @@ const builtwithHistoricalCount = `${(parseFloat(BUILTWITH_HISTORICAL) * 1_000_00
 ---
 
   <section class="py-13 sm:py-18" aria-labelledby="s-lineage">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 grid grid-cols-1 home-lineage-grid">
       <SectionHeader
         id="s-lineage"
         index="06"
@@ -47,27 +48,29 @@ const builtwithHistoricalCount = `${(parseFloat(BUILTWITH_HISTORICAL) * 1_000_00
       {/* Heritage stats — rounded display numbers per BuiltWith. Exact
           figures live in the BuiltWith caption below. We do NOT claim these as
           We-Amp customers (honest framing per the brand guide). */}
-      <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
-        <div class="readout-plate px-6 py-5">
-          <p class="display-num text-4xl font-bold text-text-body">{builtwithLiveRounded}</p>
-          <p class="mt-2 text-sm text-text-muted">live sites run mod_pagespeed today</p>
+      <div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="readout-plate px-6 py-5">
+            <p class="display-num text-4xl home-lineage-num font-bold whitespace-nowrap text-text-body">{builtwithLiveRounded}</p>
+            <p class="mt-2 text-small text-text-muted">live sites run mod_pagespeed today</p>
+          </div>
+          <div class="readout-plate px-6 py-5">
+            <p class="display-num text-4xl home-lineage-num font-bold whitespace-nowrap text-text-body">{builtwithHistoricalShort}</p>
+            <p class="mt-2 text-small text-text-muted">sites across its history</p>
+          </div>
         </div>
-        <div class="readout-plate px-6 py-5">
-          <p class="display-num text-4xl font-bold text-text-body">{builtwithHistoricalShort}</p>
-          <p class="mt-2 text-sm text-text-muted">sites across its history</p>
-        </div>
+        <p class="mt-4 text-xs text-text-annotation">
+          Usage data:{' '}
+          <a
+            href="https://trends.builtwith.com/Server/mod_pagespeed"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline-offset-4 hover:underline hover:text-text-body transition-colors"
+          >
+            BuiltWith
+          </a>
+          , {BUILTWITH_AS_OF} ({BUILTWITH_SITES} live; {builtwithHistoricalCount} historical).
+        </p>
       </div>
-      <p class="mt-4 text-xs text-text-annotation">
-        Usage data:{' '}
-        <a
-          href="https://trends.builtwith.com/Server/mod_pagespeed"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="underline-offset-4 hover:underline hover:text-text-body transition-colors"
-        >
-          BuiltWith
-        </a>
-        , {BUILTWITH_AS_OF} ({BUILTWITH_SITES} live; {builtwithHistoricalCount} historical).
-      </p>
     </div>
   </section>

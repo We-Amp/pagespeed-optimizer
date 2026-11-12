@@ -83,8 +83,8 @@ test.describe('Landing page', () => {
     const section = page.locator('section[data-live-console]');
     await expect(section.locator('h2')).toHaveText('Running on our own sites');
     const img = section.locator('img[src="/images/live-console-overview.webp"]');
-    await expect(img).toHaveAttribute('width', '1440');
-    await expect(img).toHaveAttribute('height', '760');
+    await expect(img).toHaveAttribute('width', '1196');
+    await expect(img).toHaveAttribute('height', '306');
     await expect(img).toHaveAttribute('loading', 'lazy');
     await expect(img).toHaveAttribute('alt', /admin console/);
     await expect(section.locator('figure:has(img) figcaption')).toContainText('public on purpose');

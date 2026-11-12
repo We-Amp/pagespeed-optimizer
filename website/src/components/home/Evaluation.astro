@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// Home section 07: the evaluation FAQ. An always-expanded <dl> with a hairline
-// between pairs; mirrors the FAQPage JSON-LD in src/pages/index.astro.
+// Home section 05: the evaluation FAQ. An always-expanded <dl> with a hairline
+// between pairs, two columns from 1024px; mirrors the FAQPage JSON-LD in
+// src/pages/index.astro.
 //
 // The markup keeps the indentation it has inside the page layout: the build
 // does not compress HTML, so this indentation is the whitespace of the page.
@@ -19,18 +20,18 @@ import SectionHeader from '../instrument/SectionHeader.astro';
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <SectionHeader
         id="s-eval"
-        index="07"
+        index="05"
         eyebrow="Evaluation"
         title="Before it goes in front of production traffic."
       >
         The questions that come up on every evaluation call.
       </SectionHeader>
-      <dl class="faq-list mt-12 max-w-3xl">
+      <dl class="faq-list mt-10">
         <div>
           <dt class="text-base font-semibold text-text-body">
             mod_pagespeed is free. What does We-Amp sell?
           </dt>
-          <dd class="mt-2 text-sm text-text-muted">
+          <dd class="mt-2 text-body text-text-muted">
             Support. The original mod_pagespeed and ngx_pagespeed are no longer actively developed;
             the current mod_pagespeed is the maintained, open-source (Apache-2.0) continuation: the
             same directives and filters, with security fixes and a current toolchain, plus a
@@ -41,14 +42,14 @@ import SectionHeader from '../instrument/SectionHeader.astro';
         </div>
         <div>
           <dt class="text-base font-semibold text-text-body">Does it add latency?</dt>
-          <dd class="mt-2 text-sm text-text-muted">
+          <dd class="mt-2 text-body text-text-muted">
             No. On cache hit, serving is a hash lookup and an mmap pointer. On cache miss, the
             original content gets served while the worker optimizes in the background.
           </dd>
         </div>
         <div>
           <dt class="text-base font-semibold text-text-body">Can it break my site?</dt>
-          <dd class="mt-2 text-sm text-text-muted">
+          <dd class="mt-2 text-body text-text-muted">
             Transforms are deliberately conservative — JS minification strips whitespace and
             comments, no variable renaming — and the design falls back to your original content when
             an optimization step fails. Edge cases exist: test on staging, then disable any path,
@@ -57,7 +58,7 @@ import SectionHeader from '../instrument/SectionHeader.astro';
         </div>
         <div>
           <dt class="text-base font-semibold text-text-body">Why not just use Cloudflare?</dt>
-          <dd class="mt-2 text-sm text-text-muted">
+          <dd class="mt-2 text-body text-text-muted">
             CDN-based optimization routes your traffic through a third-party proxy. mod_pagespeed
             runs on your servers — visitor data never leaves your origin, and nothing third-party
             sits in your request path.
@@ -68,7 +69,7 @@ import SectionHeader from '../instrument/SectionHeader.astro';
             How is this different from a CDN optimizer (Cloudflare Mirage, Bunny Optimizer, Fastly
             IO)?
           </dt>
-          <dd class="mt-2 text-sm text-text-muted">
+          <dd class="mt-2 text-body text-text-muted">
             Those rewrite assets at the edge, on infrastructure you don't control, with cache state
             you can't inspect. mod_pagespeed runs on your origin, so your rewrites carry your URLs,
             your headers, your cache policy. Use both &mdash; we optimize the origin, the CDN
@@ -79,14 +80,14 @@ import SectionHeader from '../instrument/SectionHeader.astro';
           <dt class="text-base font-semibold text-text-body">
             How is this different from a build-time optimizer (Astro, Next.js Image, Vite plugins)?
           </dt>
-          <dd class="mt-2 text-sm text-text-muted">
+          <dd class="mt-2 text-body text-text-muted">
             Those require a modern build pipeline you own end-to-end. We win when your build is
             owned by your CMS (WordPress, Magento, ASP.NET Framework) or your content is dynamic. If
             you already ship through a modern JS framework's asset pipeline, you may not need us.
           </dd>
         </div>
       </dl>
-      <p class="mt-10 text-sm text-text-muted">
+      <p class="mt-10 text-body text-text-muted">
         Comparing against a CDN optimizer or a build-time pipeline?{' '}
         <a
           href="/alternatives/"

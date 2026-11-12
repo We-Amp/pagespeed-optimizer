@@ -4,6 +4,7 @@
 //
 // Home closing call to action: a featured panel on the primary ground. The
 // design allows one cyan fill per viewport, so this is a panel, not a band.
+// The sponsor link is its last line (the s-sponsor id is kept for old links).
 //
 // The markup keeps the indentation it has inside the page layout: the build
 // does not compress HTML, so this indentation is the whitespace of the page.
@@ -32,8 +33,19 @@ import { LICENSE_CLAUSE_CAP } from '../../data/product-facts.mjs';
             Run the numbers{' '}
           </a>
         </div>
-        <p class="mt-5 text-sm text-text-muted">
+        <p class="mt-5 text-small text-text-muted">
           Support from the people who build it is what&rsquo;s for sale.
+        </p>
+        <p id="s-sponsor" class="mt-2 text-small text-text-muted">
+          Sponsorship on GitHub funds the ongoing work.{' '}
+          <a
+            href="https://github.com/sponsors/We-Amp"
+            rel="noopener"
+            data-umami-event="cta_sponsor_home"
+            class="link-arrow"
+          >
+            Sponsor on GitHub</a
+          >
         </p>
       </div>
     </div>

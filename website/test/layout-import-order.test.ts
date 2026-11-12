@@ -36,7 +36,7 @@ if (!BUILT) {
 // then the site sheet (BaseLayout.*.css), then page styles, except on pages
 // whose inline styles Astro hoists above the sheet (the alternatives pages).
 const EXPECTED: Record<string, string> = {
-  '': 'S S S L:BaseLayout S',
+  '': 'S S S L:BaseLayout S L:index',
   'docs/getting-started/': 'S S S L:BaseLayout S',
   'pricing/': 'S S S L:BaseLayout',
   'alternatives/': 'S S S L:BaseLayout',

@@ -1,0 +1,86 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Home further reading: four docs and blog cards, just above the closing
+// panel.
+//
+// The markup keeps the indentation it has inside the page layout: the build
+// does not compress HTML, so this indentation is the whitespace of the page.
+// The class names are styled by the page's global style block in
+// src/pages/index.astro.
+---
+
+  <section class="home-reading" aria-labelledby="s-reading">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div>
+        <h2 id="s-reading" class="eyebrow">Further reading</h2>
+        <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <a
+            href="/docs/configuration/"
+            class="card-resource"
+            data-umami-event="cta_home_featured_docs_configuration"
+          >
+            <p class="eyebrow text-text-body">Docs</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">Configuration</h3>
+            <p class="mt-2 text-body text-text-muted">
+              Configuration options for Apache and nginx: directives, cache modes, worker settings,
+              and per-location overrides.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read the docs <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/docs/filters/"
+            class="card-resource"
+            data-umami-event="cta_home_featured_docs_filters"
+          >
+            <p class="eyebrow text-text-body">Docs</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">PageSpeed filters reference</h3>
+            <p class="mt-2 text-body text-text-muted">
+              Every rewrite filter and what it does: image transcoding, CSS and JS minification,
+              combining, spriting, IPRO, and domain mapping.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read the docs <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/blog/economics-of-image-optimization/"
+            class="card-resource"
+            data-umami-event="cta_home_blog_economics_images"
+          >
+            <p class="eyebrow text-text-body">Blog</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              Image optimization cost: self-hosted vs CDN (2026)
+            </h3>
+            <p class="mt-2 text-body text-text-muted">
+              Cost comparison at 100K, 1M, and 10M monthly image requests &mdash; with break-even
+              analysis against self-hosted optimization.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read post <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/blog/mod-pagespeed-alternatives/"
+            class="card-resource"
+            data-umami-event="cta_home_blog_mps_alternatives"
+          >
+            <p class="eyebrow text-text-body">Blog</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              mod_pagespeed Alternatives in 2026
+            </h3>
+            <p class="mt-2 text-body text-text-muted">
+              The original mod_pagespeed and ngx_pagespeed &mdash; developed at Google &mdash; are
+              no longer actively developed. Here is where to go instead.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read post <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
