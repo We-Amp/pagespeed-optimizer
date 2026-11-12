@@ -185,7 +185,6 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         By{' '}
         <a
           href="https://www.linkedin.com/in/oschaaf"
-          target="_blank"
           rel="noopener noreferrer"
           class="text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
         >
@@ -227,7 +226,9 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
               data-umami-event="cta_blog_bottom_install"
               class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
             >
-              Get started &rarr;
+              <span>
+                Get started <span aria-hidden="true">&rarr;</span>
+              </span>
             </a>
             <a
               href="/pricing/"
@@ -250,7 +251,9 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
               data-umami-event="cta_blog_bottom_install"
               class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
             >
-              Install &amp; run &rarr;
+              <span>
+                Install &amp; run <span aria-hidden="true">&rarr;</span>
+              </span>
             </a>
             <a
               href="/pricing/"
@@ -306,12 +309,14 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         <ul class="mt-4 space-y-4">
           {related.map((r) => (
             <li>
-              <a href={`/blog/${r.id}/`} class="group block">
+              <div class="group card-stretch block">
                 <h3 class="text-base font-semibold text-text-body group-hover:text-interactive transition-colors">
-                  {r.data.title}
+                  <a href={`/blog/${r.id}/`} class="card-stretch-link">
+                    {r.data.title}
+                  </a>
                 </h3>
                 <p class="mt-1 text-sm text-text-muted">{r.data.description}</p>
-              </a>
+              </div>
             </li>
           ))}
         </ul>
@@ -323,7 +328,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         href="/blog/"
         class="tap-area text-sm font-medium text-interactive hover:text-interactive-hover"
       >
-        &larr; Back to blog
+        <span aria-hidden="true">&larr; </span>Back to blog
       </a>
     </nav>
   </article>

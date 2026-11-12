@@ -83,7 +83,8 @@ const EMPHASIZED = 'priority';
           data-umami-event-surface={surface}
           data-umami-event-position={`tier_${tier.id}`}
         >
-          {tier.cta.label}&nbsp;&rarr;
+          <!-- prettier-ignore -->
+          <span>{tier.cta.label}<span aria-hidden="true">&nbsp;&rarr;</span></span>
         </a>
       </div>
     );

@@ -46,6 +46,8 @@ const demoMeasured = `Measured on our demo store, ${monthYear(demoMetrics.genera
           <p class="eyebrow">open source &middot; Apache-2.0</p>
           <h1 class="h1-hero mt-4 text-text-body">
             <span class="block">mod_pagespeed, the PageSpeed module for nginx and Apache</span>
+            {/* A hidden full stop: the two lines are read as two sentences, not one run-on. */}
+            <span class="sr-only">.</span>
             <span class="hero-sub mt-4 block text-interactive">
               Lighthouse <span class="text-text-body">56</span> to{' '}
               <span class="text-text-body">90</span>. On your own servers.
@@ -130,7 +132,6 @@ const demoMeasured = `Measured on our demo store, ${monthYear(demoMetrics.genera
         mod_pagespeed is developed by{' '}
         <a
           href="https://we-amp.com/"
-          target="_blank"
           rel="noopener noreferrer"
           class="hover:text-text-muted transition-colors"
         >

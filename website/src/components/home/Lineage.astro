@@ -32,7 +32,7 @@ const builtwithHistoricalShort = BUILTWITH_HISTORICAL.replace(/\+$/, '');
 const builtwithHistoricalCount = `${(parseFloat(BUILTWITH_HISTORICAL) * 1_000_000).toLocaleString('en-US')}+`;
 ---
 
-  <section class="py-13 sm:py-18" aria-labelledby="s-lineage">
+  <section class="py-13 sm:py-18">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 grid grid-cols-1 home-lineage-grid">
       <SectionHeader
         id="s-lineage"
@@ -63,7 +63,6 @@ const builtwithHistoricalCount = `${(parseFloat(BUILTWITH_HISTORICAL) * 1_000_00
           Usage data:{' '}
           <a
             href="https://trends.builtwith.com/Server/mod_pagespeed"
-            target="_blank"
             rel="noopener noreferrer"
             class="underline-offset-4 hover:underline hover:text-text-body transition-colors"
           >

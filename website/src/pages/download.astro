@@ -233,20 +233,29 @@ const jsonLd = await productJsonLd({
       </a>
     </p>
     <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* The whole card is clickable, but only the title is the link (a
+          stretched link, see .card-stretch in global.css): a link wrapped
+          around the card would be named with every word on it. */}
       {integrations.map((integration, index) => (
-        <a
+        <div
           id={integration.id}
-          href={integration.href}
-          data-umami-event={integration.umamiEvent}
           class:list={[
-            'card flex flex-col',
+            'card card-stretch flex flex-col',
             // Full-width final card: 7 cards in 2 columns orphans the last
             // one on its own half-empty row — give it the whole row instead.
             index === integrations.length - 1 && 'md:col-span-2',
           ]}
         >
           <div class="flex items-baseline justify-between gap-3">
-            <h3 class="text-xl font-semibold text-text-body">{integration.name}</h3>
+            <h3 class="text-xl font-semibold text-text-body">
+              <a
+                href={integration.href}
+                data-umami-event={integration.umamiEvent}
+                class="card-stretch-link"
+              >
+                {integration.name}
+              </a>
+            </h3>
             {integration.product && (
               <span class="text-small font-semibold text-text-body">{integration.product}</span>
             )}
@@ -262,7 +271,7 @@ const jsonLd = await productJsonLd({
           <p class="mt-6 text-small">
             <span class="link-arrow">{integration.cta}</span>
           </p>
-        </a>
+        </div>
       ))}
     </div>
     <p class="mt-6 text-body text-text-muted">

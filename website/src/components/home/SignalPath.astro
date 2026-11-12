@@ -17,7 +17,7 @@ import HitMissBadge from '../instrument/HitMissBadge.astro';
 import SectionHeader from '../instrument/SectionHeader.astro';
 ---
 
-  <section class="py-13 sm:py-18" aria-labelledby="s-signal">
+  <section class="py-13 sm:py-18">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <SectionHeader
         id="s-signal"
@@ -471,7 +471,10 @@ import SectionHeader from '../instrument/SectionHeader.astro';
           role="img"
           xmlns="http://www.w3.org/2000/svg"
         >
-          <title>mod_pagespeed architecture, mobile vertical view.</title>
+          <title>
+            mod_pagespeed architecture: request, module and cache lookup, HIT serves from mmap,
+            MISS serves origin while an async worker writes the optimized variant.
+          </title>
           <defs>
             <marker
               id="arrow-stone-20m"

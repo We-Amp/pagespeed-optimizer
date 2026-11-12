@@ -103,7 +103,7 @@ const nextSteps = [
   title="Contact mod_pagespeed: setup, support and partners"
   description="Setup help, support, Enterprise, audits, hosting partners, consulting and IISpeed transfers. One form; we reply within one business day (CET)."
 >
-  <PageHero title="One form for setup, support and partnerships.">
+  <PageHero id="contact-title" title="One form for setup, support and partnerships.">
     <Fragment slot="lede">
       Setup help, support subscriptions, partnerships and consulting all go through this form. We
       reply within one business day (CET). Security reports have their own channel.
@@ -138,6 +138,7 @@ const nextSteps = [
          redirect to the thanks page. -->
     <form
       id="contact-form"
+      aria-labelledby="contact-title"
       action="/ai-readability/api/contact"
       method="post"
       data-fallback-email={COMMERCIAL_EMAIL}
@@ -172,7 +173,7 @@ const nextSteps = [
           required
           aria-required="true"
           autocomplete="name"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent"
         />
       </div>
 
@@ -267,7 +268,7 @@ const nextSteps = [
           required
           aria-required="true"
           aria-describedby="contact-message-hint"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent"
         ></textarea>
         <p id="contact-message-hint" class="mt-1 text-sm text-text-annotation">
           Plain text is fine. Logs and config snippets help.
@@ -335,6 +336,10 @@ const nextSteps = [
         aliases: Record<string, string>;
       };
       const form = document.getElementById('contact-form') as HTMLFormElement | null;
+      // With JavaScript the script validates and speaks its own message (below),
+      // so the browser's bubble is switched off; without it the browser's
+      // validation still guards the native post.
+      if (form) form.noValidate = true;
       const loadedAt = Date.now();
       const loadTimeEl = form?.querySelector<HTMLInputElement>('input[data-load-time]');
       if (loadTimeEl) loadTimeEl.value = String(loadedAt);
@@ -446,15 +451,28 @@ const nextSteps = [
         const topic = String(data.get('topic') ?? 'setup');
         const body = String(data.get('message') ?? '').trim();
 
-        // Client-side validation. Lean on the browser first, then add our own
-        // checks so the failure is a clear message rather than a silent no-op.
-        if (!form.checkValidity()) {
-          form.reportValidity();
-          setStatus('error', 'Please fill in name, email and message before sending.');
-          return;
+        // Client-side validation. Each empty required field is flagged invalid
+        // and points at the status message, which says what is missing; focus
+        // moves to the first of them.
+        const required: Array<[HTMLInputElement | HTMLTextAreaElement | null, string]> = [
+          [document.getElementById('contact-name') as HTMLInputElement | null, name],
+          [emailInput, email],
+          [messageEl, body],
+        ];
+        const empty = required.filter(([, value]) => !value).map(([el]) => el);
+        for (const [el] of required) {
+          if (!el) continue;
+          if (empty.includes(el)) {
+            el.setAttribute('aria-invalid', 'true');
+            el.setAttribute('aria-errormessage', 'contact-status');
+          } else {
+            el.setAttribute('aria-invalid', 'false');
+            el.removeAttribute('aria-errormessage');
+          }
         }
-        if (!name || !email || !body) {
+        if (empty.length) {
           setStatus('error', 'Please fill in name, email and message before sending.');
+          empty[0]?.focus();
           return;
         }
         const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -601,7 +619,6 @@ const nextSteps = [
       <p class="text-sm text-text-annotation">
         <a
           href="https://we-amp.com/"
-          target="_blank"
           rel="noopener noreferrer"
           class="hover:text-text-muted transition-colors"
         >

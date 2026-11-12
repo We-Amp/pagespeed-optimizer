@@ -151,7 +151,9 @@ const auditPoints = [
         data-umami-event-surface="pricing"
         data-umami-event-position="audit"
       >
-        Ask for an audit &rarr;
+        <span>
+          Ask for an audit <span aria-hidden="true">&rarr;</span>
+        </span>
       </a>
       <p class="mt-6 text-body text-text-muted">
         Want the quick version first? The{' '}
@@ -199,7 +201,9 @@ const auditPoints = [
         data-umami-event-surface="pricing"
         data-umami-event-position="hosting_strip"
       >
-        Partner program &rarr;
+        <span>
+          Partner program <span aria-hidden="true">&rarr;</span>
+        </span>
       </a>
     </div>
   </section>
@@ -240,7 +244,9 @@ const auditPoints = [
             data-umami-event-surface="pricing"
             data-umami-event-position={`closing_${tier.id}`}
           >
-            {tier.cta.label} &rarr;
+            <span>
+              {tier.cta.label} <span aria-hidden="true">&rarr;</span>
+            </span>
           </a>
         ))}
       </div>

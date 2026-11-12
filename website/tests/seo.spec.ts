@@ -162,7 +162,7 @@ test.describe('SEO', () => {
     );
     for (const name of ['Apache', 'nginx', 'nginx (Docker)', 'Helm']) {
       await test.step(name, async () => {
-        const card = grid.locator('a.card', {
+        const card = grid.locator('.card', {
           has: page.getByRole('heading', { level: 3, name, exact: true }),
         });
         await expect(card).toHaveCount(1);
@@ -170,7 +170,7 @@ test.describe('SEO', () => {
       });
     }
     await expect(
-      grid.locator('a.card', {
+      grid.locator('.card', {
         has: page.getByRole('heading', { level: 3, name: 'ASP.NET Core Sidecar', exact: true }),
       }),
     ).toContainText('mod_pagespeed 1.15');

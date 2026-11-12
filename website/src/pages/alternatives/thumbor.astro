@@ -207,27 +207,33 @@ const jsonLd = [
 
     <section class="mt-12">
       <h2 class="h2-section text-text-body">Code &amp; config side-by-side</h2>
-      <p class="mt-4 text-text-body">
+      <p id="config-1" class="mt-4 text-text-body">
         <strong>Resize and convert to WebP in Thumbor</strong> (URL-based):
       </p>
       <pre
         tabindex="0"
+        role="region"
+        aria-labelledby="config-1"
         class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
       ><code>/unsafe/800x600/filters:format(webp)/example.com/photo.jpg</code></pre>
-      <p class="mt-4 text-text-body">
+      <p id="config-2" class="mt-4 text-text-body">
         <strong>Equivalent in mod_pagespeed.</strong> Install the nginx module on
         {NGINX_APT_SHORT_NBSP} (amd64 + arm64), or AlmaLinux/RHEL/Rocky&nbsp;{NGINX_RPM_SHORT}:
       </p>
       <pre
         tabindex="0"
+        role="region"
+        aria-labelledby="config-2"
         class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
       ><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
-      <p class="mt-4 text-text-body">
+      <p id="config-3" class="mt-4 text-text-body">
         Then enable the filters (nginx config; the filter decides per-request):
       </p>
       <pre
         tabindex="0"
+        role="region"
+        aria-labelledby="config-3"
         class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
       ><code>pagespeed on;
 pagespeed EnableFilters resize_images,convert_jpeg_to_webp;

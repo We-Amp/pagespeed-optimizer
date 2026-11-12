@@ -144,58 +144,84 @@ const jsonLd = [softwareApplication, faqPage];
   <section class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        <a href="#image-optimization" class="card">
+        <div class="card card-stretch">
           <Icon name="image" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">Image optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#image-optimization" class="card-stretch-link">
+              Image optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             WebP/AVIF transcoding, viewport-aware resizing, ML quality, up to 37 variants per image
           </p>
-        </a>
-        <a href="#css-optimization" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="paintbrush" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">CSS optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#css-optimization" class="card-stretch-link">
+              CSS optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Minification, critical CSS extraction, async loading, @import flattening
           </p>
-        </a>
-        <a href="#js-optimization" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="braces" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">JS optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#js-optimization" class="card-stretch-link">
+              JS optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Safe minification, automatic script deferral — no AST transforms
           </p>
-        </a>
-        <a href="#html-optimization" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="code-xml" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">HTML optimization</p>
+          <p class="font-semibold text-text-body">
+            <a href="#html-optimization" class="card-stretch-link">
+              HTML optimization
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Critical CSS injection, async CSS, script deferral, Early Hints (103), lazy loading
           </p>
-        </a>
-        <a href="#variant-caching" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="database" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">Variant-aware caching</p>
+          <p class="font-semibold text-text-body">
+            <a href="#variant-caching" class="card-stretch-link">
+              Variant-aware caching
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             32-bit capability mask, best-fit fallback, per-client variants
           </p>
-        </a>
-        <a href="#zero-copy" class="card">
+        </div>
+        <div class="card card-stretch">
           <Icon name="gauge" class="h-5 w-5 text-interactive mb-3" />
-          <p class="font-semibold text-text-body">Zero-copy serving</p>
+          <p class="font-semibold text-text-body">
+            <a href="#zero-copy" class="card-stretch-link">
+              Zero-copy serving
+            </a>
+          </p>
           <p class="mt-1 text-body text-text-muted">
             Sub-millisecond cache hits via mmap — no copies, no allocations
           </p>
-        </a>
-        <a href="#ai-readability" class="card lg:col-start-2">
+        </div>
+        <div class="card card-stretch lg:col-start-2">
           <Icon name="bot" class="h-5 w-5 text-interactive mb-3" />
           <p class="flex items-center gap-2 font-semibold text-text-body">
-            AI-readability
+            <a href="#ai-readability" class="card-stretch-link">
+              AI-readability
+            </a>
             <span class="badge-neutral">Experimental</span>
           </p>
           <p class="mt-1 text-body text-text-muted">
             Serve fully-rendered content to AI crawlers that never run your JavaScript
           </p>
-        </a>
+        </div>
       </div>
     </div>
   </section>
