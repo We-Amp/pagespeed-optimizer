@@ -37,12 +37,17 @@ const uid = `newsletter-${variant}`;
 const emailId = `${uid}-email`;
 const consentId = `${uid}-consent`;
 const statusId = `${uid}-status`;
+const titleId = `${uid}-title`;
 ---
 
 {/* method="post" (not the GET default) so that if JS is unavailable a submit
     cannot place the typed email into the URL/query string — capture is JS-only
     (the handler calls preventDefault), but this keeps the no-JS edge safe. */}
+{/* A named form: "Newsletter" in the footer, the post's own lede on a blog
+    post, so the two signup forms on a post have different names. */}
 <form
+  aria-label={isBlog ? undefined : 'Newsletter'}
+  aria-labelledby={isBlog ? titleId : undefined}
   data-newsletter
   data-variant={variant}
   data-slug={slug ?? ''}
@@ -52,7 +57,9 @@ const statusId = `${uid}-status`;
 >
   {isBlog ? (
     <>
-      <p class="text-base font-semibold text-text-body">Like this kind of writeup?</p>
+      <p id={titleId} class="text-base font-semibold text-text-body">
+        Like this kind of writeup?
+      </p>
       <p class="mt-2 text-sm text-text-muted">
         We write about how mod_pagespeed actually works, and what we learn shipping it. Get the next
         post by email.
@@ -60,7 +67,9 @@ const statusId = `${uid}-status`;
     </>
   ) : (
     <>
-      <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">Newsletter</p>
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+        Newsletter
+      </h2>
       <p class="mt-3 text-sm text-text-muted">
         New writing on web performance and PageSpeed engineering. We only email when there's a new
         post.

@@ -355,7 +355,7 @@ test.describe('Navigation', () => {
   }) => {
     await page.goto('/');
     const group = (title: string) =>
-      page.locator(`footer div:has(> p.uppercase:text-is("${title}")) > ul a`);
+      page.locator(`footer div:has(> h2:text-is("${title}")) > ul a`);
     const tools = await group('Tools').evaluateAll((els) =>
       els.map((el) => el.getAttribute('href')),
     );
@@ -420,7 +420,7 @@ test.describe('Navigation', () => {
   test('footer has five groups plus Legal', async ({ page }) => {
     await page.goto('/');
     // Group headings are the labels directly above each link list.
-    const headings = await page.locator('footer p.uppercase:has(+ ul)').allInnerTexts();
+    const headings = await page.locator('footer h2:has(+ ul)').allInnerTexts();
     expect(headings.map((h) => h.trim().toLowerCase())).toEqual([
       'product',
       'install and docs',
