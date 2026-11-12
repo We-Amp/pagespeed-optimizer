@@ -140,11 +140,11 @@ describe('plainText and faqHtml', () => {
 
   it('gives the FAQ answer the same text plainText does', () => {
     const md = 'Add `foo` & [see](/x) — *em* done. And `bar<b>` too.';
+    // Decode in one pass so a decoded "&" is never decoded again.
+    const entities: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>' };
     const text = faqHtml(md)
       .replace(/<\/?code>/g, '')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
+      .replace(/&amp;|&lt;|&gt;/g, (entity) => entities[entity]);
     expect(text).toBe(plainText(md));
   });
 });
