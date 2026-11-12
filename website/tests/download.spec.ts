@@ -87,6 +87,11 @@ test.describe('/download/ install command', () => {
 });
 
 test.describe('/download/ signposts', () => {
+  test('the install commands have an anchor for deep links', async ({ page }) => {
+    await page.goto('/download/');
+    await expect(page.locator('#install [data-install-tabs]')).toHaveCount(1);
+  });
+
   test('upgraders get a link to the upgrade guide', async ({ page }) => {
     await page.goto('/download/');
     const link = page.locator('a[data-umami-event="cta_download_upgrade"]');

@@ -8,6 +8,7 @@ import { getCollection, render } from 'astro:content';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
+import { BLOG_INSTALL_PLATFORMS, INSTALL_PLATFORM_LINKS } from '../../data/blog-install-links';
 
 // Build-time set of generated social cards. Blog pages are prerendered, so this
 // frontmatter runs during `astro build` with cwd = the project root — read the
@@ -78,6 +79,9 @@ if (!post.data.coverImage && !generatedCards.has(`${post.id}.png`)) {
 const absoluteCardUrl = new URL(cardUrl, Astro.site ?? new URL('https://modpagespeed.com')).href;
 
 const isOneOne = post.data.product === '1.1';
+// Server-specific install links for the fix posts (see the data file).
+const installLinks = (BLOG_INSTALL_PLATFORMS[post.id] ?? []).map((p) => INSTALL_PLATFORM_LINKS[p]);
+const installKind = installLinks[0]?.kind ?? 'module';
 const productLabel = PRODUCT_DISPLAY_NAME;
 
 // Append the product suffix to the <title> only when it won't push the SERP
@@ -260,6 +264,22 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
             </a>
           </div>
         </>
+      )}
+      {installLinks.length > 0 && (
+        <div class="mt-4 border-t border-interactive/30 pt-4" data-blog-install-links>
+          <p class="text-sm text-text-muted">Install the {installKind} this guide configures:</p>
+          <div class="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
+            {installLinks.map((link) => (
+              <a
+                href={link.href}
+                data-umami-event={link.event}
+                class="text-sm font-medium text-interactive hover:text-interactive-hover underline decoration-border-strong underline-offset-2"
+              >
+                {link.label} <span aria-hidden="true">&rarr;</span>
+              </a>
+            ))}
+          </div>
+        </div>
       )}
     </aside>
 
