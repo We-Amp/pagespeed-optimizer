@@ -152,6 +152,9 @@ test.describe('No sideways scroll at 320px', () => {
       expect(res?.status()).toBe(200);
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth).toBeLessThanOrEqual(320);
+    });
+  }
+});
 
 test.describe('Phone form fields are at least 16px', () => {
   // iOS Safari zooms the page into a text field set below 16px when it takes
