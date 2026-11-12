@@ -169,7 +169,10 @@
    no soft wrap opportunity before it, so a heading whose text fills the line
    overflows by the anchor's width; paragraphs because plain text can carry
    the same tokens without a <code> span. Normal prose never breaks mid-word:
-   a word only breaks when it cannot fit on a line of its own. */
+   a word only breaks when it cannot fit on a line of its own. Page titles
+   sit outside .prose and can carry the same names, so every h1 gets the
+   rule too. */
+h1,
 .prose :is(h2, h3, h4),
 .prose p {
   overflow-wrap: anywhere;

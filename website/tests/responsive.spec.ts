@@ -121,3 +121,72 @@ test.describe('Docs pages fit narrow viewports', () => {
     expect(scrollWidth).toBeLessThanOrEqual(320);
   });
 });
+
+test.describe('No sideways scroll at 320px', () => {
+  // A long unbreakable token (a directive or filter name in a title, a command
+  // line in a code block) must wrap or scroll inside its own box; it must never
+  // make the whole page wider than a small phone.
+  const pages = [
+    '/',
+    '/download/',
+    '/pricing/',
+    '/support/',
+    '/features/',
+    '/contact/',
+    '/docs/',
+    '/docs/getting-started/',
+    '/docs/configuration/',
+    '/examples/',
+    '/examples/combine_css/',
+    '/blog/',
+    '/blog/fix-cls-nginx-2026/',
+    '/alternatives/',
+    '/alternatives/cloudflare-apo/',
+    // A static file under public/; the dev server only serves it by file name.
+    '/data/web-bot-auth-2026-10-19/index.html',
+  ];
+  for (const path of pages) {
+    test(`${path} fits 320px`, async ({ page }) => {
+      await page.setViewportSize({ width: 320, height: 740 });
+      const res = await page.goto(path);
+      expect(res?.status()).toBe(200);
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(scrollWidth).toBeLessThanOrEqual(320);
+
+test.describe('Phone form fields are at least 16px', () => {
+  // iOS Safari zooms the page into a text field set below 16px when it takes
+  // focus and leaves the page zoomed after blur. Every text field, text area
+  // and select, including the closed message launcher's, must be 16px or more
+  // on a phone.
+  const pages = [
+    '/',
+    '/blog/fix-cls-nginx-2026/',
+    '/features/',
+    '/contact/',
+    '/calculator/',
+    '/analyze/',
+    '/ai-crawler-cost/',
+    '/ai-readability/',
+    '/hosting-partners/',
+  ];
+  const skip = ['checkbox', 'radio', 'hidden', 'range', 'submit', 'button', 'file', 'color'];
+  for (const path of pages) {
+    test(`${path} fields are 16px or more at 390px`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 740 });
+      await page.goto(path);
+      const small = await page.evaluate(
+        (skipTypes) =>
+          Array.from(document.querySelectorAll('input, select, textarea'))
+            .filter((el) => !skipTypes.includes((el as HTMLInputElement).type))
+            .filter((el) => !el.closest('[aria-hidden="true"]'))
+            .map((el) => ({
+              field: el.id || (el as HTMLInputElement).name,
+              size: parseFloat(getComputedStyle(el).fontSize),
+            }))
+            .filter((f) => f.size < 16),
+        skip,
+      );
+      expect(small).toEqual([]);
+    });
+  }
+});
