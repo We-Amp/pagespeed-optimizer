@@ -48,7 +48,7 @@ BIN_DIR="${BIN_DIR:-${RUNNER_TEMP:?RUNNER_TEMP is required when BIN_DIR is unset
 CI_BIN_CACHE="${CI_BIN_CACHE:-${HOME}/.weamp/ci-bin}"
 
 # Retry knobs (overridable for tests / tuning), matching the house idiom.
-DL_RETRIES="${DL_RETRIES:-4}"
+DL_RETRIES="${DL_RETRIES:-1}"
 DL_BACKOFF="${DL_BACKOFF:-5}"   # seconds between attempts
 
 mkdir -p "$BIN_DIR" "$CI_BIN_CACHE"

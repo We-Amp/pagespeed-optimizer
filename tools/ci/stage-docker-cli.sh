@@ -69,14 +69,14 @@ find_compose_plugin() {
 download_linux_builds() {
   arch="$(daemon_arch)"
   if [ ! -x "$DOCKER_BIN" ]; then
-    "$RETRY" "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_VERSION}.tgz" \
+    bash "$RETRY" "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_VERSION}.tgz" \
       "$STAGE_DIR/docker-cli.tgz"
     tar xz -C "$STAGE_DIR" --strip-components=1 -f "$STAGE_DIR/docker-cli.tgz" docker/docker
     rm -f "$STAGE_DIR/docker-cli.tgz"
     chmod 755 "$DOCKER_BIN"
   fi
   if [ ! -x "$COMPOSE_PLUGIN" ]; then
-    "$RETRY" \
+    bash "$RETRY" \
       "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${arch}" \
       "$COMPOSE_PLUGIN"
     chmod 755 "$COMPOSE_PLUGIN"

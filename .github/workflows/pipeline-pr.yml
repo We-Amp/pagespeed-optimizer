@@ -275,7 +275,7 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           trap 'rm -rf "$tmp"' EXIT
-          FETCH_RETRY_MAX_TIME=300 bash tools/ci/fetch_retry.sh \
+          bash tools/ci/fetch_retry.sh \
             "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
             "$tmp/helm.tgz" "${HELM_SHA256}"
           tar -xzf "$tmp/helm.tgz" -C "$tmp" linux-amd64/helm
