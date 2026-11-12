@@ -2216,7 +2216,7 @@ jobs:
             exit 0
           fi
           echo "::notice::clang++-20 not found: installing it from the LLVM apt repository"
-          curl -fsSL https://apt.llvm.org/llvm.sh -o "${RUNNER_TEMP}/llvm.sh"
+          bash tools/ci/fetch_retry.sh https://apt.llvm.org/llvm.sh "${RUNNER_TEMP}/llvm.sh"
           sudo bash "${RUNNER_TEMP}/llvm.sh" 20
 
       - name: Resolve scratch dirs
@@ -2469,7 +2469,7 @@ jobs:
             exit 0
           fi
           echo "::notice::clang++-20 not found: installing it from the LLVM apt repository"
-          curl -fsSL https://apt.llvm.org/llvm.sh -o "${RUNNER_TEMP}/llvm.sh"
+          bash tools/ci/fetch_retry.sh https://apt.llvm.org/llvm.sh "${RUNNER_TEMP}/llvm.sh"
           sudo bash "${RUNNER_TEMP}/llvm.sh" 20
 
       # The evidence base: the previous nightly's crash units and grown

@@ -65,8 +65,8 @@ jobs:
       # nasm (x86 SIMD).
       - name: Install clang-20 + libc++-20 toolchain
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-            | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          bash tools/ci/fetch_retry.sh https://apt.llvm.org/llvm-snapshot.gpg.key "${RUNNER_TEMP}/llvm-snapshot.gpg.key"
+          sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc < "${RUNNER_TEMP}/llvm-snapshot.gpg.key" >/dev/null
           echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
             | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
           sudo apt-get update
@@ -275,9 +275,9 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           trap 'rm -rf "$tmp"' EXIT
-          curl -fsSL -o "$tmp/helm.tgz" \
-            "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          echo "${HELM_SHA256}  $tmp/helm.tgz" | sha256sum -c -
+          bash tools/ci/fetch_retry.sh \
+            "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+            "$tmp/helm.tgz" "${HELM_SHA256}"
           tar -xzf "$tmp/helm.tgz" -C "$tmp" linux-amd64/helm
           PATH="$tmp/linux-amd64:$PATH" bash tools/ci/check_helm.sh
           bash tools/ci/test_check_helm.sh
@@ -306,6 +306,12 @@ jobs:
       # directory. Skips itself where zstd is absent.
       - name: Vendor-tarball extractor - self-test
         run: bash tools/ci/test_extract_vendor_tarball.sh
+
+      - name: Download retry helper - self-test
+        run: bash tools/ci/test_fetch_retry.sh
+
+      - name: Pinned-tool installer aborts on checksum mismatch - self-test
+        run: bash tools/ci/test_install_pinned_tool.sh
 
       # Self-test for tools/ci/validate-local-bundle.sh, the completeness and
       # producer check stage-artifacts.sh applies to a runner-local bundle,
