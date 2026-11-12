@@ -37,16 +37,33 @@ export function hasBeaconInstrumentation(html) {
   return BEACON_MARKER.test(html);
 }
 
+// Drops each script element whose text reports to the beacon. Scans for the
+// tags case-insensitively instead of matching them with a regular expression,
+// so end tags spelled with trailing spaces (`</script >`) are found too.
+function withoutBeaconScripts(html) {
+  const lower = html.toLowerCase();
+  let out = "";
+  let i = 0;
+  for (;;) {
+    const open = lower.indexOf("<script", i);
+    if (open === -1) break;
+    const close = lower.indexOf("</script", open);
+    const gt = close === -1 ? -1 : lower.indexOf(">", close);
+    const end = gt === -1 ? html.length : gt + 1;
+    const block = html.slice(open, end);
+    out += html.slice(i, open) + (BEACON_MARKER.test(block) ? "" : block);
+    i = end;
+  }
+  return out + html.slice(i);
+}
+
 /**
  * Removes the beacon instrumentation the module injects: script blocks that
  * report to the beacon endpoint, and the per-image `onload` check and
  * `data-pagespeed-url-hash` attributes that go with them.
  */
 export function stripBeaconInstrumentation(html) {
-  return html
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (block) =>
-      BEACON_MARKER.test(block) ? "" : block,
-    )
+  return withoutBeaconScripts(html)
     .replace(/\s+onload="if\(window\.pagespeed\)[^"]*"/g, "")
     .replace(/\s+data-pagespeed-url-hash="[^"]*"/g, "");
 }

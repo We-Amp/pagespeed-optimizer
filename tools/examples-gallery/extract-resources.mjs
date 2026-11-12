@@ -108,13 +108,17 @@ export function extractResourceRefs(html) {
 export function extractResources(html, pageUrl) {
   const urls = new Set();
   for (const raw of extractResourceRefs(html)) {
-    if (!raw || raw.startsWith("data:") || raw.startsWith("javascript:"))
-      continue;
+    if (!raw) continue;
+    let url;
     try {
-      urls.add(new URL(raw, pageUrl).href);
+      url = new URL(raw, pageUrl);
     } catch {
-      /* ignore unparseable */
+      continue; // unparseable
     }
+    // Only fetchable resources: this drops data:, javascript:, vbscript: and
+    // every other non-network scheme.
+    if (url.protocol === "http:" || url.protocol === "https:")
+      urls.add(url.href);
   }
   return [...urls];
 }
