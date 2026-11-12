@@ -268,6 +268,34 @@ test.describe('Navigation', () => {
     ).toHaveAttribute('aria-current', 'page');
   });
 
+  test('header Pricing link appears at 1280 px and not below; the phone menu lists Pricing once', async ({
+    page,
+  }) => {
+    const pricing = page.locator('header nav a[data-umami-event-position="header_pricing"]');
+
+    // One pixel under the breakpoint the link is in the markup but not shown;
+    // Pricing stays reachable through the Support menu.
+    await page.setViewportSize({ width: 1279, height: 800 });
+    await page.goto('/');
+    await expect(pricing).toHaveCount(1);
+    await expect(pricing).toBeHidden();
+
+    // At the breakpoint it is shown.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(pricing).toBeVisible();
+
+    // On a phone the header link stays hidden and the open menu carries
+    // exactly one Pricing link, so the page is not listed twice.
+    await page.setViewportSize({ width: 375, height: 667 });
+    await expect(pricing).toBeHidden();
+    await page.locator('#mobile-menu-btn').click();
+    const mobileMenu = page.locator('#mobile-menu');
+    await expect(mobileMenu).toBeVisible();
+    await expect(mobileMenu.locator('a[href="/pricing/"]')).toHaveCount(1);
+    await expect(mobileMenu.locator('a[href="/pricing/"]')).toBeVisible();
+    await expect(page.locator('header a[href="/pricing/"]:visible')).toHaveCount(1);
+  });
+
   test('header has no separate Message entry; the floating launcher stays', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('header [data-qm-open]')).toHaveCount(0);
