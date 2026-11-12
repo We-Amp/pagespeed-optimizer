@@ -13,7 +13,7 @@
 //      Mono, and the font stacks name them right after the web font, so the
 //      swap from the local fallback to the web font does not shift text.
 
-import { readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 
@@ -90,5 +90,39 @@ describe('metric-matched font fallbacks', () => {
     const license = readFileSync(path('../public/fonts/Inter-OFL.txt'), 'utf8');
     expect(license).toContain('The Inter Project Authors');
     expect(license).toContain('SIL OPEN FONT LICENSE Version 1.1');
+  });
+});
+
+// Every IBM Plex Mono weight is a file the page downloads. The site uses two,
+// 400 and 600; a mono element asking for 500 would silently render at 400 (the
+// nearest face), so the class lists may not pair font-mono with font-medium.
+describe('IBM Plex Mono weights', () => {
+  it('global.css declares the 400 and 600 faces only', () => {
+    const faces = (css.match(/@font-face\s*\{[^}]*\}/g) ?? []).filter((f) =>
+      /font-family:\s*'IBM Plex Mono'/.test(f),
+    );
+    const weights = faces.map((f) => f.match(/font-weight:\s*(\d+)/)?.[1]).sort();
+    expect(weights).toEqual(['400', '600']);
+  });
+
+  it('no class list pairs font-mono with font-medium', () => {
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(astro|ts|mjs)$/.test(entry.name)) {
+          const text = readFileSync(full, 'utf8');
+          for (const m of text.matchAll(/class(?:Name)?=["'`]([^"'`]*)["'`]/g)) {
+            const classes = m[1].split(/\s+/);
+            if (classes.includes('font-mono') && classes.includes('font-medium')) {
+              offenders.push(`${full}: ${m[1]}`);
+            }
+          }
+        }
+      }
+    };
+    walk(path('../src'));
+    expect(offenders).toEqual([]);
   });
 });
