@@ -159,7 +159,7 @@ export function versionRowCells(row) {
   ];
 }
 
-export const VERSION_MAP_NOTE = `From 2.5.0 on, one number names the release on every artifact; only the Helm chart keeps its own chart version and carries the release as its application version. The ASP.NET Core Sidecar (${PKG_SIDECAR}) is versioned on its own; the current package is ${SIDECAR_VERSION}.`;
+export const VERSION_MAP_NOTE = `From 2.5.0 on, one number names the release on every artifact; only the Helm chart keeps its own chart version and carries the release as its application version. The ASP.NET Core Sidecar (${PKG_SIDECAR}) carries the release version from 2.6.0 on; the current package is ${SIDECAR_VERSION}.`;
 
 /**
  * The map as a Markdown table plus its note, for the agent files.

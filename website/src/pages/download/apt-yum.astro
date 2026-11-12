@@ -2,14 +2,24 @@
 import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TermPanel from '../../components/instrument/TermPanel.astro';
-import { LICENSE_CLAUSE, REPOSITORY_KEY, formatFingerprint } from '../../data/product-facts.mjs';
+import {
+  APACHE_PLATFORM_ROWS,
+  LICENSE_CLAUSE,
+  MODULE_APT_SHORT,
+  NGINX_APT_SHORT,
+  NGINX_PLATFORM_ROWS,
+  NGINX_RPM_SHORT,
+  REPOSITORY_KEY,
+  formatFingerprint,
+} from '../../data/product-facts.mjs';
+
+const pageDescription = `Signed apt and yum repository for the mod_pagespeed Apache and nginx modules: ${MODULE_APT_SHORT}, AlmaLinux, RHEL and Rocky 9 and 10.`;
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'TechArticle',
   headline: 'Install mod_pagespeed from packages.modpagespeed.com (apt + yum)',
-  description:
-    'Signed apt and yum repository for the mod_pagespeed Apache and nginx modules on Debian 12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10. One-line install configures the repo and pulls the package.',
+  description: `Signed apt and yum repository for the mod_pagespeed Apache and nginx modules on ${MODULE_APT_SHORT}, and AlmaLinux/RHEL/Rocky 9 and 10. One-line install configures the repo and pulls the package.`,
   about: 'mod_pagespeed',
   image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
@@ -27,7 +37,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Install mod_pagespeed on Apache & nginx via apt / yum"
-  description="Signed apt and yum repository for the mod_pagespeed Apache and nginx modules: Debian 12/13, Ubuntu 22.04/24.04, AlmaLinux, RHEL and Rocky 9 and 10."
+  description={pageDescription}
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
@@ -38,9 +48,8 @@ const jsonLd = {
     <p class="lede mt-6">
       A signed apt and yum repository for the mod_pagespeed Apache and nginx modules. One line
       detects the distro, installs the GPG signing key, writes the source file, and pulls the
-      package. The nginx module ships prebuilt for Debian 12/13 and Ubuntu 22.04/24.04 (amd64 and
-      arm64), and for RHEL/AlmaLinux/Rocky 9 (x86_64, aarch64) and 10 (x86_64), each pinned to that
-      distro's stock nginx.
+      package. The nginx module ships prebuilt for {NGINX_APT_SHORT} (amd64 and arm64), and for
+      RHEL/AlmaLinux/Rocky {NGINX_RPM_SHORT}, each pinned to that distro's stock nginx.
     </p>
 
     <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
@@ -67,7 +76,7 @@ const jsonLd = {
           labelledby="apt-yum-apache-lead"
           lines={[
             {
-              text: `# Debian 12/13, Ubuntu 22.04/24.04
+              text: `# ${MODULE_APT_SHORT}
 sudo apt-get install mod-pagespeed
 
 # AlmaLinux / RHEL / Rocky 9 and 10
@@ -85,7 +94,7 @@ sudo dnf install mod-pagespeed`,
           labelledby="apt-yum-nginx-lead"
           lines={[
             {
-              text: `# Debian 12/13, Ubuntu 22.04/24.04: the worker first, then the module
+              text: `# ${NGINX_APT_SHORT}: the worker first, then the module
 sudo apt-get install pagespeed-optimizer
 sudo apt-get install nginx-module-pagespeed
 
@@ -136,59 +145,23 @@ sudo dnf install nginx-module-pagespeed`,
       nginx (<code class="font-mono">nginx-module-pagespeed</code>)
     </p>
     <ul class="mt-2 space-y-2 text-text-body">
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Debian 12 (bookworm), amd64 + arm64, stock nginx 1.22.1</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Debian 13 (trixie), amd64 + arm64, stock nginx 1.26.3</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Ubuntu 22.04 (jammy), amd64 + arm64, stock nginx 1.18.0</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Ubuntu 24.04 (noble), amd64 + arm64, stock nginx 1.24.0</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>AlmaLinux 9 / RHEL 9 / Rocky 9 (el9), x86_64 + aarch64, stock nginx 1.20.1</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>AlmaLinux 10 / RHEL 10 / Rocky 10 (el10), x86_64</span>
-      </li>
+      {NGINX_PLATFORM_ROWS.map((row) => (
+        <li class="flex items-start gap-3">
+          <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
+          <span>{row}</span>
+        </li>
+      ))}
     </ul>
     <p class="mt-6 text-sm font-semibold text-text-body">
       Apache (<code class="font-mono">mod-pagespeed</code>)
     </p>
     <ul class="mt-2 space-y-2 text-text-body">
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Debian 12 (bookworm), amd64 + arm64</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Debian 13 (trixie), amd64 + arm64</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Ubuntu 22.04 (jammy), amd64 + arm64</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>Ubuntu 24.04 (noble), amd64 + arm64</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>AlmaLinux 9 / RHEL 9 / Rocky 9 (el9), x86_64 + aarch64</span>
-      </li>
-      <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
-        <span>AlmaLinux 10 / RHEL 10 / Rocky 10 (el10), x86_64</span>
-      </li>
+      {APACHE_PLATFORM_ROWS.map((row) => (
+        <li class="flex items-start gap-3">
+          <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
+          <span>{row}</span>
+        </li>
+      ))}
     </ul>
     <p class="mt-4 text-sm text-text-annotation">
       Debian 11 (bullseye): the repository's bullseye suite carries the 1.15.0 module packages. The

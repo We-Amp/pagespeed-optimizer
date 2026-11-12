@@ -500,8 +500,14 @@ export const MODULE_PACKAGE_VERSION = '2.8.1';
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
 export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // mod_pagespeed 1.15 sidecar
 export const PKG_SIDECAR_NATIVE = 'WeAmp.PageSpeed.Sidecar.NativeAssets.Linux';
-export const SIDECAR_VERSION = '1.17.0'; // WeAmp.PageSpeed.Sidecar package version on nuget.org (follows the module packages)
-export const SIDECAR_NGINX_VERSION = '1.30.4'; // nginx bundled inside the sidecar package (its nuspec release notes)
+// From 2.6.0 on the sidecar packages carry the product version and ship with
+// every release (release-notes-2-6.mdx, release-notes-2-8.mdx), so the package
+// version is the release version the module packages carry.
+export const SIDECAR_VERSION = MODULE_PACKAGE_VERSION; // WeAmp.PageSpeed.Sidecar package version on nuget.org
+// nginx bundled in the sidecar native pair: the bundled nginx of the release,
+// docker/nginx-version.txt (release-notes-2-5.mdx: 1.30.6 covers the
+// container images and the sidecar native pair).
+export const SIDECAR_NGINX_VERSION = '1.30.6';
 export const SIDECAR_RIDS = ['linux-x64', 'linux-arm64'];
 export const ASPNETCORE_RIDS = ['linux-x64', 'linux-arm64', 'osx-arm64', 'win-x64'];
 // Target frameworks the ASP.NET Core middleware ships for.
@@ -535,9 +541,78 @@ export const NGINX_APT_DISTROS = [
 ];
 export const NGINX_APT_ARCHES = 'amd64 + arm64';
 // Compact prose listing of the prebuilt apt matrix, e.g.
-// "Debian 11 bullseye (nginx 1.18.0), Debian 12 bookworm (nginx 1.22.1), …".
+// "Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), …".
 const aptMatrix = (rows) => rows.map((d) => `${d.distro} (nginx ${d.nginx})`).join(', ');
 export const NGINX_APT_MATRIX = /* @__PURE__ */ aptMatrix(NGINX_APT_DISTROS);
+
+// The Enterprise Linux releases of nginx-module-pagespeed in the signed yum
+// repository (release-notes-2-8.mdx, 2.8.0 Packages: x86_64 and aarch64 on 9,
+// x86_64 only on 10). `nginx` is the stock nginx the el9 build is pinned to.
+export const NGINX_RPM_DISTROS = [
+  { release: '9', family: 'el9', arches: 'x86_64 + aarch64', nginx: STOCK_NGINX_ALMA },
+  { release: '10', family: 'el10', arches: 'x86_64', nginx: null },
+];
+
+// Platform lists for install blurbs, derived from the two tables above so
+// every page names the same releases. "Debian 12/13, Ubuntu 22.04/24.04/26.04".
+const splitDistro = (row) => {
+  const [name, version, codename] = row.distro.split(' ');
+  return { name, version, codename };
+};
+const aptByName = (rows) => {
+  /** @type {Map<string, string[]>} */
+  const byName = new Map();
+  for (const row of rows) {
+    const { name, version } = splitDistro(row);
+    byName.set(name, [...(byName.get(name) ?? []), version]);
+  }
+  return [...byName];
+};
+const joinAnd = (items) =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+const aptShort = (rows, space) =>
+  aptByName(rows)
+    .map(([name, versions]) => `${name}${space}${versions.join('/')}`)
+    .join(', ');
+const rpmShort = (rows) => joinAnd(rows.map((r) => `${r.release} (${r.arches})`));
+/** "Debian 12/13, Ubuntu 22.04/24.04/26.04" (plain spaces). */
+export const NGINX_APT_SHORT = /* @__PURE__ */ aptShort(NGINX_APT_DISTROS, ' ');
+/** The same with non-breaking spaces between a distribution and its versions. */
+export const NGINX_APT_SHORT_NBSP = /* @__PURE__ */ aptShort(NGINX_APT_DISTROS, '\u00a0');
+/** "9 (x86_64 + aarch64) and 10 (x86_64)" */
+export const NGINX_RPM_SHORT = /* @__PURE__ */ rpmShort(NGINX_RPM_DISTROS);
+/** "Debian 12 and 13 and Ubuntu 22.04, 24.04 and 26.04" */
+export const NGINX_APT_PROSE = /* @__PURE__ */ aptByName(NGINX_APT_DISTROS)
+  .map(([name, versions]) => `${name} ${joinAnd(versions)}`)
+  .join(' and ');
+// The Apache module (mod-pagespeed) ships in the same apt suites and EL
+// releases as the nginx module (the apt index serves mod-pagespeed in every
+// suite of NGINX_APT_DISTROS), so the lists below are shared by both modules.
+/** "Debian 12/13, Ubuntu 22.04/24.04/26.04" for either module. */
+export const MODULE_APT_SHORT = NGINX_APT_SHORT;
+/** One row per supported release of the Apache module, for a bullet list. */
+export const APACHE_PLATFORM_ROWS = /* @__PURE__ */ [
+  ...NGINX_APT_DISTROS.map((row) => {
+    const { name, version, codename } = splitDistro(row);
+    return `${name} ${version} (${codename}), ${NGINX_APT_ARCHES}`;
+  }),
+  ...NGINX_RPM_DISTROS.map(
+    (r) =>
+      `AlmaLinux ${r.release} / RHEL ${r.release} / Rocky ${r.release} (${r.family}), ${r.arches}`,
+  ),
+];
+/** One row per supported release, for a bullet list. */
+export const NGINX_PLATFORM_ROWS = /* @__PURE__ */ [
+  ...NGINX_APT_DISTROS.map((row) => {
+    const { name, version, codename } = splitDistro(row);
+    return `${name} ${version} (${codename}), ${NGINX_APT_ARCHES}, stock nginx ${row.nginx}`;
+  }),
+  ...NGINX_RPM_DISTROS.map(
+    (r) =>
+      `AlmaLinux ${r.release} / RHEL ${r.release} / Rocky ${r.release} (${r.family}), ${r.arches}` +
+      (r.nginx ? `, stock nginx ${r.nginx}` : ''),
+  ),
+];
 
 // --- Software license -------------------------------------------------------
 // Single source of truth for the license the software is distributed under,
