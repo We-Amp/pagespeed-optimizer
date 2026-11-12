@@ -4,7 +4,7 @@
 // The downloadable Markdown report: what the page showed, as plain text.
 // Pure; the caller turns the string into a file.
 
-import { RISK_LENSES } from './status';
+import { RISK_LENSES, lensMeasured } from './status';
 
 type Report = Record<string, unknown> & { grade?: string; score?: number };
 
@@ -22,10 +22,9 @@ export function riskStates(report: Report | null): Array<{ name: string; state: 
   for (const lens of RISK_LENSES) {
     const v = report[lens.key] as { status?: string; verdict?: string } | undefined;
     if (!v || v.status === 'disabled') continue;
-    const measured = v.status === 'ok' && v.verdict !== 'unknown';
     rows.push({
       name: LENS_NAME[lens.key],
-      state: !measured
+      state: !lensMeasured(v)
         ? 'Not measured'
         : v.verdict === lens.flagged
           ? 'Attention'

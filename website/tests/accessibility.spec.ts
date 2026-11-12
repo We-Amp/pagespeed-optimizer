@@ -3,6 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { auditLinks } from './helpers/link-names';
 
 const PAGES_FOR_AXE_SCAN = [
   '/',
@@ -40,6 +41,30 @@ const PAGES_FOR_PHONE_AXE_SCAN = [
   '/error/404/',
 ];
 
+// The alt-text and link-name audit covers every page the axe scans cover.
+const LINK_AUDIT_PAGES = [...new Set([...PAGES_FOR_AXE_SCAN, ...PAGES_FOR_PHONE_AXE_SCAN])];
+
+// Link names that already lead to two pages, each pinned to the pages it
+// leads to today, so a new shared name or a further destination fails. Each
+// is a wording decision; remove the entry once the names differ.
+const SUPPORT_PLANS = ['/pricing/', '/support/'];
+const RULE_PACKS = ['/docs/rule-packs/', '/packs/'];
+const KNOWN_SHARED_LINK_NAMES: Record<string, Record<string, string[]>> = {
+  '/demo/': {
+    'open the live admin console': [
+      'https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/',
+      'https://we-amp.com/pagespeed_global_admin/',
+    ],
+    'support plans': SUPPORT_PLANS,
+  },
+  '/support/': { 'contact form': ['/contact/', '/contact/?topic=iispeed-transfer'] },
+  '/docs/filters/': { 'rule packs': RULE_PACKS },
+  '/docs/filters/lazyload_images/': { 'rule packs': RULE_PACKS },
+  '/calculator/': { 'support plans': SUPPORT_PLANS },
+  '/alternatives/': { 'support plans': SUPPORT_PLANS },
+  '/blog/avif-vs-webp-2026/': { 'support plans': SUPPORT_PLANS },
+};
+
 test.describe('Accessibility', () => {
   test('skip-to-content link is first focusable element', async ({ page }) => {
     await page.goto('/');
@@ -69,18 +94,6 @@ test.describe('Accessibility', () => {
         .catch(() => undefined);
     }
     expect(href).toBe('#main-content');
-  });
-
-  test('all images have alt text', async ({ page }) => {
-    await page.goto('/');
-    const images = page.locator('img');
-    const count = await images.count();
-    for (let i = 0; i < count; i++) {
-      const img = images.nth(i);
-      const alt = await img.getAttribute('alt');
-      // alt="" is valid for decorative images; only fail if alt is missing entirely
-      expect(alt !== null, `Image ${i} is missing alt attribute`).toBeTruthy();
-    }
   });
 
   test('calculator inputs have associated labels', async ({ page }) => {
@@ -136,25 +149,65 @@ test.describe('Accessibility', () => {
     await expect(html).toHaveAttribute('lang', 'en');
   });
 
-  test('links have discernible text', async ({ page }) => {
-    await page.goto('/');
-    const links = page.locator('a:not([aria-hidden="true"])');
-    const count = await links.count();
-    for (let i = 0; i < count; i++) {
-      const link = links.nth(i);
-      const text = await link.textContent();
-      const ariaLabel = await link.getAttribute('aria-label');
-      const title = await link.getAttribute('title');
-      const hasText = (text && text.trim().length > 0) || ariaLabel || title;
-      // Skip SVG-only decorative links
-      const hasImg = (await link.locator('img, svg').count()) > 0;
-      if (!hasImg) {
-        expect(
-          hasText,
-          `Link ${i} (href=${await link.getAttribute('href')}) has no discernible text`,
-        ).toBeTruthy();
+  // WCAG 1.1.1 and 2.4.4: every image carries an alt attribute, every link a
+  // screen reader is offered has a name (an image or icon inside it counts
+  // only through its alt, label or <title>), and one name does not lead to
+  // two different pages.
+  for (const pagePath of LINK_AUDIT_PAGES) {
+    test(`images have alt text and links have distinct names: ${pagePath}`, async ({ page }) => {
+      // A cold dev server can reload the page once after its first visit,
+      // which destroys the context the audit runs in; audit again from a
+      // fresh load then.
+      const run = async () => {
+        await page.goto(pagePath, { waitUntil: 'load' });
+        return page.evaluate(auditLinks);
+      };
+      let audit: Awaited<ReturnType<typeof run>>;
+      try {
+        audit = await run();
+      } catch (err) {
+        if (!String(err).includes('Execution context was destroyed')) throw err;
+        audit = await run();
       }
-    }
+      expect.soft(audit.imagesWithoutAlt, 'images without an alt attribute').toEqual([]);
+      expect.soft(audit.unnamedLinks, 'links without an accessible name').toEqual([]);
+      expect
+        .soft(audit.genericLinks, 'links named only "read more", "here" and the like')
+        .toEqual([]);
+      const known = KNOWN_SHARED_LINK_NAMES[pagePath] ?? {};
+      const sameTargets = (a: string[], b: string[] = []) =>
+        a.length === b.length && [...a].sort().every((t, i) => t === [...b].sort()[i]);
+      const ambiguous = audit.sameNameDifferentTargets.filter(
+        (d) => !sameTargets(d.targets, known[d.name]),
+      );
+      expect
+        .soft(
+          ambiguous,
+          `one link name, several pages:\n${ambiguous
+            .map((d) => `  "${d.name}": ${d.targets.join(', ')}`)
+            .join('\n')}`,
+        )
+        .toEqual([]);
+    });
+  }
+
+  test('the link audit catches an unnamed icon link and a shared name', async ({ page }) => {
+    await page.setContent(`
+      <img src="data:," />
+      <a href="/a/"><svg aria-hidden="true"></svg></a>
+      <a href="/b/"><img src="data:," alt="" /></a>
+      <a href="/c/"><svg><title>Close</title></svg></a>
+      <a href="/d/" aria-label="Docs"><img src="data:," alt="" /></a>
+      <a href="/e/">Docs</a>
+      <a href="/f/">Read more</a>
+      <a href="/g/#one">Guide</a>
+      <a href="/g/#two">Guide</a>
+    `);
+    const audit = await page.evaluate(auditLinks);
+    expect(audit.imagesWithoutAlt).toHaveLength(1);
+    expect(audit.unnamedLinks).toHaveLength(2);
+    expect(audit.genericLinks).toEqual(['"Read more"']);
+    expect(audit.sameNameDifferentTargets.map((d) => d.name)).toEqual(['docs']);
   });
 
   test('main navigation has aria-label', async ({ page }) => {
