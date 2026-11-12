@@ -67,20 +67,13 @@
 
 /* IBM Plex Mono (SIL OFL 1.1) — self-hosted, no Google Fonts call. Carries all
    numerics, labels, code, status, logo & buttons.
-   Latin subset, weights 400/500/600. License: /fonts/IBM-Plex-Mono-OFL.txt */
+   Latin subset, weights 400 and 600 (no 500: one font file fewer per page). License: /fonts/IBM-Plex-Mono-OFL.txt */
 @font-face {
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
   src: url('/fonts/plex-mono-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/plex-mono-500.woff2') format('woff2');
 }
 @font-face {
   font-family: 'IBM Plex Mono';
