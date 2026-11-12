@@ -1768,6 +1768,68 @@ TEST(ImageTranscoderSaveDataTest, LowQualityJpegSourceSaveDataTierIsSmaller) {
   EXPECT_LT(saved.optimized_original.output_data.size(), jpeg.size());
 }
 
+// The worker runs mobile, tablet, then desktop for one Save-Data group and
+// carries each pass's final JPEG quality into the next as |carried_hint|.
+// The hint stands in for the JPEG verify search, which only runs on resized
+// pixels; a full-size pass never searches.  So the full-size (desktop) pass
+// must come out exactly as it does without a hint: otherwise its JPEG quality
+// depends on which smaller viewports ran first, and the cross-format gate can
+// refuse the normal WebP for being larger than that JPEG (#482).
+TEST(ImageTranscoderSaveDataTest, FullSizePassIgnoresHintFromSmallerViewports) {
+  pagespeed::NullMessageHandler handler;
+  // Narrow mobile and tablet widths keep both passes resized and the test
+  // fast; for this fixture they verify a JPEG quality that differs from the
+  // full-size prediction.  AVIF is left out: it does not feed the hint.
+  pagespeed::ImageTranscoderConfig config;
+  config.viewport_widths.mobile = 128;
+  config.viewport_widths.tablet = 256;
+  pagespeed::ImageTranscoder transcoder(config, &handler);
+  std::string jpeg = ReadTestFile("jpeg/sjpeg3.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const int source_quality =
+      ImageTranscoder::DetectSourceJpegQuality(jpeg, &handler);
+  const std::vector<CapabilityMask::ImageFormat> formats = {
+      CapabilityMask::ImageFormat::kOriginal,
+      CapabilityMask::ImageFormat::kWebP,
+  };
+
+  // Mirror the worker loop: mobile -> tablet -> desktop, carrying the hint.
+  int carried = -1;
+  for (auto vp :
+       {CapabilityMask::Viewport::kMobile, CapabilityMask::Viewport::kTablet}) {
+    auto r = transcoder.TranscodeMultiResized(
+        jpeg, formats, vp, CapabilityMask::PixelDensity::k1x,
+        CapabilityMask::SaveData::kOff,
+        {.carried_hint = carried, .source_quality = source_quality});
+    if (r.final_jpeg_quality > 0) carried = r.final_jpeg_quality;
+  }
+  ASSERT_GT(carried, 0) << "the resized passes must report a JPEG quality";
+
+  auto hinted = transcoder.TranscodeMultiResized(
+      jpeg, formats, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      {.carried_hint = carried, .source_quality = source_quality});
+  auto unhinted = transcoder.TranscodeMultiResized(
+      jpeg, formats, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      {.source_quality = source_quality});
+
+  ASSERT_TRUE(unhinted.optimized_original.success)
+      << unhinted.optimized_original.error_message;
+  ASSERT_TRUE(hinted.optimized_original.success)
+      << hinted.optimized_original.error_message;
+  EXPECT_EQ(hinted.optimized_original.output_data.size(),
+            unhinted.optimized_original.output_data.size())
+      << "carried quality " << carried;
+  EXPECT_TRUE(hinted.optimized_original.output_data ==
+              unhinted.optimized_original.output_data)
+      << "the full-size JPEG depends on the carried hint";
+  if (unhinted.webp.success) {
+    EXPECT_TRUE(hinted.webp.success) << hinted.webp.error_message;
+    EXPECT_EQ(hinted.webp.output_data.size(), unhinted.webp.output_data.size());
+  }
+}
+
 // =================================================================
 // Pixel density resizing tests (Feature 3)
 // =================================================================
@@ -6360,7 +6422,7 @@ TEST(ImageTranscoderFormatPathTest, GifToWebpViaConvertGifToWebp) {
 // encode_src == &decoded (lines 1048-1050).
 // =================================================================
 
-TEST(ImageTranscoderResizeCoverageTest, JpegQualityHintPreventsShortcut) {
+TEST(ImageTranscoderResizeCoverageTest, JpegQualityHintIgnoredWithoutResize) {
   NullMessageHandler handler;
   ImageTranscoderConfig config;
   config.viewport_widths.mobile = 1024;  // Larger than image, no resize
@@ -6377,16 +6439,22 @@ TEST(ImageTranscoderResizeCoverageTest, JpegQualityHintPreventsShortcut) {
       CapabilityMask::ImageFormat::kOriginal,
   };
 
-  // With jpeg_quality_hint > 0, the no-resize TranscodeMulti shortcut
-  // should be bypassed (line 949-951), exercising the full encode path.
+  // No resize applies, so the carried hint does not change the encode
+  // (#482): the output is the one a call without a hint produces.  The hint
+  // is passed through in final_jpeg_quality for the caller's next pass.
   auto result = transcoder.TranscodeMultiResized(
       jpeg, formats, CapabilityMask::Viewport::kMobile,
       CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
       {.carried_hint = 70});
+  auto unhinted = transcoder.TranscodeMultiResized(
+      jpeg, formats, CapabilityMask::Viewport::kMobile);
 
-  EXPECT_TRUE(result.optimized_original.success)
+  ASSERT_TRUE(result.optimized_original.success)
       << result.optimized_original.error_message;
-  // The hint quality should be applied.
+  ASSERT_TRUE(unhinted.optimized_original.success)
+      << unhinted.optimized_original.error_message;
+  EXPECT_TRUE(result.optimized_original.output_data ==
+              unhinted.optimized_original.output_data);
   EXPECT_EQ(result.final_jpeg_quality, 70);
 }
 

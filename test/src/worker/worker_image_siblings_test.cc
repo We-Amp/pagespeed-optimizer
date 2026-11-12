@@ -1460,6 +1460,112 @@ TEST_F(WorkerTest, ImageMatrixWritesNormalSlotsAndSaveDataIsSmallerOrRefused) {
   worker_thread.join();
 }
 
+// On a source resized at mobile and tablet, the full normal matrix is
+// written, or each empty normal slot was refused with a logged reason and
+// counted.  The full-size desktop JPEG does not depend on the
+// smaller viewports processed before it in the same pass: it is byte for byte
+// the JPEG a desktop-only pass writes (#482).
+TEST_F(WorkerTest, ResizedImageMatrixWritesNormalSlotsOrderIndependent) {
+  const std::string url = "http://example.com/resized.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg3.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const CapabilityMask::ImageFormat formats[] = {
+      CapabilityMask::ImageFormat::kOriginal,
+      CapabilityMask::ImageFormat::kWebP,
+      CapabilityMask::ImageFormat::kAvif,
+  };
+  const CapabilityMask::Viewport viewports[] = {
+      CapabilityMask::Viewport::kMobile,
+      CapabilityMask::Viewport::kTablet,
+      CapabilityMask::Viewport::kDesktop,
+  };
+  auto mask_of = [](CapabilityMask::ImageFormat fmt,
+                    CapabilityMask::Viewport vp) {
+    return CapabilityMask(fmt, vp, CapabilityMask::PixelDensity::k1x,
+                          CapabilityMask::SaveData::kOff,
+                          CapabilityMask::TransferEncoding::kIdentity);
+  };
+  const CapabilityMask desktop_jpeg =
+      mask_of(CapabilityMask::ImageFormat::kOriginal,
+              CapabilityMask::Viewport::kDesktop);
+
+  // One worker pass over the image; returns the normal desktop JPEG.
+  auto run_pass = [&](bool full_matrix, const std::string& dir) {
+    cache_path_ = temp_dir_ + "/" + dir;
+#ifndef _WIN32
+    socket_path_ = temp_dir_ + "/" + dir + ".sock";
+#else
+    socket_path_ += dir;
+#endif
+    WorkerConfig config;
+    config.socket_path = socket_path_;
+    config.cache_path = cache_path_;
+    config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+    config.proactive_image_variants = true;
+    config.proactive_viewport_variants = full_matrix;
+    config.proactive_savedata_variants = false;
+    config.proactive_density_variants = false;
+    // Narrow widths keep mobile and tablet resized and the test fast.
+    config.mobile_width = 128;
+    config.tablet_width = 256;
+
+    SlotLogHandler handler;
+    Worker worker(config, &handler);
+    EXPECT_TRUE(worker.Initialize());
+    CacheOriginal(worker.cache(), url, jpeg);
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kImage;
+    notification.capability_mask = desktop_jpeg.Encode();
+    SendNotification(notification);
+    WaitForNotificationRetiredWithVariant(worker);
+
+    std::string desktop;
+    if (full_matrix) {
+      uint64_t empty_converted = 0;
+      for (auto vp : viewports) {
+        for (auto fmt : formats) {
+          const std::string normal =
+              ReadVariant(worker.cache(), url, mask_of(fmt, vp));
+          if (!normal.empty()) continue;
+          EXPECT_NE(fmt, CapabilityMask::ImageFormat::kOriginal)
+              << "original-format normal slot missing at viewport "
+              << static_cast<int>(vp);
+          ++empty_converted;
+          EXPECT_TRUE(handler.HasLine(
+              SlotNeedle(fmt, vp, CapabilityMask::SaveData::kOff),
+              "not written"))
+              << "no logged reason for the empty normal slot, format "
+              << static_cast<int>(fmt) << " viewport " << static_cast<int>(vp);
+        }
+      }
+      // Every empty normal WebP/AVIF slot was counted: as a size refusal, a
+      // quality decline, or an unconverted fall-through.
+      EXPECT_GE(worker.stats().image_size_refused_webp.load() +
+                    worker.stats().image_size_refused_avif.load() +
+                    worker.stats().ssimulacra2_declines.load() +
+                    worker.stats().image_unconverted_fallthrough.load(),
+                empty_converted);
+    }
+    desktop = ReadVariant(worker.cache(), url, desktop_jpeg);
+    worker.Shutdown();
+    worker_thread.join();
+    return desktop;
+  };
+
+  const std::string from_matrix = run_pass(/*full_matrix=*/true, "matrix");
+  const std::string desktop_only = run_pass(/*full_matrix=*/false, "desktop");
+  ASSERT_FALSE(desktop_only.empty());
+  ASSERT_FALSE(from_matrix.empty());
+  EXPECT_EQ(from_matrix.size(), desktop_only.size());
+  EXPECT_TRUE(from_matrix == desktop_only)
+      << "the desktop JPEG depends on the viewports processed before it";
+}
+
 // A Save-Data variant that is not smaller than the stored normal variant of
 // its slot is refused, counted exactly once, and not stored.
 TEST_F(WorkerTest, SaveDataVariantNotSmallerThanNormalIsRefusedAndCounted) {

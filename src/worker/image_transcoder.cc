@@ -1874,7 +1874,6 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
     return result;
   }
 
-  const int jpeg_quality_hint = quality.carried_hint;
   const int source_jpeg_quality = quality.source_quality;
 
   // Thread-safe: config() returns a snapshot from the accessor.
@@ -1964,6 +1963,17 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
       encode_src = &resized;
     }
   }
+
+  // The carried hint stands in for the JPEG verify search, which only runs on
+  // resized pixels.  A full-size pass never searches, so it ignores the hint
+  // and encodes at the quality chosen for the full-size image; otherwise the
+  // full-size JPEG would depend on which smaller viewports ran before it in
+  // the same loop, and the cross-format gate could refuse a WebP or AVIF
+  // against that JPEG (#482).  The hint is passed through unchanged in
+  // final_jpeg_quality so the caller's loop carries it on to the next
+  // resized pass.
+  const bool resized_pixels = encode_src != &decoded;
+  const int jpeg_quality_hint = resized_pixels ? quality.carried_hint : -1;
 
   // Run content analysis on ORIGINAL (unresized) pixels so the
   // classification is consistent across all viewport sizes.  Content class
@@ -2107,6 +2117,9 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
     fast.used_learned_quality = result.used_learned_quality;
     fast.learned_quality_fallbacks = result.learned_quality_fallbacks;
     fast.quality_capped_count += result.quality_capped_count;
+    if (quality.carried_hint > 0) {
+      fast.final_jpeg_quality = quality.carried_hint;  // Passed through.
+    }
     return fast;
   }
 
@@ -2476,7 +2489,9 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
   }
 
   // Record the final qualities so callers can carry them forward.
-  result.final_jpeg_quality = local_config.jpeg_quality;
+  result.final_jpeg_quality = (!resized_pixels && quality.carried_hint > 0)
+                                  ? quality.carried_hint
+                                  : local_config.jpeg_quality;
   result.final_webp_quality = local_config.webp_quality;
   result.final_avif_quality = local_config.avif_quality;
 
