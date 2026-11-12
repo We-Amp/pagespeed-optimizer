@@ -23,6 +23,11 @@
 // words of its own prose gets a topic page with `noindex,follow`, stays out of
 // the sitemap and out of llms.txt. Enriching the section on the group page
 // lifts the guard on the next build; nothing else needs to change.
+//
+// Alternate spellings (`insert_img_dimensions`, `left_trim_urls`) are never
+// indexable themselves. When the primary spelling's page is indexable, the
+// alternate page names it as its canonical (`canonicalPath`) instead of
+// carrying `noindex`, so the two pages send one signal: index the primary.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -644,6 +649,8 @@ export const RELATED = {
  * @property {{ apache: string, nginx: string, iis: string } | null} enable
  * @property {{ apache: string, nginx: string, iis: string } | null} disable
  * @property {boolean} indexable
+ * @property {string} canonicalPath  this page's own path, or the primary
+ *   spelling's path for an alternate spelling whose primary is indexable
  * @property {string} title
  * @property {string} description
  * @property {Array<{ q: string, a: string }>} faq  answers in markdown (code spans only)
@@ -786,7 +793,7 @@ export function loadFilterTopics(root = websiteRoot()) {
   ];
   const allNames = new Set(entries.map((e) => /** @type {string} */ (e.name)));
 
-  return entries.map((e) => {
+  const topics = entries.map((e) => {
     const human = HUMAN_NAMES[e.name];
     if (!human) throw new Error(`filter-topics.mjs: no HUMAN_NAMES entry for ${e.name}`);
     const page = /** @type {Record<string, string>} */ (PAGE_BY_CATEGORY)[e.category];
@@ -848,8 +855,15 @@ export function loadFilterTopics(root = websiteRoot()) {
       title: topicTitle(human, e.name),
       description: topicDescription(summary, e.name),
       faq: buildFaq(base),
+      canonicalPath: base.path,
     };
   });
+  const byName = new Map(topics.map((t) => [t.name, t]));
+  for (const t of topics) {
+    const primary = t.alternateSpellingOf ? byName.get(t.alternateSpellingOf) : undefined;
+    if (primary?.indexable) t.canonicalPath = primary.path;
+  }
+  return topics;
 }
 
 /** Names of the topic pages that are indexable (sitemap, llms.txt). */
