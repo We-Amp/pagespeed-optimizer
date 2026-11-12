@@ -6,7 +6,7 @@
 // src/layouts/parts/SiteHeader.astro and SiteFooter.astro.
 
 // Primary nav (target IA): Docs (a structured, four-column menu), the tools,
-// the commercial offers and the comparisons are four dropdowns; Blog and Contact are flat;
+// the commercial offers and the product pages are four dropdowns; Blog and Contact are flat;
 // "Download & run" is the one button. Support items are paid CTAs and carry
 // the cta_commercial event with offer/surface/position properties (umami
 // `data-umami-event-<prop>`); other items keep their existing event names.
@@ -198,8 +198,20 @@ export const navLinks: Array<{
     ],
   },
   {
-    label: 'Compare',
+    label: 'Product',
     children: [
+      {
+        href: '/features/',
+        label: 'Features',
+        subtitle: 'The full feature set: images, CSS, caching',
+        umamiEvent: 'nav-features',
+      },
+      {
+        href: '/how-it-works/',
+        label: 'How it works',
+        subtitle: 'How a server-side optimizer works',
+        umamiEvent: 'nav-how-it-works',
+      },
       {
         href: '/alternatives/',
         label: 'Alternatives',
@@ -229,7 +241,8 @@ export function umamiAttrs(props?: UmamiProps, positionSuffix = ''): Record<stri
   );
 }
 
-// Footer: four groups plus Legal (target IA). Paid links carry cta_commercial
+// Footer: five groups plus Legal. Tools holds the interactive tools; Guides
+// holds the topic landing pages. Paid links carry cta_commercial
 // with surface "footer"; links that already reported an event keep its name.
 export type FooterLink = {
   href: string;
@@ -258,6 +271,11 @@ export const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
       },
       { href: '/docs/release-notes/', label: 'Release notes' },
       { href: '/security/', label: 'Security' },
+      {
+        href: '/mod-pagespeed-still-maintained/',
+        label: 'Is it still maintained?',
+        umamiEvent: 'nav-still-maintained-footer',
+      },
       { href: '/docs/upgrade/', label: 'Upgrade' },
       { href: '/alternatives/', label: 'Alternatives' },
       { href: '/core-web-vitals/', label: 'Core Web Vitals' },
@@ -296,11 +314,17 @@ export const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
       },
       { href: '/calculator/', label: 'Savings calculator' },
       { href: '/demo/', label: 'Demo' },
+    ],
+  },
+  {
+    title: 'Guides',
+    links: [
       { href: '/pagespeed-markers/', label: 'PageSpeed markers' },
       { href: '/pagespeed-insights/', label: 'PageSpeed Insights' },
       { href: '/wordpress/', label: 'WordPress caching' },
       { href: '/aspnet-core-performance/', label: 'ASP.NET Core performance' },
       { href: '/self-hosted-image-optimization/', label: 'Self-hosted image optimization' },
+      { href: '/psol/', label: 'PSOL', umamiEvent: 'nav-psol-footer' },
     ],
   },
   {

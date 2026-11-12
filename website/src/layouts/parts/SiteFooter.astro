@@ -20,7 +20,7 @@ const logoDark = '/logo-dark.svg';
     <footer data-site-footer class="border-t border-border bg-bg-secondary">
       <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
         <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-8 xl:gap-7">
-          <div class="col-span-2 sm:col-span-3 lg:col-span-1">
+          <div class="col-span-full lg:col-span-1 xl:row-span-2">
             <img
               src={logoLight}
               alt={currentLabel}
@@ -28,7 +28,7 @@ const logoDark = '/logo-dark.svg';
               height="28"
               loading="lazy"
               fetchpriority="low"
-              class="h-7 w-auto dark:hidden"
+              class="h-7 w-auto object-contain object-left dark:hidden"
             />
             <img
               src={logoDark}
@@ -37,7 +37,7 @@ const logoDark = '/logo-dark.svg';
               height="28"
               loading="lazy"
               fetchpriority="low"
-              class="h-7 w-auto hidden dark:block"
+              class="h-7 w-auto object-contain object-left hidden dark:block"
             />
             <p class="mt-3 text-sm text-text-muted">
               Built by We-Amp &mdash; the team that helped build ngx_pagespeed, maintaining
@@ -82,8 +82,18 @@ const logoDark = '/logo-dark.svg';
             </a>
           </div>
 
+          {/* Tools and Legal share a column (Legal under Tools): from lg, Guides and
+              Support and company span two rows; from xl, Product and Install and
+              docs too. */}
           {footerGroups.map((group) => (
-            <div>
+            <div
+              class:list={[
+                {
+                  'lg:row-span-2': ['Guides', 'Support and company'].includes(group.title),
+                  'xl:row-span-2': ['Product', 'Install and docs'].includes(group.title),
+                },
+              ]}
+            >
               <p class="eyebrow uppercase text-text-annotation tracking-[0.08em] sm:whitespace-nowrap [&::before]:hidden">
                 {group.title}
               </p>

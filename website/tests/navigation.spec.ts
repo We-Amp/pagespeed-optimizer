@@ -22,7 +22,7 @@ test.describe('Navigation', () => {
     }
     await page.goto('/');
     const groups = await page.locator('header nav button.nav-dropdown-btn').allInnerTexts();
-    expect(groups.map((g) => g.trim())).toEqual(['Docs', 'Tools', 'Support', 'Compare']);
+    expect(groups.map((g) => g.trim())).toEqual(['Docs', 'Tools', 'Support', 'Product']);
     // Rule packs left the top level; it lives in the Docs panel.
     await expect(page.locator('header nav .lg\\:flex > a:has-text("Rule packs")')).toHaveCount(0);
   });
@@ -289,7 +289,69 @@ test.describe('Navigation', () => {
     await expect(desktopNav).toHaveAttribute('aria-current', 'page');
   });
 
-  test('footer has four groups plus Legal', async ({ page }) => {
+  test('Product dropdown lists features, how it works, alternatives and Core Web Vitals', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Product")').click();
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    const hrefs = await panel
+      .locator('a')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('href')));
+    expect(hrefs).toEqual(['/features/', '/how-it-works/', '/alternatives/', '/core-web-vitals/']);
+    await expect(panel.locator('a[href="/features/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-features',
+    );
+    await expect(panel.locator('a[href="/how-it-works/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-how-it-works',
+    );
+    await page.goto('/features/');
+    await expect(
+      page.locator('header nav button.nav-dropdown-btn:has-text("Product")'),
+    ).toHaveClass(/nav-item-active/);
+  });
+
+  test('footer splits tools from guides and links the PSOL and maintenance pages', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const group = (title: string) =>
+      page.locator(`footer div:has(> p.uppercase:text-is("${title}")) > ul a`);
+    const tools = await group('Tools').evaluateAll((els) =>
+      els.map((el) => el.getAttribute('href')),
+    );
+    expect(tools).toEqual([
+      '/ai-readability/',
+      '/analyze/',
+      '/examples/',
+      'https://we-amp.com/pagespeed_global_admin/',
+      '/calculator/',
+      '/demo/',
+    ]);
+    const guides = await group('Guides').evaluateAll((els) =>
+      els.map((el) => el.getAttribute('href')),
+    );
+    expect(guides).toEqual([
+      '/pagespeed-markers/',
+      '/pagespeed-insights/',
+      '/wordpress/',
+      '/aspnet-core-performance/',
+      '/self-hosted-image-optimization/',
+      '/psol/',
+    ]);
+    const footer = page.locator('footer');
+    await expect(footer.locator('a[href="/psol/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-psol-footer',
+    );
+    const maintained = footer.locator('a[href="/mod-pagespeed-still-maintained/"]');
+    await expect(maintained).toHaveText('Is it still maintained?');
+    await expect(maintained).toHaveAttribute('data-umami-event', 'nav-still-maintained-footer');
+  });
+
+  test('footer has five groups plus Legal', async ({ page }) => {
     await page.goto('/');
     // Group headings are the labels directly above each link list.
     const headings = await page.locator('footer p.uppercase:has(+ ul)').allInnerTexts();
@@ -297,6 +359,7 @@ test.describe('Navigation', () => {
       'product',
       'install and docs',
       'tools',
+      'guides',
       'support and company',
       'legal',
     ]);
