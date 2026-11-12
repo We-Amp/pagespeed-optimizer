@@ -614,11 +614,12 @@ describe('product-facts consumers reflect the single source', () => {
     expect(SUPPORT_LADDER_LINE).not.toMatch(/\$\d/);
   });
 
-  it('offer-jsonld emits the $0 Offer', () => {
+  it('offer-jsonld emits the free (0 EUR) Offer', () => {
     const offer = offerJsonLd();
     expect(offer['@type']).toBe('Offer');
     expect(offer.price).toBe(0);
-    expect(offer.priceCurrency).toBe('USD');
+    // Every offer on the site is in euro, the free one included.
+    expect(offer.priceCurrency).toBe('EUR');
     expect(offer.priceValidUntil).toBe(PRICE_VALID_UNTIL);
     expect(offer.description).toContain(SOURCE_PUBLICATION.license);
     expect(offer.description).toContain(SUPPORT_URL);

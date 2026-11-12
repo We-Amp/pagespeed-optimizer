@@ -117,7 +117,7 @@ test.describe('SEO', () => {
         // no unconditional money-back guarantee.
         expect(data.offers['@type']).toBe('Offer');
         expect(data.offers.price).toBe(0);
-        expect(data.offers.priceCurrency).toBeTruthy();
+        expect(data.offers.priceCurrency).toBe('EUR');
         expect(data.offers.availability).toMatch(/InStock/);
         expect(typeof data.offers.url).toBe('string');
         expect(data.offers.url).toMatch(/^https?:\/\//);

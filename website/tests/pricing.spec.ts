@@ -246,6 +246,7 @@ test.describe('Pricing page', () => {
       priceSpecification?: { minPrice: number; priceCurrency: string };
     }> = app.offers;
     expect(offers[0].price).toBe(0);
+    expect(offers[0].priceCurrency).toBe('EUR');
     const paid = offers.slice(1);
     expect(paid.map((o) => o.price)).toEqual([490, 1900, 7500]);
     expect(paid[2].priceSpecification).toMatchObject({ minPrice: 7500, priceCurrency: 'EUR' });
