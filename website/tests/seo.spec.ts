@@ -217,6 +217,17 @@ test.describe('SEO', () => {
     expect(org.brand.name).toBe('mod_pagespeed');
   });
 
+  test('/analyze/ structured data names the tool by the current product name only', async ({
+    page,
+  }) => {
+    await page.goto('/analyze/');
+    const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+    const app = blocks.map((b) => JSON.parse(b)).find((node) => node['@type'] === 'WebApplication');
+    expect(app.name).toBe('mod_pagespeed Analyze');
+    expect(app).not.toHaveProperty('alternateName');
+    expect(blocks.join('\n')).not.toMatch(/ModPageSpeed/);
+  });
+
   test('og:image is set on all pages', async ({ page }) => {
     for (const path of allPages) {
       await page.goto(path);
