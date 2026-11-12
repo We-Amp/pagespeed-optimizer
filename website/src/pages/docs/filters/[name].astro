@@ -148,6 +148,7 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
 ---
 
 <BaseLayout
+  skipTarget="doc-content"
   title={t.title}
   description={t.description}
   jsonLd={jsonLd}
@@ -161,7 +162,12 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
     <div class="lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12">
       <DocsSidebar current={`${FILTER_REFERENCE}/${t.name}`} />
 
-      <section class="min-w-0" data-filter-topic={t.name}>
+      <section
+        id="doc-content"
+        tabindex="-1"
+        class="min-w-0 focus:outline-none"
+        data-filter-topic={t.name}
+      >
         <nav
           class="mb-6 text-sm font-mono text-text-annotation"
           aria-label="Breadcrumb"

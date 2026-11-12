@@ -318,6 +318,13 @@ const nextSteps = [
     </form>
 
     <script>
+      // Spoken through the layout's one status writer (window.siteAnnounce),
+      // like the code-block buttons; the button's own name never changes.
+      const announceCopy = (ok: boolean) =>
+        (window as { siteAnnounce?: (_message: string) => void }).siteAnnounce?.(
+          ok ? 'Copied to clipboard' : 'Copy failed, select the text to copy',
+        );
+
       // Topic routing. The form carries its topic table (hints, which topics
       // are commercial, and the aliases older links still use) as JSON in
       // data-topic-config, rendered from the frontmatter, so this script holds
@@ -394,16 +401,18 @@ const nextSteps = [
           const addr = copyBtn.dataset.copy ?? '';
           try {
             await navigator.clipboard.writeText(addr);
+            announceCopy(true);
+            // Visible feedback only: the button's aria-label stays "Copy email
+            // address", so its accessible name does not change.
             const prev = copyBtn.textContent;
             copyBtn.textContent = '(copied)';
-            copyBtn.setAttribute('aria-label', 'Email address copied');
             window.setTimeout(() => {
               copyBtn.textContent = prev;
-              copyBtn.setAttribute('aria-label', 'Copy email address');
             }, 1500);
           } catch {
             // Clipboard API unavailable (e.g. non-secure context) — the address
-            // stays visible and selectable next to this button, so this is a no-op.
+            // stays visible and selectable next to this button; say so.
+            announceCopy(false);
           }
         });
       }

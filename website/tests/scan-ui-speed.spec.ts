@@ -196,8 +196,25 @@ test.describe('v2 Speed panel', () => {
 
     const copy = panel(page).locator('[data-umami-event="psi-result-config-copy"]');
     await expect(copy).toHaveAttribute('data-umami-event', 'psi-result-config-copy');
+    await page.evaluate(() => {
+      const w = window as unknown as { siteAnnounce: (_m: string) => void; __calls: string[] };
+      const original = w.siteAnnounce;
+      w.__calls = [];
+      w.siteAnnounce = (m: string) => {
+        w.__calls.push(m);
+        original(m);
+      };
+    });
+    await expect(copy).toHaveAccessibleName('Copy');
     await copy.click();
+    // Spoken once by the page's status message; the visible text says
+    // "Copied" while the accessible name stays "Copy".
     await expect(copy).toHaveText('Copied');
+    await expect(copy).toHaveAccessibleName('Copy');
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls))
+      .toEqual(['Copied to clipboard']);
+    await expect(page.locator('#copy-status')).toHaveText('Copied to clipboard');
     const clip = await page.evaluate(() => navigator.clipboard.readText());
     expect(clip).toContain('pagespeed EnableFilters');
 

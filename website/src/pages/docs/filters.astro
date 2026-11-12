@@ -141,6 +141,7 @@ const tone = (f: Filter) =>
 ---
 
 <BaseLayout
+  skipTarget="doc-content"
   title="PageSpeed filters: the complete reference"
   description={`What PageSpeed filters are, how to enable them, and all ${counts.shipped} mod_pagespeed filters with what each one changes.`}
   jsonLd={jsonLd}
@@ -150,7 +151,7 @@ const tone = (f: Filter) =>
     <div class="lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12">
       <DocsSidebar current={FILTER_REFERENCE} />
 
-      <section class="min-w-0">
+      <section id="doc-content" tabindex="-1" class="min-w-0 focus:outline-none">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap">
           <h1 class="h1-hero break-words text-text-body">PageSpeed filters</h1>
           <a
