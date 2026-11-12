@@ -11,10 +11,10 @@ import { stubUmami, trackedEvents } from './helpers/umami';
 // region, the link row under an empty search, the events and the pre-filled
 // query from the 404 page.
 async function stubPagefind(page: Page): Promise<void> {
-  await page.route('**/pagefind/pagefind-ui.css', (route) =>
+  await page.route('**/pagefind/*/pagefind-ui.css', (route) =>
     route.fulfill({ contentType: 'text/css', body: '' }),
   );
-  await page.route('**/pagefind/pagefind-ui.js', (route) =>
+  await page.route('**/pagefind/*/pagefind-ui.js', (route) =>
     route.fulfill({
       contentType: 'text/javascript',
       body: `
@@ -172,6 +172,29 @@ test.describe('site search: status, empty state and events', () => {
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'search_result_click')).toHaveLength(1);
     expect(events.filter((e) => e.name === 'search_no_results')).toHaveLength(0);
+  });
+
+  test('the bundle loads from a versioned directory, never bare /pagefind/', async ({ page }) => {
+    // The bundle's file names are the same in every Pagefind release and the
+    // web server lets browsers keep script and style files for a long time, so
+    // the directory must name the version for a returning visitor to get the
+    // new bundle.
+    const bundlePath = await page.evaluate(
+      () =>
+        (window as unknown as { __pagefindOptions: { bundlePath: string } }).__pagefindOptions
+          .bundlePath,
+    );
+    expect(bundlePath).toMatch(/^\/pagefind\/v\d+\.\d+\.\d+[^/]*\/$/);
+    const loaded = await page.evaluate(() => ({
+      scripts: [...document.querySelectorAll('script[src*="/pagefind/"]')].map((s) =>
+        s.getAttribute('src'),
+      ),
+      styles: [...document.querySelectorAll('link[href*="/pagefind/"]')].map((l) =>
+        l.getAttribute('href'),
+      ),
+    }));
+    expect(loaded.scripts).toEqual([`${bundlePath}pagefind-ui.js`]);
+    expect(loaded.styles).toEqual([`${bundlePath}pagefind-ui.css`]);
   });
 
   test('ranking options are passed to Pagefind at search time', async ({ page }) => {

@@ -15,6 +15,7 @@ import rehypeDirectiveBlocks from './src/lib/rehype-directive-blocks.mjs';
 import remarkLiteralTextDirectives from './src/lib/remark-literal-text-directives.mjs';
 import { gitLastModified } from './src/lib/git-date';
 import { BUILD_ID } from './src/lib/build-id.mjs';
+import { PAGEFIND_BUNDLE_PATH } from './src/lib/pagefind-bundle.mjs';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
@@ -306,6 +307,7 @@ export default defineConfig({
     define: {
       'import.meta.env.SITE_BUILD_ID': JSON.stringify(BUILD_ID),
       'import.meta.env.SITE_BUILD_ID_SET': JSON.stringify(Boolean(process.env.SITE_BUILD_ID)),
+      'import.meta.env.PAGEFIND_BUNDLE_PATH': JSON.stringify(PAGEFIND_BUNDLE_PATH),
     },
   },
 });

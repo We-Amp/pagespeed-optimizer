@@ -5,9 +5,10 @@
  * Rendered once per page by BaseLayout. The dialog is a native <dialog>
  * (focus trap, Escape, backdrop for free) and costs nothing until it is
  * opened: the only JavaScript on the page is the small inline opener below.
- * On first open it injects /pagefind/pagefind-ui.css and
- * /pagefind/pagefind-ui.js — same-origin files that `npm run build` writes
- * into dist/client/pagefind/ (see scripts/build-search-index.mjs) — and
+ * On first open it injects pagefind-ui.css and pagefind-ui.js from the
+ * versioned bundle directory /pagefind/v<version>/ — same-origin files that
+ * `npm run build` writes into dist/client/pagefind/v<version>/ (see
+ * scripts/build-search-index.mjs and src/lib/pagefind-bundle.mjs) — and
  * mounts Pagefind's UI into #site-search-ui. If the bundle cannot load (the
  * dev server has no index), or WebAssembly is blocked by the host's
  * Content-Security-Policy, the dialog says so instead of failing silently,
@@ -38,6 +39,9 @@
  */
 import Icon from './Icon.astro';
 
+/* Baked in at build time by astro.config.mjs from src/lib/pagefind-bundle.mjs. */
+const bundlePath: string = import.meta.env.PAGEFIND_BUNDLE_PATH;
+
 const emptyLinks = [
   { href: '/docs/getting-started/', label: 'Install' },
   { href: '/docs/configuration/', label: 'Configuration reference' },
@@ -48,7 +52,12 @@ const emptyLinks = [
 ];
 ---
 
-<dialog id="site-search" class="site-search" aria-labelledby="site-search-title">
+<dialog
+  id="site-search"
+  class="site-search"
+  aria-labelledby="site-search-title"
+  data-bundle-path={bundlePath}
+>
   <div class="site-search__panel">
     <div class="site-search__head">
       <h2 id="site-search-title" class="site-search__title">
@@ -261,6 +270,7 @@ const emptyLinks = [
     var openers = document.querySelectorAll('[data-search-open]');
     var closers = dialog.querySelectorAll('[data-search-close]');
     var state = 'idle'; /* idle | loading | ready | failed */
+    var bundlePath = dialog.getAttribute('data-bundle-path');
     var opener = null;
 
     function setStatus(text) {
@@ -373,7 +383,7 @@ const emptyLinks = [
       try {
         new window.PagefindUI({
           element: '#site-search-ui',
-          bundlePath: '/pagefind/',
+          bundlePath: bundlePath,
           showImages: false,
           showSubResults: true,
           excerptLength: 24,
@@ -413,15 +423,16 @@ const emptyLinks = [
     function load() {
       state = 'loading';
       setStatus('Loading search…');
-      if (!document.querySelector('link[href="/pagefind/pagefind-ui.css"]')) {
+      var cssHref = bundlePath + 'pagefind-ui.css';
+      if (!document.querySelector('link[href="' + cssHref + '"]')) {
         var css = document.createElement('link');
         css.rel = 'stylesheet';
-        css.href = '/pagefind/pagefind-ui.css';
+        css.href = cssHref;
         document.head.appendChild(css);
       }
       if (window.PagefindUI) return init();
       var script = document.createElement('script');
-      script.src = '/pagefind/pagefind-ui.js';
+      script.src = bundlePath + 'pagefind-ui.js';
       script.onload = function () {
         if (window.PagefindUI) init();
         else failed();

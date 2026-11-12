@@ -7,7 +7,9 @@
  * Runs as the `postbuild` npm script, so `npm run build` always produces the
  * index. Astro's node adapter writes the prerendered pages and the static
  * assets to dist/client/ and serves them from there, so the index is written
- * to dist/client/pagefind/ and is reachable at /pagefind/ on the live site.
+ * to dist/client/pagefind/v<version>/ and is reachable at /pagefind/v<version>/
+ * on the live site (see src/lib/pagefind-bundle.mjs for why the version is in
+ * the path).
  * The dev server has no build output and therefore no index; the search
  * dialog says so when the bundle fails to load.
  *
@@ -19,7 +21,7 @@
  * on navigation chrome keeps sidebar titles out of the excerpts.
  *
  * The written output is checked before the script reports success: a missing
- * or 0-byte file under dist/client/pagefind/ fails the build (see
+ * or 0-byte file under the bundle directory fails the build (see
  * lib/search-index-output.mjs), because the dialog would load it without
  * complaint. Rebuilding is the remedy.
  */
@@ -28,10 +30,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findBadSearchOutput } from './lib/search-index-output.mjs';
+import { PAGEFIND_BUNDLE_PATH } from '../src/lib/pagefind-bundle.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const site = resolve(root, 'dist/client');
-const outputPath = resolve(site, 'pagefind');
+const outputPath = resolve(site, '.' + PAGEFIND_BUNDLE_PATH);
 
 function fail(message, errors = []) {
   console.error(`build-search-index: ${message}`);
