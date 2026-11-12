@@ -6,7 +6,9 @@
 // copies (via error_page) for any failing URL, so their build-time HTML must
 // never present the copy's own path as the request: the GET line renders
 // blank and is filled from location.pathname on load, and the 500 copy reads
-// 5xx because it also serves 502/503/504.
+// 5xx because it also serves 502/503/504. For the same reason the copies carry
+// no canonical link and no og:url: either would name /error/404/, a URL that
+// answers 200, as the canonical page for every missing URL.
 //
 // Like anchor-gate.test.ts, this reads the BUILD output and SKIPS (never
 // throws) when dist/client/error does not exist, because CI's unit-test job
@@ -48,6 +50,13 @@ describe.runIf(BUILT)('prerendered error copies (built output)', () => {
     expect(html).not.toContain('→ 500');
   });
 
+  it('the copies carry no canonical link and no og:url', () => {
+    for (const name of ['404', '500']) {
+      expect(readCopy(name)).not.toMatch(/<link[^>]*rel="canonical"/);
+      expect(readCopy(name)).not.toContain('property="og:url"');
+    }
+  });
+
   it('the request line is filled from location.pathname on load', () => {
     for (const name of ['404', '500']) {
       const html = readCopy(name);
@@ -55,4 +64,16 @@ describe.runIf(BUILT)('prerendered error copies (built output)', () => {
       expect(html).toContain('location.pathname');
     }
   });
+});
+
+// Source check, runs without a build: every error route opts out of the
+// canonical link the layout emits by default.
+describe('error routes opt out of the canonical link (source)', () => {
+  const routes = ['404.astro', '500.astro', 'error/404.astro', 'error/500.astro'];
+  for (const route of routes) {
+    it(`src/pages/${route} passes canonical={false}`, () => {
+      const src = readFileSync(path.join(WEBSITE_ROOT, 'src/pages', route), 'utf8');
+      expect(src).toContain('canonical={false}');
+    });
+  }
 });

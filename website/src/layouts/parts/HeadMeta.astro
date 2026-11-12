@@ -25,7 +25,7 @@ interface Props {
   ogType?: 'website' | 'article';
   articlePublished?: Date;
   articleModified?: Date;
-  canonical?: string;
+  canonical?: string | false;
 }
 
 const {
@@ -74,7 +74,12 @@ const ogImageType = /\.webp(\?|$)/i.test(resolvedOgImage)
 const rawPath = Astro.url.pathname;
 const canonicalPath =
   rawPath.endsWith('/') || /\.[a-z0-9]+$/i.test(rawPath) ? rawPath : `${rawPath}/`;
-const canonicalUrl = canonical ?? new URL(canonicalPath, 'https://modpagespeed.com').href;
+// canonical={false} (the error pages) drops both the canonical link and
+// og:url, which Open Graph defines as the canonical URL too.
+const canonicalUrl =
+  canonical === false
+    ? undefined
+    : (canonical ?? new URL(canonicalPath, 'https://modpagespeed.com').href);
 
 const currentPath = rawPath;
 
@@ -216,14 +221,14 @@ const jsonLdScripts = [...jsonLdEntries, breadcrumbJsonLd].filter(
     {ogType === 'article' && articleModified && (
       <meta property="article:modified_time" content={articleModified.toISOString()} />
     )}
-    <meta property="og:url" content={canonicalUrl} />
+    {canonicalUrl && <meta property="og:url" content={canonicalUrl} />}
     <meta property="og:site_name" content={PRODUCT_DISPLAY_NAME} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@modpagespeed" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={absoluteOgImage} />
-    <link rel="canonical" href={canonicalUrl} />
+    {canonicalUrl && <link rel="canonical" href={canonicalUrl} />}
     <link
       rel="alternate"
       type="application/rss+xml"
