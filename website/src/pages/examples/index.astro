@@ -3,6 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import PageHero from '../../components/PageHero.astro';
 import { EXAMPLES, CATEGORY_ORDER, CATEGORY_BLURB, DEMO_ORIGIN } from '../../data/examples';
 import examplesData from '../../data/examples-data.json';
+import { headlineMetric } from '../../lib/example-impact';
 
 const data = examplesData as {
   generated_at: string | null;
@@ -15,17 +16,6 @@ function newLabel(addedIn?: string): string | null {
   if (!addedIn) return null;
   const m = addedIn.match(/^(\d+\.\d+)/);
   return m ? `New in ${m[1]}` : 'New';
-}
-
-// Headline metric for a card, when the generator has measured it.
-function headlineMetric(slug: string): string | null {
-  const d = data.examples[slug];
-  if (!d || d.error || !d.savings) return null;
-  const s = d.savings;
-  if (s.requests > 0) return `−${s.requests} request${s.requests === 1 ? '' : 's'}`;
-  if (s.totalBytesPct > 0) return `−${s.totalBytesPct}% bytes`;
-  if (s.htmlBytesPct > 0) return `−${s.htmlBytesPct}% HTML`;
-  return null;
 }
 
 const byCategory = CATEGORY_ORDER.map((cat) => ({

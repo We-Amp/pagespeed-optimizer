@@ -36,6 +36,7 @@ import {
   renderFiltersHubMarkdown,
 } from '../../src/lib/filter-topics.mjs';
 import { EXAMPLES } from '../../src/data/examples';
+import { alsoAppliedIn } from '../../src/lib/filter-demos';
 import { topicForExample } from '../../src/data/filters';
 import { ORGANIZATION_ID } from '../../src/data/organization';
 
@@ -74,6 +75,7 @@ const allNames: string[] = [
 ];
 const topics = loadFilterTopics(WEBSITE_ROOT);
 const byName = new Map(topics.map((t) => [t.name, t]));
+const demosOf = (t: (typeof topics)[number]) => alsoAppliedIn(t.name, t.example);
 
 describe('filter topics (source)', () => {
   it('cover every filter and compound name in filters.json, once', () => {
@@ -298,7 +300,10 @@ describe.skipIf(!BUILT)('filter topics (built html)', () => {
 });
 
 describe('filter topic Markdown twins (source)', () => {
-  const md = (name: string) => renderTopicMarkdown(byName.get(name)!, topics);
+  const md = (name: string) => {
+    const t = byName.get(name)!;
+    return renderTopicMarkdown(t, topics, demosOf(t));
+  };
 
   it('follows the page order', () => {
     const body = md('rewrite_images');
@@ -327,7 +332,7 @@ describe('filter topic Markdown twins (source)', () => {
 
   it('shares its facts and its related list with the page', () => {
     for (const t of topics.filter((x) => x.indexable)) {
-      const body = renderTopicMarkdown(t, topics);
+      const body = renderTopicMarkdown(t, topics, demosOf(t));
       for (const fact of topicFacts(t)) {
         const absolute = fact.replace(/\]\((\/[^)\s]*)\)/g, '](https://modpagespeed.com$1)');
         expect(body, t.name).toContain(`- ${absolute}`);
@@ -342,6 +347,34 @@ describe('filter topic Markdown twins (source)', () => {
         expect(body, t.name).toContain(`(https://modpagespeed.com${r.path})`);
       }
     }
+  });
+
+  it('lists the same gallery demos as the topic page', () => {
+    // The example links in the twin's live example section, in order: the demo
+    // that isolates the filter (if any), then the others that apply it.
+    const linked = (body: string) =>
+      [
+        ...(body.match(/\n## Live examples?\n[\s\S]*?(?=\n## )/)?.[0] ?? '').matchAll(
+          /\]\(https:\/\/modpagespeed\.com\/examples\/([^/)]+)\/\)/g,
+        ),
+      ].map((m) => m[1]);
+    let withList = 0;
+    for (const t of topics.filter((x) => x.indexable)) {
+      const demos = demosOf(t);
+      if (demos.length) withList++;
+      const isolating = t.example ? [t.example.split('/')[2]] : [];
+      expect(linked(renderTopicMarkdown(t, topics, demos)), t.name).toEqual([
+        ...isolating,
+        ...demos.map((d) => d.slug),
+      ]);
+    }
+    expect(withList).toBeGreaterThan(0);
+  });
+
+  it('refuses to render without the demo list', () => {
+    const t = byName.get('rewrite_images')!;
+    // @ts-expect-error the list is required
+    expect(() => renderTopicMarkdown(t, topics)).toThrow(/no demo list/);
   });
 
   it('every live example link points at a gallery page', () => {
@@ -370,7 +403,7 @@ describe('filter topic Markdown twins (source)', () => {
       ...byName.get('rewrite_images')!,
       faq: [{ q: 'Where next?', a: 'See [the docs](/docs/filters/) and [below](#risks).' }],
     };
-    const body = renderTopicMarkdown(t, topics);
+    const body = renderTopicMarkdown(t, topics, demosOf(t));
     expect(body).toContain('See [the docs](https://modpagespeed.com/docs/filters/) and [below](');
     expect(body).not.toMatch(/\]\((\/|#)/);
   });
@@ -379,6 +412,6 @@ describe('filter topic Markdown twins (source)', () => {
     const page = readFileSync(resolve(WEBSITE_ROOT, 'src/pages/docs/filters/[name].astro'), 'utf8');
     expect(page.replace(/\s+/g, ' ')).toContain(GOOGLE_PRODUCTS_LINE);
     const t = byName.get('insert_ga')!;
-    expect(renderTopicMarkdown(t, topics)).toContain(`\n${GOOGLE_PRODUCTS_LINE}\n`);
+    expect(renderTopicMarkdown(t, topics, demosOf(t))).toContain(`\n${GOOGLE_PRODUCTS_LINE}\n`);
   });
 });

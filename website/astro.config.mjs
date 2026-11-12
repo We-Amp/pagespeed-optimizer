@@ -14,6 +14,8 @@ import remarkCallouts from './src/lib/remark-callouts.mjs';
 import rehypeDirectiveBlocks from './src/lib/rehype-directive-blocks.mjs';
 import remarkLiteralTextDirectives from './src/lib/remark-literal-text-directives.mjs';
 import { gitLastModified } from './src/lib/git-date';
+import { EXAMPLES } from './src/data/examples';
+import { exampleImpact } from './src/lib/example-impact';
 import { BUILD_ID } from './src/lib/build-id.mjs';
 import { PAGEFIND_BUNDLE_PATH } from './src/lib/pagefind-bundle.mjs';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
@@ -99,23 +101,13 @@ for (const t of filterTopics) {
   if (iso) lastmodMap.set(t.path, iso);
 }
 
-// Slugs of /examples/<slug>/ pages that have generated before/after data. Detail
-// pages without data are noindex (see examples/[slug].astro) and are kept out of
-// the sitemap until the generator populates them — self-healing on next build.
-const examplesWithData = (() => {
-  try {
-    const data = JSON.parse(
-      readFileSync(resolve(__dirname, 'src/data/examples-data.json'), 'utf8'),
-    );
-    return new Set(
-      Object.entries(data.examples || {})
-        .filter(([, v]) => v && !v.error && v.settled)
-        .map(([slug]) => slug),
-    );
-  } catch {
-    return new Set();
-  }
-})();
+// Slugs of /examples/<slug>/ pages search engines may index: settled
+// before/after data from a filter that acted. The rest are noindex (see
+// examples/[slug].astro) and are kept out of the sitemap until the generator
+// captures them applied — self-healing on next build.
+const examplesWithData = new Set(
+  EXAMPLES.filter((ex) => exampleImpact(ex.slug)?.indexable).map((ex) => ex.slug),
+);
 
 /** True when the last path segment has no file extension. */
 function isExtensionless(/** @type {string} */ url) {

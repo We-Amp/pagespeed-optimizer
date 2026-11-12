@@ -12,7 +12,13 @@ import {
   MECHANISM,
   type ExampleCategory,
 } from '../../data/examples';
-import { exampleImpact } from '../../lib/example-impact';
+import {
+  browserOnlyNote,
+  exampleImpact,
+  growthClause,
+  measuredSentences,
+  notAppliedNote,
+} from '../../lib/example-impact';
 import { topicForExample } from '../../data/filters';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 import examplesData from '../../data/examples-data.json';
@@ -40,9 +46,14 @@ const { measured, present, hasData, nonSubstantive, substantive, diff, tiles } =
 // mirrors example-impact.ts: one plate for totals when resources were
 // measured, one for the HTML document when it shrank. Each plate carries the
 // label of the tile it replaces, verbatim.
-const savings = hasData && substantive ? impact.savings : undefined;
+const savings = hasData && substantive && !impact.notApplied ? impact.savings : undefined;
 const bytePlates: Array<{ label: string; rows: Array<{ label: string; bytes: number }> }> = [];
-if (savings && savings.totalBytesPct > 0 && measured.before.resourcesMeasured > 0) {
+if (
+  savings &&
+  savings.totalBytesPct > 0 &&
+  measured.before.resourcesMeasured > 0 &&
+  !impact.missedResources
+) {
   bytePlates.push({
     label: 'Total bytes',
     rows: [
@@ -61,8 +72,21 @@ if (savings && savings.htmlBytesPct > 0) {
   });
 }
 const requestsTile = tiles.find((t) => t.label === 'HTTP requests');
+// The same result in words, so the page carries its own measured numbers as
+// text, not only in the figures.
+const measuredText = measuredSentences(impact).join(' ');
 
 const generatedAt = (examplesData as { generated_at: string | null }).generated_at;
+// When the latest capture shows the filter did not act, the page says so
+// instead of showing a diff or a saving.
+const notAppliedText = notAppliedNote(
+  impact,
+  generatedAt ? monthYear(generatedAt) : 'the latest run',
+);
+// A settled capture the measurement only got by asking as a browser.
+const browserOnlyText = browserOnlyNote(impact);
+// A settled capture with no reduction that grew: say by how much.
+const grown = growthClause(impact);
 const exampleSource = generatedAt
   ? `Measured on the demo stack, ${monthYear(generatedAt)}.`
   : 'Measured on the live demo stack.';
@@ -96,15 +120,24 @@ const descriptionTails = [
 ];
 const pageDescription = `${ex.blurb}${descriptionTails.find((tail) => ex.blurb.length + tail.length <= 155) ?? ''}`;
 
+// The title names what the page is, a live before-and-after demo, within the
+// ~60 characters a search result shows: the longest tail that fits wins.
+const titleTails = [
+  ' live demo: before and after — mod_pagespeed',
+  ' live demo — mod_pagespeed',
+  ' live demo',
+];
+const pageTitle = `${ex.title}${titleTails.find((tail) => [...`${ex.title}${tail}`].length <= 60) ?? ''}`;
+
 // TechArticle JSON-LD, mirroring /1.1/docs/[slug].astro. Emitted only on
-// indexable pages (the ones that carry settled before/after data); when
-// !hasData the page is noindex, so no structured data is passed. The product
+// indexable pages (settled before/after data from a filter that acted); when
+// the page is noindex, no structured data is passed. The product
 // `about` facts use the literal '1.15' (matching the docs template and the
 // module package the demo origin runs) — not examples-data.json's psHeader,
 // which is the engine tag and would reintroduce an old-version string
 // (content accuracy). No example-specific share image exists, so
 // `image` is omitted (BaseLayout's og:image falls back to the shared default).
-const jsonLd: Record<string, unknown> | undefined = hasData
+const jsonLd: Record<string, unknown> | undefined = impact.indexable
   ? {
       '@context': 'https://schema.org',
       '@type': 'TechArticle',
@@ -132,10 +165,11 @@ const jsonLd: Record<string, unknown> | undefined = hasData
 ---
 
 <BaseLayout
-  title={`${ex.title} — mod_pagespeed example`}
+  title={pageTitle}
   description={pageDescription}
+  breadcrumbLeafName={ex.title}
   jsonLd={jsonLd}
-  noindex={!hasData}
+  noindex={!impact.indexable}
 >
   <section class="py-12 sm:py-16">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -316,6 +350,7 @@ const jsonLd: Record<string, unknown> | undefined = hasData
         <code class="font-mono">{DEMO_ORIGIN.replace('https://', '')}</code>; the optimized frame
         applies only this filter. Right after a cache purge it may briefly match the original while
         the worker rewrites it — reload to see the result.
+        {browserOnlyText && <span data-browser-only> {browserOnlyText}</span>}
         {mechanism === 'beacon' && (
           <span>
             {' '}
@@ -326,7 +361,23 @@ const jsonLd: Record<string, unknown> | undefined = hasData
           </span>
         )}
       </p>
-      {present && (!measured.settled || nonSubstantive) && (
+      {notAppliedText && (
+        <p
+          class="mt-4 rounded-md border border-border bg-bg-secondary/60 px-4 py-3 text-sm text-text-muted"
+          data-not-applied
+        >
+          {notAppliedText}
+          {impact.hintHeader && (
+            <code
+              class="mt-2 block font-mono text-xs break-all text-text-annotation"
+              data-hint-header
+            >
+              Link: {impact.hintHeader}
+            </code>
+          )}
+        </p>
+      )}
+      {!notAppliedText && nonSubstantive && (
         <p class="mt-4 rounded-md border border-border bg-bg-secondary/60 px-4 py-3 text-sm text-text-muted">
           {mechanism === 'beacon'
             ? "mod_pagespeed applies this only after a real browser loads the page and reports back (and re-measures periodically), so there's no server-side diff to capture here — the frames above show it live."
@@ -337,7 +388,7 @@ const jsonLd: Record<string, unknown> | undefined = hasData
                 : 'This optimization leaves no change in the HTML source to diff — the frames above show it applied live.'}
         </p>
       )}
-      {!present && (
+      {!notAppliedText && (!present || impact.status === 'unsettled') && (
         <p class="mt-4 rounded-md border border-border bg-bg-secondary/60 px-4 py-3 text-sm text-text-muted">
           The source diff and measured savings for this example are generated from the live demo —
           they'll appear here once the backend has processed it.
@@ -345,18 +396,30 @@ const jsonLd: Record<string, unknown> | undefined = hasData
       )}
 
       {/* Measured impact */}
-      {hasData && substantive && tiles.length === 0 && (
+      {hasData && substantive && !impact.notApplied && tiles.length === 0 && (
         <div class="mt-12">
           <h2 class="h2-section text-text-body">Measured impact</h2>
-          <p class="mt-3 text-sm text-text-muted">
-            This filter changes how the page is structured or delivered, not its size — so there's
-            no byte or request reduction to chart. The change shows in the source diff below.
+          <p class="mt-3 text-sm text-text-muted" data-no-reduction>
+            {grown ? (
+              `In this capture ${grown}, so there's no byte or request reduction to chart. The change shows in the source diff below.`
+            ) : (
+              <>
+                This filter changes how the page is structured or delivered, not its size — so
+                there's no byte or request reduction to chart. The change shows in the source diff
+                below.
+              </>
+            )}
           </p>
         </div>
       )}
       {(requestsTile || bytePlates.length > 0) && (
         <div class="mt-12">
           <h2 class="h2-section text-text-body">Measured impact</h2>
+          {measuredText && (
+            <p class="mt-3 max-w-3xl text-sm text-text-muted" data-measured-text>
+              {measuredText}
+            </p>
+          )}
           <div class="mt-5 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
             {requestsTile && (
               <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
