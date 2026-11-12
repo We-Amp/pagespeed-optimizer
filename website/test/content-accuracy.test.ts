@@ -2095,8 +2095,8 @@ function unpendedViolations(rule: DenyRule): { failures: string[]; pendingHits: 
 // (3) CANONICAL-SOURCE consistency — the ground truth the denylist relies on.
 // ---------------------------------------------------------------------------
 describe('canonical sources hold ground-truth product facts', () => {
-  it('product-facts.mjs SIDECAR_NGINX_VERSION === 1.30.4', () => {
-    expect(facts.SIDECAR_NGINX_VERSION).toBe('1.30.4');
+  it('product-facts.mjs SIDECAR_NGINX_VERSION === 1.30.6', () => {
+    expect(facts.SIDECAR_NGINX_VERSION).toBe('1.30.6');
   });
 
   // The social-card generator rasterizes a wordmark onto all 72 cards, and a

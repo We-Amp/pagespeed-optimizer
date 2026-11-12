@@ -9,6 +9,9 @@ import { offerJsonLd } from '../data/offer-jsonld';
 import {
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
+  MODULE_APT_SHORT,
+  NGINX_APT_SHORT,
+  NGINX_RPM_SHORT,
   LEGACY_1X_KEY,
   RELEASE_KEY,
   RELEASE_KEY_PAGE_URL,
@@ -95,7 +98,7 @@ const integrations = [
     badge: 'Native module',
     description:
       'Prebuilt signed package from the apt/yum repository — apt-get on Debian and Ubuntu, dnf on Enterprise Linux. Drop-in replacement for the open-source build.',
-    requirements: `Debian 12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) & 10 (x86_64); Apache ${rel21.compat.apache.apache_versions.join('/')}.`,
+    requirements: `${MODULE_APT_SHORT} (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) & 10 (x86_64); Apache ${rel21.compat.apache.apache_versions.join('/')}.`,
     href: '/download/apt-yum/',
     cta: 'Install on Apache',
     umamiEvent: 'cta_download_apache',
@@ -106,8 +109,7 @@ const integrations = [
     badge: 'Native module',
     description:
       "Prebuilt signed dynamic module from the apt/yum repository, pinned to each distro's stock nginx. Loads alongside your existing nginx binary — no rebuild, no traffic detour.",
-    requirements:
-      "Debian 12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) via dnf, EL10 (x86_64). Each module is pinned to its distro's exact stock nginx — running a different nginx version? Contact us for a matching build.",
+    requirements: `${NGINX_APT_SHORT} (amd64 + arm64); RHEL/AlmaLinux/Rocky ${NGINX_RPM_SHORT} via dnf. Each module is pinned to its distro's exact stock nginx — running a different nginx version? Contact us for a matching build.`,
     href: '/download/apt-yum/',
     cta: 'Install on nginx',
     umamiEvent: 'cta_download_nginx',

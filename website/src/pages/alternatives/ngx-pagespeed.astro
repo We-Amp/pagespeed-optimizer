@@ -2,7 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { getRelease } from '../../lib/release';
-import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
+import { FREE_TO_RUN_LINE, LICENSE_CLAUSE, NGINX_APT_PROSE } from '../../data/product-facts.mjs';
 import { PRODUCT_SAME_AS, productJsonLd } from '../../data/software-jsonld';
 
 // Image names and tag come from the release manifest, so the compose sample
@@ -162,10 +162,9 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
 
       <h2>Packages for your distribution's nginx</h2>
       <p>
-        The signed <code>nginx-module-pagespeed</code> packages cover Debian 12 and 13 and Ubuntu
-        22.04 and 24.04 on amd64 and arm64, AlmaLinux, RHEL and Rocky 9 on x86_64 and aarch64, and
-        10 on x86_64. Debian 11 stays on the repository's final 1.15.0 packages. There is nothing to
-        compile.
+        The signed <code>nginx-module-pagespeed</code> packages cover {NGINX_APT_PROSE} on amd64 and
+        arm64, AlmaLinux, RHEL and Rocky 9 on x86_64 and aarch64, and 10 on x86_64. Debian 11 stays
+        on the repository's final 1.15.0 packages. There is nothing to compile.
       </p>
       <p>
         Each package depends on the stock nginx of its distribution, because nginx refuses to load a

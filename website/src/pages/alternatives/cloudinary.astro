@@ -4,7 +4,12 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { productJsonLd } from '../../data/software-jsonld';
-import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import {
+  editionClause,
+  FREE_TO_RUN_LINE,
+  NGINX_APT_SHORT_NBSP,
+  NGINX_RPM_SHORT,
+} from '../../data/product-facts.mjs';
 
 const rows = [
   {
@@ -271,8 +276,8 @@ const jsonLd = [
       </p>
       <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>https://res.cloudinary.com/&lt;cloud&gt;/image/upload/f_auto,q_auto,w_800/photo.jpg</code></pre>
       <p class="mt-4 text-text-body">
-        <strong>mod_pagespeed equivalent.</strong> Install the nginx module on Debian&nbsp;11/12/13,
-        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong>mod_pagespeed equivalent.</strong> Install the nginx module on{' '}
+        {NGINX_APT_SHORT_NBSP} (amd64 + arm64), or AlmaLinux/RHEL/Rocky&nbsp;{NGINX_RPM_SHORT}:
       </p>
       <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
