@@ -7,7 +7,7 @@
 //
 // The field, its label and its status line are part of the rendered reference
 // (src/lib/rehype-directive-blocks.mjs puts them above the first area and
-// wraps every directive and every area in its own element). This component
+// marks every directive heading and every area heading). This component
 // carries the behaviour and the styles; docs/[slug].astro renders it on the
 // configuration page only, so the script loads there alone (the few style
 // rules below travel with the docs page template).
@@ -19,6 +19,10 @@
 //     layout of the full reference, not the shorter filtered one.
 //   - A location hash that points at something the filter still shows keeps
 //     the filter, and the page scrolls to the target.
+//   - A hidden directive is its heading and every element after it up to the
+//     next heading, each with the hidden attribute, so it leaves the page and
+//     the accessibility tree. An area with no match hides its heading and
+//     list the same way.
 //   - The status line is a live region: it reports the number of matches, or
 //     that nothing matches, and is empty while the field is empty.
 // Without JavaScript the field is not shown and the reference reads as before.
@@ -32,9 +36,34 @@
   const status = reference?.querySelector<HTMLElement>('#directive-filter-status');
 
   if (reference && field && status) {
-    const blocks = Array.from(reference.querySelectorAll<HTMLElement>('[data-directive]'));
-    const names = blocks.map((b) => b.dataset.directive ?? '');
-    const areas = Array.from(reference.querySelectorAll<HTMLElement>('[data-directive-area]'));
+    type Run = { name: string; parts: HTMLElement[] };
+    type Area = { parts: HTMLElement[]; directives: Run[] };
+    // The reference is one flat run of elements; the headings start each
+    // directive's and each area's share of it. Read once, on first use.
+    let areas: Area[] | null = null;
+    const read = () => {
+      const found: Area[] = [];
+      let area: Area | null = null;
+      let run: Run | null = null;
+      for (const el of Array.from(reference.children) as HTMLElement[]) {
+        if (el.hasAttribute('data-directive-area')) {
+          run = null;
+          area = { parts: [el], directives: [] };
+          found.push(area);
+        } else if (area && el.hasAttribute('data-directive')) {
+          run = { name: el.dataset.directive ?? '', parts: [el] };
+          area.directives.push(run);
+        } else if (run) {
+          run.parts.push(el);
+        } else if (area) {
+          area.parts.push(el);
+        }
+      }
+      return found;
+    };
+    const show = (parts: HTMLElement[], shown: boolean) => {
+      for (const el of parts) if (el.hidden === shown) el.hidden = !shown;
+    };
     let reported = false;
     // The fragment of a link whose click just cleared the filter.
     let cleared = '';
@@ -43,19 +72,27 @@
       // How typed text becomes a name to look for: src/lib/directive-match.ts.
       const query = parseDirectiveQuery(field.value);
       if (query.kind === 'none') {
-        for (const el of [...blocks, ...areas]) el.hidden = false;
+        for (const area of areas ?? []) {
+          show(area.parts, true);
+          for (const run of area.directives) show(run.parts, true);
+        }
         delete reference.dataset.filtering;
         status.textContent = '';
         return;
       }
+      areas ??= read();
       let count = 0;
-      blocks.forEach((block, i) => {
-        const match = matchesDirective(names[i], query);
-        block.hidden = !match;
-        if (match) count += 1;
-      });
       for (const area of areas) {
-        area.hidden = !area.querySelector('[data-directive]:not([hidden])');
+        let any = false;
+        for (const run of area.directives) {
+          const match = matchesDirective(run.name, query);
+          show(run.parts, match);
+          if (match) {
+            any = true;
+            count += 1;
+          }
+        }
+        show(area.parts, any);
       }
       reference.dataset.filtering = '';
       status.textContent =

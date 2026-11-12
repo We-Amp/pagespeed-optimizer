@@ -223,8 +223,9 @@ export default defineConfig({
     // then turns those nodes into styled callout asides. Order matters — the
     // directive parser must run before the transform that consumes its nodes.
     // The plugins go to the remark/rehype processor itself; .mdx inherits it.
-    // rehypeDirectiveBlocks groups the generated directive reference (one
-    // element per directive and per area) and adds the directive finder; it
+    // rehypeDirectiveBlocks marks the generated directive reference (an
+    // attribute on every directive and area heading) and adds the directive
+    // finder; it
     // leaves every page without that region untouched.
     processor: unified({
       remarkPlugins: [remarkCustomHeadingId, remarkDirective, remarkCallouts],

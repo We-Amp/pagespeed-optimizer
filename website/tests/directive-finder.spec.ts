@@ -48,22 +48,21 @@ test.describe('Directive finder', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
-  test('every directive is one block, grouped by area, with the field above', async ({ page }) => {
+  test('every directive and area heading is marked, with the field above', async ({ page }) => {
     await page.goto(PAGE);
     const counts = await page.evaluate(() => {
       const reference = document.querySelector('[data-directive-reference]')!;
-      const blocks = [...reference.querySelectorAll('[data-directive]')];
       return {
         headings: reference.querySelectorAll('h4[id]').length,
-        blocks: blocks.length,
-        startWithHeading: blocks.filter((b) => b.firstElementChild?.matches('h4[id]')).length,
-        areas: reference.querySelectorAll('[data-directive-area] > h3[id]:first-child').length,
+        blocks: reference.querySelectorAll('[data-directive]').length,
+        markedHeadings: reference.querySelectorAll(':scope > h4[id][data-directive]').length,
+        areas: reference.querySelectorAll(':scope > h3[id][data-directive-area]').length,
         areaHeadings: reference.querySelectorAll('h3[id]').length,
       };
     });
     expect(counts.blocks).toBeGreaterThan(300);
     expect(counts.blocks).toBe(counts.headings);
-    expect(counts.startWithHeading).toBe(counts.blocks);
+    expect(counts.markedHeadings).toBe(counts.blocks);
     expect(counts.areas).toBe(counts.areaHeadings);
     expect(counts.areas).toBeGreaterThan(10);
 
@@ -126,11 +125,80 @@ test.describe('Directive finder', () => {
     await expect(page.locator('[data-directive-index]').first()).toBeVisible();
   });
 
+  test('a hidden directive hides all of its text, a shown one keeps all of it', async ({
+    page,
+  }) => {
+    await page.goto(PAGE);
+    const input = page.locator(field);
+    for (const typed of ['FileCache', 'Image', 'no-such-directive', '']) {
+      await input.fill(typed);
+      // Every element of the reference after the field takes the state of
+      // the heading it follows: the directive's, or the area's before the
+      // first directive (whose list of links steps aside while filtering).
+      const wrong = await page.evaluate(() => {
+        const reference = document.querySelector('[data-directive-reference]')!;
+        const filtering = reference.hasAttribute('data-filtering');
+        const bad: string[] = [];
+        let lead: HTMLElement | null = null;
+        for (const node of Array.from(reference.childNodes)) {
+          // Text outside any element cannot be hidden: none may render.
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (node.textContent!.trim()) bad.push(`loose text: ${node.textContent!.slice(0, 40)}`);
+            continue;
+          }
+          if (!(node instanceof HTMLElement)) continue;
+          const el = node;
+          if (el.matches('[data-directive-area], [data-directive]')) lead = el;
+          if (!lead) continue;
+          const gone = getComputedStyle(el).display === 'none';
+          const index = el.hasAttribute('data-directive-index');
+          const expected = lead.hidden || (index && filtering);
+          if (gone !== expected)
+            bad.push(`${lead.id}: ${el.tagName} ${el.textContent!.slice(0, 40)}`);
+        }
+        return bad;
+      });
+      expect(wrong, `with "${typed}"`).toEqual([]);
+      // Only what is shown is in the accessibility tree.
+      const matches = await page.evaluate(
+        () => document.querySelectorAll('h4[data-directive]:not([hidden])').length,
+      );
+      await expect(
+        page.locator('[data-directive-reference]').getByRole('heading', { level: 4 }),
+      ).toHaveCount(matches);
+    }
+  });
+
+  test('text the Markdown splits out of a paragraph hides with its directive', async ({ page }) => {
+    // Descriptions whose `:word` text splits their paragraph in two.
+    const pieces = [
+      'checks proxy requests for CookieName',
+      'the warm-fetch may contact',
+      'prefix to be used for purging requests',
+      ',host2',
+    ];
+    await page.goto(PAGE);
+    const reference = page.locator('[data-directive-reference]');
+    for (const piece of pieces) {
+      await expect(reference.getByText(piece).filter({ visible: true }), piece).toHaveCount(1);
+    }
+    await page.locator(field).fill('FileCachePath');
+    await expect(page.locator(status)).toHaveText('1 directive matches');
+    const snapshot = await reference.ariaSnapshot();
+    for (const piece of pieces) {
+      await expect(reference.getByText(piece).filter({ visible: true }), piece).toHaveCount(0);
+      expect(snapshot, piece).not.toContain(piece);
+    }
+  });
+
   test('works from the keyboard, and Escape clears the filter', async ({ page }) => {
     await page.goto(PAGE);
     const all = await shown(page);
     // Tab from the link just before the field lands in it.
-    await page.locator('[data-directive-reference] > p a').last().focus();
+    await page
+      .locator('[data-directive-reference] > p:has(+ [data-directive-finder]) a')
+      .last()
+      .focus();
     await page.keyboard.press('Tab');
     await expect(page.locator(field)).toBeFocused();
     await page.keyboard.type('MaxSegmentLength');
@@ -219,7 +287,7 @@ test.describe('Directive finder', () => {
   test('a deep link into the reference lands on its directive', async ({ page }) => {
     await page.goto(PAGE);
     const ids = await page.evaluate(() => {
-      const all = [...document.querySelectorAll('[data-directive] > h4[id]')].map((h) => h.id);
+      const all = [...document.querySelectorAll('h4[id][data-directive]')].map((h) => h.id);
       return [all[0], all[Math.floor(all.length / 2)], all[all.length - 1]];
     });
     for (const id of [...ids, 'area-deprecated-and-ignored', 'optimization-threads']) {
@@ -291,7 +359,7 @@ test.describe('Directive finder', () => {
     await page.goto(PAGE);
     await expect(page.locator(field)).toBeHidden();
     await expect(page.locator('#filecachepath')).toBeAttached();
-    expect(await page.locator('[data-directive][hidden]').count()).toBe(0);
+    expect(await page.locator('[data-directive-reference] [hidden]').count()).toBe(0);
     await context.close();
   });
 });
