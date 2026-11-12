@@ -140,7 +140,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
             <dt class="text-xs font-semibold uppercase tracking-wide text-interactive">
               {mpsHeader}
             </dt>
-            <dd class="mt-1 text-sm text-text-body">
+            <dd class="mt-1 text-body text-text-body">
               {isBool(row.mps) ? (
                 <span class={`cmp-glyph cmp-${row.mps}`}>
                   <span aria-hidden="true">
@@ -157,7 +157,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
             <dt class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
               {competitor}
             </dt>
-            <dd class="mt-1 text-sm text-text-body">
+            <dd class="mt-1 text-body text-text-body">
               {isBool(row.other) ? (
                 <span class={`cmp-glyph cmp-${row.other}`}>
                   <span aria-hidden="true">

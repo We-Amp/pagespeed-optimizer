@@ -296,3 +296,50 @@ test.describe('Phone form fields are at least 16px', () => {
     });
   }
 });
+
+// Card descriptions on the hub pages are reading text, not captions: on a
+// phone they use the 16 px body size, from 640 px up they keep the compact
+// 14 px card size. Short card lines (eyebrows, "Read" links) stay small.
+const cardCopy: Array<{ path: string; selector: string }> = [
+  { path: '/docs/', selector: 'main a p' },
+  { path: '/examples/', selector: 'main a p' },
+  { path: '/alternatives/', selector: 'main a p' },
+  { path: '/alternatives/cloudflare-apo/', selector: 'main ul dl dd' },
+];
+
+async function cardCopySizes(page: import('@playwright/test').Page, selector: string) {
+  return page.locator(selector).evaluateAll((els) =>
+    els
+      .filter((el) => (el.textContent ?? '').trim().length >= 40)
+      .filter((el) => (el as HTMLElement).offsetParent !== null)
+      .map((el) => ({
+        text: (el.textContent ?? '').trim().slice(0, 40),
+        size: parseFloat(getComputedStyle(el).fontSize),
+      })),
+  );
+}
+
+test.describe('Hub card descriptions', () => {
+  for (const { path, selector } of cardCopy) {
+    test(`${path} card copy is 16px on a phone`, async ({ page }) => {
+      await page.setViewportSize({ width: 360, height: 800 });
+      await page.goto(path);
+      const sizes = await cardCopySizes(page, selector);
+      expect(sizes.length, `${path} has card copy`).toBeGreaterThan(0);
+      expect(sizes.filter((s) => s.size < 16)).toEqual([]);
+    });
+  }
+
+  test('desktop card copy keeps the compact size', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    for (const { path } of cardCopy.slice(0, 3)) {
+      await page.goto(path);
+      const sizes = await cardCopySizes(page, 'main a p');
+      expect(sizes.length, `${path} has card copy`).toBeGreaterThan(0);
+      expect(
+        sizes.filter((s) => s.size !== 14),
+        path,
+      ).toEqual([]);
+    }
+  });
+});
