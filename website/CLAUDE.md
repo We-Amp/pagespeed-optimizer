@@ -137,7 +137,10 @@ src/layouts/parts/           The layout's pieces: HeadMeta (meta tags, JSON-LD),
 src/lib/release.ts           getRelease(line) and artifactUrl(): typed manifest access
 src/lib/docs-markdown.mjs    The docs collection as Markdown: the render behind
                              /docs/<slug>.md and public/llms-full.txt
-public/                      Served as-is: fonts, images, og-cards/, charts/ (the
+src/assets/fonts/            The web fonts (woff2): imported by global.css and the
+                             HeadMeta preloads, so the build serves them from hashed
+                             /_astro/ URLs; the font licenses stay in public/fonts/
+public/                      Served as-is: images, og-cards/, charts/ (the
                              Helm repository: packaged charts + index.yaml), robots.txt,
                              llms.txt, llms-full.txt, .well-known/ai-plugin.json
 scripts/                     Build-time generators: fetch-pricing.js, generate-llms.mjs,
