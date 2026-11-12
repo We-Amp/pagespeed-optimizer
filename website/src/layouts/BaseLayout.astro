@@ -59,7 +59,9 @@ interface Props {
   articleModified?: Date;
   // Absolute canonical URL for a page whose content lives on another origin
   // (/privacy/ points at the one We-Amp privacy notice on we-amp.com).
-  canonical?: string;
+  // false omits the canonical link (the error pages: their own URL is not
+  // the page a visitor asked for, so it must not be declared canonical).
+  canonical?: string | false;
 }
 
 const {
