@@ -3175,3 +3175,110 @@ describe('commercial copy: only published amounts, one commercial address', () =
     expect(facts.COMMERCIAL_EMAIL).toBe('info@we-amp.com');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Single-sourced facts in page sources.
+//
+// The live-site count, its as-of month, the current release version and the
+// support and audit prices live in product-facts.mjs. A page or component
+// that types one of them out goes stale the next time the fact moves, while
+// the pages that import it move with it. Scanned RAW, comments included, for
+// the same reason as the denylist: a number in a comment drifts into copy.
+// ---------------------------------------------------------------------------
+const PAGE_SOURCE_DIRS = ['src/pages', 'src/components', 'src/layouts'].map((rel) =>
+  path.join(WEBSITE_ROOT, rel),
+);
+
+function pageSourceFiles(): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const abs = path.join(dir, name);
+      if (statSync(abs).isDirectory()) walk(abs);
+      else if (/\.(?:astro|ts|tsx|mjs|js|md|mdx)$/.test(name)) out.push(abs);
+    }
+  };
+  PAGE_SOURCE_DIRS.forEach(walk);
+  return out;
+}
+
+// The rounded form the pages render (roundDownDisplay to the nearest 10,000).
+function roundedLiveSites(): string {
+  const sites = Number(facts.BUILTWITH_SITES.replace(/,/g, ''));
+  return `${(Math.floor(sites / 10000) * 10000).toLocaleString('en-US')}+`;
+}
+
+function hardCodedFacts(): Array<{ label: string; literal: RegExp }> {
+  const rounded = roundedLiveSites();
+  const priceLiterals = [
+    ...facts.SUPPORT_TIERS.map((t) => t.prices.annualEur),
+    facts.AUDIT_PRICE_EUR,
+  ].map((n) => facts.formatEur(n));
+  return [
+    { label: 'BUILTWITH_SITES', literal: new RegExp(escapeForRegExp(facts.BUILTWITH_SITES)) },
+    { label: 'the rounded live-site count', literal: new RegExp(escapeForRegExp(rounded)) },
+    {
+      label: 'BUILTWITH_AS_OF next to BuiltWith',
+      literal: new RegExp(`BuiltWith[^\\n]{0,40}${escapeForRegExp(facts.BUILTWITH_AS_OF)}`),
+    },
+    {
+      label: 'MODULE_PACKAGE_VERSION',
+      literal: new RegExp(`(?<![\\d.])${escapeForRegExp(facts.MODULE_PACKAGE_VERSION)}(?![\\d])`),
+    },
+    ...priceLiterals.map((p) => ({
+      label: `the published price ${p}`,
+      literal: new RegExp(`${escapeForRegExp(p)}(?!\\d|[.,]\\d)`),
+    })),
+  ];
+}
+
+function hardCodedFactHits(files: string[]): string[] {
+  const rules = hardCodedFacts();
+  const hits: string[] = [];
+  for (const file of files) {
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        for (const r of rules) {
+          if (r.literal.test(line)) {
+            hits.push(`${path.relative(WEBSITE_ROOT, file)}:${i + 1}: ${r.label}`);
+          }
+        }
+      });
+  }
+  return hits;
+}
+
+describe('single-sourced facts: page sources import them, never type them out', () => {
+  it('the matcher flags typed-out copies and passes the imported forms', () => {
+    const rules = hardCodedFacts();
+    const flagged = (line: string) => rules.some((r) => r.literal.test(line));
+    for (const bad of [
+      `<span>${facts.BUILTWITH_SITES} live sites</span>`,
+      `the core behind ${roundedLiveSites()} live sites`,
+      `BuiltWith, ${facts.BUILTWITH_AS_OF}`,
+      `Install ${facts.MODULE_PACKAGE_VERSION} today`,
+      `Support costs ${facts.formatEur(facts.SUPPORT_TIERS[0].prices.annualEur)} a year`,
+      `Support costs ${facts.formatEur(facts.SUPPORT_TIERS[0].prices.annualEur)}, or more`,
+    ]) {
+      expect(flagged(bad), bad).toBe(true);
+    }
+    for (const good of [
+      '<span>{builtwithLiveRounded} live sites</span>',
+      'BuiltWith, {BUILTWITH_AS_OF}',
+      'Hacker News in May 2026',
+      `version ${facts.MODULE_PACKAGE_VERSION}0`,
+      'up to 25 production servers',
+    ]) {
+      expect(flagged(good), good).toBe(false);
+    }
+  });
+
+  it('no page, component or layout source types out a single-sourced fact', () => {
+    const hits = hardCodedFactHits(pageSourceFiles());
+    expect(
+      hits,
+      hits.length ? `\nimport these from product-facts.mjs:\n${hits.join('\n')}\n` : undefined,
+    ).toEqual([]);
+  });
+});

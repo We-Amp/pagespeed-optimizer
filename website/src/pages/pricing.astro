@@ -63,6 +63,10 @@ const jsonLd = {
   ],
 };
 
+const tierPrice = (t: (typeof SUPPORT_TIERS)[number]) =>
+  `${t.prices.from ? 'from ' : ''}${formatEur(t.prices.annualEur)}`;
+const metaDescription = `mod_pagespeed is free under the Apache License 2.0. Support costs ${SUPPORT_TIERS.slice(0, -1).map(tierPrice).join(', ')} or ${tierPrice(SUPPORT_TIERS[SUPPORT_TIERS.length - 1])} a year, excl. VAT. Fixed-price agent-readiness audit.`;
+
 const auditPoints = [
   'What a crawler that does not run JavaScript sees, compared with what a browser renders',
   'Whether your pages can be served as Markdown to agents that ask for it',
@@ -73,7 +77,7 @@ const auditPoints = [
 
 <BaseLayout
   title="Pricing: free software, paid support — mod_pagespeed"
-  description="mod_pagespeed is free under the Apache License 2.0. Support costs €490, €1,900 or from €7,500 a year, excl. VAT. Fixed-price agent-readiness audit."
+  description={metaDescription}
   jsonLd={jsonLd}
 >
   <PageHero title="Run it on any number of servers. Pay us for support.">

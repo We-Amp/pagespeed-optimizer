@@ -35,8 +35,9 @@ import Closing from '../components/home/Closing.astro';
 // Install is imported ahead of SignalPath. The order the sections render in
 // is the order of the template below.
 
-// The live-site count, 231,341 per BuiltWith, rendered as a defensible lower
-// bound ("230,000+"). The hero and the lineage section both show it.
+// The live-site count per BuiltWith (BUILTWITH_SITES), rendered as a defensible
+// lower bound, rounded down to the nearest ten thousand. The hero and the
+// lineage section both show it.
 const builtwithLiveRounded = roundDownDisplay(Number(BUILTWITH_SITES.replace(/,/g, '')), 10000);
 
 // Organization JSON-LD — enriched per audit B4 (2026-05-16).
