@@ -16,9 +16,10 @@ import { searchTitle, searchWeight } from '../lib/search-index';
 // script, the global stylesheet import, the banner, <main>, and the scripts.
 //
 // The import order above is deliberate. Astro orders the stylesheets of a
-// page by where each styled component sits in its importer's import list, so
-// moving QuickMessage (the first styled import) up or down changes whether
-// the site sheet loads before or after a page's own inline styles.
+// page by each import's position in its importer's whole import list, styled
+// or not, so moving any import above QuickMessage, or QuickMessage itself,
+// changes whether the site sheet loads before or after a page's own inline
+// styles. test/layout-import-order.test.ts pins the built result.
 
 interface Props {
   title: string;
