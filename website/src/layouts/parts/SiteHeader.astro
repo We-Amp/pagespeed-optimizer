@@ -6,6 +6,7 @@
 //
 // Markup here keeps the layout's indentation: the build does not compress
 // HTML, so whitespace in this file is whitespace in every page.
+import SiteLogo from '../../components/SiteLogo.astro';
 import Icon from '../../components/Icon.astro';
 import { PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { docsHome, docsSections, headerPricing, navLinks, umamiAttrs } from '../../data/nav';
@@ -19,8 +20,6 @@ interface Props {
 const { wide = false } = Astro.props;
 
 const currentLabel = PRODUCT_DISPLAY_NAME;
-const logoLight = '/logo.svg';
-const logoDark = '/logo-dark.svg';
 
 const currentPath = Astro.url.pathname;
 const docsPrefixes = ['/docs/', '/packs/', '/platform/'];
@@ -37,21 +36,8 @@ const isExact = (href: string) => normPath === href;
         aria-label="Main navigation"
       >
         <div class="flex h-16 items-center justify-between">
-          <a href="/" class="flex shrink-0 items-center" aria-label={`${currentLabel} — Home`}>
-            <img
-              src={logoLight}
-              alt={currentLabel}
-              width="216"
-              height="32"
-              class="h-8 w-auto dark:hidden"
-            />
-            <img
-              src={logoDark}
-              alt={currentLabel}
-              width="216"
-              height="32"
-              class="h-8 w-auto hidden dark:block"
-            />
+          <a href="/" class="flex shrink-0 items-center">
+            <SiteLogo width={216} height={32} class="h-8 w-auto" label={`${currentLabel} — Home`} />
           </a>
 
           {/* Desktop nav */}

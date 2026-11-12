@@ -241,7 +241,8 @@ const jsonLdScripts = [...jsonLdEntries, breadcrumbJsonLd].filter(
     />
     {alternateMarkdown && <link rel="alternate" type="text/markdown" href={alternateMarkdown} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" href="/favicon.ico" />
+    <!-- sizes keeps SVG-capable browsers on the SVG instead of fetching the .ico too. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
     <!-- No generator meta tag — we don't advertise the Astro version to avoid
