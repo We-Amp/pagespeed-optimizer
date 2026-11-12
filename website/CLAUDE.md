@@ -93,6 +93,11 @@ searching, and the Playwright suite asserts that message. Pagefind runs WebAssem
 Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `script-src`;
 the dialog probes for that before loading and reports a blocked policy visibly. The docs
 sitemap `lastmod` comes from the same git-derived date as the page (`src/lib/git-date.ts`).
+The static pages and the generated route families date from git too
+(`src/lib/page-lastmod.mjs`); each example page dates from its own catalog entry and capture.
+Git dates need full history: a shallow clone answers none, so its build falls back to the
+frontmatter dates and leaves the other sitemap entries undated. Check a date change in a
+full-history clone (`git clone --filter=blob:none`).
 
 Result order is tuned in two places. At build time the layout gives `<main>` a
 `data-pagefind-weight` and, for the pages people search for by name, a short result title

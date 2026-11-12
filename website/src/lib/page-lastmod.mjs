@@ -123,3 +123,84 @@ export function routeFamilyLastmods(siteRoot, dateOf) {
   }
   return out;
 }
+
+/**
+ * Per-record dates from a file's history: for each key, the date of the newest
+ * version whose record differs from the version before it (or the oldest
+ * version that has it). A commit that rewrites one record re-dates that record
+ * only, which a whole-file date cannot do.
+ * @param {Array<{ date: string, text: string }>} history newest first
+ * @param {(text: string) => Map<string, string>} records key -> record text
+ * @returns {Map<string, string>} key -> YYYY-MM-DD, for keys in the newest version
+ */
+export function recordDates(history, records) {
+  /** @type {Map<string, string>} */
+  const out = new Map();
+  /** @param {string} text */
+  const parse = (text) => {
+    try {
+      return records(text);
+    } catch {
+      return new Map();
+    }
+  };
+  const versions = history.map((h) => ({ date: h.date, recs: parse(h.text) }));
+  if (!versions.length) return out;
+  for (const [key, rec] of versions[0].recs) {
+    let i = 0;
+    while (i + 1 < versions.length && versions[i + 1].recs.get(key) === rec) i++;
+    out.set(key, versions[i].date);
+  }
+  return out;
+}
+
+/**
+ * The records of examples-data.json: each example's measured capture.
+ * @param {string} text
+ */
+export function exampleDataRecords(text) {
+  const data = JSON.parse(text);
+  return new Map(
+    Object.entries(data.examples ?? {}).map(([slug, rec]) => [slug, JSON.stringify(rec)]),
+  );
+}
+
+/**
+ * The records of the examples.ts catalog: each `{ slug: '…', … }` entry's text.
+ * @param {string} text
+ */
+export function exampleCatalogRecords(text) {
+  /** @type {Map<string, string>} */
+  const out = new Map();
+  for (const m of text.matchAll(/^ {2}\{\n {4}slug: '([^']+)',[\s\S]*?^ {2}\},?$/gm)) {
+    out.set(m[1], m[0]);
+  }
+  return out;
+}
+
+/**
+ * `/examples/<slug>/` dates. Each page is dated from its own catalog entry and
+ * its own capture, plus the page template; a commit that re-measures some
+ * examples re-dates only those. A slug with no answer (no usable history) is
+ * absent, and the route family's date from `ROUTE_FAMILIES` stays the
+ * fallback.
+ * @param {string} siteRoot absolute path of `website/`
+ * @param {(file: string) => string | null} dateOf
+ * @param {(file: string) => Array<{ date: string, text: string }> | null} historyOf
+ * @returns {Map<string, string>} URL path -> ISO timestamp
+ */
+export function exampleLastmods(siteRoot, dateOf, historyOf) {
+  /** @type {Map<string, string>} */
+  const map = new Map();
+  const dataHistory = historyOf(join(siteRoot, 'src/data/examples-data.json'));
+  const catalogHistory = historyOf(join(siteRoot, 'src/data/examples.ts'));
+  if (!dataHistory || !catalogHistory) return map;
+  const data = recordDates(dataHistory, exampleDataRecords);
+  const catalog = recordDates(catalogHistory, exampleCatalogRecords);
+  const template = dateOf(join(siteRoot, 'src/pages/examples/[slug].astro'));
+  for (const [slug, date] of catalog) {
+    const latest = latestDate([date, data.get(slug) ?? null, template]);
+    if (latest) map.set(`/examples/${slug}/`, new Date(latest).toISOString());
+  }
+  return map;
+}

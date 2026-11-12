@@ -13,10 +13,14 @@ import remarkDirective from 'remark-directive';
 import remarkCallouts from './src/lib/remark-callouts.mjs';
 import rehypeDirectiveBlocks from './src/lib/rehype-directive-blocks.mjs';
 import remarkLiteralTextDirectives from './src/lib/remark-literal-text-directives.mjs';
-import { gitLastModified } from './src/lib/git-date';
+import { gitFileHistory, gitLastModified } from './src/lib/git-date';
 import { EXAMPLES } from './src/data/examples';
 import { exampleImpact } from './src/lib/example-impact';
-import { routeFamilyLastmods, staticPageLastmods } from './src/lib/page-lastmod.mjs';
+import {
+  exampleLastmods,
+  routeFamilyLastmods,
+  staticPageLastmods,
+} from './src/lib/page-lastmod.mjs';
 import { BUILD_ID } from './src/lib/build-id.mjs';
 import { PAGEFIND_BUNDLE_PATH } from './src/lib/pagefind-bundle.mjs';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
@@ -102,6 +106,12 @@ const lastmodMap = buildLastmodMap();
 // date from their template and data files; the family's own index page is a
 // static page and keeps its own date.
 const familyLastmods = routeFamilyLastmods(__dirname, gitLastModified);
+// Each example page dates from its own catalog entry and capture, so a commit
+// that re-measures a few examples does not re-date all of them; the family
+// date above is the fallback.
+for (const [route, iso] of exampleLastmods(__dirname, gitLastModified, gitFileHistory)) {
+  if (!lastmodMap.has(route)) lastmodMap.set(route, iso);
+}
 
 // Filter topic pages (/docs/filters/<name>/): the thin ones are noindex and
 // stay out of the sitemap until their group-page section is enriched (the guard
