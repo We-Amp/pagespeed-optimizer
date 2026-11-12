@@ -75,14 +75,19 @@ Inlining the whole sheet at build time would add its gzip size to every page vie
 
 Search is [Pagefind](https://pagefind.app/), a static index built after the Astro build:
 the `postbuild` script (`scripts/build-search-index.mjs`) indexes `dist/client/` and writes
-`dist/client/pagefind/`, which the node server serves at `/pagefind/`. Which pages are
+`dist/client/pagefind/v<version>/`, which the node server serves at `/pagefind/v<version>/`.
+The Pagefind version is in the path (`src/lib/pagefind-bundle.mjs`, baked into the dialog by
+`astro.config.mjs`) because the bundle's file names never change and the web server caches
+script and style files for a year: a returning visitor must never pair a cached old
+`pagefind.js` with a new index. Never reference a bare `/pagefind/` URL. Which pages are
 indexed is decided in the HTML: `BaseLayout.astro` puts `data-pagefind-body` on `<main>`
 for every page that is not noindex and not a utility route (`/api/`, `/go/`, `/buy/`,
 `/error/`, 404, 500); pages without the attribute, including the static `/1.0/` archive,
 are skipped, and `data-pagefind-ignore` keeps navigation chrome out of the excerpts.
 `SearchDialog.astro` (rendered by the layout) is a native `<dialog>` opened by the header
 buttons, the docs hub search box, `/` and Ctrl/Cmd+K; it lazy-loads Pagefind's UI from
-`/pagefind/` on first open, so a page that never opens search loads no search code.
+the versioned bundle directory on first open, so a page that never opens search loads no
+search code.
 `astro dev` has no build output and therefore no index: the dialog says so instead of
 searching, and the Playwright suite asserts that message. Pagefind runs WebAssembly, so a
 Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `script-src`;

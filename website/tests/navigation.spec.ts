@@ -643,7 +643,7 @@ test.describe('Site search', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog).toHaveAttribute('open', '');
     // The dev server has no Pagefind index; the dialog must say so rather than
-    // fail silently (the production build writes /pagefind/ at build time).
+    // fail silently (the production build writes /pagefind/v<version>/ at build time).
     await expect(dialog.locator('#site-search-status')).toContainText(/search/i);
 
     await page.keyboard.press('Escape');

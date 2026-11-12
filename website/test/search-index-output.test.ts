@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findBadSearchOutput, REQUIRED_FILES } from '../scripts/lib/search-index-output.mjs';
+import { PAGEFIND_BUNDLE_PATH } from '../src/lib/pagefind-bundle.mjs';
 
 let dir: string;
 
@@ -83,7 +84,7 @@ describe('search index output check', () => {
   });
 
   // After a build: the real output passes. Skipped without one.
-  const built = fileURLToPath(new URL('../dist/client/pagefind', import.meta.url));
+  const built = fileURLToPath(new URL(`../dist/client${PAGEFIND_BUNDLE_PATH}`, import.meta.url));
   it.runIf(existsSync(built))('the built output is complete', () => {
     expect(findBadSearchOutput(built)).toEqual([]);
   });
