@@ -15,7 +15,7 @@
   font-style: normal;
   font-weight: 400 900;
   font-display: swap;
-  src: url('/fonts/inter-variable-subset.woff2') format('woff2');
+  src: url('../assets/fonts/inter-variable-subset.woff2') format('woff2');
 }
 
 /* Metric-matched fallbacks: the local font that renders before the web font
@@ -73,14 +73,14 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/plex-mono-400.woff2') format('woff2');
+  src: url('../assets/fonts/plex-mono-400.woff2') format('woff2');
 }
 @font-face {
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('/fonts/plex-mono-600.woff2') format('woff2');
+  src: url('../assets/fonts/plex-mono-600.woff2') format('woff2');
 }
 
 .prose pre {

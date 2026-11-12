@@ -69,13 +69,13 @@ const blogDir = path.join(websiteRoot, 'src/content/blog');
 // satori's vendored opentype.js cannot parse variable-font fvar tables, so
 // we use static-weight Inter from @fontsource/inter (devDep) instead of
 // the variable woff2 the site ships at runtime. Plex Mono ships in this
-// repo as static-weight woff2 (public/fonts/). Both formats need to be
+// repo as static-weight woff2 (src/assets/fonts/). Both formats need to be
 // decompressed to TTF via wawoff2 before satori can consume them.
 const fontsourceDir = path.join(websiteRoot, 'node_modules/@fontsource/inter/files');
 const fontPaths = {
   inter400: path.join(fontsourceDir, 'inter-latin-400-normal.woff2'),
   inter700: path.join(fontsourceDir, 'inter-latin-700-normal.woff2'),
-  plexMono500: path.join(websiteRoot, 'public/fonts/plex-mono-500.woff2'),
+  plexMono500: path.join(websiteRoot, 'src/assets/fonts/plex-mono-500.woff2'),
 };
 const outDir = path.join(websiteRoot, 'public/og-cards');
 const defaultCardPath = path.join(websiteRoot, 'public/og-default.png');
