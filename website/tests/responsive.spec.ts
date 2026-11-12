@@ -68,6 +68,32 @@ test.describe('Responsive layout', () => {
   });
 });
 
+test.describe('Reference-table names stay whole on phones', () => {
+  // A two-column reference table (a name and its description) used to let the
+  // name column shrink to about five characters at 320px, splitting names
+  // such as "standby" and "unplugged" mid-word. Short names must stay on one
+  // line; only a name too long for the column may break.
+  for (const path of ['/docs/configuration/', '/docs/api-reference/']) {
+    test(`${path}: short first-column names are not split at 320px`, async ({ page }) => {
+      await page.setViewportSize({ width: 320, height: 740 });
+      await page.goto(path);
+      const split = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('.prose table'))
+          .filter((t) => t.querySelector('tr')?.children.length === 2)
+          .flatMap((t) => Array.from(t.querySelectorAll('tr > :first-child code')))
+          .filter((code) => (code.textContent ?? '').trim().length <= 12)
+          .filter((code) => {
+            const range = document.createRange();
+            range.selectNodeContents(code);
+            return new Set(Array.from(range.getClientRects(), (r) => Math.round(r.top))).size > 1;
+          })
+          .map((code) => code.textContent),
+      );
+      expect(split).toEqual([]);
+    });
+  }
+});
+
 // Docs pages must not scroll horizontally on narrow screens. Long
 // unbreakable tokens (filter names, flags, URLs) and the permalink anchor
 // appended to article headings used to push these pages past the viewport;
