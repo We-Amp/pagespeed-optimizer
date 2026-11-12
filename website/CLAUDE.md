@@ -50,8 +50,8 @@ such a session start the dev server first (`npm run dev`, which backgrounds itse
 
 ## Stylesheet strategy
 
-The site CSS stays an external sheet (Astro's default): in production the site's own optimizer inlines the critical CSS and defers the full sheet, so first paint is not blocked and nothing flashes unstyled.
-Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process; fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
+The site CSS stays an external sheet (Astro's default). Production does not inline critical CSS at present: the filter is off for this site until We-Amp/mod_pagespeed#713 is fixed, so the sheet blocks the first view and is cached after that.
+Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process once it is back on. Fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
 
 ## Theme and error pages
 

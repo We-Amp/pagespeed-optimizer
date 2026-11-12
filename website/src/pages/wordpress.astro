@@ -53,7 +53,11 @@ const jsonLd = [
     description: `WordPress control panel for ${PRODUCT_DISPLAY_NAME} full-page caching: adds Cache-Control headers to anonymous pages, purges the mod_pagespeed cache on publish, update, and delete, and exposes per-post-type TTLs in WP Admin and WP-CLI. Requires mod_pagespeed on the server.`,
     softwareHelp: 'https://modpagespeed.com/docs/cache-control/',
     downloadUrl: WP_URL,
-    offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
+    offers: offerJsonLd({
+      url: 'https://modpagespeed.com/pricing/',
+      description:
+        'Free WordPress plugin, GPL-2.0-or-later, from the wordpress.org plugin directory.',
+    }),
     publisher: {
       '@type': 'Organization',
       name: 'We-Amp B.V.',

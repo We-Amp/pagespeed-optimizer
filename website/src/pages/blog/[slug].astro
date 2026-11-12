@@ -46,7 +46,10 @@ export async function getStaticPaths() {
 }
 
 const { post, related } = Astro.props;
-const { Content } = await render(post);
+const { Content, headings } = await render(post);
+// A post that ends with its own "## Related" list gets no "Read next" list
+// from the template: two related-reading lists in a row is one too many.
+const hasOwnRelated = headings.some((h) => h.depth === 2 && h.text.trim() === 'Related');
 
 const canonicalUrl = `https://modpagespeed.com/blog/${post.id}/`;
 
@@ -260,7 +263,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
               data-umami-event="cta_blog_bottom_buy"
               class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
             >
-              Support plans
+              Support pricing
             </a>
           </div>
         </>
@@ -301,7 +304,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         Drop an access log; nothing from it leaves your browser.
       </aside>
     )}
-    {related.length > 0 && (
+    {related.length > 0 && !hasOwnRelated && (
       <section class="mt-12 border-t border-border pt-8">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-text-annotation">
           Read next

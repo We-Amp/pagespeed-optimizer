@@ -36,7 +36,7 @@ const startLinks = [
 const path = Astro.url.pathname;
 const isPrerenderedCopy = path.startsWith('/error/');
 const requestLine = isPrerenderedCopy ? '' : `GET ${path}`;
-const statusLine = isPrerenderedCopy && code === '500' ? '→ 5xx' : `→ ${code}`;
+const statusLine = isPrerenderedCopy && code === '500' ? '5xx' : code;
 ---
 
 <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-24 sm:py-32 text-center">
@@ -47,11 +47,11 @@ const statusLine = isPrerenderedCopy && code === '500' ? '→ 5xx' : `→ ${code
   <p class="mt-6 text-lg text-text-muted max-w-xl mx-auto">{body}</p>
   <div class="mt-10 mx-auto max-w-md text-left" data-error-readout>
     <TermPanel
-      labelledby="error-heading"
+      label="Request and status"
       copy={!notFound}
       lines={[
         { text: requestLine, tone: 'strong' },
-        { text: statusLine, tone: 'hl' },
+        { marker: '→ ', text: statusLine, tone: 'hl' },
       ]}
     />
   </div>

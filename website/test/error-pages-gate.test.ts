@@ -48,6 +48,8 @@ describe.runIf(BUILT)('prerendered error copies (built output)', () => {
     const html = readCopy('500');
     expect(html).toContain('5xx');
     expect(html).not.toContain('→ 500');
+    // The arrow sits in its own aria-hidden span, so check the status text too.
+    expect(html).not.toContain('</span>500');
   });
 
   it('the copies carry no canonical link and no og:url', () => {

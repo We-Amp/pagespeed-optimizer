@@ -229,45 +229,6 @@ const jsonLd = [softwareApplication, faqPage];
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
-  <!-- Not in scope -->
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
-    <h2 class="h2-section text-text-body">Not in scope</h2>
-    <div class="panel mt-6">
-      <p class="text-text-body">mod_pagespeed is an origin-side optimizer. It does not replace:</p>
-      <ul class="mt-4 space-y-2 text-body text-text-muted list-disc pl-6">
-        <li>
-          <span class="font-semibold text-text-body">Edge delivery</span>: use your CDN for caching,
-          geography, and TLS termination.
-        </li>
-        <li>
-          <span class="font-semibold text-text-body">
-            Web application firewall / bot protection
-          </span>
-          : use your WAF; we do not inspect request payloads or enforce policy.
-        </li>
-        <li>
-          <span class="font-semibold text-text-body">RUM / observability platforms</span>: we expose
-          metrics; we do not replace your APM.
-        </li>
-        <li>
-          <span class="font-semibold text-text-body">Build-time bundlers</span>: if your CSS/JS is
-          already optimized, we add less &mdash; we mainly add origin-side image transcoding and
-          critical CSS.
-        </li>
-      </ul>
-      <p class="mt-4 text-body text-text-muted">
-        For how the optimizations above map to the metrics Google measures, see the{' '}
-        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline">
-          Core Web Vitals
-        </a>{' '}
-        hub.
-      </p>
-    </div>
-  </section>
-  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
-  </div>
-
   <!-- Image Optimization -->
   <section id="image-optimization" class="section">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -1356,31 +1317,15 @@ const jsonLd = [softwareApplication, faqPage];
         image transcoding, same CSS extraction, same variant-aware caching.
       </p>
 
-      <div class="mt-10 grid gap-8 lg:grid-cols-2">
-        <div>
-          <img
-            src="/images/aspnet-architecture.svg"
-            alt="ASP.NET Core middleware architecture — request flows through other middleware to the PageSpeed middleware and back"
-            width="960"
-            height="540"
-            loading="lazy"
-            class="rounded-lg border border-border"
-          />
-        </div>
-        <div>
-          <picture>
-            <source srcset="/images/console-variants.avif" type="image/avif" />
-            <source srcset="/images/console-variants.webp" type="image/webp" />
-            <img
-              src="/images/console-variants.png"
-              alt="Admin console showing cached variants for a single URL across formats and viewports"
-              width="1280"
-              height="720"
-              loading="lazy"
-              class="rounded-lg border border-border"
-            />
-          </picture>
-        </div>
+      <div class="mt-10 max-w-3xl">
+        <img
+          src="/images/aspnet-architecture.svg"
+          alt="ASP.NET Core middleware architecture — request flows through other middleware to the PageSpeed middleware and back"
+          width="960"
+          height="540"
+          loading="lazy"
+          class="rounded-lg border border-border"
+        />
       </div>
 
       <div class="mt-10 max-w-2xl">
@@ -1409,6 +1354,45 @@ const jsonLd = [softwareApplication, faqPage];
     </div>
   </section>
 
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  <!-- What it does not replace -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
+    <h2 class="h2-section text-text-body">What it does not replace</h2>
+    <div class="panel mt-6">
+      <p class="text-text-body">mod_pagespeed is an origin-side optimizer. It does not replace:</p>
+      <ul class="mt-4 space-y-2 text-body text-text-muted list-disc pl-6">
+        <li>
+          <span class="font-semibold text-text-body">Edge delivery</span>: use your CDN for caching,
+          geography, and TLS termination.
+        </li>
+        <li>
+          <span class="font-semibold text-text-body">
+            Web application firewall / bot protection
+          </span>
+          : use your WAF; we do not inspect request payloads or enforce policy.
+        </li>
+        <li>
+          <span class="font-semibold text-text-body">RUM / observability platforms</span>: we expose
+          metrics; we do not replace your APM.
+        </li>
+        <li>
+          <span class="font-semibold text-text-body">Build-time bundlers</span>: if your CSS/JS is
+          already optimized, we add less &mdash; we mainly add origin-side image transcoding and
+          critical CSS.
+        </li>
+      </ul>
+      <p class="mt-4 text-body text-text-muted">
+        For how the optimizations above map to the metrics Google measures, see the{' '}
+        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline">
+          Core Web Vitals
+        </a>{' '}
+        hub.
+      </p>
+    </div>
+  </section>
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>

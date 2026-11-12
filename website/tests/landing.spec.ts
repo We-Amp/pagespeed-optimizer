@@ -86,7 +86,10 @@ test.describe('Landing page', () => {
     await expect(img).toHaveAttribute('width', '1196');
     await expect(img).toHaveAttribute('height', '306');
     await expect(img).toHaveAttribute('loading', 'lazy');
-    await expect(img).toHaveAttribute('alt', /admin console/);
+    await expect(img).toHaveAttribute(
+      'alt',
+      /^Admin console Overview\. Module: .* Optimizer: running/,
+    );
     await expect(section.locator('figure:has(img) figcaption')).toContainText('public on purpose');
     const link = section.locator('a[href="https://we-amp.com/pagespeed_global_admin/"]');
     await expect(link).toHaveText('Open the live console');

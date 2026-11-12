@@ -270,7 +270,7 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
                 id={`frame-${frame.kind.toLowerCase()}-open`}
                 aria-labelledby={`frame-${frame.kind.toLowerCase()}-kind frame-${frame.kind.toLowerCase()}-open`}
               >
-                Open in new tab
+                Open <span class="sr-only">the {frame.kind.toLowerCase()} page </span>in new tab
               </a>
             </div>
             <div class="relative h-[min(560px,70vh)]" data-frame>
@@ -299,7 +299,7 @@ const jsonLd: Record<string, unknown> | undefined = impact.indexable
                   id={`frame-${frame.kind.toLowerCase()}-fallback-open`}
                   aria-labelledby={`frame-${frame.kind.toLowerCase()}-kind frame-${frame.kind.toLowerCase()}-fallback-open`}
                 >
-                  Open in new tab
+                  Open <span class="sr-only">the {frame.kind.toLowerCase()} page </span>in new tab
                 </a>
               </div>
               <iframe

@@ -47,23 +47,7 @@ const LINK_AUDIT_PAGES = [...new Set([...PAGES_FOR_AXE_SCAN, ...PAGES_FOR_PHONE_
 // Link names that already lead to two pages, each pinned to the pages it
 // leads to today, so a new shared name or a further destination fails. Each
 // is a wording decision; remove the entry once the names differ.
-const SUPPORT_PLANS = ['/pricing/', '/support/'];
-const RULE_PACKS = ['/docs/rule-packs/', '/packs/'];
-const KNOWN_SHARED_LINK_NAMES: Record<string, Record<string, string[]>> = {
-  '/demo/': {
-    'open the live admin console': [
-      'https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/',
-      'https://we-amp.com/pagespeed_global_admin/',
-    ],
-    'support plans': SUPPORT_PLANS,
-  },
-  '/support/': { 'contact form': ['/contact/', '/contact/?topic=iispeed-transfer'] },
-  '/docs/filters/': { 'rule packs': RULE_PACKS },
-  '/docs/filters/lazyload_images/': { 'rule packs': RULE_PACKS },
-  '/calculator/': { 'support plans': SUPPORT_PLANS },
-  '/alternatives/': { 'support plans': SUPPORT_PLANS },
-  '/blog/avif-vs-webp-2026/': { 'support plans': SUPPORT_PLANS },
-};
+const KNOWN_SHARED_LINK_NAMES: Record<string, Record<string, string[]>> = {};
 
 test.describe('Accessibility', () => {
   test('skip-to-content link is first focusable element', async ({ page }) => {

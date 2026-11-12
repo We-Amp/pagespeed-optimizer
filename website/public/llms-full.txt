@@ -295,7 +295,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ---
 
-# Getting started
+# Install mod_pagespeed
 
 Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.
 
@@ -2924,7 +2924,7 @@ Canonical URL: https://modpagespeed.com/docs/upgrade/
 | --- | --- |
 | mod_pagespeed 2.x | This page |
 | mod_pagespeed 1.15 | [Migrate from mod_pagespeed 1.15](https://modpagespeed.com/docs/migrate-from-1-15/) |
-| The archived Google module | [Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/) |
+| The archived Google module (1.13 and earlier) | [Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/) |
 | ngx_pagespeed | [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/) |
 | IISpeed | [Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/) |
 | ModPageSpeed 2.0 | [Migrate from ModPageSpeed 2.0](https://modpagespeed.com/docs/migrating-to-2-1/) |
@@ -16465,7 +16465,7 @@ Canonical URL: https://modpagespeed.com/docs/admin-console/
 
 > **Live console**
 >
-> See it running: [the live console on our own sites](https://we-amp.com/pagespeed_global_admin/). It opens with a warning that it is reachable from the network; a console is normally private, ours is public on purpose.
+> See it running: [the live console on our own sites](https://we-amp.com/pagespeed_global_admin/). A console is normally private; ours is public on purpose.
 
 ## Overview
 

@@ -7,7 +7,7 @@ lastUpdated: 2026-10-22
 ---
 
 :::tip[Live console]
-See it running: [the live console on our own sites](https://we-amp.com/pagespeed_global_admin/). It opens with a warning that it is reachable from the network; a console is normally private, ours is public on purpose.
+See it running: [the live console on our own sites](https://we-amp.com/pagespeed_global_admin/). A console is normally private; ours is public on purpose.
 :::
 
 ## Overview

@@ -290,7 +290,8 @@ describe('agent files cover the docs collection', () => {
     });
     it(`llms-full.txt carries the full Markdown of /docs/${doc.slug}/`, () => {
       const md = renderDocMarkdown(doc, ctx.manifests);
-      expect(md.startsWith(`# ${doc.data.title}\n`)).toBe(true);
+      // The H1 is the one the HTML page shows: `h1` when set, else the title.
+      expect(md.startsWith(`# ${doc.data.h1 ?? doc.data.title}\n`)).toBe(true);
       expect(full).toContain(md.trimEnd());
     });
   }
@@ -351,7 +352,7 @@ describe('agent files cover the docs collection', () => {
           /\{rel\d+\.|<[A-Z][A-Za-z]*\b[^>]*\/>|^import |^export /,
         );
       }
-      expect(h1s, doc.slug).toEqual([`# ${doc.data.title}`]);
+      expect(h1s, doc.slug).toEqual([`# ${doc.data.h1 ?? doc.data.title}`]);
       expect(relative, doc.slug).toEqual([]);
     }
   });
@@ -469,7 +470,7 @@ describe('/docs/<slug>.md serves the same Markdown', () => {
     const body = await res.text();
     expect(body).toBe(renderDocMarkdown(doc, ctx.manifests));
     expect(full).toContain(body.trimEnd());
-    expect(body.startsWith('# Getting started\n')).toBe(true);
+    expect(body.startsWith('# Install mod_pagespeed\n')).toBe(true);
     expect(body).toContain(`Canonical URL: ${SITE}/docs/getting-started/`);
   });
 });
