@@ -60,13 +60,13 @@ const EMPHASIZED = 'priority';
           <span class="text-3xl font-semibold">{formatEur(tier.prices.annualEur)}</span>
           <span class="text-sm text-text-muted"> / year</span>
         </p>
-        <p class="mt-2 font-mono text-xs uppercase tracking-wider text-text-annotation lg:min-h-8">
+        <p class="mt-2 text-micro uppercase tracking-wider text-text-annotation lg:min-h-8">
           {tier.servers}
         </p>
-        <ul class="mt-5 flex-1 space-y-2 text-sm text-text-muted">
+        <ul class="mt-5 flex-1 space-y-2 text-body text-text-muted">
           {tier.includes.map((item) => (
             <li class="flex gap-2">
-              <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
+              <Icon name="check" class="mt-1 h-4 w-4 shrink-0 text-interactive" />
               <span>{item}</span>
             </li>
           ))}
@@ -89,6 +89,6 @@ const EMPHASIZED = 'priority';
     );
   })}
 </div>
-<p class="mt-4 text-sm text-text-muted" data-private-repo>
+<p class="mt-4 text-small text-text-muted" data-private-repo>
   {PRIVATE_REPO_LINE}
 </p>

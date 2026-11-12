@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// palette-lint.test.ts — the cool-palette ban, enforced. The site's palette
+// palette-lint.test.ts — the palette ban, enforced. The site's palette
 // moved to the instrument tokens (see src/styles/global.css): no blue-family
 // Tailwind utilities and no blue rgba() literals anywhere in src/ or the
-// top-level public/*.svg marks. The warm remainder (stone-/emerald-/amber-)
-// is being retired package by package; this test prints the remaining counts
-// per file as a table without failing on them, so the number only goes down.
+// top-level public/*.svg marks, and no shade of any other stock Tailwind
+// palette either (stone-, emerald-, amber-, red-, green-, ...), whether as a
+// utility, a --color-* variable or a comment that points at one. Colour comes
+// from the tokens; a page that needs a colour the tokens do not carry keeps
+// it in its own scoped style.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -61,8 +63,10 @@ const BANNED_UTILITY = /\b(?:blue|sky|indigo|purple)-\d+/;
 // rgba(7, 8, 10, 0.72) stay legal: dominance has to exceed 24 per channel.
 const RGBA = /\brgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,/g;
 
-// The warm remainder, reported but not (yet) banned.
-const WARM = /\b(?:stone|emerald|amber)-\d+/g;
+// Every other stock Tailwind palette, by shade (50, 100-900, 950), so ids
+// such as arrow-stone-20 and names such as prose-stone stay legal.
+const STOCK_PALETTE =
+  /\b(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|violet|fuchsia|pink|rose)-(?:50|[1-9]00|950)\b/g;
 
 interface Violation {
   file: string;
@@ -71,7 +75,7 @@ interface Violation {
 }
 
 const violations: Violation[] = [];
-const warmCounts = new Map<string, number>();
+const stockViolations: Violation[] = [];
 
 for (const file of files) {
   const rel = relative(websiteRoot, file);
@@ -89,10 +93,10 @@ for (const file of files) {
         violations.push({ file: rel, line: i + 1, match: m[0] });
       }
     }
+    for (const m of line.matchAll(STOCK_PALETTE)) {
+      stockViolations.push({ file: rel, line: i + 1, match: m[0] });
+    }
   });
-
-  const warm = text.match(WARM);
-  if (warm) warmCounts.set(rel, warm.length);
 }
 
 describe('palette lint', () => {
@@ -101,18 +105,8 @@ describe('palette lint', () => {
     expect(violations, `cool-palette violations:\n${listing}`).toEqual([]);
   });
 
-  it('prints the remaining warm-palette counts (informational)', () => {
-    const rows = [...warmCounts.entries()].sort((a, b) => b[1] - a[1]);
-    if (rows.length === 0) {
-      console.log('\nremaining stone-/emerald-/amber- matches: none\n');
-      return;
-    }
-    const width = Math.max(...rows.map(([f]) => f.length), 4);
-    const total = rows.reduce((n, [, c]) => n + c, 0);
-    console.log(
-      '\nremaining stone-/emerald-/amber- matches (not a failure):\n' +
-        rows.map(([f, c]) => `  ${f.padEnd(width)}  ${c}`).join('\n') +
-        `\n  ${'total'.padEnd(width)}  ${total}\n`,
-    );
+  it('no stock Tailwind palette shades in src/ or public/*.svg', () => {
+    const listing = stockViolations.map((v) => `  ${v.file}:${v.line}  ${v.match}`).join('\n');
+    expect(stockViolations, `stock-palette uses (use a token):\n${listing}`).toEqual([]);
   });
 });

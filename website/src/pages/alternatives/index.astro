@@ -145,7 +145,7 @@ const jsonLd = {
       {cards.map((card) => (
         <a
           href={card.href}
-          class="card rounded-2xl border border-border bg-bg-elevated p-6 md:p-7 hover:border-interactive/40 transition-colors flex flex-col"
+          class="card rounded-card border border-border bg-bg-elevated p-6 md:p-7 hover:border-interactive/40 transition-colors flex flex-col"
         >
           <h2 class="text-lg font-semibold text-text-body">{card.title}</h2>
           <p class="mt-2 text-sm text-text-muted flex-1">{card.summary}</p>
@@ -193,7 +193,7 @@ const jsonLd = {
         SaaS dashboard, or inside WordPress.
       </p>
       <div
-        class="mt-6 overflow-x-auto rounded-xl border border-border"
+        class="mt-6 overflow-x-auto rounded-card border border-border"
         tabindex="0"
         role="region"
         aria-labelledby="where-each-tool-fits"

@@ -131,7 +131,7 @@
         0x00
       </span>
     </div>
-    <p class="mt-1.5 text-[10px] text-text-annotation font-mono" id="bm-desc" aria-live="polite">
+    <p class="mt-1.5 text-micro text-text-annotation" id="bm-desc" aria-live="polite">
       Original · Mobile · 1x · no Save-Data · Identity
     </p>
   </div>
@@ -169,12 +169,12 @@
         var el = bits[i];
         if (on) {
           el.style.backgroundColor = '';
-          el.classList.remove('bg-stone-100', 'dark:bg-stone-800');
+          el.classList.remove('bg-bit-clear');
           el.classList.add('bg-interactive', 'dark:bg-interactive');
           el.style.borderColor = 'transparent';
         } else {
           el.classList.remove('bg-interactive', 'dark:bg-interactive');
-          el.classList.add('bg-stone-100', 'dark:bg-stone-800');
+          el.classList.add('bg-bit-clear');
           el.style.borderColor = '';
         }
       }

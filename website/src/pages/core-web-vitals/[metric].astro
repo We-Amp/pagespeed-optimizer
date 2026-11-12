@@ -88,7 +88,7 @@ const jsonLd = [
     <p class="lede mt-6 max-w-3xl" set:html={pillar.intro} />
 
     <!-- Thresholds -->
-    <div class="mt-8 inline-flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-border bg-bg-elevated px-6 py-4 text-sm">
+    <div class="mt-8 inline-flex flex-wrap items-center gap-x-6 gap-y-2 rounded-card border border-border bg-bg-elevated px-6 py-4 text-sm">
       <span class="font-semibold text-text-body">{pillar.abbr} thresholds</span>
       <span class="text-success">
         Good: {pillar.thresholds.good} {pillar.thresholds.unit}
@@ -100,7 +100,7 @@ const jsonLd = [
 
     {serverFilters.length > 0 && (
       <aside
-        class="mt-8 rounded-2xl border border-interactive/40 bg-interactive/10 p-6"
+        class="mt-8 rounded-card border border-interactive/40 bg-interactive/10 p-6"
         aria-labelledby="fix-at-the-server"
       >
         <h2 id="fix-at-the-server" class="text-lg font-semibold text-text-body">
@@ -155,7 +155,7 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">Common causes</h2>
       <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         {pillar.causes.map((cause) => (
-          <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+          <div class="rounded-card border border-border bg-bg-elevated p-6">
             <h3 class="font-semibold text-text-body">{cause.title}</h3>
             <p class="mt-2 text-sm text-text-muted" set:html={cause.detail} />
           </div>
@@ -168,7 +168,7 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">How to fix {pillar.abbr}</h2>
       <div class="mt-8 space-y-4">
         {pillar.fixes.map((fix) => (
-          <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+          <div class="rounded-card border border-border bg-bg-elevated p-6">
             <div class="flex flex-wrap items-center gap-3">
               <h3 class="font-semibold text-text-body">{fix.heading}</h3>
               <span
@@ -195,7 +195,7 @@ const jsonLd = [
           <li>
             <a
               href={spoke.href}
-              class="group flex flex-col gap-0.5 rounded-xl border border-border p-4 hover:border-interactive/40 transition-colors"
+              class="group flex flex-col gap-0.5 rounded-card border border-border p-4 hover:border-interactive/40 transition-colors"
             >
               <span class="font-medium text-interactive group-hover:underline underline-offset-4">
                 Fix {pillar.abbr} on {spoke.platform}
@@ -223,7 +223,7 @@ const jsonLd = [
 
     <!-- CTA -->
     <section class="mt-16">
-      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
+      <div class="rounded-card border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Measure, then fix</h2>
         <p class="mt-3 text-text-body">
           Start with a measurement. Run a page through the analyzer to see what is driving its{' '}

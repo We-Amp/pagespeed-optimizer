@@ -307,7 +307,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
                   </th>
                   <td class="px-3 py-4">
                     <span
-                      class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${badge.cls}`}
+                      class={`inline-flex items-center rounded-md px-2 py-0.5 text-micro font-semibold uppercase tracking-wide ${badge.cls}`}
                     >
                       {badge.label}
                     </span>
@@ -364,11 +364,11 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
           .map((m) => {
             const ex = auditExamples[m.auditId];
             return (
-              <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+              <div class="rounded-card border border-border bg-bg-elevated p-6">
                 <div class="flex flex-wrap items-center gap-3">
                   <h3 class="font-semibold text-text-body">{m.auditTitle}</h3>
                   <span
-                    class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${coverageBadge.full.cls}`}
+                    class={`inline-flex items-center rounded-md px-2 py-0.5 text-micro font-semibold uppercase tracking-wide ${coverageBadge.full.cls}`}
                   >
                     Auto-fix
                   </span>
@@ -436,7 +436,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         your application logic, so the audits below are out of scope. No server-layer module can fix
         INP for you; the fix is in your event handlers and framework code.
       </p>
-      <div class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6">
+      <div class="mt-8 rounded-card border border-accent/40 bg-accent-wash p-6">
         <dl class="space-y-5">
           {clientSide.map((m) => (
             <div>
@@ -464,7 +464,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
 
     <!-- CTA -->
     <section>
-      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
+      <div class="rounded-card border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Score your own page first</h2>
         <p class="mt-3 text-text-body">
           Run a URL through our analyzer &mdash; it scores the page via Google's PageSpeed Insights

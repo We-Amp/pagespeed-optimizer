@@ -214,7 +214,7 @@ const jsonLd: Record<string, unknown> | undefined = hasData
           { kind: 'Original', url: before, eager: true },
           { kind: 'Optimized', url: after, eager: true },
         ].map((frame) => (
-          <div class="rounded-lg border border-border bg-bg-elevated overflow-hidden shadow-sm">
+          <div class="rounded-lg border border-border bg-bg-elevated overflow-hidden">
             <div class="flex items-center justify-between px-4 py-2 border-b border-border bg-bg-secondary">
               <span
                 class:list={[
@@ -397,8 +397,8 @@ const jsonLd: Record<string, unknown> | undefined = hasData
           <h2 class="h2-section text-text-body">What changed in the source</h2>
           <p class="mt-2 text-sm text-text-annotation">
             The page's HTML, before and after this filter.
-            <span class="text-red-600 dark:text-red-400">Red</span> lines are removed,
-            <span class="text-green-700 dark:text-green-400">green</span> lines are added.
+            <span class="diff-legend-del">Red</span> lines are removed,
+            <span class="diff-legend-add">green</span> lines are added.
           </p>
           <div
             class="mt-5 overflow-x-auto rounded-lg border border-border bg-bg-secondary"
@@ -411,9 +411,9 @@ const jsonLd: Record<string, unknown> | undefined = hasData
                       class:list={[
                         'px-4 whitespace-pre',
                         line.t === '+' &&
-                          'bg-green-100/70 dark:bg-green-900/30 text-green-800 dark:text-green-300',
+                          'diff-add',
                         line.t === '-' &&
-                          'bg-red-100/70 dark:bg-red-900/30 text-red-800 dark:text-red-300',
+                          'diff-del',
                         line.t === '@' && 'text-text-annotation italic',
                         line.t === ' ' && 'text-text-muted',
                       ]}
@@ -450,3 +450,23 @@ const jsonLd: Record<string, unknown> | undefined = hasData
     </div>
   </section>
 </BaseLayout>
+
+<style>
+  /* The source diff is the one place the site uses red and green, so the
+     colours live here rather than in the shared tokens. The site is
+     dark-only (print included), so there is one set of values. */
+  .diff-legend-del {
+    color: oklch(70.4% 0.191 22.216);
+  }
+  .diff-legend-add {
+    color: oklch(79.2% 0.209 151.711);
+  }
+  .diff-del {
+    background-color: oklch(39.6% 0.141 25.723 / 0.3);
+    color: oklch(80.8% 0.114 19.571);
+  }
+  .diff-add {
+    background-color: oklch(39.3% 0.095 152.535 / 0.3);
+    color: oklch(87.1% 0.15 154.449);
+  }
+</style>

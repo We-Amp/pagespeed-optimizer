@@ -52,7 +52,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
 <div class="cmp not-prose">
   <!-- Wide layout: real table, shown sm and up -->
   <div
-    class="hidden sm:block overflow-x-auto rounded-xl border border-border"
+    class="hidden sm:block overflow-x-auto rounded-card border border-border"
     tabindex="0"
     role="region"
     aria-labelledby={labelledBy}
@@ -126,7 +126,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
   <ul class="sm:hidden space-y-3">
     {rows.map((row: Row) => (
       <li
-        class={`rounded-xl border border-border p-4 ${
+        class={`rounded-card border border-border p-4 ${
           row.highlight ? 'bg-success-wash' : 'bg-bg-elevated'
         }`}
       >
@@ -177,7 +177,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
 
   <!-- Compact CTA: shared across every /alternatives/ page, so keep it
        generic (no per-product param). -->
-  <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-bg-secondary/60 px-4 py-3 text-sm">
+  <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-card border border-border bg-bg-secondary/60 px-4 py-3 text-sm">
     <span class="font-medium text-text-body">See for yourself:</span>
     <a
       href="/download/"
