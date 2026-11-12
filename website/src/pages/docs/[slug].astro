@@ -13,6 +13,7 @@ import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease, dockerTag } from '../../lib/release';
 import { gitLastModified } from '../../lib/git-date';
 import { htmlToPlainText } from '../../lib/jsonld';
+import { brandedTitle } from '../../lib/page-title';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { productRef } from '../../data/software-jsonld';
 import { ORGANIZATION_PUBLISHER } from '../../data/organization';
@@ -261,14 +262,8 @@ if (jsonLd) jsonLdEntries.push(jsonLd);
 if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 
 // <title>: an explicit seoTitle wins; otherwise the sidebar title plus the
-// product suffix, dropped when it would push the title past the ~60-character
-// point where search engines truncate (the same rule as the blog).
-const titleSuffix = ` — ${PRODUCT_DISPLAY_NAME}`;
-const pageTitle =
-  doc.data.seoTitle ??
-  (doc.data.title.length + titleSuffix.length <= 60
-    ? `${doc.data.title}${titleSuffix}`
-    : doc.data.title);
+// product suffix (the same rule as the blog, see brandedTitle).
+const pageTitle = doc.data.seoTitle ?? brandedTitle(doc.data.title);
 const heading = doc.data.h1 ?? doc.data.title;
 // The three pages the archived PageSpeed Module docs on developers.google.com
 // send their readers to (via the legacy /doc/* redirects) carry the

@@ -8,6 +8,7 @@ import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 import { productRef } from '../../data/software-jsonld';
+import { brandedTitle } from '../../lib/page-title';
 
 export async function getStaticPaths() {
   const pages = await getCollection('how-it-works');
@@ -87,11 +88,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 ---
 
 <BaseLayout
-  title={
-    doc.data.title.length + ' — mod_pagespeed'.length <= 60
-      ? `${doc.data.title} — mod_pagespeed`
-      : doc.data.title
-  }
+  title={brandedTitle(doc.data.title)}
   description={doc.data.description}
   jsonLd={jsonLdEntries}
   breadcrumbLeafName={doc.data.title}
