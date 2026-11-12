@@ -15,23 +15,25 @@ import { ORGANIZATION } from '../data/organization';
 import Hero from '../components/home/Hero.astro';
 import Proof from '../components/home/Proof.astro';
 import Install from '../components/home/Install.astro';
-import Product from '../components/home/Product.astro';
 import SignalPath from '../components/home/SignalPath.astro';
 import Spec from '../components/home/Spec.astro';
-import Lineage from '../components/home/Lineage.astro';
+import AiReadability from '../components/home/AiReadability.astro';
 import Evaluation from '../components/home/Evaluation.astro';
-import Sponsor from '../components/home/Sponsor.astro';
+import Lineage from '../components/home/Lineage.astro';
+import FurtherReading from '../components/home/FurtherReading.astro';
 import Closing from '../components/home/Closing.astro';
 
-// The page is ten sections, one component each under src/components/home/.
-// This file keeps the page metadata, the JSON-LD, the global style block the
-// sections share, and the quick-start tab script.
+// The page is nine sections and one band, one component each under
+// src/components/home/ (the stack panel and product card, Product.astro,
+// render inside the install section).
+// This file keeps the page metadata, the JSON-LD and the global style block
+// the sections share.
 //
 // Import order matters here and in the section components. The build orders
 // the inline style blocks in <head> by each stylesheet's position in the
 // import graph, so the section imports sit after the data imports, and
-// Install is imported ahead of Product and SignalPath. The order the sections
-// render in is the order of the template below.
+// Install is imported ahead of SignalPath. The order the sections render in
+// is the order of the template below.
 
 // The live-site count, 231,341 per BuiltWith, rendered as a defensible lower
 // bound ("230,000+"). The hero and the lineage section both show it.
@@ -169,7 +171,7 @@ const jsonLd = [organization, website, product, faqPage];
 >
   {/* Hero — instrument layout: message left, the measured readout panel on
       the right at >=1024px; stacked with the panel right after the CTA block
-      on narrow screens. */}
+      on narrow screens. The proof strip and the affiliation notice follow. */}
   <Hero liveSites={builtwithLiveRounded} />
 
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
@@ -187,9 +189,82 @@ const jsonLd = [organization, website, product, faqPage];
     }
     @media (min-width: 1024px) {
       .hero-grid {
-        grid-template-columns: 1.1fr 0.9fr;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+        gap: 3.5rem;
         align-items: start;
       }
+    }
+    .hero-lede {
+      max-width: 34em;
+    }
+    /* Desktop: a 56px headline and a one-line mono subhead, so the hero and
+       the proof strip fit the first screen. */
+    @media (min-width: 1024px) {
+      .hero-grid .h1-hero {
+        font-size: 3.5rem;
+        line-height: 1.08;
+      }
+      .hero-grid .hero-sub {
+        font-size: 0.4em;
+      }
+      .hero-lede {
+        font-size: 1.125rem;
+      }
+    }
+    /* Two buttons, then the docs text link. On phones the two buttons share
+       the first row and the text link takes its own line. */
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .hero-docs {
+      margin-left: 0.5rem;
+      font-size: 0.875rem;
+      /* Same 44px target height as the buttons beside it. */
+      display: inline-flex;
+      align-items: center;
+      min-height: 2.75rem;
+    }
+    @media (max-width: 639px) {
+      .hero-actions > .btn-primary,
+      .hero-actions > .btn-secondary {
+        flex: 1 1 auto;
+        white-space: nowrap;
+      }
+      .hero-docs {
+        margin-left: 0;
+        min-height: 1.5rem;
+      }
+    }
+    /* Proof strip: a short label over one sentence, four columns on desktop,
+       two by two from 640px. */
+    .proof-strip {
+      display: grid;
+      gap: 1rem 1.5rem;
+      padding-block: 1.125rem;
+    }
+    @media (min-width: 640px) {
+      .proof-strip {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (min-width: 1024px) {
+      .proof-strip {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+    }
+    .proof-strip dt {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-text-body);
+    }
+    .proof-strip dd {
+      margin: 0.125rem 0 0;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--color-text-muted);
     }
     .hero-sub {
       font-family: var(--font-mono);
@@ -287,6 +362,13 @@ const jsonLd = [organization, website, product, faqPage];
     .dg-fill-interactive {
       fill: var(--color-interactive);
     }
+    /* A ground-coloured outline behind a label that sits on a line. */
+    .dg-halo {
+      paint-order: stroke;
+      stroke: var(--color-bg-primary);
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
     .dg-stroke-lane {
       stroke: var(--color-border);
     }
@@ -325,7 +407,22 @@ const jsonLd = [organization, website, product, faqPage];
     .dg-edge-faint {
       stroke: var(--color-text-annotation);
     }
-    /* Step panels: mono "STEP n" with the right-aligned mono tag. */
+    /* Install steps: one caption row, three columns from 768px, a hairline
+       over each step. */
+    .step-row {
+      display: grid;
+      gap: 1.25rem 2rem;
+    }
+    @media (min-width: 768px) {
+      .step-row {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+    .step-row > li {
+      padding-top: 0.875rem;
+      border-top: 1px solid var(--color-border);
+    }
+    /* Step labels: mono "STEP n". */
     .step-no {
       display: flex;
       justify-content: space-between;
@@ -366,19 +463,79 @@ const jsonLd = [organization, website, product, faqPage];
     .faq-list > div:last-child {
       padding-bottom: 0;
     }
+    /* Two columns of questions from 1024px, filled top to bottom so a long
+       answer does not leave a gap beside a short one. Every pair starts on a
+       hairline there. */
+    @media (min-width: 1024px) {
+      .faq-list {
+        column-count: 2;
+        column-gap: 3rem;
+      }
+      .faq-list > div,
+      .faq-list > div:first-child,
+      .faq-list > div:last-child {
+        break-inside: avoid;
+        border-top: 1px solid var(--color-border);
+        padding-block: 1.25rem;
+      }
+    }
+
+    /* Section spacing used only on this page. Written here rather than as
+       utility classes so that the stylesheet every other page loads does
+       not carry them. Kept in the utilities layer so they cascade exactly
+       as the utilities they replace. */
+    @layer utilities {
+      .home-proof-grid,
+      .home-lineage-grid {
+        gap: calc(var(--spacing) * 10);
+      }
+      .home-band-y {
+        border-block-style: var(--tw-border-style);
+        border-block-width: 1px;
+      }
+      .home-band-ai {
+        padding-block: calc(var(--spacing) * 10);
+      }
+      .home-reading {
+        padding-top: calc(var(--spacing) * 13);
+      }
+      @media (width >= 40rem) {
+        .home-reading {
+          padding-top: calc(var(--spacing) * 18);
+        }
+      }
+      @media (width >= 64rem) {
+        .home-hero-top {
+          padding-top: calc(var(--spacing) * 14);
+        }
+        .home-proof-grid {
+          gap: calc(var(--spacing) * 12);
+        }
+        .home-lineage-grid {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+          align-items: center;
+        }
+        .home-lineage-num {
+          font-size: var(--text-3xl);
+          line-height: var(--tw-leading, var(--text-3xl--line-height));
+        }
+      }
+    }
   </style>
 
-  {/* 01 — this site runs the binary it sells: the captured response headers
-      of this very page, the HIT/MISS header the nginx module adds, and
-      the public admin console. */}
-  <Proof />
+  {/* 01 — the install procedure: the three steps as a caption row, the
+      install command per platform, then the stack panel and the product
+      card. */}
+  <Install />
 
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
-  {/* 02 — the converged line, with availability signposted by stack */}
-  <Product />
+  {/* 02 — this site runs the binary it sells: the captured response headers
+      of this very page, the HIT/MISS header the nginx module adds, and
+      the public admin console. */}
+  <Proof />
 
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
@@ -393,18 +550,24 @@ const jsonLd = [organization, website, product, faqPage];
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
-  {/* 04 — the install procedure: three steps as panels, the per-platform
-      quick-start as TermPanels (moved here from the signal-path section),
-      and the further-reading row carrying the former "Start here" cards. */}
-  <Install />
+  {/* 04 — the specification: the six capability cards as readout panels,
+      each readout restating its own card text. */}
+  <Spec />
 
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
-  {/* 05 — the specification: the six capability cards as readout panels,
-      each readout restating its own card text. */}
-  <Spec />
+  {/* The AI-readability scan: one line plus its source. */}
+  <AiReadability />
+
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  {/* 05 — evaluation FAQ: always-expanded <dl>, hairline between pairs, two
+      columns from 1024px; mirrors the FAQPage JSON-LD. */}
+  <Evaluation />
 
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
@@ -417,48 +580,11 @@ const jsonLd = [organization, website, product, faqPage];
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
-  {/* 07 — evaluation FAQ: always-expanded <dl>, hairline between pairs;
-      mirrors the FAQPage JSON-LD. */}
-  <Evaluation />
-
-  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
-  </div>
-
-  <Sponsor />
-
-  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
-  </div>
+  {/* Further reading: four docs and blog cards, then the closing panel. */}
+  <FurtherReading />
 
   {/* CTA — a featured panel on the primary ground. The full-cyan band is
       retired: the design allows one cyan fill per viewport, and the band
-      plus the primary button made two. */}
+      plus the primary button made two. The sponsor link is its last line. */}
   <Closing />
-
-  <!-- Kept inside <BaseLayout>: a <script> after the layout's close tag is
-       emitted after </html>, where the document-structure lint (and any
-       parser that stops at </html>) never sees it. -->
-  <script>
-    // Quick-start platform sub-tabs. The markup ships with both panels
-    // visible so the quick-start works without JS; once this runs, only the
-    // pressed tab's panel stays shown.
-    const qsTabs = document.querySelectorAll<HTMLButtonElement>('[data-qs-tab]');
-    const qsPanels = document.querySelectorAll<HTMLElement>('[data-qs-panel]');
-    const qsShow = (platform: string | undefined) => {
-      qsPanels.forEach((panel) => {
-        panel.classList.toggle('hidden', panel.dataset.qsPanel !== platform);
-      });
-    };
-    qsShow('qs-nginx');
-    qsTabs.forEach((tab) => {
-      tab.addEventListener('click', () => {
-        const platform = tab.dataset.qsTab;
-        qsTabs.forEach((t) => {
-          t.setAttribute('aria-pressed', t.dataset.qsTab === platform ? 'true' : 'false');
-        });
-        qsShow(platform);
-      });
-    });
-  </script>
 </BaseLayout>

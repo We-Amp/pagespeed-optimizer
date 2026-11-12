@@ -287,11 +287,19 @@ const { name, groupLabel, copyLabel, copiedLabel, platforms } = Astro.props;
     }
   }
 
-  /* Forced colors drop the wash that marks the chosen platform; a system-colour
-     border carries the state instead. */
+  /* Forced colors drop the wash that marks the chosen platform, so the chosen
+     tab keeps a fill in the system's selection colours: a filled shape, not a
+     border colour alone, marks it. The focus ring then uses the text colour so
+     it stands out from that fill. */
   @media (forced-colors: active) {
     .install-radio:checked + .install-tab {
-      border-color: Highlight;
+      forced-color-adjust: none;
+      background: SelectedItem;
+      color: SelectedItemText;
+      border-color: SelectedItem;
+    }
+    .install-radio:checked:focus-visible + .install-tab {
+      outline-color: CanvasText;
     }
   }
 </style>

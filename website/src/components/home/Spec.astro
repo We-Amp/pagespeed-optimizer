@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// Home section 05: the specification. The six capability cards as readout
+// Home section 04: the specification. The six capability cards as readout
 // panels, each readout restating its own card text.
 //
 // The markup keeps the indentation it has inside the page layout: the build
@@ -20,11 +20,11 @@ import { MAX_VARIANTS } from '../../data/product-facts.mjs';
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <SectionHeader
         id="s-spec"
-        index="05"
+        index="04"
         eyebrow="Specification"
         title="What runs on your server."
       />
-      <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+      <div class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div class="panel">
           <p class="card-ro">
             <span>images</span>
@@ -33,7 +33,7 @@ import { MAX_VARIANTS } from '../../data/product-facts.mjs';
           <h3 class="mt-4 font-semibold text-text-body">
             One decode pass, up to {MAX_VARIANTS} variants out
           </h3>
-          <p class="mt-2 text-sm text-text-muted">
+          <p class="mt-2 text-body text-text-muted">
             Automatic WebP and AVIF transcoding with viewport-aware resizing. Every variant is
             verified against the original with SSIMULACRA2 before it reaches the cache, using
             ML-predicted per-format quality. The optimizer worker can{' '}
@@ -54,7 +54,7 @@ import { MAX_VARIANTS } from '../../data/product-facts.mjs';
             <b>103 Early Hints</b>
           </p>
           <h3 class="mt-4 font-semibold text-text-body">Render-blocking CSS eliminated</h3>
-          <p class="mt-2 text-sm text-text-muted">
+          <p class="mt-2 text-body text-text-muted">
             Heuristic-based critical CSS extraction and injection. CSS/JS minification. Early Hints
             (103) for preloading. No headless browser required. Optional browser pipeline for
             Lighthouse validation, waterfall capture, and visual comparison.
@@ -69,7 +69,7 @@ import { MAX_VARIANTS } from '../../data/product-facts.mjs';
           <h3 class="mt-4 font-semibold text-text-body">
             Cache hits are a pointer, not a pipeline
           </h3>
-          <p class="mt-2 text-sm text-text-muted">
+          <p class="mt-2 text-body text-text-muted">
             The Cyclone cache serves optimized content from a memory-mapped file &mdash; a hash
             lookup and a pointer, no re-optimization on the request path.
           </p>
@@ -81,7 +81,7 @@ import { MAX_VARIANTS } from '../../data/product-facts.mjs';
             <b>0 third parties</b>
           </p>
           <h3 class="mt-4 font-semibold text-text-body">Self-hosted by design</h3>
-          <p class="mt-2 text-sm text-text-muted">
+          <p class="mt-2 text-body text-text-muted">
             Visitor data never leaves your origin, and nothing in the request path talks to us. Open
             source you can audit, running entirely on infrastructure you control.
           </p>
@@ -93,7 +93,7 @@ import { MAX_VARIANTS } from '../../data/product-facts.mjs';
             <b>fallback: original</b>
           </p>
           <h3 class="mt-4 font-semibold text-text-body">Deliberately conservative</h3>
-          <p class="mt-2 text-sm text-text-muted">
+          <p class="mt-2 text-body text-text-muted">
             JS minification strips whitespace and comments only. No variable renaming, no AST
             transforms. The design falls back to the original when an optimization step fails.
           </p>
@@ -105,7 +105,7 @@ import { MAX_VARIANTS } from '../../data/product-facts.mjs';
             <b>AVIF &middot; WebP &middot; DPR &middot; Save-Data</b>
           </p>
           <h3 class="mt-4 font-semibold text-text-body">The right bytes for every client</h3>
-          <p class="mt-2 text-sm text-text-muted">
+          <p class="mt-2 text-body text-text-muted">
             Per-URL cache variants tuned to each client &mdash; image format (AVIF / WebP /
             original), viewport size, pixel density, Save-Data, and pre-compressed encoding &mdash;
             so each request gets the smallest appropriate bytes off the cache.

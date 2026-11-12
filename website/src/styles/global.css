@@ -553,23 +553,6 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   outline-offset: 2px;
 }
 
-.qs-tab[aria-pressed='true'] {
-  background-color: var(--color-interactive-wash);
-  color: var(--color-interactive);
-}
-.qs-tab[aria-pressed='false'] {
-  background-color: transparent;
-  color: var(--color-text-muted);
-}
-.qs-tab[aria-pressed='false']:hover {
-  background-color: var(--color-interactive-wash);
-  color: var(--color-interactive);
-}
-.qs-tab:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
-}
-
 /* Short viewports (a phone in landscape, or a desktop window at 400% zoom):
    a pinned header would take a quarter of the screen (WCAG 1.4.10 Reflow), so
    it scrolls away with the page, as does the docs platform selector pinned
@@ -598,14 +581,12 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     border: 1px solid ButtonText;
   }
   /* The pressed tab keeps a fill, in the system's selection colours. */
-  .qs-tab[aria-pressed='true'],
   .product-tab[aria-pressed='true'] {
     forced-color-adjust: none;
     background: SelectedItem;
     color: SelectedItemText;
   }
   /* Opting out of the forced palette also opts the focus ring out of it. */
-  .qs-tab[aria-pressed='true']:focus-visible,
   .product-tab[aria-pressed='true']:focus-visible {
     outline-color: CanvasText;
   }

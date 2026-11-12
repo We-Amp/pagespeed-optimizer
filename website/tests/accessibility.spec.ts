@@ -316,9 +316,9 @@ test.describe('Accessibility', () => {
     test('the selected tab is filled, and its focus ring stands out from the fill', async ({
       page,
     }) => {
-      await page.goto('/');
-      const selected = page.locator('.qs-tab[aria-pressed="true"]').first();
-      const other = page.locator('.qs-tab[aria-pressed="false"]').first();
+      await page.goto('/demo/');
+      const selected = page.locator('.product-tab[aria-pressed="true"]').first();
+      const other = page.locator('.product-tab[aria-pressed="false"]').first();
       await selected.scrollIntoViewIfNeeded();
       const read = (el: Element) => {
         const cs = getComputedStyle(el);
@@ -344,6 +344,41 @@ test.describe('Accessibility', () => {
       await expect(selected).toBeFocused();
       const focused = await selected.evaluate(read);
       expect(unfocused.outlineStyle).toBe('none');
+      expect(focused.outlineStyle).toBe('solid');
+      expect(focused.outlineColor, 'the ring is not the colour of the fill').not.toBe(
+        focused.background,
+      );
+    });
+
+    test('the chosen install platform is filled, and its focus ring stands out', async ({
+      page,
+    }) => {
+      await page.goto('/');
+      const picker = page.locator('[data-install-tabs]').first();
+      const selected = picker.locator('.install-radio:checked + .install-tab');
+      const other = picker.locator('.install-radio:not(:checked) + .install-tab').first();
+      await selected.scrollIntoViewIfNeeded();
+      const read = (el: Element) => {
+        const cs = getComputedStyle(el);
+        return {
+          adjust: cs.getPropertyValue('forced-color-adjust'),
+          background: cs.backgroundColor,
+          outlineStyle: cs.outlineStyle,
+          outlineColor: cs.outlineColor,
+        };
+      };
+      const chosen = await selected.evaluate(read);
+      const unchosen = await other.evaluate(read);
+      expect(chosen.adjust, 'the chosen tab keeps its fill').toBe('none');
+      expect(unchosen.adjust, 'an unchosen tab has no fill').toBe('auto');
+      expect(chosen.background, 'the chosen tab is filled').not.toBe('rgba(0, 0, 0, 0)');
+      expect(chosen.background, 'chosen and unchosen tabs differ').not.toBe(unchosen.background);
+
+      // Focus the checked radio from the keyboard so :focus-visible applies.
+      await picker.locator('.install-radio:checked').focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      const focused = await selected.evaluate(read);
       expect(focused.outlineStyle).toBe('solid');
       expect(focused.outlineColor, 'the ring is not the colour of the fill').not.toBe(
         focused.background,
