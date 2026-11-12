@@ -82,46 +82,6 @@ const narrowDocPages = [
   '/docs/filters/resize_rendered_image_dimensions/',
 ];
 
-test.describe('Docs pages fit narrow viewports', () => {
-  for (const width of [320, 360, 390]) {
-    test(`no horizontal scroll at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 844 });
-      for (const path of narrowDocPages) {
-        await page.goto(path);
-        // On article pages the client script appends permalink anchors to
-        // headings; they are part of the layout that must fit, so wait for
-        // them before measuring.
-        if ((await page.locator('article').count()) > 0) {
-          await expect(page.locator('article .heading-anchor').first()).toBeAttached();
-        }
-        // Compare with the width we set, not innerWidth: mobile emulation
-        // widens innerWidth to fit overflowing content, so it can never fail.
-        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-        expect(scrollWidth, `${path} at ${width}`).toBeLessThanOrEqual(width);
-      }
-    });
-  }
-
-  test('/docs/http-api/ has no horizontal scroll at 360px', async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 844 });
-    await page.goto('/docs/http-api/');
-    await expect(page.locator('article .heading-anchor').first()).toBeAttached();
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(scrollWidth).toBeLessThanOrEqual(360);
-  });
-
-  // The page is not .prose, so the global long-token wrapping rule does not
-  // reach it, and the source URL it prints is one long token. The PR sweep of
-  // the geometry oracle measures 375, where that token still fits; 320 is where
-  // it pushed the page wide.
-  test('/ai-crawler-cost/ has no horizontal scroll at 320px', async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 844 });
-    await page.goto('/ai-crawler-cost/');
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(scrollWidth).toBeLessThanOrEqual(320);
-  });
-});
-
 // Footer and top-strip links are spaced so a thumb can hit them: rows of at
 // least 28 px, the two icon links 44 px square, the newsletter consent row
 // 44 px, and the telemetry state link at least 24 px.
@@ -197,4 +157,44 @@ test('alternatives install snippets: focusable, 14px on a phone', async ({ page 
     })),
   );
   expect(info.filter((i) => i.tabindex !== '0' || i.size < 14)).toEqual([]);
+});
+
+test.describe('Docs pages fit narrow viewports', () => {
+  for (const width of [320, 360, 390]) {
+    test(`no horizontal scroll at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      for (const path of narrowDocPages) {
+        await page.goto(path);
+        // On article pages the client script appends permalink anchors to
+        // headings; they are part of the layout that must fit, so wait for
+        // them before measuring.
+        if ((await page.locator('article').count()) > 0) {
+          await expect(page.locator('article .heading-anchor').first()).toBeAttached();
+        }
+        // Compare with the width we set, not innerWidth: mobile emulation
+        // widens innerWidth to fit overflowing content, so it can never fail.
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(scrollWidth, `${path} at ${width}`).toBeLessThanOrEqual(width);
+      }
+    });
+  }
+
+  test('/docs/http-api/ has no horizontal scroll at 360px', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 844 });
+    await page.goto('/docs/http-api/');
+    await expect(page.locator('article .heading-anchor').first()).toBeAttached();
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(360);
+  });
+
+  // The page is not .prose, so the global long-token wrapping rule does not
+  // reach it, and the source URL it prints is one long token. The PR sweep of
+  // the geometry oracle measures 375, where that token still fits; 320 is where
+  // it pushed the page wide.
+  test('/ai-crawler-cost/ has no horizontal scroll at 320px', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto('/ai-crawler-cost/');
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(320);
+  });
 });
