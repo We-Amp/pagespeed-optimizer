@@ -31,7 +31,9 @@ const MIN_LOGO_WIDTH = 100;
 const pagesDir = path.resolve(process.cwd(), 'src/pages');
 
 // Route files that are not an HTML page, or are not part of the shipped site.
-const SKIP = [/\.ts$/, /^go\//, /^kit\//, /^error\//, /^404\.astro$/, /^500\.astro$/];
+// The top-level 404 and 500 routes only render on an error; their prerendered
+// copies under error/ are plain pages and are swept.
+const SKIP = [/\.ts$/, /^go\//, /^kit\//, /^404\.astro$/, /^500\.astro$/];
 
 function walk(dir: string, rel = ''): string[] {
   return readdirSync(path.join(dir, rel), { withFileTypes: true }).flatMap((e) => {
