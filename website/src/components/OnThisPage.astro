@@ -144,13 +144,24 @@ const show = items.length >= minItems;
     if (!headingEls.length) return;
     document.documentElement.dataset.tocInit = '1';
 
-    // Permalink anchor on every article heading that has an id.
+    // Permalink anchor on every article heading that has an id. The anchor
+    // sits inside the heading, so without help its label would join the
+    // heading's accessible name and every entry in a screen reader's headings
+    // list would read twice. The heading's own text moves into a span and the
+    // heading takes its name from that span alone.
     for (const h of headingEls) {
       if (h.querySelector('.heading-anchor')) continue;
+      const label = (h.textContent || '').trim();
+      if (label && !h.hasAttribute('aria-labelledby') && !h.hasAttribute('aria-label')) {
+        const text = document.createElement('span');
+        text.id = `${h.id}--text`;
+        text.append(...Array.from(h.childNodes));
+        h.append(text);
+        h.setAttribute('aria-labelledby', text.id);
+      }
       const a = document.createElement('a');
       a.className = 'heading-anchor';
       a.href = '#' + h.id;
-      const label = (h.textContent || '').trim();
       a.setAttribute('aria-label', label ? `Link to “${label}”` : 'Link to this section');
       a.innerHTML = '<span aria-hidden="true">#</span>';
       h.appendChild(a);
