@@ -1,29 +1,27 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 ---
 
 <BaseLayout
   title="Savings calculator — mod_pagespeed"
   description="Estimate bandwidth and cost savings from automatic image optimization, CSS/JS minification, and variant-aware caching with mod_pagespeed."
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
-    <div class="text-center">
-      <SectionHeader
-        id="calculator"
-        as="h1"
-        align="center"
-        eyebrow="Bandwidth savings only."
-        title="Savings calculator"
-      >
-        <p>
-          Faster load times and better Core Web Vitals are upside this calculator doesn't count.
-        </p>
-      </SectionHeader>
-    </div>
+  <PageHero
+    id="calculator"
+    size="utility"
+    width="prose"
+    eyebrow="Bandwidth savings only."
+    title="Savings calculator"
+  >
+    <Fragment slot="lede">
+      Faster load times and better Core Web Vitals are upside this calculator doesn't count.
+    </Fragment>
+  </PageHero>
 
+  <section class="container-prose pb-20">
     <!-- Inputs -->
-    <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-8">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-8">
       <div>
         <label for="pageviews" class="eyebrow">
           {' '}
@@ -94,7 +92,7 @@ import SectionHeader from '../components/instrument/SectionHeader.astro';
     </div>
 
     <!-- Results -->
-    <div class="mt-12 rounded-2xl border border-border bg-bg-elevated p-8">
+    <div class="mt-12 rounded-card border border-border bg-bg-elevated p-8">
       <h2 class="text-lg font-semibold text-text-body">Your estimated savings</h2>
       {/* Headline output — annual savings + ROI dominates */}
       <div
@@ -446,21 +444,15 @@ import SectionHeader from '../components/instrument/SectionHeader.astro';
           mpsCostEl.appendChild(siteSpan);
         }
       }
-      // Positive values stay on default emphasis (stone-900 / stone-100).
-      // Negative values step DOWN to stone-500 / stone-400. No chromatic green/red —
-      // the leading Unicode minus (U+2212) in formatMoney carries sign information.
-      const POS_LIGHT = 'text-stone-900';
-      const POS_DARK = 'dark:text-stone-100';
-      const NEG_LIGHT = 'text-stone-500';
-      const NEG_DARK = 'dark:text-stone-400';
+      // Positive values stay on the body text colour; negative values step
+      // down to the muted text colour. No chromatic green/red: the leading
+      // Unicode minus (U+2212) in formatMoney carries sign information.
+      const POS = 'text-text-body';
+      const NEG = 'text-text-muted';
       function applySignColor(el: HTMLElement, positive: boolean) {
         // Clear any previous state before applying the current one.
-        el.classList.remove(POS_LIGHT, POS_DARK, NEG_LIGHT, NEG_DARK);
-        if (positive) {
-          el.classList.add(POS_LIGHT, POS_DARK);
-        } else {
-          el.classList.add(NEG_LIGHT, NEG_DARK);
-        }
+        el.classList.remove(POS, NEG);
+        el.classList.add(positive ? POS : NEG);
       }
 
       if (netSavingsEl) {

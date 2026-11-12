@@ -4,6 +4,7 @@
 // 301 to it from the server's redirect map; this page is what dev, preview and
 // any server without that map serve, with its canonical on we-amp.com.
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
 import { VENDOR } from '../data/product-facts.mjs';
 
 const NOTICE = 'https://we-amp.com/privacy/';
@@ -14,9 +15,8 @@ const NOTICE = 'https://we-amp.com/privacy/';
   description={`${VENDOR} keeps one privacy notice for all its websites, modpagespeed.com included, at we-amp.com/privacy/.`}
   canonical={NOTICE}
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Privacy</h1>
-    <p class="mt-6 text-lg text-text-muted">
+  <PageHero title="Privacy" size="utility" width="prose" class="pb-16">
+    <Fragment slot="lede">
       {VENDOR} keeps one privacy notice for all its websites, modpagespeed.com included. It covers
       what this site and its tools do with personal data, how we handle support mail from
       subscribers, and what the software you install does and does not send. Read it at
@@ -24,6 +24,6 @@ const NOTICE = 'https://we-amp.com/privacy/';
         we-amp.com/privacy/
       </a>
       .
-    </p>
-  </section>
+    </Fragment>
+  </PageHero>
 </BaseLayout>

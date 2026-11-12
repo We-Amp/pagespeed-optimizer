@@ -40,6 +40,12 @@ export interface Example {
   note?: string;
   /** Release the example first shipped in (e.g. '1.15.0-r20'); drives a "New" badge in the gallery. */
   addedIn?: string;
+  /**
+   * Member filters of a compound name in `filters` that the demo visibly
+   * exercises, checked against the measured output in examples-data.json
+   * (e.g. a JPEG served as WebP). Lists the demo on those filters' topic pages.
+   */
+  shows?: string[];
 }
 
 /**
@@ -51,19 +57,22 @@ export interface Example {
  *    frame can briefly revert to the original after a re-instrument.
  *  - 'header': works at the HTTP response-header / document-head hint level, so
  *    it leaves no change in the page body to diff.
+ *  - 'browser': applies only to browsers mod_pagespeed recognizes as
+ *    supporting it (a user-agent check), so a plain HTTP capture gets the
+ *    original page back.
  *  - 'config': needs configuration or content the public demo doesn't provide
  *    (e.g. an Analytics account id, a recognized JS library).
  */
-export type Mechanism = 'beacon' | 'header' | 'config';
+export type Mechanism = 'beacon' | 'header' | 'browser' | 'config';
 
 export const MECHANISM: Record<string, Mechanism> = {
-  lazyload_images: 'beacon',
-  defer_javascript: 'beacon',
+  lazyload_images: 'browser',
+  defer_javascript: 'browser',
   resize_rendered_image_dimensions: 'beacon',
   inline_preview_images: 'beacon',
   prioritize_critical_css: 'beacon',
   hint_preload_subresources: 'header',
-  insert_dns_prefetch: 'header',
+  insert_dns_prefetch: 'browser',
   prioritize_critical_images: 'beacon',
   canonicalize_javascript_libraries: 'config',
 };
@@ -96,6 +105,7 @@ export const EXAMPLES: Example[] = [
     page: 'rewrite_images.html',
     filters: 'rewrite_images,inline_images,resize_images,insert_image_dimensions',
     blurb: 'Recompresses images, resizes them to their display size, and inlines small ones.',
+    shows: ['convert_jpeg_to_webp'],
   },
   {
     slug: 'convert_jpeg_to_avif',
@@ -314,6 +324,7 @@ export const EXAMPLES: Example[] = [
     page: 'rewrite_javascript.html',
     filters: 'rewrite_javascript',
     blurb: 'Strips comments and whitespace from JavaScript.',
+    shows: ['rewrite_javascript_external', 'rewrite_javascript_inline'],
   },
   {
     slug: 'combine_javascript',
@@ -455,6 +466,7 @@ export const EXAMPLES: Example[] = [
     page: 'optimize_for_bandwidth.html',
     filters: 'rewrite_css,rewrite_javascript,rewrite_images',
     blurb: 'Optimizes resources in place without changing their URLs — safe for any cache.',
+    note: 'This demo enables the filters by name, so its optimized frame rewrites URLs; the OptimizeForBandwidth level itself keeps them as authored.',
   },
 
   // ------------------------------------------------------------- Resources
@@ -501,6 +513,21 @@ export const EXAMPLES: Example[] = [
     blurb: 'Proxies and optimizes trusted resources hosted on domains without PageSpeed.',
   },
 ];
+
+/**
+ * The examples that apply a filter: those whose `filters` value names it
+ * (a leading `+` enables, a leading `-` disables and does not count) or whose
+ * `shows` list does. Catalog order.
+ */
+export function examplesApplying(name: string): Example[] {
+  return EXAMPLES.filter(
+    (ex) =>
+      ex.filters
+        .split(',')
+        .map((f) => f.trim().replace(/^\+/, ''))
+        .includes(name) || !!ex.shows?.includes(name),
+  );
+}
 
 /** before-frame URL (optimization off). */
 export function beforeUrl(ex: Example): string {

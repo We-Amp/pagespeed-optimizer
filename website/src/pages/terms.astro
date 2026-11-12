@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
 import {
   PRODUCT_NAME,
   V1_LINE,
@@ -32,12 +33,11 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
   title="Terms of service — mod_pagespeed"
   description={`Terms for modpagespeed.com, the package repositories and support subscriptions; the software is licensed under the ${LICENSE}. Run by ${VENDOR}`}
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Terms of Service</h1>
-    <p class="mt-4 text-sm text-text-annotation">
+  <PageHero title="Terms of Service" size="utility" width="prose">
+    <p class="mt-4 text-small text-text-annotation">
       Effective date: 24 October 2026 &middot; Version 2026-10-24
     </p>
-    <p class="mt-6 text-lg text-text-muted">
+    <p class="lede mt-6 max-w-2xl">
       These terms are written in plain language. If something is unclear, email
       <a
         href="mailto:info@we-amp.com"
@@ -47,8 +47,10 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
       </a>{' '}
       and we will clarify.
     </p>
+  </PageHero>
 
-    <div class="mt-12 space-y-10">
+  <section class="container-prose pb-16">
+    <div class="space-y-10">
       <!-- Scope -->
       <div>
         <h2 class="text-2xl font-bold text-text-body">What these terms cover</h2>

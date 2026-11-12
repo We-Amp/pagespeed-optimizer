@@ -1064,9 +1064,15 @@ function absolutizeFragment(md, pageUrl) {
  * Pure: the same inputs always give the same text.
  * @param {Topic} t
  * @param {Topic[]} topics  every topic, for the related list and the members
+ * @param {{ slug: string, title: string }[]} alsoIn  the other gallery demos
+ *   that apply the filter, as the topic page lists them (alsoAppliedIn() in
+ *   src/lib/filter-demos.ts)
  * @returns {string}
  */
-export function renderTopicMarkdown(t, topics) {
+export function renderTopicMarkdown(t, topics, alsoIn) {
+  if (!Array.isArray(alsoIn)) throw new Error(`renderTopicMarkdown(${t.name}): no demo list`);
+  const demoLink = (/** @type {{ slug: string, title: string }} */ ex) =>
+    `[${ex.title}](${SITE}/examples/${ex.slug}/)`;
   const url = `${SITE}${t.path}`;
   const abs = (/** @type {string} */ md) => absolutizeFragment(md, url);
   const byName = new Map(topics.map((x) => [x.name, x]));
@@ -1168,6 +1174,16 @@ export function renderTopicMarkdown(t, topics) {
       '## Live example',
       '',
       `See the before and after, with the source diff: [${t.name} example](${SITE}${t.example}).`,
+      '',
+    );
+    if (alsoIn.length) out.push(`Also applied in: ${alsoIn.map(demoLink).join(', ')}.`, '');
+  } else if (alsoIn.length) {
+    out.push(
+      '## Live examples',
+      '',
+      'No example isolates this filter. These apply it together with other filters:',
+      '',
+      ...alsoIn.map((ex) => `- ${demoLink(ex)}`),
       '',
     );
   }

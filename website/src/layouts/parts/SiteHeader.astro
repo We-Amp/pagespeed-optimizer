@@ -6,13 +6,20 @@
 //
 // Markup here keeps the layout's indentation: the build does not compress
 // HTML, so whitespace in this file is whitespace in every page.
+import SiteLogo from '../../components/SiteLogo.astro';
 import Icon from '../../components/Icon.astro';
 import { PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { docsHome, docsSections, headerPricing, navLinks, umamiAttrs } from '../../data/nav';
 
+// `wide`: the docs pages with a three-column body use the wider 80rem box,
+// so their header keeps that width from xl up; every other page shares the
+// 72rem page container with the footer and the page content.
+interface Props {
+  wide?: boolean;
+}
+const { wide = false } = Astro.props;
+
 const currentLabel = PRODUCT_DISPLAY_NAME;
-const logoLight = '/logo.svg';
-const logoDark = '/logo-dark.svg';
 
 const currentPath = Astro.url.pathname;
 const docsPrefixes = ['/docs/', '/packs/', '/platform/'];
@@ -22,25 +29,15 @@ const isExact = (href: string) => normPath === href;
 ---
     <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
       <nav
-        class="relative mx-auto max-w-6xl xl:max-w-7xl px-4 sm:px-6 lg:px-8"
+        class:list={[
+          'relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8',
+          wide && 'xl:max-w-7xl',
+        ]}
         aria-label="Main navigation"
       >
         <div class="flex h-16 items-center justify-between">
-          <a href="/" class="flex shrink-0 items-center" aria-label={`${currentLabel} — Home`}>
-            <img
-              src={logoLight}
-              alt={currentLabel}
-              width="216"
-              height="32"
-              class="h-8 w-auto dark:hidden"
-            />
-            <img
-              src={logoDark}
-              alt={currentLabel}
-              width="216"
-              height="32"
-              class="h-8 w-auto hidden dark:block"
-            />
+          <a href="/" class="flex shrink-0 items-center">
+            <SiteLogo width={216} height={32} class="h-8 w-auto" label={`${currentLabel} — Home`} />
           </a>
 
           {/* Desktop nav */}
@@ -200,7 +197,7 @@ const isExact = (href: string) => normPath === href;
               <Icon name="search" class="h-4 w-4" />
               <span class="sr-only xl:not-sr-only">Search</span>
               <kbd
-                class="hidden xl:inline-block rounded border border-border px-1 font-mono font-normal text-[10px] leading-4 text-text-annotation"
+                class="hidden xl:inline-block rounded border border-border px-1 text-micro font-normal leading-4 text-text-annotation"
                 aria-hidden="true"
               >
                 /
@@ -239,7 +236,7 @@ const isExact = (href: string) => normPath === href;
             <a
               href="/download/"
               data-umami-event="cta_nav_download"
-              class="btn-primary ml-2 whitespace-nowrap"
+              class="btn-primary btn-sm ml-2 whitespace-nowrap"
             >
               Download &amp; run
             </a>

@@ -24,7 +24,7 @@ const shareUrl = url ?? new URL(Astro.url.pathname, Astro.site).href;
 const targets = buildShareTargets(shareUrl, title);
 ---
 
-<aside class="not-prose mt-10 rounded-xl border border-border bg-bg-elevated p-5 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
+<aside class="not-prose mt-10 rounded-card border border-border bg-bg-elevated p-5 sm:flex sm:items-center sm:justify-between sm:gap-6 sm:p-6">
   <div class="flex items-start gap-2.5">
     <svg
       class="mt-0.5 h-5 w-5 shrink-0 text-interactive"

@@ -11,6 +11,7 @@
 // pricing lines come from product-facts.mjs.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
 import SupportTiers from '../components/SupportTiers.astro';
 import { faqPricing } from '../data/faq-pricing';
 import { stripHtml } from '../data/faq-shared';
@@ -75,18 +76,15 @@ const auditPoints = [
   description="mod_pagespeed is free under the Apache License 2.0. Support costs €490, €1,900 or from €7,500 a year, excl. VAT. Fixed-price agent-readiness audit."
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-8">
-    <div class="text-center">
-      <h1 class="h1-hero text-text-body">Run it on any number of servers. Pay us for support.</h1>
-      <p class="lede mt-6 max-w-3xl mx-auto">
-        {PRODUCT} is {LICENSE_CLAUSE}. Install it and run it, in development and in production, on
-        any number of servers. No registration.
-      </p>
-      <p class="mt-4 text-sm text-text-annotation" data-pricing-terms>
-        {PRICING_TERMS_LINE}
-      </p>
-    </div>
-  </section>
+  <PageHero title="Run it on any number of servers. Pay us for support.">
+    <Fragment slot="lede">
+      {PRODUCT} is {LICENSE_CLAUSE}. Install it and run it, in development and in production, on any
+      number of servers. No registration.
+    </Fragment>
+    <p class="mt-4 text-small text-text-annotation" data-pricing-terms>
+      {PRICING_TERMS_LINE}
+    </p>
+  </PageHero>
 
   <section id="tiers" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8">
     <h2 class="sr-only">Support tiers</h2>
@@ -96,7 +94,7 @@ const auditPoints = [
       ahead of public releases, and from Priority up, the release SBOM and VEX on request. None of
       the tiers changes what the software does.
     </p>
-    <div class="mt-6 rounded-lg border border-border bg-bg-secondary p-5 text-sm text-text-muted">
+    <div class="mt-6 rounded-lg border border-border bg-bg-secondary p-5 text-body text-text-muted">
       <p data-response-targets>
         {RESPONSE_TARGETS_LINE} What each tier covers in detail, and how releases are signed and
         verified, is on the{' '}
@@ -119,7 +117,7 @@ const auditPoints = [
   </section>
 
   {/* Agent-readiness audit */}
-  <section id="audit" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
+  <section id="audit" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 section">
     <div class="card">
       <h2 class="h2-section text-text-body">
         Want someone to look at your site rather than the software?
@@ -128,10 +126,10 @@ const auditPoints = [
         The agent-readiness audit checks one site the way AI crawlers and agents read it, and the
         way browsers load it. You get a written report and a call to walk through it.
       </p>
-      <ul class="mt-5 space-y-2 text-sm text-text-muted">
+      <ul class="mt-5 space-y-2 text-body text-text-muted">
         {auditPoints.map((item) => (
           <li class="flex gap-2">
-            <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
+            <Icon name="check" class="mt-1 h-4 w-4 shrink-0 text-interactive" />
             <span>{item}</span>
           </li>
         ))}
@@ -155,14 +153,14 @@ const auditPoints = [
       >
         Ask for an audit &rarr;
       </a>
-      <p class="mt-6 text-sm text-text-muted">
+      <p class="mt-6 text-body text-text-muted">
         Want the quick version first? The{' '}
         <a href="/ai-readability/" class="text-interactive hover:text-interactive-hover underline">
           AI readability check
         </a>{' '}
         is free and takes one URL.
       </p>
-      <p class="mt-2 text-sm text-text-muted">
+      <p class="mt-2 text-body text-text-muted">
         Longer engagements on caching and reverse-proxy infrastructure run through{' '}
         <a
           href="https://we-amp.com/consulting/"
@@ -187,7 +185,7 @@ const auditPoints = [
     >
       <div>
         <h2 class="font-semibold text-text-body">For hosting providers</h2>
-        <p class="mt-1 text-sm text-text-muted max-w-3xl">
+        <p class="mt-1 text-body text-text-muted max-w-3xl">
           The hosting partner program covers multi-tenant fleets: Priority-level support for your
           second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. Unlimited
           hosted domains. Partner terms are agreed per fleet.
@@ -207,20 +205,20 @@ const auditPoints = [
   </section>
 
   {/* FAQ */}
-  <section id="faq" class="border-t border-border py-16">
+  <section id="faq" class="border-t border-border section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-center text-text-body">Pricing questions</h2>
       <div class="mt-8 space-y-3">
         {faqPricing.map((entry) => (
-          <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm">
-            <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-body">
+          <details class="group rounded-lg border border-border bg-bg-elevated">
+            <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-body font-semibold text-text-body">
               <span>{entry.q}</span>
               <Icon
                 name="chevron-down"
                 class="h-5 w-5 shrink-0 text-text-muted group-open:rotate-180"
               />
             </summary>
-            <p class="px-4 pb-4 pt-1 text-sm text-text-muted" set:html={entry.a} />
+            <p class="px-4 pb-4 pt-1 max-w-prose text-body text-text-muted" set:html={entry.a} />
           </details>
         ))}
       </div>
@@ -228,7 +226,7 @@ const auditPoints = [
   </section>
 
   {/* Closing CTA */}
-  <section id="start" class="border-t border-border bg-bg-secondary py-16">
+  <section id="start" class="border-t border-border bg-bg-secondary section">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
       <h2 class="h2-section text-text-body">Pick a tier, or ask a question first</h2>
       <div class="mt-8 flex flex-wrap justify-center gap-3" data-closing-cta>
@@ -246,7 +244,7 @@ const auditPoints = [
           </a>
         ))}
       </div>
-      <p class="mt-6 text-sm text-text-muted">
+      <p class="mt-6 text-body text-text-muted">
         Questions before you buy?{' '}
         <a
           href={`mailto:${COMMERCIAL_EMAIL}`}
@@ -260,7 +258,7 @@ const auditPoints = [
         </a>
         . An engineer replies within one business day.
       </p>
-      <p class="mt-4 text-xs text-text-annotation" data-terms-version={TERMS_VERSION_WEB}>
+      <p class="mt-4 text-small text-text-annotation" data-terms-version={TERMS_VERSION_WEB}>
         Subscriptions are governed by the{' '}
         <a
           href={LICENSING_TERMS_URL}

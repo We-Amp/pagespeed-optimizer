@@ -353,6 +353,20 @@ h1,
   --color-focus-ring: #5eb1c9;
 }
 
+/* Page rhythm: the vertical space of a page hero and of a content section.
+   Phone values first; from tablet width up the larger pair. Used through
+   .page-hero and .section (component layer) rather than per-page padding. */
+:root {
+  --space-section: 3rem;
+  --space-hero: 3.5rem;
+}
+@media (width >= 48rem) {
+  :root {
+    --space-section: 4.5rem;
+    --space-hero: 5rem;
+  }
+}
+
 /* Honor the OS "reduce motion" setting (WCAG 2.3.3 / brand §4.8). Neutralizes
    scroll-smooth and caps any animation/transition to a single frame so motion-
    sensitive users get instant state changes, not movement. !important is the
@@ -425,8 +439,7 @@ h1,
      The chrome is additive: it only adds an inner ring, rounding, position
      relative (for the copy button overlay) and a subtle top-edge highlight.
      It deliberately does NOT set background or text color, so per-page
-     bg utilities on existing markup (e.g. demo.astro's bg-stone-900,
-     bg-emerald-50, bg-stone-50) still win. */
+     bg utilities on existing markup still win. */
   pre:has(code) {
     position: relative;
     border-radius: var(--radius-card);
@@ -535,18 +548,12 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   color: var(--color-on-accent);
 }
 .product-tab[aria-pressed='false'] {
-  background-color: var(--color-stone-100);
-  color: var(--color-stone-700);
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-muted);
 }
 .product-tab[aria-pressed='false']:hover {
-  background-color: var(--color-stone-200);
-}
-.dark .product-tab[aria-pressed='false'] {
-  background-color: var(--color-stone-800);
-  color: var(--color-stone-300);
-}
-.dark .product-tab[aria-pressed='false']:hover {
-  background-color: var(--color-stone-700);
+  background-color: var(--color-border-strong);
+  color: var(--color-text-body);
 }
 .product-tab:focus-visible {
   outline: 2px solid var(--color-focus-ring);
@@ -663,6 +670,45 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     letter-spacing: -0.02em;
     text-wrap: balance;
   }
+  /* Page hero (components/PageHero.astro): left-aligned, on the same left
+     edge as the header logo. Two title sizes: `marketing` (36px phone, 48px
+     from tablet) for the product and buying pages, `utility` (30px phone,
+     36px from small screens) for listings and tools. The home page keeps its
+     own, larger hero. */
+  .page-hero {
+    padding-top: var(--space-hero);
+    padding-bottom: calc(var(--space-hero) / 2);
+  }
+  .page-hero-title {
+    @apply font-bold leading-[1.1];
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .page-hero--marketing .page-hero-title {
+    @apply text-4xl md:text-5xl;
+  }
+  .page-hero--utility .page-hero-title {
+    @apply text-3xl sm:text-4xl;
+  }
+  .page-hero-lede {
+    @apply mt-6 max-w-2xl;
+  }
+  .page-hero--utility .page-hero-lede {
+    @apply mt-4;
+  }
+  /* A content section: the shared vertical rhythm between sections. */
+  .section {
+    padding-block: var(--space-section);
+  }
+  /* A reading-width column (56rem) that starts on the page's left edge (the
+     edge of the 72rem page container and of the header logo) instead of
+     being centred on its own. */
+  .container-prose {
+    @apply px-4 sm:px-6 lg:px-8;
+    max-width: 56rem;
+    margin-left: max(0px, calc((100% - 72rem) / 2));
+    margin-right: auto;
+  }
   /* Text roles for marketing copy: size and leading only, colour comes from
      the usual text utilities.
      .text-body   card descriptions, answers, list items
@@ -699,7 +745,9 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     content: '\00a0\2192' / '';
   }
   .link-arrow:hover,
-  .link-arrow:focus-visible {
+  .link-arrow:focus-visible,
+  a:hover .link-arrow,
+  a:focus-visible .link-arrow {
     color: var(--color-interactive-hover);
     text-decoration: underline;
   }
@@ -1011,10 +1059,10 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     min-width: 2.75rem;
     min-height: 2.75rem;
     padding: 0.5rem;
-    border: 0;
+    border: 1px solid var(--color-control-border);
     border-radius: var(--radius-chip);
-    background-color: rgba(41, 37, 36, 0.85); /* stone-800/85 */
-    color: var(--color-stone-300);
+    background-color: var(--color-bg-elevated);
+    color: var(--color-text-muted);
     cursor: pointer;
     opacity: 0;
     visibility: hidden;
@@ -1043,40 +1091,21 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     opacity: 1;
   }
   .code-copy-btn:hover {
-    background-color: rgba(68, 64, 60, 0.95); /* stone-700/95 */
-    color: var(--color-stone-100);
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-body);
   }
   .code-copy-btn:active {
-    background-color: rgba(28, 25, 23, 0.95); /* stone-900/95 */
+    background-color: var(--color-bg-recessed);
   }
   .code-copy-btn[data-copied='true'] {
-    background-color: rgba(6, 95, 70, 0.9); /* emerald-800/90 */
-    color: var(--color-stone-50);
-  }
-  /* Light-mode pre (no explicit dark bg utility) — use a light chip so the
-     button reads against pale backgrounds. */
-  pre:not([class*='bg-stone-9']):not([class*='bg-stone-8']):not([class*='bg-emerald-9'])
-    > .code-copy-btn {
-    background-color: rgba(245, 245, 244, 0.9); /* stone-100/90 */
-    color: var(--color-stone-700);
-  }
-  pre:not([class*='bg-stone-9']):not([class*='bg-stone-8']):not([class*='bg-emerald-9'])
-    > .code-copy-btn:hover {
-    background-color: rgba(231, 229, 228, 0.95); /* stone-200/95 */
-    color: var(--color-stone-900);
-  }
-  /* Dark mode flips the light variant back to the dark chip. */
-  .dark
-    pre:not([class*='bg-stone-9']):not([class*='bg-stone-8']):not([class*='bg-emerald-9'])
-    > .code-copy-btn {
-    background-color: rgba(41, 37, 36, 0.85);
-    color: var(--color-stone-300);
+    background-color: var(--color-success-wash);
+    color: var(--color-success);
+    border-color: var(--color-success);
   }
 
   /* Inside a term panel the button docks in the head row (it is appended
-     there by the layout script), in flow and right-aligned, on surface tokens
-     instead of the overlay chip. The [data-copied] carve-outs keep the shared
-     success state winning over these. */
+     there by the layout script), in flow and right-aligned. The [data-copied]
+     carve-outs keep the shared success state winning over these. */
   .term-head > .code-copy-btn {
     position: static;
     flex: none;
@@ -1154,7 +1183,7 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
      is a Lucide glyph masked with the title color, so color is never the only
      signal (WCAG 1.4.1). */
   .callout {
-    @apply my-6 rounded-xl border p-4 sm:p-5;
+    @apply my-6 rounded-card border p-4 sm:p-5;
   }
   /* The callout lives inside `.prose`; neutralize the typography plugin's
      first/last margins so the box padding stays even. */

@@ -8,7 +8,7 @@
 // edge-SEO pack is free and available now and the others are planned, and
 // the copy says so; no prices beyond "free", no dates. The social card is rendered at build time by scripts/generate-title-cards.mjs (PAGE_CARDS).
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import SectionHeader from '../../components/instrument/SectionHeader.astro';
+import PageHero from '../../components/PageHero.astro';
 import Icon from '../../components/Icon.astro';
 import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 import type { ComponentProps } from 'astro/types';
@@ -82,19 +82,16 @@ const jsonLd = {
   ogImage="/og-cards/platform.png?v=3"
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="platform-title">
-    <SectionHeader
-      id="platform-title"
-      eyebrow="Transform packs"
-      title="One interceptor, many packs"
-      as="h1"
-    >
+  <PageHero id="platform-title" eyebrow="Transform packs" title="One interceptor, many packs">
+    <Fragment slot="lede">
       mod_pagespeed parses and rewrites HTML responses on your own server, as a stream. Transform
       packs add declarative rules to that pipeline. The edge-SEO pack is available now; compliance
       and privacy packs are planned. Tell us which pack you need.
-    </SectionHeader>
+    </Fragment>
+  </PageHero>
 
-    <p class="readout-plate mt-8 max-w-2xl px-4 py-3 text-sm text-text-muted">
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-16">
+    <p class="readout-plate max-w-2xl px-4 py-3 text-sm text-text-muted">
       <span class="font-mono text-xs text-interactive">Status</span>
       <br />
       The edge-SEO pack is free and available now. The other packs are planned.

@@ -199,6 +199,7 @@ export const navLinks: Array<{
   },
   {
     label: 'Product',
+    mobileCollapsed: true,
     children: [
       {
         href: '/features/',
@@ -305,6 +306,11 @@ export const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
         umamiEvent: 'nav-ai-readability-footer',
       },
       { href: '/analyze/', label: 'PageSpeed analyzer', umamiEvent: 'nav-analyze-footer' },
+      {
+        href: '/ai-crawler-cost/',
+        label: 'AI crawler cost',
+        umamiEvent: 'nav-crawler-cost-footer',
+      },
       { href: '/examples/', label: 'Filter examples' },
       {
         href: 'https://we-amp.com/pagespeed_global_admin/',

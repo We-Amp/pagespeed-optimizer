@@ -14,6 +14,9 @@ import remarkCallouts from './src/lib/remark-callouts.mjs';
 import rehypeDirectiveBlocks from './src/lib/rehype-directive-blocks.mjs';
 import remarkLiteralTextDirectives from './src/lib/remark-literal-text-directives.mjs';
 import { gitLastModified } from './src/lib/git-date';
+import { EXAMPLES } from './src/data/examples';
+import { exampleImpact } from './src/lib/example-impact';
+import { routeFamilyLastmods, staticPageLastmods } from './src/lib/page-lastmod.mjs';
 import { BUILD_ID } from './src/lib/build-id.mjs';
 import { PAGEFIND_BUNDLE_PATH } from './src/lib/pagefind-bundle.mjs';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
@@ -65,6 +68,8 @@ function buildLastmodMap() {
   const collections = [
     { dir: 'src/content/blog', prefix: '/blog/', fromGit: false },
     { dir: 'src/content/docs', prefix: '/docs/', fromGit: true },
+    // Explainers date their pages (dateModified) from frontmatter, like the blog.
+    { dir: 'src/content/how-it-works', prefix: '/how-it-works/', fromGit: false },
   ];
   for (const { dir, prefix, fromGit } of collections) {
     /** @type {string[]} */
@@ -82,10 +87,21 @@ function buildLastmodMap() {
       if (iso) map.set(`${prefix}${file.replace(/\.mdx?$/, '')}/`, iso);
     }
   }
+  // The .astro pages (home, pricing, download, alternatives, ...) have no
+  // content date; they date from the last commit to the page file. With no
+  // usable git history (shallow clone, exported tree) they get no entry and
+  // the sitemap omits their lastmod.
+  for (const [route, iso] of staticPageLastmods(__dirname, gitLastModified)) {
+    if (!map.has(route)) map.set(route, iso);
+  }
   return map;
 }
 
 const lastmodMap = buildLastmodMap();
+// Generated route families (/examples/<slug>/, /core-web-vitals/<metric>/)
+// date from their template and data files; the family's own index page is a
+// static page and keeps its own date.
+const familyLastmods = routeFamilyLastmods(__dirname, gitLastModified);
 
 // Filter topic pages (/docs/filters/<name>/): the thin ones are noindex and
 // stay out of the sitemap until their group-page section is enriched (the guard
@@ -99,23 +115,13 @@ for (const t of filterTopics) {
   if (iso) lastmodMap.set(t.path, iso);
 }
 
-// Slugs of /examples/<slug>/ pages that have generated before/after data. Detail
-// pages without data are noindex (see examples/[slug].astro) and are kept out of
-// the sitemap until the generator populates them — self-healing on next build.
-const examplesWithData = (() => {
-  try {
-    const data = JSON.parse(
-      readFileSync(resolve(__dirname, 'src/data/examples-data.json'), 'utf8'),
-    );
-    return new Set(
-      Object.entries(data.examples || {})
-        .filter(([, v]) => v && !v.error && v.settled)
-        .map(([slug]) => slug),
-    );
-  } catch {
-    return new Set();
-  }
-})();
+// Slugs of /examples/<slug>/ pages search engines may index: settled
+// before/after data from a filter that acted. The rest are noindex (see
+// examples/[slug].astro) and are kept out of the sitemap until the generator
+// captures them applied — self-healing on next build.
+const examplesWithData = new Set(
+  EXAMPLES.filter((ex) => exampleImpact(ex.slug)?.indexable).map((ex) => ex.slug),
+);
 
 /** True when the last path segment has no file extension. */
 function isExtensionless(/** @type {string} */ url) {
@@ -291,10 +297,10 @@ export default defineConfig({
         if (topic) return indexableTopics.has(topic[1]);
         return true;
       },
-      // Per-entry lastmod from content frontmatter where available. Pages with
-      // no real content date (home, pricing, examples, dateless docs) omit
-      // lastmod entirely — an always-changing build-time "now" makes search
-      // engines distrust the freshness signal sitewide.
+      // Per-entry lastmod from content dates or git history where available.
+      // A URL with no real date (no usable git history in this checkout)
+      // omits lastmod entirely — an always-changing build-time "now" makes
+      // search engines distrust the freshness signal sitewide.
       serialize(item) {
         let path;
         try {
@@ -302,7 +308,9 @@ export default defineConfig({
         } catch {
           path = '';
         }
-        const iso = lastmodMap.get(path);
+        const iso =
+          lastmodMap.get(path) ??
+          familyLastmods.find((f) => path.startsWith(f.prefix) && path !== f.prefix)?.iso;
         if (iso) item.lastmod = iso;
         return item;
       },

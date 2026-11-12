@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 import Icon from '../components/Icon.astro';
 import { LICENSING_TERMS_URL } from '../data/product-facts.mjs';
 
@@ -32,20 +32,22 @@ const jsonLd = {
   description="mod_pagespeed is free on every host. The hosting partner program adds fleet support and a direct channel for providers."
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="hosting-title">
-    <SectionHeader
-      id="hosting-title"
-      eyebrow="Partner program · for hosting providers"
-      title="Run it across your fleet. We'll back you."
-      as="h1"
-    >
+  <PageHero
+    id="hosting-title"
+    width="prose"
+    eyebrow="Partner program · for hosting providers"
+    title="Run it across your fleet. We'll back you."
+  >
+    <Fragment slot="lede">
       mod_pagespeed is free on every host and every hosted domain — nothing about fleet scale
       changes that. The hosting partner program is the support subscription shaped for providers: a
       direct channel to the people who build the product, for those who make it part of their
       platform.
-    </SectionHeader>
+    </Fragment>
+  </PageHero>
 
-    <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+  <section class="container-prose pb-16">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
       <div class="card">
         <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
           <Icon name="server" class="h-5 w-5 text-interactive" />
@@ -112,7 +114,7 @@ const jsonLd = {
       .
     </p>
 
-    <div class="mt-14 rounded-2xl border border-border bg-bg-secondary p-6 md:p-8 text-center">
+    <div class="mt-14 rounded-card border border-border bg-bg-secondary p-6 md:p-8 text-center">
       <h2 class="h2-section text-text-body">Talk to us about your fleet</h2>
       <p class="mt-3 text-text-muted max-w-2xl mx-auto">
         Three answers and we come back with what the partnership looks like for your fleet. The

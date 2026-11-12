@@ -28645,6 +28645,12 @@ The worker runs its own pipeline, configured by flags. Its equivalent of this fi
 
 Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](https://modpagespeed.com/docs/filter-selection/).
 
+## Live examples
+
+No example isolates this filter. These apply it together with other filters:
+
+- [Optimize images](https://modpagespeed.com/examples/rewrite_images/)
+
 ## Frequently asked questions
 
 **What does the convert_jpeg_to_webp filter do?**
@@ -29120,6 +29126,8 @@ Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](htt
 
 See the before and after, with the source diff: [inline_css example](https://modpagespeed.com/examples/inline_css/).
 
+Also applied in: [Local storage cache](https://modpagespeed.com/examples/local_storage_cache/).
+
 ## Frequently asked questions
 
 **What does the inline_css filter do?**
@@ -29249,6 +29257,8 @@ Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](htt
 ## Live example
 
 See the before and after, with the source diff: [inline_images example](https://modpagespeed.com/examples/dedup_inlined_images/).
+
+Also applied in: [Optimize images](https://modpagespeed.com/examples/rewrite_images/), [Responsive images](https://modpagespeed.com/examples/responsive_images/), [Local storage cache](https://modpagespeed.com/examples/local_storage_cache/).
 
 ## Frequently asked questions
 
@@ -29647,6 +29657,15 @@ pagespeed EnableFilters insert_image_dimensions
 The worker runs its own pipeline, configured by flags. Its equivalent of this filter is the [image dimensions](https://modpagespeed.com/docs/worker-configuration/#image-dimensions) transform. Toggleable via [`--no-image-dimensions`](https://modpagespeed.com/docs/worker-configuration/#--no-image-dimensions).
 
 Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](https://modpagespeed.com/docs/filter-selection/).
+
+## Live examples
+
+No example isolates this filter. These apply it together with other filters:
+
+- [Optimize images](https://modpagespeed.com/examples/rewrite_images/)
+- [Responsive images](https://modpagespeed.com/examples/responsive_images/)
+- [Resize images for mobile](https://modpagespeed.com/examples/resize_mobile_images/)
+- [Inline preview images](https://modpagespeed.com/examples/inline_preview_images/)
 
 ## Frequently asked questions
 
@@ -31109,6 +31128,13 @@ The worker runs its own pipeline, configured by flags. Its equivalent of this fi
 
 Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](https://modpagespeed.com/docs/filter-selection/).
 
+## Live examples
+
+No example isolates this filter. These apply it together with other filters:
+
+- [Optimize images](https://modpagespeed.com/examples/rewrite_images/)
+- [Responsive images](https://modpagespeed.com/examples/responsive_images/)
+
 ## Frequently asked questions
 
 **What does the resize_images filter do?**
@@ -31351,6 +31377,8 @@ Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](htt
 
 See the before and after, with the source diff: [rewrite_css example](https://modpagespeed.com/examples/rewrite_css/).
 
+Also applied in: [Sprite images](https://modpagespeed.com/examples/sprite_images/), [Flatten CSS @imports](https://modpagespeed.com/examples/flatten_css_imports/), [Fallback CSS URL rewriting](https://modpagespeed.com/examples/fallback_rewrite_css_urls/), [Prioritize critical CSS](https://modpagespeed.com/examples/prioritize_critical_css/), [Rewrite style attributes](https://modpagespeed.com/examples/rewrite_style_attributes/), [Rewrite style attributes with url()](https://modpagespeed.com/examples/rewrite_style_attributes_with_url/), [Cache-extend images in CSS](https://modpagespeed.com/examples/rewrite_css_extend_cache/), [Recompress images in CSS](https://modpagespeed.com/examples/rewrite_css_rewrite_images/), [Optimize for bandwidth](https://modpagespeed.com/examples/optimize_for_bandwidth/).
+
 ## Frequently asked questions
 
 **What does the rewrite_css filter do?**
@@ -31446,6 +31474,12 @@ pagespeed DisableFilters rewrite_javascript_external   # IIS
 
 Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](https://modpagespeed.com/docs/filter-selection/).
 
+## Live examples
+
+No example isolates this filter. These apply it together with other filters:
+
+- [Minify JavaScript](https://modpagespeed.com/examples/rewrite_javascript/)
+
 ## Frequently asked questions
 
 **What does the rewrite_javascript_external filter do?**
@@ -31540,6 +31574,12 @@ pagespeed DisableFilters rewrite_javascript_inline   # IIS
 ```
 
 Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](https://modpagespeed.com/docs/filter-selection/).
+
+## Live examples
+
+No example isolates this filter. These apply it together with other filters:
+
+- [Minify JavaScript](https://modpagespeed.com/examples/rewrite_javascript/)
 
 ## Frequently asked questions
 
@@ -31889,6 +31929,8 @@ Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](htt
 
 See the before and after, with the source diff: [extend_cache example](https://modpagespeed.com/examples/extend_cache/).
 
+Also applied in: [Cache-extend images in CSS](https://modpagespeed.com/examples/rewrite_css_extend_cache/).
+
 ## Frequently asked questions
 
 **What does the extend_cache filter do?**
@@ -32195,6 +32237,8 @@ Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](htt
 
 See the before and after, with the source diff: [rewrite_images example](https://modpagespeed.com/examples/rewrite_images/).
 
+Also applied in: [Convert JPEG to AVIF](https://modpagespeed.com/examples/convert_jpeg_to_avif/), [Responsive images](https://modpagespeed.com/examples/responsive_images/), [Fallback CSS URL rewriting](https://modpagespeed.com/examples/fallback_rewrite_css_urls/), [Rewrite style attributes](https://modpagespeed.com/examples/rewrite_style_attributes/), [Rewrite style attributes with url()](https://modpagespeed.com/examples/rewrite_style_attributes_with_url/), [Recompress images in CSS](https://modpagespeed.com/examples/rewrite_css_rewrite_images/), [Optimize for bandwidth](https://modpagespeed.com/examples/optimize_for_bandwidth/), [Proxy external resources](https://modpagespeed.com/examples/map_proxy_domain/).
+
 ## Frequently asked questions
 
 **What does the rewrite_images filter do?**
@@ -32325,6 +32369,8 @@ Scoping, `ForbidFilters` and the thresholds filters read: [Choosing filters](htt
 ## Live example
 
 See the before and after, with the source diff: [rewrite_javascript example](https://modpagespeed.com/examples/rewrite_javascript/).
+
+Also applied in: [Optimize for bandwidth](https://modpagespeed.com/examples/optimize_for_bandwidth/).
 
 ## Frequently asked questions
 

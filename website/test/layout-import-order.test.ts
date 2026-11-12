@@ -34,13 +34,13 @@ if (!BUILT) {
 
 // Page -> expected head signature. The layout's own inline styles come first,
 // then the site sheet (BaseLayout.*.css), then page styles, except on pages
-// whose inline styles Astro hoists above the sheet (the alternatives pages).
+// whose inline styles Astro hoists above the sheet (the alternatives hub).
 const EXPECTED: Record<string, string> = {
   '': 'S S S L:BaseLayout S L:index',
   'docs/getting-started/': 'S S S L:BaseLayout S',
   'pricing/': 'S S S L:BaseLayout',
   'alternatives/': 'S S S L:BaseLayout',
-  'alternatives/shortpixel/': 'S S S S L:BaseLayout',
+  'alternatives/shortpixel/': 'S S S L:BaseLayout S',
   'ai-readability/': 'S S S L:BaseLayout S L:index',
 };
 

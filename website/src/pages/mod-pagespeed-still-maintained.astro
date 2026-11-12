@@ -190,7 +190,7 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
 
     <!-- The short answer, stated plainly up top for AI Overviews / featured snippets -->
     <section class="mt-10">
-      <div class="rounded-2xl border border-interactive/40 bg-interactive/10 p-6 md:p-8">
+      <div class="rounded-card border border-interactive/40 bg-interactive/10 p-6 md:p-8">
         <h2 class="h2-section text-text-body">The short answer</h2>
         <p class="mt-3 text-text-body">
           mod_pagespeed is maintained. We-Amp B.V. helped maintain the open-source project and
@@ -260,7 +260,7 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
       </p>
       <ol class="mt-8 space-y-4">
         {timeline.map((row) => (
-          <li class={`rounded-2xl border p-5 md:p-6 ${toneClasses[row.tone]}`}>
+          <li class={`rounded-card border p-5 md:p-6 ${toneClasses[row.tone]}`}>
             <div class="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-5">
               <span class="display-num shrink-0 font-mono text-sm font-semibold uppercase tracking-wide text-text-body sm:w-28">
                 {row.when}
@@ -348,7 +348,7 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         converging the two lines We-Amp shipped through 2026.
       </p>
       <div class="mt-8 grid grid-cols-1 max-w-xl">
-        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+        <div class="rounded-card border border-border bg-bg-elevated p-6">
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             The maintained product
           </p>
@@ -461,7 +461,7 @@ server {
 
     <!-- CTA -->
     <section class="mt-14">
-      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
+      <div class="rounded-card border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Move off the archived build</h2>
         <p class="mt-3 text-text-body">
           If you are running a frozen 2020-era build, the maintained{' '}

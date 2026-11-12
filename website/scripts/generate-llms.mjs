@@ -19,6 +19,10 @@
 //                              the filters hub and the indexable filter topics
 //                              (the blog posts are listed in the index only)
 //
+//   The filter topics list the gallery demos the topic pages list, from
+//   src/lib/filter-demos.ts; that module is TypeScript (it reads the examples
+//   catalog and its measurements), so it is loaded through Vite's module runner.
+//
 //   ai-plugin.json.tmpl (scripts/llms-templates/) + LLMS_TOKENS
 //     => public/.well-known/ai-plugin.json
 //
@@ -74,6 +78,7 @@ import {
   renderFiltersHubMarkdown,
 } from '../src/lib/filter-topics.mjs';
 import { loadPosts, postUrl } from '../src/lib/blog-markdown.mjs';
+import { runnerImport } from 'vite';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const WEBSITE_ROOT = resolve(__dirname, '..');
@@ -127,16 +132,33 @@ export function render(template, name) {
  *   manifests: import('../src/lib/docs-markdown.mjs').Manifests,
  *   topics: import('../src/lib/filter-topics.mjs').Topic[],
  *   allTopics: import('../src/lib/filter-topics.mjs').Topic[],
+ *   demos: Record<string, import('../src/lib/filter-demos.ts').DemoLink[]>,
  *   posts: import('../src/lib/blog-markdown.mjs').Post[],
  * }} Context
  */
 
 /**
+ * The gallery demos each indexable filter topic lists, from the module the
+ * topic page itself uses.
+ * @param {string} root
+ * @param {import('../src/lib/filter-topics.mjs').Topic[]} topics
+ */
+async function loadDemos(root, topics) {
+  /** @type {{ module: typeof import('../src/lib/filter-demos.ts') }} */
+  const { module } = await runnerImport(resolve(root, 'src/lib/filter-demos.ts'), {
+    configFile: false,
+    root,
+    logLevel: 'silent',
+  });
+  return Object.fromEntries(topics.map((t) => [t.name, module.alsoAppliedIn(t.name, t.example)]));
+}
+
+/**
  * Everything the builders read, loaded once.
  * @param {string} [root]
- * @returns {Context}
+ * @returns {Promise<Context>}
  */
-export function loadContext(root = WEBSITE_ROOT) {
+export async function loadContext(root = WEBSITE_ROOT) {
   const docs = loadDocs(root);
   // Only the indexable filter topic pages are listed; the thin ones are noindex
   // until their group-page section is enriched (src/lib/filter-topics.mjs).
@@ -148,6 +170,7 @@ export function loadContext(root = WEBSITE_ROOT) {
     manifests: loadManifests(root),
     topics,
     allTopics,
+    demos: await loadDemos(root, topics),
     posts: loadPosts(root),
   };
 }
@@ -258,7 +281,7 @@ export function buildFull(ctx) {
   }
   parts.push('---', '', renderFiltersHubMarkdown(ctx.allTopics).trimEnd(), '');
   for (const t of ctx.topics) {
-    parts.push('---', '', renderTopicMarkdown(t, ctx.allTopics).trimEnd(), '');
+    parts.push('---', '', renderTopicMarkdown(t, ctx.allTopics, ctx.demos[t.name]).trimEnd(), '');
   }
   return parts.join('\n');
 }
@@ -275,10 +298,10 @@ function withNotice(text) {
  * Render every target. Returns { outputFilename: content }.
  * This is the single render path shared by the CLI and the drift-guard test.
  * @param {string} [root]
- * @returns {Record<string, string>}
+ * @returns {Promise<Record<string, string>>}
  */
-export function generateContent(root = WEBSITE_ROOT) {
-  const ctx = loadContext(root);
+export async function generateContent(root = WEBSITE_ROOT) {
+  const ctx = await loadContext(root);
   /** @type {Record<string, string>} */
   const result = {};
   for (const target of TARGETS) {
@@ -292,9 +315,9 @@ export function generateContent(root = WEBSITE_ROOT) {
   return result;
 }
 
-function main() {
+async function main() {
   const checkOnly = process.argv.includes('--check');
-  const content = generateContent();
+  const content = await generateContent();
   let stale = 0;
 
   for (const { output } of TARGETS) {
@@ -330,5 +353,5 @@ function main() {
 // Run the CLI only when invoked directly (`node scripts/generate-llms.mjs`),
 // not when imported by the drift-guard test.
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
-  main();
+  await main();
 }

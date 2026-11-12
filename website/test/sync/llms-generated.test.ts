@@ -117,8 +117,8 @@ vi.mock('../../src/lib/release', async () => {
   return { getRelease: async () => releaseManifest };
 });
 
-const generated = generateContent();
-const ctx = loadContext();
+const generated = await generateContent();
+const ctx = await loadContext();
 const index = generated['llms.txt'];
 const full = generated['llms-full.txt'];
 // The generator's own surfaces: the index (which llms-full.txt opens with) and
@@ -142,8 +142,8 @@ describe('llms*.txt drift guard', () => {
         expect(committed).toBe(generated[output]);
       });
     }
-    it('a second render is byte-identical (deterministic output)', () => {
-      const again = generateContent();
+    it('a second render is byte-identical (deterministic output)', async () => {
+      const again = await generateContent();
       for (const { output } of TARGETS) expect(again[output]).toBe(generated[output]);
     });
     it('carries no timestamp beyond the manifests’ release dates', () => {
@@ -476,7 +476,8 @@ describe('/docs/<slug>.md serves the same Markdown', () => {
 
 describe('filter reference pages have Markdown twins', () => {
   const indexable = ctx.topics;
-  const bodyOf = (t: (typeof indexable)[number]) => renderTopicMarkdown(t, ctx.allTopics);
+  const bodyOf = (t: (typeof indexable)[number]) =>
+    renderTopicMarkdown(t, ctx.allTopics, ctx.demos[t.name]);
   const hub = renderFiltersHubMarkdown(ctx.allTopics);
   const canonical = (path: string) => `\nCanonical URL: ${SITE}${path}\n`;
 

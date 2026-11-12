@@ -69,7 +69,7 @@ test.describe('Static pages', () => {
     await page.goto('/features/');
     // Scope to the page hero h1 — the embedded console-demo preview adds its
     // own h1 nodes, so a bare `h1` locator is no longer strict-mode safe.
-    await expect(page.locator('h1.h1-hero')).toBeVisible();
+    await expect(page.locator('h1.page-hero-title')).toBeVisible();
     await expect(page.locator('header nav')).toBeVisible();
     await expect(page.locator('footer')).toBeVisible();
   });

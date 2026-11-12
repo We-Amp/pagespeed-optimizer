@@ -98,6 +98,7 @@ const docsJsonLd = {
   title="Documentation — mod_pagespeed"
   description="Install, configure, and run mod_pagespeed. Guides for Docker, nginx module, ASP.NET Core middleware, configuration, deployment, and troubleshooting."
   jsonLd={docsJsonLd}
+  wideHeader
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap">
@@ -149,11 +150,11 @@ const docsJsonLd = {
     {startHere && (
       <a
         href={`/docs/${startHere.id}/`}
-        class="mt-6 block rounded-2xl border border-interactive/40 bg-interactive/10 p-6 hover:border-interactive transition-colors"
+        class="mt-6 block rounded-card border border-interactive/40 bg-interactive/10 p-6 hover:border-interactive transition-colors"
       >
         <p class="text-xs font-semibold uppercase tracking-wider text-interactive">Start here</p>
         <h2 class="mt-2 text-2xl font-semibold text-text-body">{startHere.data.title}</h2>
-        <p class="mt-2 text-sm text-text-muted">{startHere.data.description}</p>
+        <p class="mt-2 text-body sm:text-sm text-text-muted">{startHere.data.description}</p>
       </a>
     )}
 
@@ -184,7 +185,7 @@ const docsJsonLd = {
                 class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
               >
                 <h3 class="text-lg font-semibold text-text-body">{card.title}</h3>
-                <p class="mt-1 text-sm text-text-muted">{card.description}</p>
+                <p class="mt-1 text-body sm:text-sm text-text-muted">{card.description}</p>
               </a>
             ))}
           </div>
@@ -199,7 +200,7 @@ const docsJsonLd = {
             class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
           >
             <h3 class="text-lg font-semibold text-text-body">How it works</h3>
-            <p class="mt-1 text-sm text-text-muted">
+            <p class="mt-1 text-body sm:text-sm text-text-muted">
               CSS parsing, the metadata cache, and optimizing off the request path &mdash; the
               mechanics under the filters.
             </p>

@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CTAButton from '../components/CTAButton.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 import Readout from '../components/instrument/Readout.astro';
 import ReadoutPanel from '../components/instrument/ReadoutPanel.astro';
 import ByteDelta from '../components/instrument/ByteDelta.astro';
@@ -39,62 +39,53 @@ const siteData = sites.map((site) => {
   description="Watch mod_pagespeed cut real sites 48–69% smaller: measured CSS/JS minification and WebP/AVIF transcoding, with modeled load-time projections."
 >
   {/* Demo site preview with tabs */}
-  <section class="py-20">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <div class="text-center">
-        <SectionHeader
-          id="demo"
-          as="h1"
-          align="center"
-          eyebrow="Live demo"
-          title="See mod_pagespeed optimize real sites"
+  <PageHero
+    id="demo"
+    size="utility"
+    eyebrow="Live demo"
+    title="See mod_pagespeed optimize real sites"
+  >
+    <Fragment slot="lede">
+      <p>
+        Four real sites — an e-commerce store, a blog, a news portal, and a portfolio — each built
+        from original, unoptimized assets. mod_pagespeed cuts total page weight by 48&ndash;69%
+        across them; on the image-heavy store,
+        <a class="text-interactive underline underline-offset-2" href="/blog/avif-vs-webp-2026/">
+          AVIF transcoding
+        </a>{' '}
+        alone takes the catalog images from 99.7&nbsp;KB down to 23.7&nbsp;KB (76% smaller). Every
+        number below is measured.
+      </p>
+      <p class="mt-4 text-small text-text-annotation">
+        This is mod_pagespeed optimizing whole sites: the optimizer worker doing the heavy work
+        behind the module. The module is the other half — in-process inside Apache, nginx or IIS,
+        with granular per-filter control so you switch each optimization on or off yourself. See
+        that filter-by-filter on the
+        <a class="text-interactive underline underline-offset-2" href="/examples/">
+          filter examples
+        </a>
+        .
+      </p>
+      <p class="mt-3 text-small text-text-annotation" data-live-console-pointer>
+        Want the real thing?
+        <a
+          class="text-interactive underline underline-offset-2"
+          href="https://we-amp.com/pagespeed_global_admin/"
+          rel="noopener"
+          data-umami-event="cta_live_console_demo"
         >
-          <p>
-            Four real sites — an e-commerce store, a blog, a news portal, and a portfolio — each
-            built from original, unoptimized assets. mod_pagespeed cuts total page weight by
-            48&ndash;69% across them; on the image-heavy store,
-            <a
-              class="text-interactive underline underline-offset-2"
-              href="/blog/avif-vs-webp-2026/"
-            >
-              AVIF transcoding
-            </a>{' '}
-            alone takes the catalog images from 99.7&nbsp;KB down to 23.7&nbsp;KB (76% smaller).
-            Every number below is measured.
-          </p>
-          <p class="mt-4 text-sm text-text-annotation">
-            This is mod_pagespeed optimizing whole sites: the optimizer worker doing the heavy work
-            behind the module. The module is the other half — in-process inside Apache, nginx or
-            IIS, with granular per-filter control so you switch each optimization on or off
-            yourself. See that filter-by-filter on the
-            <a class="text-interactive underline underline-offset-2" href="/examples/">
-              filter examples
-            </a>
-            .
-          </p>
-          <p class="mt-3 text-sm text-text-annotation" data-live-console-pointer>
-            Want the real thing?
-            <a
-              class="text-interactive underline underline-offset-2"
-              href="https://we-amp.com/pagespeed_global_admin/"
-              rel="noopener"
-              data-umami-event="cta_live_console_demo"
-            >
-              The live admin console on our own sites
-            </a>
-            .
-          </p>
-        </SectionHeader>
-      </div>
+          The live admin console on our own sites
+        </a>
+        .
+      </p>
+    </Fragment>
+  </PageHero>
 
+  <section class="pb-20">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       {/* Tab bar */}
-      <div
-        class="mt-10 border-b border-border"
-        id="demo-tabs"
-        role="tablist"
-        aria-label="Demo sites"
-      >
-        <div class="flex flex-wrap justify-center gap-1 -mb-px">
+      <div class="border-b border-border" id="demo-tabs" role="tablist" aria-label="Demo sites">
+        <div class="flex flex-wrap gap-1 -mb-px">
           {[
             { id: 'ecommerce', label: 'E-commerce', desc: 'ShopGrid' },
             { id: 'blog', label: 'Blog', desc: 'ByteWise' },
@@ -136,7 +127,7 @@ const siteData = sites.map((site) => {
       </details>
 
       {/* Iframe preview area */}
-      <div class="mt-6 rounded-lg border border-border bg-bg-elevated overflow-hidden shadow-sm">
+      <div class="mt-6 rounded-lg border border-border bg-bg-elevated overflow-hidden">
         <div class="flex items-center justify-between px-4 py-2 border-b border-border bg-bg-secondary">
           <div class="flex items-center gap-2">
             <div class="flex gap-1.5">
@@ -187,9 +178,9 @@ const siteData = sites.map((site) => {
   {/* Optimization analysis */}
   <section class="py-16 bg-bg-secondary">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <div class="text-center">
+      <div>
         <h2 class="h2-section text-text-body">Optimization analysis</h2>
-        <p class="lede mt-4 max-w-2xl mx-auto">
+        <p class="lede mt-4 max-w-2xl">
           Real measurements from the demo sites above, produced by the actual module + optimizer
           worker + cache stack. CSS/JS sizes are measured before and after minification, image sizes
           are measured before and after transcoding to WebP and AVIF.
@@ -198,7 +189,7 @@ const siteData = sites.map((site) => {
 
       {/* Site picker */}
       <div
-        class="mt-10 flex justify-center gap-2 flex-wrap"
+        class="mt-10 flex gap-2 flex-wrap"
         id="site-picker"
         role="group"
         aria-label="Choose demo site to analyze"

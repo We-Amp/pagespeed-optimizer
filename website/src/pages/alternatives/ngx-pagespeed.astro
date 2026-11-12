@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { getRelease } from '../../lib/release';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE, NGINX_APT_PROSE } from '../../data/product-facts.mjs';
@@ -71,10 +72,14 @@ const jsonLd = [
   description="ngx_pagespeed no longer builds on modern nginx. mod_pagespeed is the maintained native module: same directives, builds on current nginx, CVE-patched."
   jsonLd={jsonLd}
 >
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
-    <header>
-      <h1 class="h1-hero text-text-body">ngx_pagespeed alternative</h1>
-      <p class="lede mt-6">
+  <PageHero
+    id="ngx-pagespeed-title"
+    width="prose"
+    class="max-w-3xl"
+    title="ngx_pagespeed alternative"
+  >
+    <Fragment slot="lede">
+      <p>
         The nginx PageSpeed port lives on. The module you knew as{' '}
         <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code> is now{' '}
         <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code>: the same
@@ -83,27 +88,29 @@ const jsonLd = [
         built against current nginx and security-patched. Maintained by the people who maintained
         the original.
       </p>
-      <div class="mt-6 flex flex-wrap gap-3">
-        <a
-          href="https://packages.modpagespeed.com/"
-          rel="noopener noreferrer external"
-          class="btn-primary"
-          data-umami-event="cta_alternatives_ngxpagespeed_install_115"
-        >
-          Install the nginx module
-        </a>
-        <a
-          href="/pricing/"
-          data-umami-event="cta_alternatives_ngxpagespeed_buy"
-          class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-        >
-          Support plans
-        </a>
-      </div>
-      <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
-    </header>
+    </Fragment>
+    <div class="mt-6 flex flex-wrap gap-3">
+      <a
+        href="https://packages.modpagespeed.com/"
+        rel="noopener noreferrer external"
+        class="btn-primary"
+        data-umami-event="cta_alternatives_ngxpagespeed_install_115"
+      >
+        Install the nginx module
+      </a>
+      <a
+        href="/pricing/"
+        data-umami-event="cta_alternatives_ngxpagespeed_buy"
+        class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
+      >
+        Support plans
+      </a>
+    </div>
+    <p class="mt-3 text-small text-text-annotation">{FREE_TO_RUN_LINE}</p>
+  </PageHero>
 
-    <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
+  <article class="container-prose max-w-3xl pb-16">
+    <div class="prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <h2>Install it in two commands</h2>
       <pre><code>{`# Ubuntu / Debian
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh

@@ -7,7 +7,7 @@
 // (edge-seo) with an optional "sites you manage" count. The pack is free and
 // available now, as /packs/ says.
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import SectionHeader from '../../components/instrument/SectionHeader.astro';
+import PageHero from '../../components/PageHero.astro';
 import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 
 const fixes = [
@@ -38,19 +38,22 @@ const jsonLd = {
   ogImage="/og-cards/platform-edge-seo.png?v=3"
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="edge-seo-title">
-    <SectionHeader
-      id="edge-seo-title"
-      eyebrow="Edge SEO at the origin"
-      title="Technical SEO fixes at serve time, for sites that are not on a CDN"
-      as="h1"
-    >
+  <PageHero
+    id="edge-seo-title"
+    width="prose"
+    class="max-w-3xl"
+    eyebrow="Edge SEO at the origin"
+    title="Technical SEO fixes at serve time, for sites that are not on a CDN"
+  >
+    <Fragment slot="lede">
       Edge workers can turn technical SEO into a deploy instead of a CMS ticket, for sites behind a
       CDN. This pack does the same work at the origin, in the HTML stream the interceptor already
       rewrites.
-    </SectionHeader>
+    </Fragment>
+  </PageHero>
 
-    <div class="mt-10">
+  <section class="container-prose max-w-3xl pb-16">
+    <div>
       <h2 class="text-lg font-semibold text-text-body">What it fixes</h2>
       <ul class="mt-3 space-y-2 text-sm text-text-muted">
         {fixes.map((f) => (

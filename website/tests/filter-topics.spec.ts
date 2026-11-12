@@ -7,6 +7,7 @@
 // the /docs/filters/ table links each row to one.
 
 import { test, expect } from '@playwright/test';
+import { loadFilterTopics } from '../src/lib/filter-topics.mjs';
 
 test.describe('Filter topic pages', () => {
   test('a filter with a live example renders its guide', async ({ page }) => {
@@ -73,6 +74,28 @@ test.describe('Filter topic pages', () => {
     await expect(page.locator('main h1')).toHaveText('Inline JavaScript (inline_javascript)');
   });
 
+  test('a page lists the other examples that apply its filter', async ({ page }) => {
+    await page.goto('/docs/filters/rewrite_css/');
+    await expect(
+      page.locator('[data-topic-also] a[href="/examples/rewrite_css_extend_cache/"]'),
+    ).toBeVisible();
+  });
+
+  test('a page lists a demo whose capture shows the filter acting', async ({ page }) => {
+    await page.goto('/docs/filters/extend_cache/');
+    await expect(page.locator('[data-not-applied]')).toHaveCount(0);
+    await expect(
+      page.locator('[data-topic-also] a[href="/examples/rewrite_css_extend_cache/"]'),
+    ).toBeVisible();
+  });
+
+  test('a filter no example isolates links to the examples that apply it', async ({ page }) => {
+    await page.goto('/docs/filters/convert_jpeg_to_webp/');
+    const example = page.locator('[data-topic-example]');
+    await expect(example.locator('h2')).toHaveText('Live examples');
+    await expect(example.locator('a[href="/examples/rewrite_images/"]')).toBeVisible();
+  });
+
   test('an example page links to its full guide', async ({ page }) => {
     await page.goto('/examples/combine_css/');
     await expect(page.locator('a[data-full-guide]')).toHaveAttribute(
@@ -100,6 +123,36 @@ test.describe('Filter topic pages', () => {
     expect(body).toContain('## Frequently asked questions');
     expect(body).not.toContain('](/');
     expect((await page.request.get('/docs/filters/lazyload_images.md/')).status()).toBe(404);
+  });
+
+  // The demos a page links in its live example section are the ones its
+  // Markdown twin links, in the same order, on every indexable page.
+  test('every Markdown twin lists the same example demos as its page', async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'server output; one project is enough');
+    await page.route('**/*', (route) => route.abort());
+    const names = loadFilterTopics()
+      .filter((t) => t.indexable)
+      .map((t) => t.name);
+    expect(names.length).toBeGreaterThan(30);
+    let withDemos = 0;
+    for (const name of names) {
+      const html = await (await request.get(`/docs/filters/${name}/`)).text();
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+      const fromPage = await page
+        .locator('[data-topic-example] a[href^="/examples/"]')
+        .evaluateAll((as) => as.map((a) => a.getAttribute('href')!.split('/')[2]));
+      const md = await (await request.get(`/docs/filters/${name}.md`)).text();
+      const section = md.match(/\n## Live examples?\n[\s\S]*?(?=\n## )/)?.[0] ?? '';
+      const fromTwin = [
+        ...section.matchAll(/\]\(https:\/\/modpagespeed\.com\/examples\/([^/)]+)\/\)/g),
+      ].map((m) => m[1]);
+      expect(fromTwin, name).toEqual(fromPage);
+      if (fromPage.length) withDemos++;
+    }
+    expect(withDemos).toBeGreaterThan(0);
   });
 
   test('a thin page has no Markdown twin', async ({ page, request }) => {

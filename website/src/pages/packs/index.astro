@@ -11,7 +11,7 @@
 // no dates. The #pack-format section summarises the format and links to the
 // full reference at /docs/rule-packs/#pack-format.
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import SectionHeader from '../../components/instrument/SectionHeader.astro';
+import PageHero from '../../components/PageHero.astro';
 import Icon from '../../components/Icon.astro';
 import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 
@@ -57,20 +57,17 @@ const jsonLd = {
 ---
 
 <BaseLayout title="Rule packs for mod_pagespeed" description={description} jsonLd={jsonLd}>
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="packs-title">
-    <SectionHeader
-      id="packs-title"
-      eyebrow="Rule packs"
-      title="Head fixes as rules, on your own server"
-      as="h1"
-    >
+  <PageHero id="packs-title" eyebrow="Rule packs" title="Head fixes as rules, on your own server">
+    <Fragment slot="lede">
       A rule pack is a JSON file of rules for the head of your pages: canonical, title, description,
       hreflang and JSON-LD. mod_pagespeed applies them to the HTML it serves, with no CMS change. A
       pack starts in report mode: the server logs what each rule would change and changes nothing.
       You switch to enforce mode per site and per rule when the log shows what you expect.
-    </SectionHeader>
+    </Fragment>
+  </PageHero>
 
-    <div class="mt-10 max-w-3xl">
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-16">
+    <div class="max-w-3xl">
       <h2 class="text-lg font-semibold text-text-body">
         Three switches before a pack changes HTML
       </h2>
