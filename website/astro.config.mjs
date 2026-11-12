@@ -12,6 +12,7 @@ import remarkCustomHeadingId from 'remark-custom-heading-id';
 import remarkDirective from 'remark-directive';
 import remarkCallouts from './src/lib/remark-callouts.mjs';
 import rehypeDirectiveBlocks from './src/lib/rehype-directive-blocks.mjs';
+import remarkLiteralTextDirectives from './src/lib/remark-literal-text-directives.mjs';
 import { gitLastModified } from './src/lib/git-date';
 import { BUILD_ID } from './src/lib/build-id.mjs';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
@@ -222,12 +223,19 @@ export default defineConfig({
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts
     // then turns those nodes into styled callout asides. Order matters — the
     // directive parser must run before the transform that consumes its nodes.
+    // remarkLiteralTextDirectives puts inline `:word` text (host:port) back as
+    // written; the site has no inline directives.
     // The plugins go to the remark/rehype processor itself; .mdx inherits it.
     // rehypeDirectiveBlocks groups the generated directive reference (one
     // element per directive and per area) and adds the directive finder; it
     // leaves every page without that region untouched.
     processor: unified({
-      remarkPlugins: [remarkCustomHeadingId, remarkDirective, remarkCallouts],
+      remarkPlugins: [
+        remarkCustomHeadingId,
+        remarkDirective,
+        remarkLiteralTextDirectives,
+        remarkCallouts,
+      ],
       rehypePlugins: [rehypeDirectiveBlocks],
     }),
     // Dual-theme Shiki. `defaultColor: false` emits CSS variables instead of
