@@ -82,6 +82,83 @@ const narrowDocPages = [
   '/docs/filters/resize_rendered_image_dimensions/',
 ];
 
+// Footer and top-strip links are spaced so a thumb can hit them: rows of at
+// least 28 px, the two icon links 44 px square, the newsletter consent row
+// 44 px, and the telemetry state link at least 24 px.
+test.describe('Phone tap targets in the page chrome', () => {
+  test('footer links, icons, consent row and telemetry link at 360px', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto('/pricing/');
+    const rows = await page
+      .locator('[data-site-footer] ul a')
+      .evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().height)));
+    expect(rows.length).toBeGreaterThan(10);
+    expect(rows.filter((h) => h < 28)).toEqual([]);
+
+    for (const title of ['GitHub', 'RSS feed']) {
+      const box = await page.locator(`[data-site-footer] a[title="${title}"]`).boundingBox();
+      expect(box, title).not.toBeNull();
+      expect(Math.round(box!.width)).toBeGreaterThanOrEqual(44);
+      expect(Math.round(box!.height)).toBeGreaterThanOrEqual(44);
+    }
+
+    const consent = await page
+      .locator('[data-site-footer] label:has(input[type="checkbox"])')
+      .boundingBox();
+    expect(consent).not.toBeNull();
+    expect(Math.round(consent!.height)).toBeGreaterThanOrEqual(44);
+
+    const state = await page.locator('a.t-state-link').boundingBox();
+    expect(state).not.toBeNull();
+    expect(Math.round(state!.height)).toBeGreaterThanOrEqual(24);
+  });
+});
+
+// Small text links get a taller tap area on phones without moving the layout:
+// a tap 8 px above or below the text still lands on the link.
+const smallLinks: Array<{ path: string; selector: string }> = [
+  { path: '/alternatives/cloudflare-apo/', selector: 'nav[aria-label="Breadcrumb"] a[href="/"]' },
+  { path: '/examples/combine_css/', selector: 'main a[href="/examples/"] >> nth=-1' },
+  { path: '/blog/fix-cls-nginx-2026/', selector: 'nav[aria-label="Article navigation"] a' },
+  { path: '/contact/', selector: '#contact-copy-email' },
+];
+
+test.describe('Small text links on phones', () => {
+  for (const { path, selector } of smallLinks) {
+    test(`${path}: the tap area reaches past the text`, async ({ page }) => {
+      await page.setViewportSize({ width: 360, height: 800 });
+      await page.goto(path);
+      const link = page.locator(selector);
+      await link.scrollIntoViewIfNeeded();
+      const hits = await link.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        return [r.top - 8, r.bottom + 8].map((y) => {
+          const hit = document.elementFromPoint(x, y);
+          return !!hit && (hit === el || el.contains(hit));
+        });
+      });
+      expect(hits).toEqual([true, true]);
+    });
+  }
+});
+
+// The scrollable install snippets on the comparison pages take keyboard focus
+// (so they can be scrolled without a pointer) and use 14 px code on phones.
+test('alternatives install snippets: focusable, 14px on a phone', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/alternatives/cloudflare-apo/');
+  const pres = page.locator('main pre.overflow-x-auto');
+  expect(await pres.count()).toBeGreaterThan(0);
+  const info = await pres.evaluateAll((els) =>
+    els.map((el) => ({
+      tabindex: el.getAttribute('tabindex'),
+      size: parseFloat(getComputedStyle(el).fontSize),
+    })),
+  );
+  expect(info.filter((i) => i.tabindex !== '0' || i.size < 14)).toEqual([]);
+});
+
 test.describe('Docs pages fit narrow viewports', () => {
   for (const width of [320, 360, 390]) {
     test(`no horizontal scroll at ${width}px`, async ({ page }) => {

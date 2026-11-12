@@ -139,6 +139,42 @@ test.describe('QuickMessage widget', () => {
     await expect(qm).toBeVisible();
   });
 
+  test('at handset width the launcher steps aside for a copy button in its corner', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/docs/configuration/');
+    const qm = page.locator('[data-qm-launcher]');
+    // A code block's copy button below the first viewport.
+    const target = await page.evaluate(() => {
+      const btns = Array.from(document.querySelectorAll<HTMLElement>('.code-copy-btn'));
+      const b = btns.find((el) => el.getBoundingClientRect().top > window.innerHeight * 2);
+      if (!b) return null;
+      b.setAttribute('data-test-copy', '');
+      return true;
+    });
+    expect(target, 'a copy button below the fold').toBe(true);
+    const btn = page.locator('[data-test-copy]');
+    const scrollBtnTo = (fromBottom: number) =>
+      btn.evaluate((el, d) => {
+        const r = el.getBoundingClientRect();
+        window.scrollTo({
+          top: window.scrollY + r.bottom - (window.innerHeight - d),
+          behavior: 'instant',
+        });
+      }, fromBottom);
+    // Past the first viewport with the copy button clear of the corner: the
+    // launcher shows.
+    await scrollBtnTo(300);
+    await expect(qm).toBeVisible();
+    // Copy button in the launcher's corner: the launcher is out of the way.
+    await scrollBtnTo(24);
+    await expect(qm).toBeHidden();
+    // Copy button well above the corner: the launcher is back.
+    await scrollBtnTo(300);
+    await expect(qm).toBeVisible();
+  });
+
   test('the launcher is the only floating control: 40 px, 16 px from the corner', async ({
     page,
   }) => {

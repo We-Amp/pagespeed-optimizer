@@ -227,18 +227,27 @@ const jsonLd = [
       <p class="mt-4 text-text-body">
         <strong>WebP conversion in imgproxy</strong> (URL-based):
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>/insecure/rs:fit:800:600/f:webp/plain/https://example.com/photo.jpg</code></pre>
+      <pre
+        tabindex="0"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>/insecure/rs:fit:800:600/f:webp/plain/https://example.com/photo.jpg</code></pre>
       <p class="mt-4 text-text-body">
         <strong>WebP conversion in mod_pagespeed.</strong> Install the nginx module on
         {NGINX_APT_SHORT_NBSP} (amd64 + arm64), or AlmaLinux/RHEL/Rocky&nbsp;{NGINX_RPM_SHORT}:
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre
+        tabindex="0"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-text-body">
         Then enable the filter (nginx config; it decides per-request from the client's
         <code>Accept</code> header):
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre
+        tabindex="0"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>pagespeed on;
 pagespeed EnableFilters convert_jpeg_to_webp;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">

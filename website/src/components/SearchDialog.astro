@@ -223,6 +223,13 @@ const emptyLinks = [
   #site-search .pagefind-ui__result-link:hover {
     color: var(--color-interactive);
   }
+  /* Phones: result and sub-result links become taller rows to tap. */
+  @media (max-width: 639px) {
+    #site-search .pagefind-ui__result-link {
+      display: inline-block;
+      padding-block: 0.25rem;
+    }
+  }
   #site-search .pagefind-ui__result-tag {
     font-family: var(--font-mono);
     font-size: 0.7rem;
@@ -387,6 +394,13 @@ const emptyLinks = [
             zero_results: 'No results for [SEARCH_TERM]',
           },
         });
+        /* Pagefind renders a plain text field: ask for the search keyboard
+           and keep form autofill suggestions off the query. */
+        var field = dialog.querySelector('input.pagefind-ui__search-input');
+        if (field) {
+          field.setAttribute('inputmode', 'search');
+          field.setAttribute('autocomplete', 'off');
+        }
         state = 'ready';
         setStatus('');
         watchResults();

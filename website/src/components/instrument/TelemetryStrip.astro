@@ -190,8 +190,9 @@ const fields = [
   .t-state a {
     color: inherit;
     text-decoration: none;
-    /* >=24px target inside the 32px row. */
-    padding-block: 4px;
+    /* >=24px target inside the 32px row (11px text at 1.4 is 15.4px, plus
+       5px above and below). Inline padding: the row does not move. */
+    padding-block: 5px;
   }
   /* The state label is the link to /pagespeed-markers/ at every width; there
      is no separate "what these headers mean" link. */
