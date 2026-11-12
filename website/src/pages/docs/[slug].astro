@@ -6,6 +6,7 @@ import ShareButtons from '../../components/ShareButtons.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
 import Icon from '../../components/Icon.astro';
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
+import DirectiveFinder from '../../components/DirectiveFinder.astro';
 import ReferralOrientation from '../../components/ReferralOrientation.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
@@ -395,6 +396,12 @@ const showReferralOrientation = [
             release opens its collapsed <details> before scrolling to it.
             Gated on doc.id so no other docs page pays for it. */
           doc.id === 'release-notes' && <ReleaseNotesDeepLink />
+        }
+
+        {
+          /* The directive finder's behaviour and styles; its field is part of
+            the rendered reference on this page only. */
+          doc.id === 'configuration' && <DirectiveFinder />
         }
 
         {faqItems.length > 0 && (
