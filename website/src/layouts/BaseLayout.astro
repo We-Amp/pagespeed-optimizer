@@ -7,6 +7,7 @@ import Icon from '../components/Icon.astro';
 import TelemetryStrip from '../components/instrument/TelemetryStrip.astro';
 import SiteHeader from './parts/SiteHeader.astro';
 import SiteFooter from './parts/SiteFooter.astro';
+import RelatedLinks from './parts/RelatedLinks.astro';
 import { searchTitle, searchWeight } from '../lib/search-index';
 
 // The page shell. The pieces live next to this file: parts/HeadMeta.astro
@@ -319,6 +320,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     >
       {searchTitle(rawPath) && <span hidden data-pagefind-meta={`title:${searchTitle(rawPath)}`} />}
       <slot />
+      <RelatedLinks />
     </main>
 
     <SiteFooter />

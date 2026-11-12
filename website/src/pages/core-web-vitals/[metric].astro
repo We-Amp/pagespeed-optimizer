@@ -2,7 +2,7 @@
 import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PageHero from '../../components/PageHero.astro';
-import { pillars, spokeFor, type CwvPillar } from '../../data/cwv-pillars';
+import { pillars, spokeFor, type CwvPillar, type CwvSeeAlso } from '../../data/cwv-pillars';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 import { FILTERS } from '../../data/filters';
 
@@ -15,6 +15,13 @@ export function getStaticPaths() {
 
 const { pillar } = Astro.props as { pillar: CwvPillar };
 const spokes = spokeFor(pillar.metric);
+// "See also" ends with the two other metric pages, unless the list already has them.
+const seeAlso: CwvSeeAlso[] = [
+  ...pillar.seeAlso,
+  ...pillars
+    .filter((p) => p !== pillar && !pillar.seeAlso.some((s) => s.href === p.slug))
+    .map((p) => ({ href: p.slug, text: p.name })),
+];
 // The "Fix it at the server" box: each named filter resolved against the
 // generated filter reference, so a renamed or removed filter fails the build.
 const serverFilters = (pillar.serverFilters ?? []).map((name) => {
@@ -256,7 +263,7 @@ const jsonLd = [
     <section class="mt-16 border-t border-border pt-8">
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
-        {pillar.seeAlso.map((item) => (
+        {seeAlso.map((item) => (
           <li>
             <a href={item.href} class="text-interactive hover:text-interactive-hover underline">
               {item.text}

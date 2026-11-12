@@ -116,6 +116,15 @@ test.describe('Navigation', () => {
     await expect(open.locator('summary')).toContainText('Configure');
   });
 
+  test('mobile Product group is open on a product page', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/features/');
+    await page.locator('#mobile-menu-btn').click();
+    const open = page.locator('#mobile-menu details[open]');
+    await expect(open).toHaveCount(1);
+    await expect(open.locator('summary')).toContainText('Product');
+  });
+
   test('mobile Tools group is open on a tool page', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/calculator/');
@@ -353,6 +362,7 @@ test.describe('Navigation', () => {
     expect(tools).toEqual([
       '/ai-readability/',
       '/analyze/',
+      '/ai-crawler-cost/',
       '/examples/',
       'https://we-amp.com/pagespeed_global_admin/',
       '/calculator/',
@@ -374,9 +384,37 @@ test.describe('Navigation', () => {
       'data-umami-event',
       'nav-psol-footer',
     );
+    await expect(footer.locator('a[href="/ai-crawler-cost/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-crawler-cost-footer',
+    );
     const maintained = footer.locator('a[href="/mod-pagespeed-still-maintained/"]');
     await expect(maintained).toHaveText('Is it still maintained?');
     await expect(maintained).toHaveAttribute('data-umami-event', 'nav-still-maintained-footer');
+  });
+
+  test('landing pages end with a Related block; other pages have none', async ({ page }) => {
+    await page.goto('/psol/');
+    const related = page.locator('main nav[data-related]');
+    await expect(related.getByRole('heading', { name: 'Related' })).toBeVisible();
+    const hrefs = await related
+      .locator('a')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('href')));
+    expect(hrefs).toEqual(['/how-it-works/', '/mod-pagespeed-still-maintained/', '/docs/upgrade/']);
+    await expect(related.locator('a').first()).toHaveAttribute('data-umami-event', 'nav-related');
+    await expect(related.locator('a').first()).toHaveAttribute(
+      'data-umami-event-position',
+      'how_it_works',
+    );
+    await page.goto('/core-web-vitals/lcp/');
+    await expect(page.locator('nav[data-related]')).toHaveCount(0);
+    for (const href of ['/core-web-vitals/cls/', '/core-web-vitals/inp/']) {
+      await expect(
+        page.locator(`main section:has(p:text-is("See also:")) a[href="${href}"]`),
+      ).toHaveCount(1);
+    }
+    await page.goto('/');
+    await expect(page.locator('nav[data-related]')).toHaveCount(0);
   });
 
   test('footer has five groups plus Legal', async ({ page }) => {
@@ -538,6 +576,17 @@ test.describe('Navigation', () => {
       await expect(tools.locator(`a[href="${href}"]`), href).toBeVisible();
     }
     await expect(mobileMenu.locator('[data-qm-open]')).toHaveCount(0);
+
+    // Product starts collapsed the same way.
+    const product = mobileMenu.locator('details').filter({
+      has: page.locator('summary', { hasText: /^\s*Product\s*$/ }),
+    });
+    await expect(product).not.toHaveAttribute('open', '');
+    await expect(product.locator('a[href="/features/"]')).toBeHidden();
+    await product.locator('summary').click();
+    for (const href of ['/features/', '/how-it-works/', '/alternatives/', '/core-web-vitals/']) {
+      await expect(product.locator(`a[href="${href}"]`), href).toBeVisible();
+    }
 
     // Docs: a plain home link, then one <details> per column.
     await expect(mobileMenu.locator('a[href="/docs/"]')).toContainText('Docs home');
