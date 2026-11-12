@@ -181,10 +181,19 @@ h1,
    tablet width up, the first column (the name a reference table is looked up
    by) uses `break-word`: it wraps the same way but keeps the whole name as
    the column's minimum width. The other columns still shrink, so the table
-   keeps fitting its box; on a phone every column does. */
+   keeps fitting its box; on a phone every column does. A phone has no room
+   for a long name as a minimum width, so there a two-column table (a name and
+   its description) gives the name column a 7rem floor instead: a short name
+   such as a state or a field stays whole, a longer one still breaks inside
+   the word rather than pushing the table wider than its box. */
 @media (width >= 48rem) {
   .prose :is(td, th):first-child code {
     overflow-wrap: break-word;
+  }
+}
+@media (width < 48rem) {
+  .prose table:not(:has(:is(td, th):nth-child(3))) :is(td, th):first-child {
+    min-width: 7rem;
   }
 }
 
