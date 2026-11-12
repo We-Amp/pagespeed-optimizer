@@ -20,6 +20,7 @@ import { exampleImpact } from '../../../lib/example-impact';
 import { gitLastModified } from '../../../lib/git-date';
 import { FREE_TO_RUN_LINE } from '../../../data/product-facts.mjs';
 import { productRef } from '../../../data/software-jsonld';
+import { ORGANIZATION_PUBLISHER, ORGANIZATION_REF } from '../../../data/organization';
 
 // One topic page per filter the module accepts: /docs/filters/<name>/.
 //
@@ -111,6 +112,10 @@ const namesGoogle = namesGoogleProduct(t);
 
 const h1 = `${t.human} (${t.name})`;
 const url = `https://modpagespeed.com${t.path}`;
+// An alternate spelling whose primary page is indexable names that page as its
+// canonical and drops `noindex`: a noindex page with a cross-page canonical
+// would send two conflicting signals.
+const canonicalElsewhere = t.canonicalPath !== t.path;
 const lastUpdated = gitLastModified(`src/content/docs/${t.section.page}.md`);
 
 const jsonLd = [
@@ -119,12 +124,9 @@ const jsonLd = [
     '@type': 'TechArticle',
     headline: h1,
     description: t.description,
-    author: { '@type': 'Organization', name: 'We-Amp B.V.' },
-    publisher: {
-      '@type': 'Organization',
-      name: 'We-Amp B.V.',
-      logo: { '@type': 'ImageObject', url: 'https://modpagespeed.com/logo.svg' },
-    },
+    // The site-wide organization node, by its `@id`.
+    author: ORGANIZATION_REF,
+    publisher: ORGANIZATION_PUBLISHER,
     mainEntityOfPage: url,
     ...(lastUpdated && { dateModified: lastUpdated }),
     about: await productRef(),
@@ -149,7 +151,8 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
   title={t.title}
   description={t.description}
   jsonLd={jsonLd}
-  noindex={!t.indexable}
+  noindex={!t.indexable && !canonicalElsewhere}
+  canonical={canonicalElsewhere ? `https://modpagespeed.com${t.canonicalPath}` : undefined}
   alternateMarkdown={t.indexable ? topicMarkdownUrl(t.name) : undefined}
   breadcrumbLeafName={t.name}
   searchable

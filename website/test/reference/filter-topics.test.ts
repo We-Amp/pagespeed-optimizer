@@ -20,6 +20,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { parse } from 'parse5';
 import { describe, it, expect } from 'vitest';
 import {
   loadFilterTopics,
@@ -36,6 +37,32 @@ import {
 } from '../../src/lib/filter-topics.mjs';
 import { EXAMPLES } from '../../src/data/examples';
 import { topicForExample } from '../../src/data/filters';
+import { ORGANIZATION_ID } from '../../src/data/organization';
+
+type HtmlNode = {
+  nodeName: string;
+  value?: string;
+  attrs?: { name: string; value: string }[];
+  childNodes?: HtmlNode[];
+};
+
+// The JSON-LD blocks of a built page, read with an HTML parser.
+function jsonLdBlocks(html: string): any[] {
+  const out: any[] = [];
+  const walk = (node: HtmlNode) => {
+    for (const child of node.childNodes ?? []) {
+      if (
+        child.nodeName === 'script' &&
+        child.attrs?.some((a) => a.name === 'type' && a.value === 'application/ld+json')
+      ) {
+        out.push(JSON.parse((child.childNodes ?? []).map((c) => c.value ?? '').join('')));
+      }
+      walk(child);
+    }
+  };
+  walk(parse(html) as HtmlNode);
+  return out.flat();
+}
 
 const WEBSITE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const data = JSON.parse(
@@ -67,6 +94,17 @@ describe('filter topics (source)', () => {
       expect(t.indexable).toBe(!t.alternateSpellingOf && t.section.words >= THIN_WORDS);
     });
   }
+
+  it('an alternate spelling names its indexable primary as canonical; every other page itself', () => {
+    const alternates = topics.filter((t) => t.alternateSpellingOf);
+    expect(alternates.length).toBeGreaterThan(0);
+    for (const t of topics) {
+      const primary = t.alternateSpellingOf ? byName.get(t.alternateSpellingOf) : undefined;
+      expect(t.canonicalPath, t.name).toBe(primary?.indexable ? primary.path : t.path);
+      // A canonical never points at a page that is itself kept out of search.
+      if (t.canonicalPath !== t.path) expect(byName.get(primary!.name)!.indexable).toBe(true);
+    }
+  });
 
   it('use one consistent title form per length tier', () => {
     for (const t of topics) {
@@ -193,14 +231,29 @@ describe.skipIf(!BUILT)('filter topics (built html)', () => {
         expect(ld).toEqual(t.faq.map((f) => ({ q: f.q, a: plainText(f.a) })));
       });
 
+      const canonicalElsewhere = t.canonicalPath !== t.path;
       it(
-        t.indexable ? 'is indexable and in the sitemap' : 'is noindex and not in the sitemap',
+        t.indexable
+          ? 'is indexable and in the sitemap'
+          : canonicalElsewhere
+            ? 'names its primary spelling as canonical, without noindex, and is not in the sitemap'
+            : 'is noindex and not in the sitemap',
         () => {
           const noindex = /<meta name="robots" content="noindex,follow"/.test(html);
-          expect(noindex).toBe(!t.indexable);
+          expect(noindex).toBe(!t.indexable && !canonicalElsewhere);
           expect(sitemap.includes(`https://modpagespeed.com${t.path}<`)).toBe(t.indexable);
+          expect(attr(html, /<link rel="canonical" href="([^"]*)"/)).toBe(
+            `https://modpagespeed.com${t.canonicalPath}`,
+          );
         },
       );
+
+      it('names the site-wide organization as author and publisher', () => {
+        const article = jsonLdBlocks(html).find((b) => b['@type'] === 'TechArticle');
+        expect(article.author['@id']).toBe(ORGANIZATION_ID);
+        expect(article.publisher['@id']).toBe(ORGANIZATION_ID);
+        expect(article.publisher.logo?.url).toBeTruthy();
+      });
     });
   }
 

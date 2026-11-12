@@ -7,6 +7,7 @@ import ShareButtons from '../../components/ShareButtons.astro';
 import { getCollection, render } from 'astro:content';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { brandedTitle } from '../../lib/page-title';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { BLOG_INSTALL_PLATFORMS, INSTALL_PLATFORM_LINKS } from '../../data/blog-install-links';
 
@@ -84,14 +85,10 @@ const installLinks = (BLOG_INSTALL_PLATFORMS[post.id] ?? []).map((p) => INSTALL_
 const installKind = installLinks[0]?.kind ?? 'module';
 const productLabel = PRODUCT_DISPLAY_NAME;
 
-// Append the product suffix to the <title> only when it won't push the SERP
-// title past the ~60-char truncation point. Long post titles keep their full
-// text rather than spending the budget on a brand suffix Google would cut off.
-const titleSuffix = ` — ${productLabel}`;
-const pageTitle =
-  post.data.title.length + titleSuffix.length <= 60
-    ? `${post.data.title}${titleSuffix}`
-    : post.data.title;
+// Append the product suffix to the <title> only when the title does not name
+// the product already and the suffix won't push it past the ~60-char
+// truncation point (brandedTitle).
+const pageTitle = brandedTitle(post.data.title);
 
 const jsonLd = {
   '@context': 'https://schema.org',

@@ -8,7 +8,7 @@ faq:
   - q: 'Does this change what browsers and search engines see?'
     a: 'No. Browsers and crawlers receive your normal HTML at the same URL. Only a request that explicitly negotiates the agent representation (Accept: text/markdown), on a deployment where you have enabled agent optimization, receives the rendered-Markdown copy. The response carries Vary: Accept so shared caches never mix the two.'
   - q: 'Is it on by default?'
-    a: 'No. The capability ships in every build but stays off until you enable it with the --agent-optimize worker flag. There is no separate build.'
+    a: 'No. The capability ships in every build but stays off until you enable it with the `--agent-optimize` worker flag. There is no separate build.'
   - q: 'Does my content leave my server?'
     a: 'No. Rendering, cleaning, caching, and serving all happen on your own server. Serving a cached response performs zero outbound network I/O.'
   - q: 'Does this work with the module alone, or does it need the optimizer worker?'

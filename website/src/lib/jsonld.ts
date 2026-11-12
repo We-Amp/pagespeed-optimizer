@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
+import { parseFragment } from 'parse5';
+
 /**
  * Structured data that cannot close its own script tag.
  *
@@ -20,4 +22,30 @@
  */
 export function safeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c');
+}
+
+type FragmentNode = { nodeName: string; value?: string; childNodes?: FragmentNode[] };
+
+function textOf(node: FragmentNode): string {
+  if (node.nodeName === '#text') return node.value ?? '';
+  return (node.childNodes ?? []).map(textOf).join('');
+}
+
+/**
+ * The text a reader sees in a rendered HTML fragment: tags dropped, character
+ * references decoded, whitespace runs collapsed. Structured data that mirrors
+ * a visible answer (a FAQPage `acceptedAnswer`) is built from the same rendered
+ * HTML as the page, so the markup carries the visible words rather than the
+ * Markdown source (no literal backticks, asterisks or link syntax).
+ *
+ * The fragment is read with an HTML parser, not pattern-matched. `<` and `>`
+ * in the text come back encoded (`&lt;`, `&gt;`): consumers may read an
+ * answer's text as HTML, where a literal `<Location>` would parse as a tag and
+ * drop out.
+ */
+export function htmlToPlainText(html: string): string {
+  return textOf(parseFragment(html) as FragmentNode)
+    .replace(/[<>]/g, (c) => (c === '<' ? '&lt;' : '&gt;'))
+    .replace(/\s+/g, ' ')
+    .trim();
 }

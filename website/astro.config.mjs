@@ -17,6 +17,7 @@ import { gitLastModified } from './src/lib/git-date';
 import { BUILD_ID } from './src/lib/build-id.mjs';
 import { PAGEFIND_BUNDLE_PATH } from './src/lib/pagefind-bundle.mjs';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
+import { STATIC_INDEXABLE_PAGES } from './src/lib/static-html-pages.mjs';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -259,6 +260,10 @@ export default defineConfig({
     // continue to work; only the version-coupled docs use .mdx (§4).
     mdx(),
     sitemap({
+      // Hand-written indexable pages in public/ are not Astro routes; list them.
+      customPages: STATIC_INDEXABLE_PAGES.map(
+        (path) => new URL(path, 'https://modpagespeed.com').href,
+      ),
       // Exclude legacy 1.0 docs, the noindex checkout, and the noindex
       // /go/ redirect shims. Also drop /examples/<slug>/ detail pages that have
       // no generated data yet (they're noindex until the generator populates

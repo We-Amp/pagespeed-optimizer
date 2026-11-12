@@ -23,6 +23,10 @@ const allPages = [
   '/license/',
   '/terms/',
   '/pagespeed-markers/',
+  // Hand-written HTML in public/, outside the layout's head tags. The dev
+  // server serves a public/ file only by its full name (the directory URL is
+  // its 404 page there), so name the file.
+  '/cyclone-benchmark/index.html',
   // /privacy/ points at the notice on we-amp.com; it is covered by its own
   // suite in terms-privacy.spec.ts
 ];
@@ -58,7 +62,8 @@ test.describe('SEO', () => {
 
   test('every page has canonical URL', async ({ page }) => {
     for (const path of allPages) {
-      await page.goto(path);
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(200);
       const canonical = page.locator('link[rel="canonical"]');
       const href = await canonical.getAttribute('href');
       expect(href).toContain('modpagespeed.com');
@@ -210,6 +215,17 @@ test.describe('SEO', () => {
     const org = nodes.find((node) => node['@type'] === 'Organization');
     expect(org['@id']).toBe('https://we-amp.com/#organization');
     expect(org.brand.name).toBe('mod_pagespeed');
+  });
+
+  test('/analyze/ structured data names the tool by the current product name only', async ({
+    page,
+  }) => {
+    await page.goto('/analyze/');
+    const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+    const app = blocks.map((b) => JSON.parse(b)).find((node) => node['@type'] === 'WebApplication');
+    expect(app.name).toBe('mod_pagespeed Analyze');
+    expect(app).not.toHaveProperty('alternateName');
+    expect(blocks.join('\n')).not.toMatch(/ModPageSpeed/);
   });
 
   test('og:image is set on all pages', async ({ page }) => {
