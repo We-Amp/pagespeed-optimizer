@@ -148,7 +148,9 @@ To see which filters your own pages would benefit from, run them through a
   `—` that the directive has no value of its own.
 - **Context** lists where the directive may appear. On Apache: the server
   config, a `<VirtualHost>`, a `<Directory>`/`<Location>` block, `.htaccess`.
-  On nginx: the `http`, `server` and `location` blocks. "Also per request"
+  On nginx: the `http`, `server` and `location` blocks. On IIS, shown for the
+  IIS-only directives: `pagespeed.config`, and whether the directive may also
+  appear under a match rule. "Also per request"
   marks the options that can also be set on a single request with a
   `PageSpeed…` query parameter or header.
 - **Platform** appears when a directive exists on one server only. An option
@@ -364,9 +366,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.8.1`](https://github.com/We-Amp/mod_pagespeed/tree/v2.8.1): 334 directives.
+Generated from the mod_pagespeed source at tag [`v2.8.1`](https://github.com/We-Amp/mod_pagespeed/tree/v2.8.1): 338 directives.
 
-Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (7) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (30) · [Images](#area-images) (44) · [CSS](#area-css) (10) · [JavaScript](#area-javascript) (9) · [Caching](#area-caching) (48) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (4) · [Experiments and analytics](#area-experiments-and-analytics) (6) · [Other](#area-other) (2) · [Deprecated and ignored](#area-deprecated-and-ignored) (35).
+Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (7) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (33) · [Images](#area-images) (44) · [CSS](#area-css) (10) · [JavaScript](#area-javascript) (9) · [Caching](#area-caching) (49) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (4) · [Experiments and analytics](#area-experiments-and-analytics) (6) · [Other](#area-other) (2) · [Deprecated and ignored](#area-deprecated-and-ignored) (35).
 
 ### Enabling and filter selection {#area-enabling-and-filter-selection}
 
@@ -1011,7 +1013,7 @@ Disable the rewriting of Javascript URLs.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP. Access control: files served through a mapping are read directly from disk, so the web server's own access rules for those paths (Apache `&lt;Directory&gt;`, `&lt;Files&gt;` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use `LoadFromFileRule Disallow` for a filename prefix or `LoadFromFileRuleMatch Disallow` for a filename pattern; a disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
+Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP. Access control: files served through a mapping are read directly from disk, so the web server's own access rules for those paths (Apache `<Directory>`, `<Files>` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use `LoadFromFileRule Disallow` for a filename prefix or `LoadFromFileRuleMatch Disallow` for a filename pattern; a disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
 
 #### LoadFromFileCacheTtlMs {#loadfromfilecachettlms}
 
@@ -1458,7 +1460,7 @@ Verified-bot registry: comma-separated keyid=name pairs.
 
 ### Statistics, console and logging {#area-statistics-console-and-logging}
 
-[`AdminDomains`](#admindomains), [`AdminPath`](#adminpath), [`ConsoleDomains`](#consoledomains), [`ConsolePath`](#consolepath), [`GlobalAdminDomains`](#globaladmindomains), [`GlobalAdminPath`](#globaladminpath), [`GlobalStatisticsDomains`](#globalstatisticsdomains), [`GlobalStatisticsPath`](#globalstatisticspath), [`InstallCrashHandler`](#installcrashhandler), [`ListOutstandingUrlsOnError`](#listoutstandingurlsonerror), [`LogBackgroundRewrite`](#logbackgroundrewrite), [`LogDir`](#logdir), [`LogRewriteTiming`](#logrewritetiming), [`LogUrlIndices`](#logurlindices), [`MaxRewriteInfoLogSize`](#maxrewriteinfologsize), [`MessageBufferSize`](#messagebuffersize), [`MessagesDomains`](#messagesdomains), [`MessagesPath`](#messagespath), [`ReportUnloadTime`](#reportunloadtime), [`SlowFileLatencyUs`](#slowfilelatencyus), [`Statistics`](#statistics), [`StatisticsDomains`](#statisticsdomains), [`StatisticsLogging`](#statisticslogging), [`StatisticsLoggingChartsCSS`](#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](#statisticsloggingmaxfilesizekb), [`StatisticsPath`](#statisticspath), [`StrictAdminAccess`](#strictadminaccess), [`UsePerVHostStatistics`](#usepervhoststatistics)
+[`AdminDomains`](#admindomains), [`AdminPath`](#adminpath), [`AutoCreateLogDir`](#autocreatelogdir), [`ConsoleDomains`](#consoledomains), [`ConsolePath`](#consolepath), [`GlobalAdminDomains`](#globaladmindomains), [`GlobalAdminPath`](#globaladminpath), [`GlobalStatisticsDomains`](#globalstatisticsdomains), [`GlobalStatisticsPath`](#globalstatisticspath), [`InfoUrlsLocalOnly`](#infourlslocalonly), [`InstallCrashHandler`](#installcrashhandler), [`ListOutstandingUrlsOnError`](#listoutstandingurlsonerror), [`LogBackgroundRewrite`](#logbackgroundrewrite), [`LogDir`](#logdir), [`LogRewriteTiming`](#logrewritetiming), [`LogUrlIndices`](#logurlindices), [`MaxRewriteInfoLogSize`](#maxrewriteinfologsize), [`MessageBufferSize`](#messagebuffersize), [`MessagesDomains`](#messagesdomains), [`MessagesPath`](#messagespath), [`ReportUnloadTime`](#reportunloadtime), [`SlowFileLatencyUs`](#slowfilelatencyus), [`Statistics`](#statistics), [`StatisticsDomains`](#statisticsdomains), [`StatisticsLogging`](#statisticslogging), [`StatisticsLoggingChartsCSS`](#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](#statisticsloggingmaxfilesizekb), [`StatisticsPath`](#statisticspath), [`StrictAdminAccess`](#strictadminaccess), [`TreatProxiedRequestsAsLocal`](#treatproxiedrequestsaslocal), [`UsePerVHostStatistics`](#usepervhoststatistics)
 
 #### AdminDomains {#admindomains}
 
@@ -1476,6 +1478,15 @@ Access control for the per-host admin pages: Allow or Disallow a domain wildcard
 - **Platform:** nginx only
 
 Set the admin path. Ex: /pagespeed_admin
+
+#### AutoCreateLogDir {#autocreatelogdir}
+
+- **Syntax:** `pagespeed AutoCreateLogDir on|off` (IIS)
+- **Default:** `on`
+- **Context:** IIS: pagespeed.config, outside match rules
+- **Platform:** IIS only
+
+Auto-create the LogDir if missing (on|off, default on).
 
 #### ConsoleDomains {#consoledomains}
 
@@ -1527,6 +1538,19 @@ Access control for the global statistics page: Allow or Disallow a domain wildca
 - **Platform:** nginx only
 
 Set the global statistics path. Ex: /ngx_pagespeed_global_statistics
+
+#### InfoUrlsLocalOnly {#infourlslocalonly}
+
+- **Syntax:** `pagespeed InfoUrlsLocalOnly on|off` (IIS)
+- **Default:** `on`
+- **Context:** IIS: pagespeed.config, match rules
+- **Platform:** IIS only
+
+Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains and their Global variants) is set for that page, in which case the request host must match it. A host on a configured allowlist is always served. The value applies to the whole IIS process, not to one site.
+
+A request is local when it comes from the server itself and carries no
+reverse-proxy forwarding headers; `TreatProxiedRequestsAsLocal` changes that
+for one site. See [Admin console access control](/docs/admin-console/#access-control).
 
 #### InstallCrashHandler {#installcrashhandler}
 
@@ -1701,6 +1725,15 @@ Set the statistics path. Ex: /ngx_pagespeed_statistics
 - **Context:** Apache: server config · nginx: http
 
 OPT-IN, default off. When on, the admin, statistics, console and message handlers deny non-loopback clients unless an explicit \*Domains allowlist is configured. The loopback decision uses the validated client connection IP, not the Host header. When off (default) access checks behave exactly as before.
+
+#### TreatProxiedRequestsAsLocal {#treatproxiedrequestsaslocal}
+
+- **Syntax:** `pagespeed TreatProxiedRequestsAsLocal on|off` (IIS)
+- **Default:** `off`
+- **Context:** IIS: pagespeed.config, outside match rules
+- **Platform:** IIS only
+
+Count a request relayed by a reverse proxy or tunnel on this server (one that carries forwarding headers such as X-Forwarded-For) as local for the admin, statistics, console and message pages and the diagnostic page. Default off: only direct local requests are local. Use AdminDomains and StatisticsDomains to allow named hosts instead.
 
 #### UsePerVHostStatistics {#usepervhoststatistics}
 
@@ -2241,7 +2274,7 @@ Evaluate nginx script variables ($var) in pagespeed directive arguments at reque
 
 ### Caching {#area-caching}
 
-[`AsyncMetadataL2Writes`](#asyncmetadatal2writes), [`AwaitPcacheLookup`](#awaitpcachelookup), [`CacheFlushFilename`](#cacheflushfilename), [`CacheFlushPollIntervalSec`](#cacheflushpollintervalsec), [`CacheFragment`](#cachefragment), [`CompressMetadataCache`](#compressmetadatacache), [`CreateSharedMemoryMetadataCache`](#createsharedmemorymetadatacache), [`CycloneRamCacheKb`](#cycloneramcachekb), [`CycloneZeroCopy`](#cyclonezerocopy), [`CycloneZeroCopyServe`](#cyclonezerocopyserve), [`DefaultCacheHtml`](#defaultcachehtml), [`DefaultSharedMemoryCacheKB`](#defaultsharedmemorycachekb), [`DownstreamCachePurgeLocationPrefix`](#downstreamcachepurgelocationprefix), [`DownstreamCachePurgeMethod`](#downstreamcachepurgemethod), [`DownstreamCacheRebeaconingKey`](#downstreamcacherebeaconingkey), [`DownstreamCacheRewrittenPercentageThreshold`](#downstreamcacherewrittenpercentagethreshold), [`EnableCachePurge`](#enablecachepurge), [`FileCachePath`](#filecachepath), [`FileCacheSizeKb`](#filecachesizekb), [`FileCacheSmallTierPercent`](#filecachesmalltierpercent), [`FinderPropertiesCacheExpirationTimeMs`](#finderpropertiescacheexpirationtimems), [`FinderPropertiesCacheRefreshTimeMs`](#finderpropertiescacherefreshtimems), [`ForceCaching`](#forcecaching), [`HttpCacheCompressionLevel`](#httpcachecompressionlevel), [`ImplicitCacheTtlMs`](#implicitcachettlms), [`LRUCacheByteLimit`](#lrucachebytelimit), [`LRUCacheKbPerProcess`](#lrucachekbperprocess), [`MaxCacheableContentLength`](#maxcacheablecontentlength), [`MaxHtmlCacheTimeMs`](#maxhtmlcachetimems), [`MemcachedServers`](#memcachedservers), [`MemcachedThreads`](#memcachedthreads), [`MemcachedTimeoutUs`](#memcachedtimeoutus), [`MetadataCacheStalenessThresholdMs`](#metadatacachestalenessthresholdms), [`MinResourceCacheTimeToRewriteMs`](#minresourcecachetimetorewritems), [`NonCacheablesForCachePartialHtml`](#noncacheablesforcachepartialhtml), [`OverrideCachingTtlMs`](#overridecachingttlms), [`PubliclyCacheMismatchedHashesExperimental`](#publiclycachemismatchedhashesexperimental), [`PurgeMethod`](#purgemethod), [`RedisDatabaseIndex`](#redisdatabaseindex), [`RedisPassword`](#redispassword), [`RedisReconnectionDelayMs`](#redisreconnectiondelayms), [`RedisServer`](#redisserver), [`RedisTimeoutUs`](#redistimeoutus), [`RedisTTLSec`](#redisttlsec), [`RedisUser`](#redisuser), [`SharedMemoryLocks`](#sharedmemorylocks), [`ShmMetadataCacheCheckpointIntervalSec`](#shmmetadatacachecheckpointintervalsec), [`UseFallbackPropertyCacheValues`](#usefallbackpropertycachevalues)
+[`AsyncMetadataL2Writes`](#asyncmetadatal2writes), [`AutoCreateCachePath`](#autocreatecachepath), [`AwaitPcacheLookup`](#awaitpcachelookup), [`CacheFlushFilename`](#cacheflushfilename), [`CacheFlushPollIntervalSec`](#cacheflushpollintervalsec), [`CacheFragment`](#cachefragment), [`CompressMetadataCache`](#compressmetadatacache), [`CreateSharedMemoryMetadataCache`](#createsharedmemorymetadatacache), [`CycloneRamCacheKb`](#cycloneramcachekb), [`CycloneZeroCopy`](#cyclonezerocopy), [`CycloneZeroCopyServe`](#cyclonezerocopyserve), [`DefaultCacheHtml`](#defaultcachehtml), [`DefaultSharedMemoryCacheKB`](#defaultsharedmemorycachekb), [`DownstreamCachePurgeLocationPrefix`](#downstreamcachepurgelocationprefix), [`DownstreamCachePurgeMethod`](#downstreamcachepurgemethod), [`DownstreamCacheRebeaconingKey`](#downstreamcacherebeaconingkey), [`DownstreamCacheRewrittenPercentageThreshold`](#downstreamcacherewrittenpercentagethreshold), [`EnableCachePurge`](#enablecachepurge), [`FileCachePath`](#filecachepath), [`FileCacheSizeKb`](#filecachesizekb), [`FileCacheSmallTierPercent`](#filecachesmalltierpercent), [`FinderPropertiesCacheExpirationTimeMs`](#finderpropertiescacheexpirationtimems), [`FinderPropertiesCacheRefreshTimeMs`](#finderpropertiescacherefreshtimems), [`ForceCaching`](#forcecaching), [`HttpCacheCompressionLevel`](#httpcachecompressionlevel), [`ImplicitCacheTtlMs`](#implicitcachettlms), [`LRUCacheByteLimit`](#lrucachebytelimit), [`LRUCacheKbPerProcess`](#lrucachekbperprocess), [`MaxCacheableContentLength`](#maxcacheablecontentlength), [`MaxHtmlCacheTimeMs`](#maxhtmlcachetimems), [`MemcachedServers`](#memcachedservers), [`MemcachedThreads`](#memcachedthreads), [`MemcachedTimeoutUs`](#memcachedtimeoutus), [`MetadataCacheStalenessThresholdMs`](#metadatacachestalenessthresholdms), [`MinResourceCacheTimeToRewriteMs`](#minresourcecachetimetorewritems), [`NonCacheablesForCachePartialHtml`](#noncacheablesforcachepartialhtml), [`OverrideCachingTtlMs`](#overridecachingttlms), [`PubliclyCacheMismatchedHashesExperimental`](#publiclycachemismatchedhashesexperimental), [`PurgeMethod`](#purgemethod), [`RedisDatabaseIndex`](#redisdatabaseindex), [`RedisPassword`](#redispassword), [`RedisReconnectionDelayMs`](#redisreconnectiondelayms), [`RedisServer`](#redisserver), [`RedisTimeoutUs`](#redistimeoutus), [`RedisTTLSec`](#redisttlsec), [`RedisUser`](#redisuser), [`SharedMemoryLocks`](#sharedmemorylocks), [`ShmMetadataCacheCheckpointIntervalSec`](#shmmetadatacachecheckpointintervalsec), [`UseFallbackPropertyCacheValues`](#usefallbackpropertycachevalues)
 
 #### AsyncMetadataL2Writes {#asyncmetadatal2writes}
 
@@ -2250,6 +2283,22 @@ Evaluate nginx script variables ($var) in pagespeed directive arguments at reque
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 Defer the metadata cache's blocking L2 (disk) write off the rewrite critical path onto a single-thread write-behind queue. Reads and the shared-memory L1 write stay synchronous, so same-machine read-your-writes is preserved. Experimental; off by default.
+
+#### AutoCreateCachePath {#autocreatecachepath}
+
+- **Syntax:** `pagespeed AutoCreateCachePath on|off` (IIS)
+- **Default:** `on`
+- **Context:** IIS: pagespeed.config, outside match rules
+- **Platform:** IIS only
+
+Auto-create the per-site cache subdirectory if missing (on|off, default on).
+
+Creation applies only to a cache directory inside
+`C:\ProgramData\We-Amp\PageSpeed\cache\` or
+`C:\ProgramData\We-Amp\IISWebSpeed\cache\`; a cache directory anywhere else
+must exist before the site starts, whatever this is set to. With `off`, a
+missing directory is not created and the site does not start optimizing. See
+[IIS configuration](/docs/iis-configuration/#automatic-cache-directory-creation).
 
 #### AwaitPcacheLookup {#awaitpcachelookup}
 

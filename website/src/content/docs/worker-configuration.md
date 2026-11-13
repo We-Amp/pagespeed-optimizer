@@ -395,7 +395,7 @@ Boolean `--no-…` flags switch off a transform that is on by default; the
 
 <!-- generated:begin worker-flags -->
 
-Sections: [General options](#flags-general-options) (88) · [Windows service](#flags-windows-service) (2) · [Cache key normalization](#flags-cache-key-normalization) (4) · [SVG auto-vectorization](#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](#flags-agent-optimize-experimental-off-by-default) (8) · [Web Bot Auth (observe-only, off by default)](#flags-web-bot-auth-observe-only-off-by-default) (4).
+Sections: [General options](#flags-general-options) (88) · [Windows service](#flags-windows-service) (2) · [Cache key normalization](#flags-cache-key-normalization) (4) · [SVG auto-vectorization](#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](#flags-agent-optimize-experimental-off-by-default) (8) · [Web Bot Auth (observe-only, off by default)](#flags-web-bot-auth-observe-only-off-by-default) (4) · [RSL-CAP enforcement (experimental, off by default)](#flags-rsl-cap-enforcement-experimental-off-by-default) (5).
 
 ### General options {#flags-general-options}
 
@@ -1571,6 +1571,48 @@ keyid=name pairs (comma-separated) promoting a verified signature to a named bot
 - **Default:** —
 
 opt-in verified-crawl counter (experimental): off (default) | private | public. Enabling a non-off mode publishes a discoverable marker at /.well-known/webbotauth-counter. The exact doc is gated by the PAGESPEED_WEB_BOT_AUTH_COUNTER_TOKEN env bearer token.
+
+### RSL-CAP enforcement (experimental, off by default) {#flags-rsl-cap-enforcement-experimental-off-by-default}
+
+[`--rsl-cap-enforcement`](#--rsl-cap-enforcement), [`--rsl-cap-key-directory`](#--rsl-cap-key-directory), [`--rsl-cap-requested-license`](#--rsl-cap-requested-license), [`--rsl-cap-requested-scope`](#--rsl-cap-requested-scope), [`--rsl-cap-issuer`](#--rsl-cap-issuer)
+
+#### --rsl-cap-enforcement {#--rsl-cap-enforcement}
+
+- **Syntax:** `--rsl-cap-enforcement`
+- **Default:** —
+
+Validate Authorization: License capability tokens and answer 401, 402 or pass (status codes only; never settles or meters payment)
+
+Experimental. In the container image, `PAGESPEED_RSL_CAP_ENFORCEMENT=true` sets
+this flag. See [RSL-CAP enforcement](/docs/rsl-cap/).
+
+#### --rsl-cap-key-directory {#--rsl-cap-key-directory}
+
+- **Syntax:** `--rsl-cap-key-directory URL`
+- **Default:** —
+
+https JWKS key-directory URL of a token issuer to warm-fetch periodically (repeatable)
+
+#### --rsl-cap-requested-license {#--rsl-cap-requested-license}
+
+- **Syntax:** `--rsl-cap-requested-license ID`
+- **Default:** —
+
+License id a token must grant; empty denies every token with 402
+
+#### --rsl-cap-requested-scope {#--rsl-cap-requested-scope}
+
+- **Syntax:** `--rsl-cap-requested-scope SCOPE`
+- **Default:** —
+
+Scope a token must grant; empty denies every token with 402
+
+#### --rsl-cap-issuer {#--rsl-cap-issuer}
+
+- **Syntax:** `--rsl-cap-issuer ISSUER`
+- **Default:** —
+
+Accept tokens from this issuer only; others are rejected as an unknown issuer (401). Empty: any issuer in the key directories
 
 <!-- generated:end worker-flags -->
 

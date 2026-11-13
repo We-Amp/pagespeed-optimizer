@@ -24,6 +24,7 @@ import {
   renderRegions,
   renderPage,
   headingId,
+  prose,
   PAGE_REGIONS,
 } from '../../scripts/render-references.mjs';
 
@@ -120,6 +121,27 @@ describe('the generated regions are current', () => {
       expect(current).toBe(out);
     });
   }
+});
+
+// Markdown shows a code span verbatim, so an HTML character reference inside
+// one appears on the page as typed (`&lt;Directory&gt;` instead of
+// `<Directory>`). The renderer escapes markup only outside code spans.
+describe('generated code spans carry no HTML character references', () => {
+  const regions = renderRegions();
+  for (const [name, text] of Object.entries(regions)) {
+    it(`${name}`, () => {
+      const spans = [...text.matchAll(/`[^`\n]*`/g)].map((m) => m[0]);
+      expect(spans.length).toBeGreaterThan(0);
+      const bad = spans.filter((s) => /&(?:#\d+|#x[0-9a-f]+|[a-z]+);/i.test(s));
+      expect(bad).toEqual([]);
+    });
+  }
+
+  it('prose() keeps markup inside code spans literal and escapes it outside', () => {
+    expect(prose('Apache `<Directory>` and <b> * `a*b`')).toBe(
+      'Apache `<Directory>` and &lt;b&gt; \\* `a*b`',
+    );
+  });
 });
 
 describe('in-page fragment links resolve', () => {

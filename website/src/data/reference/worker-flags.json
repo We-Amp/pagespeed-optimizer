@@ -926,6 +926,46 @@
       "platform": null
     },
     {
+      "name": "--rsl-cap-enforcement",
+      "arg": null,
+      "default": null,
+      "description": "Validate Authorization: License capability tokens and answer 401, 402 or pass (status codes only; never settles or meters payment)",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-key-directory",
+      "arg": "URL",
+      "default": null,
+      "description": "https JWKS key-directory URL of a token issuer to warm-fetch periodically (repeatable)",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-requested-license",
+      "arg": "ID",
+      "default": null,
+      "description": "License id a token must grant; empty denies every token with 402",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-requested-scope",
+      "arg": "SCOPE",
+      "default": null,
+      "description": "Scope a token must grant; empty denies every token with 402",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-issuer",
+      "arg": "ISSUER",
+      "default": null,
+      "description": "Accept tokens from this issuer only; others are rejected as an unknown issuer (401). Empty: any issuer in the key directories",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
       "name": "--version",
       "arg": null,
       "default": null,

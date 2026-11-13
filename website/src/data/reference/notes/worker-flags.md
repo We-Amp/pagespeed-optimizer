@@ -504,3 +504,8 @@ installer's service registration.
 ## --log-file
 
 With `--service`: appends the log to the given file instead of standard error.
+
+## --rsl-cap-enforcement
+
+Experimental. In the container image, `PAGESPEED_RSL_CAP_ENFORCEMENT=true` sets
+this flag. See [RSL-CAP enforcement](/docs/rsl-cap/).
