@@ -76,6 +76,7 @@ jobs:
             || { echo "ERROR: the apt.llvm.org key file does not hold the pinned key ${LLVM_APT_KEY_FPR}" >&2; exit 1; }
           GNUPGHOME="${gnupg_home}" gpg --batch --export "${LLVM_APT_KEY_FPR}" \
             | sudo tee /usr/share/keyrings/llvm-snapshot.gpg >/dev/null
+          [ -s /usr/share/keyrings/llvm-snapshot.gpg ] || exit 1
           rm -rf "${gnupg_home}"
           echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
             | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
