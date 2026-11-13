@@ -54,6 +54,7 @@ import {
   SIDECAR_VERSION,
   SIDECAR_NGINX_VERSION,
   SIDECAR_RIDS,
+  MODULE_PACKAGE_VERSION,
   ASPNETCORE_RIDS,
   ASPNETCORE_TFMS,
   NGINX_APT_MATRIX,
@@ -199,10 +200,10 @@ export function distributionLines(ctx) {
   const aspnetPkg = rel20.artifacts.nuget?.package ?? PKG_ASPNETCORE;
   const current = `${PRODUCT_NAME} ${rel21.release.semver} (${rel21.release.released_on})`;
   return [
-    `- Signed apt and yum repository at ${repo} (GPG key ${rel21.urls.gpg_key}; one-time setup \`curl -fsSL ${repo}install.sh | sudo sh\`): \`${PKG_APACHE_MODULE}\` (the Apache module), \`${PKG_NGINX_MODULE}\` (the nginx module, prebuilt and pinned to each distribution's stock nginx: ${NGINX_APT_MATRIX}, ${NGINX_APT_ARCHES}; AlmaLinux 9 via yum against stock nginx ${STOCK_NGINX_ALMA}) and \`${PKG_OPTIMIZER}\` (the optimizer worker). Current release: ${current}. See [the apt/yum repository](${SITE}/download/apt-yum/) and [Install the module on Apache and nginx](${docUrl('installation-module')}).`,
+    `- Signed apt and yum repository at ${repo} (GPG key ${rel21.urls.gpg_key}; one-time setup \`curl -fsSL ${repo}install.sh | sudo sh\`): \`${PKG_APACHE_MODULE}\` (the Apache module), \`${PKG_NGINX_MODULE}\` (the nginx module, prebuilt and pinned to each distribution's stock nginx: ${NGINX_APT_MATRIX}, ${NGINX_APT_ARCHES}; AlmaLinux 9 via yum against stock nginx ${STOCK_NGINX_ALMA}) and \`${PKG_OPTIMIZER}\` (the optimizer worker). Current release: ${current}${MODULE_PACKAGE_VERSION === rel21.release.semver ? '' : `; the module packages are ${MODULE_PACKAGE_VERSION}, a module-only update, and \`${PKG_OPTIMIZER}\` stays ${rel21.release.semver}`}. See [the apt/yum repository](${SITE}/download/apt-yum/) and [Install the module on Apache and nginx](${docUrl('installation-module')}).`,
     `- Container images on GHCR: \`${rel21.artifacts.docker.image}:${tag}\` (nginx with the module) and \`${rel21.artifacts.docker.worker_image}:${tag}\` (the optimizer worker), on ${rel21.compat.docker.base_images.join(', ')}. See [Install with Docker](${docUrl('installation-docker')}).`,
     `- Helm chart \`${rel21.artifacts.helm.chart}\` from the repository \`${rel21.artifacts.helm.repository}\` (\`helm repo add weamp ${rel21.artifacts.helm.repository}\`; index at ${rel21.artifacts.helm.repository}/index.yaml; application version ${substituteRelease(rel21.artifacts.helm.app_version, rel21)}; Kubernetes ${rel21.compat.kubernetes.versions.join(', ')}; Helm ${rel21.compat.kubernetes.helm_versions.join(', ')}). See [Deploy with Helm](${docUrl('helm-deployment')}).`,
-    `- IIS: the signed Windows installer, ${rel21.release.semver}, on the module's GitHub release: ${artifactUrl(rel21, 'msi', 'win_x64')} (${rel21.compat.iis.os.join(', ')}; IIS ${rel21.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
+    `- IIS: the signed Windows installer, ${MODULE_PACKAGE_VERSION}, on the module's GitHub release: ${artifactUrl(rel21, 'msi', 'win_x64', MODULE_PACKAGE_VERSION)} (${rel21.compat.iis.os.join(', ')}; IIS ${rel21.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
     `- NuGet \`${aspnetPkg}\` ${rel21.release.semver}, the ASP.NET Core middleware (${ASPNETCORE_TFMS.join(', ')}; ${ASPNETCORE_RIDS.join(', ')}): \`dotnet add package ${aspnetPkg}\`. See [Install ASP.NET Core middleware](${docUrl('aspnet-getting-started')}).`,
     `- NuGet \`${PKG_SIDECAR}\` with \`${PKG_SIDECAR_NATIVE}\`, ${SIDECAR_VERSION}, the module as an ASP.NET Core sidecar (${SIDECAR_RIDS.join(', ')}; bundles nginx ${SIDECAR_NGINX_VERSION}): \`dotnet add package ${PKG_SIDECAR}\`.`,
     `- Worker packages (deb, rpm and Windows zip, with a checksum list) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](${SITE}/download/).`,

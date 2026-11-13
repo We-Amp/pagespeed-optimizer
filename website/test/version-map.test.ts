@@ -10,10 +10,21 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
-import { MODULE_PACKAGE_VERSION } from '../src/data/product-facts.mjs';
+import { MODULE_PACKAGE_VERSION, SIDECAR_VERSION } from '../src/data/product-facts.mjs';
 import { VERSION_MAP, versionMapMarkdown } from '../src/data/version-map.mjs';
 import { releaseManifest } from './lib/release-manifest';
 import { expectOrWarn } from './lib/release-window';
+
+// Numeric x.y.z comparison: negative, zero or positive.
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
 
 const chart = parseYaml(
   readFileSync(new URL('../../deploy/helm/pagespeed/Chart.yaml', import.meta.url), 'utf8'),
@@ -48,16 +59,32 @@ describe('version map', () => {
   });
 
   it('carries one number on every artifact from 2.5.0 on, except the chart', () => {
+    // A module-only update (2.8.2) publishes new module packages and the IIS
+    // installer without new images, chart or NuGet packages, so the packages
+    // may lead the release; they never lag it, and everything else stays on it.
     for (const r of VERSION_MAP.filter((row) => /^2\.(?:[5-9]|\d{2,})\./.test(row.release))) {
-      expect([r.packages, r.images, r.nuget], r.release).toEqual([r.release, r.release, r.release]);
+      expect([r.images, r.nuget], r.release).toEqual([r.release, r.release]);
+      expect(
+        compareVersions(r.packages, r.release),
+        `${r.release} packages`,
+      ).toBeGreaterThanOrEqual(0);
+      expect(r.packages.split('.').slice(0, 2), `${r.release} packages stay on the line`).toEqual(
+        r.release.split('.').slice(0, 2),
+      );
       expect(r.iisInstaller, r.release).toBe(true);
     }
+  });
+
+  it('keeps the images and the NuGet packages of the current release on the release', () => {
+    expect(current.images).toBe(releaseManifest.release.semver);
+    expect(current.nuget).toBe(releaseManifest.release.semver);
+    expect(SIDECAR_VERSION).toBe(releaseManifest.release.semver);
   });
 
   it('renders a Markdown table with one row per release', () => {
     const md = versionMapMarkdown();
     const rows = md.split('\n').filter((l) => l.startsWith('| '));
     expect(rows).toHaveLength(VERSION_MAP.length + 2);
-    expect(md).toContain(`pagespeed-iis-${current.release}-win-x64.msi`);
+    expect(md).toContain(`pagespeed-iis-${current.packages}-win-x64.msi`);
   });
 });

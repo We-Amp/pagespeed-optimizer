@@ -6,7 +6,9 @@
 // One row per release since 2.1.0, newest first. From 2.5.0 on, every
 // artifact carries the product version except the Helm chart, which has its
 // own chart version (0.3.x) and carries the product version as its
-// application version. Before 2.5.0 the apt and yum packages had their own
+// application version. A module-only update (2.8.2) moves the module
+// packages and the IIS installer ahead of the release; the row's `packages`
+// then leads and the IIS installer name follows it. Before 2.5.0 the apt and yum packages had their own
 // numbers.
 //
 // The first row is the current release: test/version-map.test.ts holds it to
@@ -38,7 +40,9 @@ export const VERSION_MAP = [
   {
     release: '2.8.1',
     date: '2026-11-09',
-    packages: '2.8.1',
+    // Module-only update 2.8.2 (2026-11-13): the module packages and the IIS
+    // installer moved ahead; the images, chart and NuGet packages stay 2.8.1.
+    packages: '2.8.2',
     images: '2.8.1',
     helmChart: '0.3.15',
     nuget: '2.8.1',
@@ -151,15 +155,19 @@ export function versionRowCells(row) {
   return [
     row.release,
     row.date,
-    row.packages,
+    // A module-only update: the module packages lead, the optimizer worker
+    // package stays on the release.
+    row.packages === row.release
+      ? row.packages
+      : `${row.packages} (module), ${row.release} (optimizer worker)`,
     row.images ?? 'none',
     row.helmChart ? `${row.helmChart} (${row.release})` : 'none',
     row.nuget,
-    row.iisInstaller ? iisInstallerName(row.release) : 'not on a public release',
+    row.iisInstaller ? iisInstallerName(row.packages) : 'not on a public release',
   ];
 }
 
-export const VERSION_MAP_NOTE = `From 2.5.0 on, one number names the release on every artifact; only the Helm chart keeps its own chart version and carries the release as its application version. The ASP.NET Core Sidecar (${PKG_SIDECAR}) carries the release version from 2.6.0 on; the current package is ${SIDECAR_VERSION}.`;
+export const VERSION_MAP_NOTE = `From 2.5.0 on, one number names the release on every artifact; only the Helm chart keeps its own chart version and carries the release as its application version. A module-only update moves the module packages and the IIS installer ahead of the release; the optimizer worker package, the images, the chart and the NuGet packages stay on it. The ASP.NET Core Sidecar (${PKG_SIDECAR}) carries the release version from 2.6.0 on; the current package is ${SIDECAR_VERSION}.`;
 
 /**
  * The map as a Markdown table plus its note, for the agent files.

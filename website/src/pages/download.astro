@@ -10,6 +10,7 @@ import {
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
   MODULE_APT_SHORT,
+  MODULE_PACKAGE_VERSION,
   NGINX_APT_SHORT,
   NGINX_RPM_SHORT,
   LEGACY_1X_KEY,
@@ -63,7 +64,9 @@ const installPlatforms = [
 
 // The IIS installer is hosted on the module's GitHub release, not under
 // /releases/; its SHA256SUMS sits beside it on the same release.
-const iisMsiUrl = artifactUrl(rel21, 'msi', 'win_x64');
+// The installer is a module artifact, so it carries the module package version,
+// which leads the release after a module-only update.
+const iisMsiUrl = artifactUrl(rel21, 'msi', 'win_x64', MODULE_PACKAGE_VERSION);
 const iisSumsUrl = iisMsiUrl.slice(0, iisMsiUrl.lastIndexOf('/') + 1) + 'SHA256SUMS';
 // Signing keys, each labelled by what it signs (product-facts.mjs).
 const RELEASE_FINGERPRINT = formatFingerprint(RELEASE_KEY.fingerprint);
@@ -314,7 +317,7 @@ const jsonLd = await productJsonLd({
         <a href={iisMsiUrl} class="text-interactive underline">
           Windows installer
         </a>{' '}
-        ({rel21.release.semver}, hosted on the module's GitHub release beside its{' '}
+        ({MODULE_PACKAGE_VERSION}, hosted on the module's GitHub release beside its{' '}
         <a href={iisSumsUrl} class="text-interactive underline">
           SHA256SUMS
         </a>

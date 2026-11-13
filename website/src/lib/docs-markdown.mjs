@@ -104,15 +104,20 @@ export function dockerTag(rel) {
  * @param {Release} rel
  * @param {string} channel
  * @param {string} arch
+ * @param {string} [version] replaces %V; defaults to the release (a module
+ *   artifact of a module-only update passes MODULE_PACKAGE_VERSION)
  */
-export function artifactUrl(rel, channel, arch) {
+export function artifactUrl(rel, channel, arch, version = rel.release.semver) {
   const tmpl = rel.artifacts[channel]?.[arch];
   if (typeof tmpl !== 'string') {
     throw new Error(
       `No artifact template for channel=${channel} arch=${arch} in the ${rel.product.line} manifest`,
     );
   }
-  const filename = substituteRelease(tmpl, rel);
+  const filename = substituteRelease(tmpl, {
+    ...rel,
+    release: { ...rel.release, semver: version },
+  });
   // An absolute template (the IIS installer on the GitHub release) is
   // rendered as-is, as in src/lib/release.ts.
   if (filename.startsWith('https://')) return filename;
