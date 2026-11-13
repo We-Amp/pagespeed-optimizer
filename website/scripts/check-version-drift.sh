@@ -8,7 +8,11 @@
 # Two checks:
 #   1. LIVE STATE: the 2.1 manifest must not lag the latest stable v2.* tag of
 #      the public mod_pagespeed repository (a warning for GRACE_HOURS after
-#      the tag, an error after that);
+#      the tag, an error after that). A module-only release is the exception:
+#      a newer tag on the manifest's major.minor line that has no matching
+#      v* tag in this repository (no optimizer release, so no new images,
+#      chart or NuGet packages) passes when MODULE_PACKAGE_VERSION in
+#      src/data/product-facts.mjs already names it;
 #   2. COMMITTED FILES: hand-pinned image tags in non-frozen content must equal
 #      the manifest.
 #
@@ -63,7 +67,30 @@ if [ -z "$latest_stable" ]; then
   exit 1
 fi
 
-if [ "$(printf '%s\n%s\n' "$latest_stable" "$manifest" | sort -V | tail -1)" != "$manifest" ]; then
+# MODULE_PACKAGE_VERSION: the module packages, which lead the manifest after
+# a module-only release. Empty when unreadable, which never matches a tag.
+module_pkg=$(grep -E '^export const MODULE_PACKAGE_VERSION *=' website/src/data/product-facts.mjs 2>/dev/null \
+  | head -1 | sed -E "s/.*['\"]([0-9]+\.[0-9]+\.[0-9]+)['\"].*/\1/" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
+
+# A module-only release: the newer tag stays on the manifest's major.minor
+# line, and this repository (the optimizer worker, the images, the chart and
+# the NuGet packages) has no release tag for it. A failed lookup is not proof
+# of a module-only release, so it falls through to the lag check below.
+module_only=0
+if [ "$latest_stable" != "$manifest" ] \
+  && [ "${latest_stable%.*}" = "${manifest%.*}" ] \
+  && [ -n "$module_pkg" ] && [ "$module_pkg" = "$latest_stable" ]; then
+  if opt_refs=$(git ls-remote --tags --refs https://github.com/We-Amp/pagespeed-optimizer.git "v${latest_stable}" 2>/dev/null); then
+    case "$(printf '%s\n' "$opt_refs" | awk '{ print $2 }')" in
+      *"refs/tags/v${latest_stable}"*) ;;
+      *) module_only=1 ;;
+    esac
+  fi
+fi
+
+if [ "$module_only" = 1 ]; then
+  echo "module-only release: v${latest_stable} has no optimizer release and MODULE_PACKAGE_VERSION is ${module_pkg}; the manifest (and the image tags) stay ${manifest}."
+elif [ "$(printf '%s\n%s\n' "$latest_stable" "$manifest" | sort -V | tail -1)" != "$manifest" ]; then
   # Resolve the tag's date: an annotated tag carries its own tagger date, a
   # lightweight tag borrows its commit's.
   tag_date=""
@@ -83,9 +110,9 @@ if [ "$(printf '%s\n%s\n' "$latest_stable" "$manifest" | sort -V | tail -1)" != 
   now=$(date -u +%s)
   tag_age_h=$(( (now - tag_ct) / 3600 ))
   if [ "$tag_ct" -gt 0 ] && [ "$tag_age_h" -lt "$grace" ]; then
-    echo "::warning::the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable}, tagged ${tag_age_h}h ago -- within the ${grace}h grace window. Passing; this fails once the tag is older than that. Bump release.yaml."
+    echo "::warning::the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable}, tagged ${tag_age_h}h ago -- within the ${grace}h grace window. Passing; this fails once the tag is older than that. Bump release.yaml, or, for a module-only release, MODULE_PACKAGE_VERSION in website/src/data/product-facts.mjs."
   else
-    complain soft "the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable} (tag age ${tag_age_h}h, or tag date unreadable). Bump website/src/content/releases-2.1/release.yaml."
+    complain soft "the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable} (tag age ${tag_age_h}h, or tag date unreadable). Bump website/src/content/releases-2.1/release.yaml, or, for a module-only release (no optimizer v${latest_stable} release), MODULE_PACKAGE_VERSION in website/src/data/product-facts.mjs."
   fi
 fi
 
@@ -108,6 +135,6 @@ if [ -n "$stale" ]; then
 fi
 
 if [ "$fail" = 0 ] && [ "$warned" = 0 ]; then
-  echo "2.1 version-drift guard OK: manifest=${manifest} latest_stable_tag=v${latest_stable}; window=${window}."
+  echo "2.1 version-drift guard OK: manifest=${manifest} latest_stable_tag=v${latest_stable} module_packages=${module_pkg:-unknown}; window=${window}."
 fi
 exit "$fail"

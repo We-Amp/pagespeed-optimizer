@@ -19,12 +19,21 @@ const SCRIPTS = new URL('../scripts/', import.meta.url).pathname;
 const tmp = mkdtempSync(path.join(tmpdir(), 'release-window-'));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-/** A bin dir with fake `git` (ls-remote prints TAGS) and `gh` (see below). */
-function fakeBin(name: string, opts: { tags?: string[]; gh?: string }): string {
+/**
+ * A bin dir with fake `git` and `gh` (see below). `git ls-remote` prints TAGS
+ * for mod_pagespeed, and OPTIMIZER_TAGS (default: none) for this repository.
+ */
+function fakeBin(
+  name: string,
+  opts: { tags?: string[]; optimizerTags?: string[]; gh?: string },
+): string {
   const bin = path.join(tmp, name, 'bin');
   mkdirSync(bin, { recursive: true });
-  const refs = (opts.tags ?? []).map((t) => `0000\trefs/tags/${t}`).join('\n');
-  writeFileSync(path.join(bin, 'git'), `#!/bin/sh\ncat <<'EOT'\n${refs}\nEOT\n`);
+  const list = (tags: string[] = []) => tags.map((t) => `0000\trefs/tags/${t}`).join('\n');
+  writeFileSync(
+    path.join(bin, 'git'),
+    `#!/bin/sh\ncase "$*" in\n*pagespeed-optimizer*) cat <<'EOT'\n${list(opts.optimizerTags)}\nEOT\n;;\n*) cat <<'EOT'\n${list(opts.tags)}\nEOT\n;;\nesac\n`,
+  );
   writeFileSync(path.join(bin, 'gh'), `#!/bin/sh\n${opts.gh ?? 'exit 1'}\n`);
   chmodSync(path.join(bin, 'git'), 0o755);
   chmodSync(path.join(bin, 'gh'), 0o755);
@@ -117,7 +126,7 @@ describe('release-window.sh', () => {
 
 describe('check-version-drift.sh', () => {
   /** A minimal tree: the manifest and one docs page holding an image literal. */
-  function tree(name: string, semver: string, docTag: string): string {
+  function tree(name: string, semver: string, docTag: string, modulePackages?: string): string {
     const root = path.join(tmp, name, 'tree');
     mkdirSync(path.join(root, 'website/src/content/releases-2.1'), { recursive: true });
     mkdirSync(path.join(root, 'website/src/content/docs'), { recursive: true });
@@ -131,6 +140,13 @@ describe('check-version-drift.sh', () => {
       path.join(root, 'website/src/content/docs/install.md'),
       `docker pull ghcr.io/we-amp/pagespeed-worker:${docTag}\n`,
     );
+    if (modulePackages) {
+      mkdirSync(path.join(root, 'website/src/data'), { recursive: true });
+      writeFileSync(
+        path.join(root, 'website/src/data/product-facts.mjs'),
+        `export const MODULE_PACKAGE_VERSION = '${modulePackages}';\n`,
+      );
+    }
     return root;
   }
   const old = new Date(Date.now() - 48 * 3600e3).toISOString().replace(/\.\d+Z$/, 'Z');
@@ -182,6 +198,62 @@ describe('check-version-drift.sh', () => {
     );
     expect(r.code).toBe(0);
     expect(r.out).toContain('within the 6h grace window');
+  });
+
+  describe('a module-only release', () => {
+    // mod_pagespeed tagged v2.8.2; this repository has no v2.8.2 tag, so no
+    // new images, chart or NuGet packages: the manifest stays 2.8.1.
+    const modBin = fakeBin('module-only', {
+      tags: ['v2.8.0', 'v2.8.1', 'v2.8.2'],
+      optimizerTags: ['v2.8.1'],
+      gh: ghTagged,
+    });
+    const check = (root: string, b = modBin) =>
+      run('check-version-drift.sh', { ROOT: root, RELEASE_WINDOW: '0' }, b);
+
+    it('passes when MODULE_PACKAGE_VERSION names the newer tag', () => {
+      const r = check(tree('mo-ok', '2.8.1', '2.8.1', '2.8.2'));
+      expect(r.code).toBe(0);
+      expect(r.out).toContain('module-only release: v2.8.2');
+      expect(r.out).toContain('version-drift guard OK');
+      expect(r.out).not.toContain('::error::');
+    });
+
+    it('still fails an image literal at the module version', () => {
+      const r = check(tree('mo-image', '2.8.1', '2.8.2', '2.8.2'));
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('::error::stale image tag(s)');
+      expect(r.out).toContain('must be :2.8.1');
+    });
+
+    it('fails when the site has not moved MODULE_PACKAGE_VERSION', () => {
+      const r = check(tree('mo-stale', '2.8.1', '2.8.1', '2.8.1'));
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('::error::the 2.1 manifest (2.8.1) lags');
+      expect(r.out).toContain('MODULE_PACKAGE_VERSION');
+    });
+
+    it('is not a module-only release when this repository released the version', () => {
+      const released = fakeBin('mo-released', {
+        tags: ['v2.8.1', 'v2.8.2'],
+        optimizerTags: ['v2.8.1', 'v2.8.2'],
+        gh: ghTagged,
+      });
+      const r = check(tree('mo-released', '2.8.1', '2.8.1', '2.8.2'), released);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('::error::the 2.1 manifest (2.8.1) lags');
+    });
+
+    it('is not a module-only release on another line', () => {
+      const minor = fakeBin('mo-minor', {
+        tags: ['v2.8.1', 'v2.9.0'],
+        optimizerTags: ['v2.8.1'],
+        gh: ghTagged,
+      });
+      const r = check(tree('mo-minor', '2.8.1', '2.8.1', '2.9.0'), minor);
+      expect(r.code).toBe(1);
+      expect(r.out).toContain('lags the latest stable tag v2.9.0');
+    });
   });
 
   it('still fails what is not release state, even inside a release window', () => {

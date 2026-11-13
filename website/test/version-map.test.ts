@@ -14,17 +14,7 @@ import { MODULE_PACKAGE_VERSION, SIDECAR_VERSION } from '../src/data/product-fac
 import { VERSION_MAP, versionMapMarkdown } from '../src/data/version-map.mjs';
 import { releaseManifest } from './lib/release-manifest';
 import { expectOrWarn } from './lib/release-window';
-
-// Numeric x.y.z comparison: negative, zero or positive.
-function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map(Number);
-  const pb = b.split('.').map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
-    if (d !== 0) return d;
-  }
-  return 0;
-}
+import { artifactVersionProblems } from './lib/version-rules';
 
 const chart = parseYaml(
   readFileSync(new URL('../../deploy/helm/pagespeed/Chart.yaml', import.meta.url), 'utf8'),
@@ -42,9 +32,12 @@ describe('version map', () => {
     // The chart is bumped by the release lane's own pull request
     // (release/helm-*) before the site's version map follows, so in a release
     // window a mismatch here is a warning (test/lib/release-window.ts).
+    // The appVersion stays on the release in a module-only release too.
     expectOrWarn('version map row vs Helm chart', () => {
       expect(current.helmChart).toBe(String(chart.version));
-      expect(String(chart.appVersion)).toBe(current.release);
+      expect(
+        artifactVersionProblems({ ...current, chartAppVersion: String(chart.appVersion) }),
+      ).toEqual([]);
     });
     // Two committed files, not live state: strict in a window too.
     expect(current.packages).toBe(MODULE_PACKAGE_VERSION);
@@ -59,18 +52,12 @@ describe('version map', () => {
   });
 
   it('carries one number on every artifact from 2.5.0 on, except the chart', () => {
-    // A module-only update (2.8.2) publishes new module packages and the IIS
+    // A module-only release (2.8.2) publishes new module packages and the IIS
     // installer without new images, chart or NuGet packages, so the packages
-    // may lead the release; they never lag it, and everything else stays on it.
+    // may lead the release on its line; they never trail it, and everything
+    // else stays on it (test/lib/version-rules.ts).
     for (const r of VERSION_MAP.filter((row) => /^2\.(?:[5-9]|\d{2,})\./.test(row.release))) {
-      expect([r.images, r.nuget], r.release).toEqual([r.release, r.release]);
-      expect(
-        compareVersions(r.packages, r.release),
-        `${r.release} packages`,
-      ).toBeGreaterThanOrEqual(0);
-      expect(r.packages.split('.').slice(0, 2), `${r.release} packages stay on the line`).toEqual(
-        r.release.split('.').slice(0, 2),
-      );
+      expect(artifactVersionProblems(r), r.release).toEqual([]);
       expect(r.iisInstaller, r.release).toBe(true);
     }
   });
@@ -79,6 +66,7 @@ describe('version map', () => {
     expect(current.images).toBe(releaseManifest.release.semver);
     expect(current.nuget).toBe(releaseManifest.release.semver);
     expect(SIDECAR_VERSION).toBe(releaseManifest.release.semver);
+    expect(artifactVersionProblems({ ...current, sidecar: SIDECAR_VERSION })).toEqual([]);
   });
 
   it('renders a Markdown table with one row per release', () => {
@@ -86,5 +74,50 @@ describe('version map', () => {
     const rows = md.split('\n').filter((l) => l.startsWith('| '));
     expect(rows).toHaveLength(VERSION_MAP.length + 2);
     expect(md).toContain(`pagespeed-iis-${current.packages}-win-x64.msi`);
+  });
+});
+
+describe('module-only release rules', () => {
+  const release = { release: '2.8.1', packages: '2.8.1', images: '2.8.1', nuget: '2.8.1' };
+  const full = { ...release, chartAppVersion: '2.8.1', sidecar: '2.8.1' };
+
+  it('accepts one number everywhere, and module packages a patch or more ahead', () => {
+    expect(artifactVersionProblems(full)).toEqual([]);
+    expect(artifactVersionProblems({ ...full, packages: '2.8.2' })).toEqual([]);
+    expect(artifactVersionProblems({ ...full, packages: '2.8.3' })).toEqual([]);
+  });
+
+  it('rejects module packages that trail the release', () => {
+    expect(artifactVersionProblems({ ...full, packages: '2.8.0' })).toEqual([
+      '2.8.1: packages 2.8.0 must not trail the release',
+    ]);
+  });
+
+  it('rejects module packages on another line', () => {
+    expect(artifactVersionProblems({ ...full, packages: '2.9.0' })).toEqual([
+      '2.8.1: packages 2.9.0 must stay on the 2.8 line',
+    ]);
+    expect(artifactVersionProblems({ ...full, packages: '3.8.1' })).toEqual([
+      '2.8.1: packages 3.8.1 must stay on the 2.8 line',
+    ]);
+    expect(artifactVersionProblems({ ...full, packages: '2.8' })).toEqual([
+      '2.8.1: packages 2.8 is not x.y.z',
+    ]);
+  });
+
+  it('rejects images, NuGet, the Sidecar or the chart at the module version', () => {
+    const m = { ...full, packages: '2.8.2' };
+    expect(artifactVersionProblems({ ...m, images: '2.8.2' })).toEqual([
+      '2.8.1: images 2.8.2 must equal the release',
+    ]);
+    expect(artifactVersionProblems({ ...m, nuget: '2.8.2' })).toEqual([
+      '2.8.1: nuget 2.8.2 must equal the release',
+    ]);
+    expect(artifactVersionProblems({ ...m, sidecar: '2.8.2' })).toEqual([
+      '2.8.1: sidecar 2.8.2 must equal the release',
+    ]);
+    expect(artifactVersionProblems({ ...m, chartAppVersion: '2.8.2' })).toEqual([
+      '2.8.1: chart appVersion 2.8.2 must equal the release',
+    ]);
   });
 });
