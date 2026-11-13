@@ -494,16 +494,17 @@ export const PKG_OPTIMIZER = 'pagespeed-optimizer'; // the optimizer worker
 // (X-Mod-Pagespeed on Apache, X-Page-Speed on nginx), which is what the
 // homepage quick-start shows. Bump it when new module packages are published;
 // test/sync/module-package-version.test.ts compares it with the live index.
-export const MODULE_PACKAGE_VERSION = '2.8.1';
+export const MODULE_PACKAGE_VERSION = '2.8.2';
 
 // --- NuGet packages ---------------------------------------------------------
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
 export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // mod_pagespeed 1.15 sidecar
 export const PKG_SIDECAR_NATIVE = 'WeAmp.PageSpeed.Sidecar.NativeAssets.Linux';
 // From 2.6.0 on the sidecar packages carry the product version and ship with
-// every release (release-notes-2-6.mdx, release-notes-2-8.mdx), so the package
-// version is the release version the module packages carry.
-export const SIDECAR_VERSION = MODULE_PACKAGE_VERSION; // WeAmp.PageSpeed.Sidecar package version on nuget.org
+// every full release (release-notes-2-6.mdx, release-notes-2-8.mdx), so the
+// package version is the release version in the release manifest.
+// Its own literal: a module-only release moves MODULE_PACKAGE_VERSION but not the NuGet packages.
+export const SIDECAR_VERSION = '2.8.1'; // WeAmp.PageSpeed.Sidecar package version on nuget.org
 // nginx bundled in the sidecar native pair: the bundled nginx of the release,
 // docker/nginx-version.txt (release-notes-2-5.mdx: 1.30.6 covers the
 // container images and the sidecar native pair).

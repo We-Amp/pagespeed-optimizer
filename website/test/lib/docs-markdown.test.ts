@@ -106,6 +106,12 @@ describe('artifactUrl', () => {
     );
   });
 
+  it('substitutes an explicit version for %V (a module-only update)', () => {
+    expect(artifactUrl(release(), 'msi', 'win_x64', '2.8.2')).toBe(
+      'https://github.com/We-Amp/mod_pagespeed/releases/download/module-v2.8.2/pagespeed-iis-2.8.2-win-x64.msi',
+    );
+  });
+
   it('throws for a channel the manifest does not carry', () => {
     expect(() => artifactUrl(release(), 'rpm', 'amd64')).toThrowError(
       'No artifact template for channel=rpm arch=amd64 in the 2.1 manifest',
