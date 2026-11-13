@@ -1,6 +1,7 @@
 ---
 title: 'Configuration reference: Apache and nginx directives'
-description: 'Every mod_pagespeed directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.'
+seoTitle: 'mod_pagespeed configuration: Apache, nginx, IIS directives'
+description: 'Every mod_pagespeed directive for Apache, nginx and IIS, generated from the module source: syntax, default and context, and where the config file lives.'
 order: 20
 group: 'Configure'
 lastUpdated: 2026-10-30
