@@ -727,7 +727,7 @@ jobs:
     env:
       UPSTREAM: ${{ needs.version.outputs.upstream }}
       SYFT_VERSION: v1.44.0
-      GRYPE_VERSION: v0.112.0
+      GRYPE_VERSION: v0.121.2
       # Isolated, job-local grype database cache so the pinned import cannot
       # be clobbered by a live-database auto-update.
       GRYPE_DB_CACHE_DIR: ${{ github.workspace }}/.grype-db-pinned
