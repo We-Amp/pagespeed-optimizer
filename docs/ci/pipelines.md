@@ -715,6 +715,7 @@ that group.
 | Guard | Reads | Outside a window | In a window |
 | --- | --- | --- | --- |
 | 2.1 manifest lags the latest stable tag (`check-version-drift.sh`) | tag of the public module repo | warning for 6 h after the tag, then error | warning at any tag age |
+| Module-only release: a newer tag on the manifest's line with no optimizer `v*` tag (same script) | tags of both repositories, `MODULE_PACKAGE_VERSION` | passes when `MODULE_PACKAGE_VERSION` names the tag; otherwise the lag rule above | same |
 | Stale hand-pinned image tags (same script) | committed content vs the manifest | error | warning on `auto/sync-release-manifests` only (the sync bot edits `release.yaml` alone, so it cannot fix them in its commit); error on `release/*` |
 | `MODULE_PACKAGE_VERSION` equals the live package index (`module-package-version.test.ts`) | package index | error | warning |
 | Version map row matches the Helm chart (`version-map.test.ts`) | `deploy/helm/pagespeed/Chart.yaml`, bumped by the release lane first | error | warning |
