@@ -478,7 +478,17 @@ jobs:
       - name: Remote cache settings
         run: |
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            echo "DOCKER_CACHE_HOST_ARG=--add-host=bazel-remote-cache:${BAZEL_CACHE_HOST}" >> "$GITHUB_ENV"
+            # The cache alias plus the optional credentials mount; every flag is one
+            # word, so the joined string is expanded unquoted by the docker run steps.
+            # A tag cut before the helper existed has no such file: the cache alias alone.
+            CACHE_ARGS=()
+            if [ -f "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh" ]; then
+              source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+              remote_cache_docker_args CACHE_ARGS
+            else
+              CACHE_ARGS+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")  # predates remote-cache-docker-args.sh
+            fi
+            echo "DOCKER_CACHE_HOST_ARG=${CACHE_ARGS[*]}" >> "$GITHUB_ENV"
             echo "BAZEL_CACHE_FLAG=" >> "$GITHUB_ENV"
             echo "using the remote Bazel cache from the runner environment"
           else
@@ -502,7 +512,7 @@ jobs:
           fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/release-artifacts"
-          docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
+          docker run --rm --init ${DOCKER_CACHE_HOST_ARG} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
@@ -546,7 +556,7 @@ jobs:
           fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/docker-artifacts"
-          docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
+          docker run --rm --init ${DOCKER_CACHE_HOST_ARG} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
@@ -662,7 +672,13 @@ jobs:
           EXTRA_DOCKER=()
           CACHE_FLAG="--remote_cache="
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            # A tag cut before the helper existed has no such file: the cache alias alone.
+            if [ -f "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh" ]; then
+              source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+              remote_cache_docker_args EXTRA_DOCKER
+            else
+              EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")  # predates remote-cache-docker-args.sh
+            fi
             CACHE_FLAG=""
           fi
           docker run --rm --init ${EXTRA_DOCKER[@]+"${EXTRA_DOCKER[@]}"} \

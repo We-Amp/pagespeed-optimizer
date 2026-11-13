@@ -55,6 +55,12 @@
 #   (e) topology token scan of .github/ and tools/ci/: no LAN (RFC1918) IP
 #       literals, no ".home" names, no ":9090", no "self-hosted", and none
 #       of the retired runner-label words as standalone tokens.
+#   (cache-auth) in .github/ and tools/: a build container gets the remote
+#       cache alias only through tools/ci/remote-cache-docker-args.sh, which
+#       adds the optional credentials mount with it; a bare
+#       `--add-host=bazel-remote-cache` elsewhere fails, except on a line
+#       marked `# predates remote-cache-docker-args.sh` (the fallback for a
+#       release tag cut before the helper existed).
 #
 # Rule (e) exclusions (same pattern as the public-tree hygiene gate, which
 # excludes its own rules file):
@@ -1112,6 +1118,24 @@ check_token "'self-hosted'" '\bself-hosted\b'
 # The compound label is split across two quoted strings so that this file
 # itself stays clean under the public-tree hygiene gate's label rule.
 check_token "retired runner label word" '\b(dedicated|pool|linux-x64-''pool|real-linux|macos-native|mac-linux|auxiliary|highmem|farm-controller|tr-host)\b'
+
+# --- (cache-auth) the cache alias travels with the credentials mount ---------
+CA_DIRS=()
+[ -d .github ] && CA_DIRS+=(.github)
+[ -d tools ] && CA_DIRS+=(tools)
+if [ ${#CA_DIRS[@]} -gt 0 ]; then
+  ca_hits="$(grep -rInE -I 'add-host[= ]+["'\'']?bazel-remote-cache' "${CA_DIRS[@]}" 2>/dev/null \
+    | grep -v '^tools/ci/remote-cache-docker-args\.sh:' \
+    | grep -v '^tools/ci/test_remote_cache_docker_args\.sh:' \
+    | grep -v '^tools/ci/check-workflow-shape\.sh:' \
+    | grep -v '^tools/ci/testdata/workflow-shape/' \
+    | grep -v '# predates remote-cache-docker-args\.sh$' \
+    || true)"
+  if [ -n "${ca_hits}" ]; then
+    err "the remote cache alias is mapped without tools/ci/remote-cache-docker-args.sh (cache-auth):
+${ca_hits}"
+  fi
+fi
 
 if [ "${status}" -ne 0 ]; then
   echo "::error::workflow-shape gate FAILED -- see the matched paths above" >&2
