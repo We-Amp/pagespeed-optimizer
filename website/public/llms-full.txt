@@ -3638,11 +3638,15 @@ ongoing security fixes. The move is a package swap and a restart.
 
 ## If apt or rpm already reports an error
 
-These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu:
+These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu, depending on the apt version:
 
 ```text
 E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is no longer signed.
 N: Updating from such a repository can't be done securely, and is therefore disabled by default.
+```
+
+```text
+E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is not signed.
 ```
 
 ```text
@@ -11421,12 +11425,23 @@ Setting [`DownstreamCachePurgeLocationPrefix`](https://modpagespeed.com/docs/con
 # nginx with the module (the server behind the cache)
 pagespeed DownstreamCachePurgeLocationPrefix http://127.0.0.1:80;
 pagespeed DownstreamCacheRebeaconingKey "replace-with-a-long-random-string";
+
+# One image quality for every client; see "The Vary header on HTML".
+pagespeed JpegRecompressionQualityForSmallScreens -1;
+pagespeed WebpRecompressionQualityForSmallScreens -1;
+pagespeed JpegQualityForSaveData -1;
+pagespeed WebpQualityForSaveData -1;
 ```
 
 ```apache
 # Apache with the module
 ModPagespeedDownstreamCachePurgeLocationPrefix http://127.0.0.1:80
 ModPagespeedDownstreamCacheRebeaconingKey "replace-with-a-long-random-string"
+
+ModPagespeedJpegRecompressionQualityForSmallScreens -1
+ModPagespeedWebpRecompressionQualityForSmallScreens -1
+ModPagespeedJpegQualityForSaveData -1
+ModPagespeedWebpQualityForSaveData -1
 ```
 
 Trailing slashes on the prefix are dropped. Point the prefix at the address where the cache listens for purge requests, which is not the module's own address.
@@ -11455,11 +11470,13 @@ Three rules decide the outcome, all in the module:
 - **A header can only narrow.** An optimization is used only if the list names it and the request itself supports it. The header never grants a capability the client lacks.
 - **A value that names nothing allows nothing.** `fully general optimizations only` is the conventional value for "no client-dependent optimizations". Do not use an empty value: nginx does not send an empty header, and without the header the module decides from the client's own headers.
 
-Choose a small number of classes. Every class is a separate copy of every page and a separate trip to the origin. The two examples below use three: AVIF, WebP and neither.
+Choose a small number of classes. Every class is a separate copy of every page and a separate trip to the origin. The two examples below use three: AVIF, WebP and neither. The AVIF class is `ja,jw:`: the AVIF filters are off by default, and with them off a browser in that class still gets WebP.
 
 ### The Vary header on HTML
 
-When image optimization or image inlining is on (both are in the default `CoreFilters`), the module names the request headers its markup depends on in the `Vary` header of the HTML: `Accept`, `User-Agent` and, when Save-Data qualities are set, `Save-Data`. nginx and Varnish both honor `Vary` and store a separate copy for every distinct `User-Agent`, which leaves almost no hits. The capability class already stands in for `Accept` and `User-Agent`, so the examples below tell the cache to ignore `Vary` on HTML. That is correct as long as the class is the only client-dependent input. If you set Save-Data or small-screen image qualities, the markup also differs by the `Save-Data` header and for mobile browsers: add those to the class, or leave those settings off for pages that the cache stores.
+When image optimization or image inlining is on (both are in the default `CoreFilters`), the module names the request headers its markup depends on in the `Vary` header of the HTML: by default `Accept`, `Save-Data` and `User-Agent`. nginx and Varnish both honor `Vary` and store a separate copy for every distinct `User-Agent`, which leaves almost no hits. The capability class stands in for `Accept` and for the browser checks behind `User-Agent`, so the examples below tell the cache to ignore `Vary` on HTML.
+
+The class does not cover two more inputs, and both are on by default. Images get a lower quality for mobile browsers (JPEG 70 and WebP 70, against 85 and 80) and for requests that send `Save-Data: on` (50 for both), and the image URLs in the HTML differ accordingly. With a key on the class alone, a desktop visitor could get the copy made for a phone. The module settings above turn both off by setting those qualities to `-1`, which means "the same as the base quality". The module then drops `Save-Data` from `Vary`, and the class is the only client-dependent input. If you want the lower qualities, give phones and `Save-Data` requests their own classes instead, using the same rules the module applies.
 
 ## nginx proxy_cache
 
@@ -11468,8 +11485,15 @@ http {
     # One value per client class. This is also what keys the cache.
     map $http_accept $ps_capability_list {
         default         "fully general optimizations only";
-        "~*image/avif"  "ja:";
+        "~*image/avif"  "ja,jw:";
         "~*image/webp"  "jw:";
+    }
+
+    # Only HTML is stored here. The module has its own cache for .pagespeed.
+    # files, and other responses keep their Vary, which this cache would ignore.
+    map $upstream_http_content_type $ps_no_store {
+        default        1;
+        "~*text/html"  "";
     }
 
     # HTML leaves this cache as no-cache; everything else keeps its header.
@@ -11498,12 +11522,16 @@ http {
             proxy_cache pagespeed;
             proxy_cache_key "$scheme$host$request_uri$ps_capability_list";
             proxy_cache_bypass $ps_should_beacon;
+            proxy_no_cache $ps_no_store;
 
             proxy_set_header PS-CapabilityList $ps_capability_list;
             proxy_set_header PS-ShouldBeacon $ps_should_beacon;
 
             # The cache key already holds the class; see "The Vary header on HTML".
+            # Ask for uncompressed HTML, so that the stored copy suits every
+            # client, and let this nginx compress it (gzip on).
             proxy_ignore_headers Vary;
+            proxy_set_header Accept-Encoding "";
 
             proxy_hide_header Cache-Control;
             add_header Cache-Control $ps_cache_control;
@@ -11538,7 +11566,7 @@ sub vcl_recv {
 
   # One value per client class. vcl_hash below puts it in the key.
   if (req.http.Accept ~ "image/avif") {
-    set req.http.PS-CapabilityList = "ja:";
+    set req.http.PS-CapabilityList = "ja,jw:";
   } elsif (req.http.Accept ~ "image/webp") {
     set req.http.PS-CapabilityList = "jw:";
   } else {
