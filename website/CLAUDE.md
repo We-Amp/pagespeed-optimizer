@@ -32,7 +32,7 @@ Run everything from `website/`.
 | `npm run dev` | Dev server at `http://localhost:4321`. |
 | `PRICING_ALLOW_STALE=1 npm run build` | Production build. The prebuild step fetches localized prices; without network or credentials it refuses unless this variable is set, in which case it builds from the committed `src/data/fastspring-pricing.json`. CI always sets it. |
 | `npm run format` / `npm run format:check` | Prettier over `src/`, `tests/`, `test/`, `scripts/` and the root configs (never the Markdown content). Run before staging; CI runs `format:check`. |
-| `npm run lint` | ESLint plus `astro check`. |
+| `npm run lint` | ESLint plus `astro check`. CI runs it; warnings and hints do not fail it, errors do. |
 | `npx vitest run` | Unit tests and the sync/content gates in `test/`. Fast; run this first. |
 | `npx playwright test` | Browser suite in `tests/`. Starts the dev server itself (`webServer` in `playwright.config.ts`); run `npx playwright install chromium` once. |
 | `npm run gen:llms` | Regenerate `public/llms.txt` and `public/llms-full.txt` from the docs collection, and `public/.well-known/ai-plugin.json` from its template (see "The agent files"). |
