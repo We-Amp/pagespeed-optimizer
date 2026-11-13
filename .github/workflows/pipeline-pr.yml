@@ -355,6 +355,9 @@ jobs:
       - name: Slot-budget helper - self-test
         run: bash tools/ci/test_slot_budget.sh
 
+      - name: Remote-cache container flags helper - self-test
+        run: bash tools/ci/test_remote_cache_docker_args.sh
+
       - name: Windows vendor unlink step - self-test
         run: bash tools/ci/test_windows_unlink_step.sh
 
@@ -1227,7 +1230,8 @@ jobs:
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           BUILD_CONFIG_NAME=docker
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
             BUILD_CONFIG_NAME=ci
           else
@@ -1446,7 +1450,8 @@ jobs:
           EXTRA_DOCKER=()
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: testing without the remote cache (docs/ci/runner-environment.md)"
@@ -2017,7 +2022,8 @@ jobs:
           EXTRA_DOCKER=()
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: building without the remote cache (docs/ci/runner-environment.md)"
@@ -2152,7 +2158,8 @@ jobs:
           EXTRA_DOCKER=()
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: building without the remote cache (docs/ci/runner-environment.md)"
@@ -2245,7 +2252,8 @@ jobs:
           # hardening, CET and stamping.
           BAZEL_CONFIG="--config=docker --config=opt --config=hardening --config=hardening-cet --stamp --jobs=${SLOT_JOBS}"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=release"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: compiling without the remote cache (docs/ci/runner-environment.md)"
