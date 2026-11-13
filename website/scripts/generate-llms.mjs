@@ -96,8 +96,11 @@ export const PUBLIC_DIR = resolve(__dirname, '..', 'public');
  * @type {Array<{ output: string, build?: (ctx: Context) => string, template?: string }>}
  */
 export const TARGETS = [
-  { output: 'llms.txt', build: (ctx) => withNotice(buildIndex(ctx)) },
-  { output: 'llms-full.txt', build: (ctx) => withNotice(buildFull(ctx)) },
+  { output: 'llms.txt', build: (ctx) => withNotice(decodeCharacterReferences(buildIndex(ctx))) },
+  {
+    output: 'llms-full.txt',
+    build: (ctx) => withNotice(decodeCharacterReferences(buildFull(ctx))),
+  },
   { template: 'ai-plugin.json.tmpl', output: '.well-known/ai-plugin.json' },
 ];
 
@@ -285,6 +288,147 @@ export function buildFull(ctx) {
     parts.push('---', '', renderTopicMarkdown(t, ctx.allTopics, ctx.demos[t.name]).trimEnd(), '');
   }
   return parts.join('\n');
+}
+
+/**
+ * The named character references the sources use, plus the common ones near
+ * them. A name not listed here is left as written: the output then shows the
+ * reference rather than a wrong character.
+ * @type {Record<string, string>}
+ */
+const NAMED_REFERENCES = {
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  ndash: '–',
+  mdash: '—',
+  hellip: '…',
+  lsquo: '‘',
+  rsquo: '’',
+  ldquo: '“',
+  rdquo: '”',
+  larr: '←',
+  rarr: '→',
+  times: '×',
+  middot: '·',
+  bull: '•',
+  deg: '°',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+};
+
+const CHARACTER_REFERENCE =
+  /&(?:#([0-9]{1,7})|#[xX]([0-9a-fA-F]{1,6})|([A-Za-z][A-Za-z0-9]{1,31}));/g;
+
+/**
+ * Decode the character references in a run of prose, in one pass, so
+ * `&amp;lt;` becomes `&lt;` and not `<`. A numeric reference to NUL, a
+ * surrogate or a code point past U+10FFFF, and an unknown name, stay as written.
+ * @param {string} text
+ * @returns {string}
+ */
+export function decodeReferences(text) {
+  return text.replace(CHARACTER_REFERENCE, (ref, dec, hex, name) => {
+    if (name !== undefined) return NAMED_REFERENCES[name] ?? ref;
+    const cp = dec !== undefined ? Number.parseInt(dec, 10) : Number.parseInt(hex, 16);
+    if (cp === 0 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return ref;
+    return String.fromCodePoint(cp);
+  });
+}
+
+/**
+ * Decode the references in one paragraph, keeping inline code spans as
+ * written: a backtick run opens a span that the next run of the same length
+ * closes; a run with no partner is plain text.
+ * @param {string} par
+ * @returns {string}
+ */
+function decodeOutsideCodeSpans(par) {
+  let out = '';
+  let i = 0;
+  while (i < par.length) {
+    const open = par.indexOf('`', i);
+    if (open < 0) {
+      out += decodeReferences(par.slice(i));
+      break;
+    }
+    out += decodeReferences(par.slice(i, open));
+    let end = open;
+    while (par[end] === '`') end++;
+    const run = end - open;
+    let close = -1;
+    for (let j = end; j < par.length;) {
+      if (par[j] !== '`') {
+        j++;
+        continue;
+      }
+      let k = j;
+      while (par[k] === '`') k++;
+      if (k - j === run) {
+        close = j;
+        break;
+      }
+      j = k;
+    }
+    if (close < 0) {
+      out += par.slice(open, end);
+      i = end;
+    } else {
+      out += par.slice(open, close + run);
+      i = close + run;
+    }
+  }
+  return out;
+}
+
+/**
+ * The llms files are plain text, so the HTML character references the
+ * Markdown sources carry (`&lt;`, `&#39;`, `&nbsp;`) are decoded to their
+ * characters. Fenced code blocks and inline code spans are kept as written,
+ * because there the author meant the literal text. Code spans are matched
+ * within a paragraph (lines up to a blank line or a fence), as Markdown does.
+ * @param {string} md
+ * @returns {string}
+ */
+export function decodeCharacterReferences(md) {
+  /** @type {string[]} */
+  const out = [];
+  /** @type {string[]} */
+  let para = [];
+  const flush = () => {
+    if (para.length) out.push(decodeOutsideCodeSpans(para.join('\n')));
+    para = [];
+  };
+  /** @type {string | null} */
+  let fence = null;
+  for (const line of md.split('\n')) {
+    const f = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      out.push(line);
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length && f[2].trim() === '') {
+        fence = null;
+      }
+      continue;
+    }
+    if (f && !(f[1][0] === '`' && f[2].includes('`'))) {
+      flush();
+      fence = f[1];
+      out.push(line);
+      continue;
+    }
+    if (line.trim() === '') {
+      flush();
+      out.push(line);
+      continue;
+    }
+    para.push(line);
+  }
+  flush();
+  return out.join('\n');
 }
 
 /** @param {string} text */
