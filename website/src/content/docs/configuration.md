@@ -1543,10 +1543,10 @@ Set the global statistics path. Ex: /ngx_pagespeed_global_statistics
 
 - **Syntax:** `pagespeed InfoUrlsLocalOnly on|off` (IIS)
 - **Default:** `on`
-- **Context:** IIS: pagespeed.config, match rules
+- **Context:** IIS: pagespeed.config (a match rule does not limit it)
 - **Platform:** IIS only
 
-Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains and their Global variants) is set for that page, in which case the request host must match it. A host on a configured allowlist is always served. The value applies to the whole IIS process, not to one site.
+Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains, GlobalAdminDomains and GlobalStatisticsDomains) is set for that page; the request's host name (its Host header) must then match it. A request whose host name is on a configured allowlist is served even when it is not local. The value applies to the whole IIS process, not to one site.
 
 A request is local when it comes from the server itself and carries no
 reverse-proxy forwarding headers; `TreatProxiedRequestsAsLocal` changes that
@@ -1734,6 +1734,9 @@ OPT-IN, default off. When on, the admin, statistics, console and message handler
 - **Platform:** IIS only
 
 Count a request relayed by a reverse proxy or tunnel on this server (one that carries forwarding headers such as X-Forwarded-For) as local for the admin, statistics, console and message pages and the diagnostic page. Default off: only direct local requests are local. Use AdminDomains and StatisticsDomains to allow named hosts instead.
+
+Turning it on serves these pages to anyone who reaches the site through that
+proxy or tunnel; prefer the `*Domains` allowlists.
 
 #### UsePerVHostStatistics {#usepervhoststatistics}
 
@@ -2296,8 +2299,9 @@ Auto-create the per-site cache subdirectory if missing (on|off, default on).
 Creation applies only to a cache directory inside
 `C:\ProgramData\We-Amp\PageSpeed\cache\` or
 `C:\ProgramData\We-Amp\IISWebSpeed\cache\`; a cache directory anywhere else
-must exist before the site starts, whatever this is set to. With `off`, a
-missing directory is not created and the site does not start optimizing. See
+must already exist when the site serves its first request, whatever this is set
+to. With `off`, a missing directory is not created and the site does not start
+optimizing. See
 [IIS configuration](/docs/iis-configuration/#automatic-cache-directory-creation).
 
 #### AwaitPcacheLookup {#awaitpcachelookup}

@@ -247,8 +247,11 @@ const IIS_ONLY_DIRECTIVES = [
     name: 'InfoUrlsLocalOnly',
     global: 'INFO_URLS_LOCAL_ONLY',
     scope: 'directory',
+    // The handler sets a process global when the line is read, so the match
+    // rule the line sits under does not limit it.
+    contextIis: ['pagespeed.config (a match rule does not limit it)'],
     description:
-      'Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains and their Global variants) is set for that page, in which case the request host must match it. A host on a configured allowlist is always served. The value applies to the whole IIS process, not to one site.',
+      "Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains, GlobalAdminDomains and GlobalStatisticsDomains) is set for that page; the request's host name (its Host header) must then match it. A request whose host name is on a configured allowlist is served even when it is not local. The value applies to the whole IIS process, not to one site.",
   },
 ];
 
@@ -803,6 +806,7 @@ export function buildModuleDirectives(moduleSrc, warnings) {
       descriptionSource: 'generator',
       descriptionByPlatform: {},
       platforms: ['iis'],
+      contextIis: d.contextIis,
       safeToPrint: null,
       deprecated: false,
     });
@@ -864,7 +868,7 @@ export function buildModuleDirectives(moduleSrc, warnings) {
         query: base.query,
       };
       if (d.platforms.includes('iis')) {
-        context.iis = IIS_CONTEXT_BY_SCOPE[d.scope] ?? null;
+        context.iis = d.contextIis ?? IIS_CONTEXT_BY_SCOPE[d.scope] ?? null;
       }
       const syntax = syntaxFor(d.name, d.args, d.platforms, d.master === true);
       if (d.apacheName) syntax.apache = `${d.apacheName} ${d.args}>`;

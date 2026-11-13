@@ -1598,14 +1598,14 @@ https JWKS key-directory URL of a token issuer to warm-fetch periodically (repea
 - **Syntax:** `--rsl-cap-requested-license ID`
 - **Default:** —
 
-License id a token must grant; empty denies every token with 402
+License id a token must grant (empty: every valid token is refused with 402)
 
 #### --rsl-cap-requested-scope {#--rsl-cap-requested-scope}
 
 - **Syntax:** `--rsl-cap-requested-scope SCOPE`
 - **Default:** —
 
-Scope a token must grant; empty denies every token with 402
+Scope a token must grant (empty: every valid token is refused with 402)
 
 #### --rsl-cap-issuer {#--rsl-cap-issuer}
 

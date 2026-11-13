@@ -945,7 +945,7 @@
       "name": "--rsl-cap-requested-license",
       "arg": "ID",
       "default": null,
-      "description": "License id a token must grant; empty denies every token with 402",
+      "description": "License id a token must grant (empty: every valid token is refused with 402)",
       "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
       "platform": null
     },
@@ -953,7 +953,7 @@
       "name": "--rsl-cap-requested-scope",
       "arg": "SCOPE",
       "default": null,
-      "description": "Scope a token must grant; empty denies every token with 402",
+      "description": "Scope a token must grant (empty: every valid token is refused with 402)",
       "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
       "platform": null
     },
