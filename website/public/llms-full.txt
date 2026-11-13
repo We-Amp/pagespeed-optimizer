@@ -3638,7 +3638,7 @@ ongoing security fixes. The move is a package swap and a restart.
 
 ## If apt or rpm already reports an error
 
-These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu, depending on the apt version:
+These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu, apt prints "is no longer signed" when the source was trusted before, and "is not signed" otherwise:
 
 ```text
 E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is no longer signed.
@@ -3646,7 +3646,7 @@ N: Updating from such a repository can't be done securely, and is therefore disa
 ```
 
 ```text
-E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is not signed.
+W: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is not signed.
 ```
 
 ```text
@@ -11509,6 +11509,12 @@ http {
         *   "";
     }
 
+    # The requests below ask the module for uncompressed responses, so this
+    # nginx compresses them for clients (text/html is always included).
+    gzip on;
+    gzip_types text/css application/javascript text/javascript application/json
+               image/svg+xml text/plain application/xml;
+
     proxy_cache_path /var/cache/nginx/pagespeed keys_zone=pagespeed:10m max_size=1g inactive=1h;
 
     server {
@@ -11528,9 +11534,10 @@ http {
             proxy_set_header PS-ShouldBeacon $ps_should_beacon;
 
             # The cache key already holds the class; see "The Vary header on HTML".
-            # Ask for uncompressed HTML, so that the stored copy suits every
-            # client, and let this nginx compress it (gzip on).
             proxy_ignore_headers Vary;
+
+            # Ask for uncompressed responses, so that the stored copy suits
+            # every client; gzip above compresses them on the way out.
             proxy_set_header Accept-Encoding "";
 
             proxy_hide_header Cache-Control;

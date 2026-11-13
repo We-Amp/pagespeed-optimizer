@@ -23,7 +23,7 @@ ongoing security fixes. The move is a package swap and a restart.
 
 ## If apt or rpm already reports an error {#package-errors}
 
-These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu, depending on the apt version:
+These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu, apt prints "is no longer signed" when the source was trusted before, and "is not signed" otherwise:
 
 ```text
 E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is no longer signed.
@@ -31,7 +31,7 @@ N: Updating from such a repository can't be done securely, and is therefore disa
 ```
 
 ```text
-E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is not signed.
+W: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is not signed.
 ```
 
 ```text

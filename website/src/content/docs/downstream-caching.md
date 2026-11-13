@@ -106,6 +106,12 @@ http {
         *   "";
     }
 
+    # The requests below ask the module for uncompressed responses, so this
+    # nginx compresses them for clients (text/html is always included).
+    gzip on;
+    gzip_types text/css application/javascript text/javascript application/json
+               image/svg+xml text/plain application/xml;
+
     proxy_cache_path /var/cache/nginx/pagespeed keys_zone=pagespeed:10m max_size=1g inactive=1h;
 
     server {
@@ -125,9 +131,10 @@ http {
             proxy_set_header PS-ShouldBeacon $ps_should_beacon;
 
             # The cache key already holds the class; see "The Vary header on HTML".
-            # Ask for uncompressed HTML, so that the stored copy suits every
-            # client, and let this nginx compress it (gzip on).
             proxy_ignore_headers Vary;
+
+            # Ask for uncompressed responses, so that the stored copy suits
+            # every client; gzip above compresses them on the way out.
             proxy_set_header Accept-Encoding "";
 
             proxy_hide_header Cache-Control;
