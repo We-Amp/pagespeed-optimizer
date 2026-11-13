@@ -3,12 +3,10 @@
 # Install pinned syft + grype for the dependency-scan jobs, resiliently.
 #
 # Usage:
-#   SYFT_VERSION=v1.44.0 GRYPE_VERSION=v0.112.0 tools/ci/ensure-syft-grype.sh
+#   tools/ci/ensure-syft-grype.sh
 #
-# Both versions are REQUIRED (passed via the calling workflow's env — the
-# per-PR blocking dependency scan and the scheduled image scan). This script
-# does not pick versions; it only installs the ones it's told to, so the pins
-# stay with the callers.
+# The versions are read from the SYFT_PIN/GRYPE_PIN lines of the checked-out
+# tools/sbom/dep-scan.sh (see below); the workflow env is not consulted.
 #
 # Why this exists
 # ---------------
@@ -36,8 +34,19 @@
 # PATH for the rest of the job; the cache is an install accelerator behind it.
 set -euo pipefail
 
-SYFT_VERSION="${SYFT_VERSION:?SYFT_VERSION is required (e.g. v1.44.0)}"
-GRYPE_VERSION="${GRYPE_VERSION:?GRYPE_VERSION is required (e.g. v0.112.0)}"
+# The versions come from the checked-out tools/sbom/dep-scan.sh pins, which
+# win over any SYFT_VERSION/GRYPE_VERSION in the environment: a pull request
+# runs the workflow from the default branch but dep-scan.sh from its own
+# checkout, so a static workflow env could never follow a pin bump.
+DEP_SCAN="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/tools/sbom/dep-scan.sh"
+syft_pin="$(sed -n 's/^SYFT_PIN="\([^"]*\)".*/\1/p' "$DEP_SCAN" | head -n1)"
+grype_pin="$(sed -n 's/^GRYPE_PIN="\([^"]*\)".*/\1/p' "$DEP_SCAN" | head -n1)"
+if [ -z "$syft_pin" ] || [ -z "$grype_pin" ]; then
+  echo "::error::could not parse SYFT_PIN/GRYPE_PIN from $DEP_SCAN"
+  exit 1
+fi
+SYFT_VERSION="v${syft_pin}"
+GRYPE_VERSION="v${grype_pin}"
 
 # Job-local bin that goes on PATH for the rest of the job. Defaults to the
 # GitHub-provided per-job RUNNER_TEMP; overridable for local testing.
