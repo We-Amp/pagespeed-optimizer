@@ -9,10 +9,12 @@ name: Website
 #
 #   website-build       the content guards (no version-pinned URLs in
 #                       non-frozen content; the 2.1 manifest does not lag the
-#                       shipped release), npm ci, the vitest unit + sync
-#                       gates, a production build, and the built-output
-#                       content lint (npm run check:content), so nothing that
-#                       cannot render or that contradicts its own data ships.
+#                       shipped release), npm ci, the source checks (npm run
+#                       format:check for Prettier, npm run lint for ESLint
+#                       plus astro check), the vitest unit + sync gates, a
+#                       production build, and the built-output content lint
+#                       (npm run check:content), so nothing that cannot
+#                       render or that contradicts its own data ships.
 #   website-reference-drift
 #                       the generated configuration and filter references
 #                       still match the product source at the pinned tag.
@@ -194,6 +196,12 @@ jobs:
       # with `npm run format`.
       - name: format:check
         run: npm run format:check
+
+      # ESLint (eslint-plugin-astro, website/eslint.config.js) and astro
+      # check (type errors in .astro and .ts sources). Warnings and hints do
+      # not fail the step; errors do. Cheap: seconds, on the install above.
+      - name: lint
+        run: npm run lint
 
       # Live-state tests (the package index, the Helm chart) read
       # RELEASE_WINDOW from the "Detect a release window" step.

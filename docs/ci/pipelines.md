@@ -680,8 +680,9 @@ base commit) and the repository variable `DOCS_LANE`.
   merge group changes `website/`, `shared/product-facts.mjs`,
   `.github/workflows/website.yml`, `src/worker/main.cc`,
   `src/nginx/ngx_pagespeed_module.cc` or `docker/nginx-version.txt`), and the
-  `website` job calls `website.yml@main`. Build, unit tests, content lint and
-  reference drift run on both events; the Playwright suite and the Lighthouse
+  `website` job calls `website.yml@main`. Source checks (`npm run format:check`,
+  `npm run lint`), build, unit tests, content lint and reference drift run on
+  both events; the Playwright suite and the Lighthouse
   budgets run on the pull request only. A failure fails `pr` and `CI gate`; a
   run without website changes skips the job, which `CI gate` accepts. This
   part does not depend on `DOCS_LANE`.
