@@ -46,10 +46,10 @@ RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
          GNUPGHOME="${keytmp}" gpg --batch --with-colons --list-keys "${LLVM_APT_KEY_FPR}" 2>/dev/null \
            | awk -F: -v fpr="${LLVM_APT_KEY_FPR}" '$1=="fpr" && $10==fpr { ok=1 } END { exit !ok }' \
          || { echo "ERROR: the apt.llvm.org key file does not hold the pinned key ${LLVM_APT_KEY_FPR}" >&2; exit 1; }; } \
-    && GNUPGHOME="${keytmp}" gpg --batch --armor --export "${LLVM_APT_KEY_FPR}" > /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
+    && GNUPGHOME="${keytmp}" gpg --batch --export "${LLVM_APT_KEY_FPR}" > /usr/share/keyrings/llvm-snapshot.gpg \
     && rm -rf "${keytmp}" \
-    && [ -s /etc/apt/trusted.gpg.d/apt.llvm.org.asc ] \
-    && echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+    && [ -s /usr/share/keyrings/llvm-snapshot.gpg ] \
+    && echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
        | tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list \
     && apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
