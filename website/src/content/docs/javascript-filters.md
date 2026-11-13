@@ -3,7 +3,7 @@ title: 'JavaScript filters'
 description: 'Minify, combine, inline, and defer JavaScript in mod_pagespeed. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.'
 order: 45
 group: 'Filters'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-13
 ---
 
 ## Overview

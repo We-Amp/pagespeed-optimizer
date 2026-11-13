@@ -3,7 +3,7 @@ title: 'Downstream caching with nginx proxy_cache and Varnish'
 description: 'Cache mod_pagespeed HTML in nginx proxy_cache or Varnish: key it on PS-CapabilityList, let the module purge stale pages, and keep beacons flowing.'
 order: 24.5
 group: 'Configure'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-13
 ---
 
 Put a cache such as nginx `proxy_cache` or Varnish in front of the server that runs mod_pagespeed and it can serve the optimized HTML without involving the module. Out of the box that does not work, for two reasons. The module marks rewritten HTML as uncacheable, and the HTML it produces depends on the client: the first request for a page is served before the images are optimized, and the markup differs for browsers that accept WebP or AVIF. This page sets up the cache so that it stores one correct copy per client class, and is told when a copy has been superseded.
@@ -15,8 +15,8 @@ It applies to the in-process module on Apache and nginx, whose directives are na
 Setting [`DownstreamCachePurgeLocationPrefix`](/docs/configuration/#downstreamcachepurgelocationprefix) turns the downstream-cache integration on. Its effects:
 
 - **HTML keeps the origin's `Cache-Control`.** Without the integration the module replaces the caching headers of the HTML it serves, so a shared cache stores nothing. With it, the origin's `Cache-Control` passes through, and your cache can honor it. Your cache should then hide that header from browsers (the examples below do), so that visitors always ask the cache.
-- **The module purges superseded pages.** When a page was served with less rewriting done than [`DownstreamCacheRewrittenPercentageThreshold`](/docs/configuration/#downstreamcacherewrittenpercentagethreshold) (95 percent by default), the module sends a purge request for that page to the address `DownstreamCachePurgeLocationPrefix` plus the page's path, using the method of [`DownstreamCachePurgeMethod`](/docs/configuration/#downstreamcachepurgemethod) (`PURGE` by default). The request carries the headers of the request that triggered it, so a cache that builds its key from request headers removes the right copy. It also carries an `X-PSA-Purge-Request: 1` header, which keeps a purge from triggering another one. The statistics `downstream_cache_purge_attempts` and `successful_downstream_cache_purges` count them, and the message `Purge url is …` appears in the log at info level.
-- **Beacons need a key.** Filters that depend on measurements from visitors' browsers, such as `lazyload_images`, `inline_images` and `prioritize_critical_css`, insert beacon JavaScript into a page now and then. With the integration on, the module only does that for a request that carries a `PS-ShouldBeacon` header whose value equals [`DownstreamCacheRebeaconingKey`](/docs/configuration/#downstreamcacherebeaconingkey), and it logs a warning once per beacon interval while the key is missing. Your cache therefore has to send a small share of requests through to the module with that header, and must never accept the header from clients.
+- **The module purges superseded pages.** When a page was served with less rewriting done than [`DownstreamCacheRewrittenPercentageThreshold`](/docs/configuration/#downstreamcacherewrittenpercentagethreshold) (95 percent by default), the module sends a purge request for that page to the address `DownstreamCachePurgeLocationPrefix` plus the page's path, using the method of [`DownstreamCachePurgeMethod`](/docs/configuration/#downstreamcachepurgemethod): `PURGE` by default, and any other value sends a `GET`. Only `GET` requests for pages lead to a purge. The request carries the headers of the request that triggered it, so a cache that builds its key from request headers removes the right copy. It also carries an `X-PSA-Purge-Request: 1` header, which keeps a purge from triggering another one. The statistics `downstream_cache_purge_attempts` and `successful_downstream_cache_purges` count them, and the message `Purge url is …` appears in the log at info level.
+- **Beacons need a key.** Filters that depend on measurements from visitors' browsers, such as `lazyload_images`, `inline_images` and `prioritize_critical_css`, insert beacon JavaScript into a page now and then. With the integration on and [`DownstreamCacheRebeaconingKey`](/docs/configuration/#downstreamcacherebeaconingkey) set, the module only does that for a request whose `PS-ShouldBeacon` header equals the key, and it sends that response with caching disabled, so the cache does not store the instrumented copy. Without a key, the module inserts beacons on its usual schedule into pages that the cache then stores and serves to everyone, and it logs a warning once per beacon interval. Your cache therefore has to send a small share of requests through to the module with that header, and must never accept the header from clients.
 
 ```nginx
 # nginx with the module (the server behind the cache)
@@ -58,6 +58,10 @@ Three rules decide the outcome, all in the module:
 
 Choose a small number of classes. Every class is a separate copy of every page and a separate trip to the origin. The two examples below use three: AVIF, WebP and neither.
 
+### The Vary header on HTML {#vary}
+
+When image optimization or image inlining is on (both are in the default `CoreFilters`), the module names the request headers its markup depends on in the `Vary` header of the HTML: `Accept`, `User-Agent` and, when Save-Data qualities are set, `Save-Data`. nginx and Varnish both honor `Vary` and store a separate copy for every distinct `User-Agent`, which leaves almost no hits. The capability class already stands in for `Accept` and `User-Agent`, so the examples below tell the cache to ignore `Vary` on HTML. That is correct as long as the class is the only client-dependent input. If you set Save-Data or small-screen image qualities, the markup also differs by the `Save-Data` header and for mobile browsers: add those to the class, or leave those settings off for pages that the cache stores.
+
 ## nginx proxy_cache
 
 ```nginx
@@ -98,6 +102,9 @@ http {
 
             proxy_set_header PS-CapabilityList $ps_capability_list;
             proxy_set_header PS-ShouldBeacon $ps_should_beacon;
+
+            # The cache key already holds the class; see "The Vary header on HTML".
+            proxy_ignore_headers Vary;
 
             proxy_hide_header Cache-Control;
             add_header Cache-Control $ps_cache_control;
@@ -172,21 +179,23 @@ sub vcl_miss {
 }
 
 # The ttl was taken from the origin's Cache-Control before this runs;
-# browsers get no-cache so that they always ask this cache.
+# browsers get no-cache so that they always ask this cache. The hash already
+# holds the class, so the module's Vary on HTML is narrowed to compression.
 sub vcl_backend_response {
   if (beresp.http.Content-Type ~ "text/html") {
+    set beresp.http.Vary = "Accept-Encoding";
     unset beresp.http.Cache-Control;
     set beresp.http.Cache-Control = "no-cache, max-age=0";
   }
 }
 ```
 
-The `.pagespeed.` rule matters in practice: a cache that stores them duplicates the module's cache and has to be purged when a file changes, which nothing does. If you terminate TLS in front of Varnish, the page the module sees still has to be HTTPS; see [Behind a TLS terminator, load balancer or CDN](/docs/cdn-integration/#behind-a-tls-terminator-load-balancer-or-cdn).
+Keep `.pagespeed.` files out of this cache: a cache that stores them duplicates the module's cache and has to be purged when a file changes, which nothing does. If you terminate TLS in front of Varnish, the page the module sees still has to be HTTPS; see [Behind a TLS terminator, load balancer or CDN](/docs/cdn-integration/#behind-a-tls-terminator-load-balancer-or-cdn).
 
 ## If the cache never gets a hit
 
 - **Look at what the module sends.** `curl -s -D - -o /dev/null -H 'PS-CapabilityList: jw:' http://127.0.0.1:8080/` against the module itself, not the cache, prints the response headers of the HTML, including its `Cache-Control`. If it says `no-cache` or `max-age=0`, `DownstreamCachePurgeLocationPrefix` is not set where the page is served (it can be set per server or per location) or the origin itself sends that.
-- **Check the key.** The cache key must include the capability class. If it varies on something unbounded, such as the whole `User-Agent` or `Accept` string, there is a copy per browser build and almost no hits.
+- **Check the key and `Vary`.** The cache key must include the capability class. If it varies on something unbounded, such as the whole `User-Agent` or `Accept` string, there is a copy per browser build and almost no hits. The module's `Vary` header on HTML has the same effect unless the cache ignores it, as [above](#vary).
 - **Check cookies.** Varnish does not cache a request that carries cookies, and nginx does not cache a response that sets one, unless you tell them to.
 - **The first request is served before optimization is done.** That is expected: with a cache, the first visitor gets the unoptimized page, the module sees that it went out with most of its rewriting pending and asks the cache to purge it, and the next request fetches the optimized one.
 

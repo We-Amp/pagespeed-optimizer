@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-13
 ---
 
 Most mod_pagespeed problems surface in one place: the `X-PageSpeed`
@@ -663,14 +663,14 @@ A rewritten URL such as `/css/a.css+b.css.pagespeed.cc.HASH.css` carries what th
 | Log text | Cause |
 | --- | --- |
 | nothing from the module; the web server answers 404 itself | The request never reached the module ([routing](#pagespeed-404-routing)) |
-| `Decoding of resource name … failed because … no filter with id` (info) | The URL names a filter id this module does not know, or the filter cannot decode the name |
+| `Decoding of resource name … failed because … no filter with id` or `… cannot decode the URL` (info) | The URL names a filter id this module does not know, or the filter cannot decode the name |
 | `Decoding of resource name … failed because … filter_id … is forbidden` (info) | The filter is disabled for the request by [`ForbidFilters`](/docs/configuration/#forbidfilters) (or `ForbidAllDisabledFilters`) |
 | `Invalid resource signature for … provided. Received …` (info) | [URL signing](#pagespeed-404-signing) is on and the signature does not match |
 | `Resource based on … but cannot access the original` (warning) | [The original cannot be fetched](#pagespeed-404-original) |
 
 <a id="pagespeed-404-original"></a>
 
-**The original cannot be fetched.** The module rebuilds a file from its original, so a 404 from the origin (the file was removed or renamed), a fetch that fails (the origin refuses the module's request, a TLS or DNS problem, a timeout) or a domain the module is not [authorized](/docs/domain-configuration/#domain-authorization) to fetch from all end as a 404 on the `.pagespeed.` URL. For a file with a single original (an image, a stylesheet, a script), a rewrite that fails while the original is fetchable is answered with the original instead. A _combined_ file has several originals and no such fallback: if one of them cannot be fetched at that moment, the whole combined URL answers 404. A fetch that timed out is remembered for ten seconds, then retried; a 404 or 410 that the origin itself sent is remembered for five minutes by default. To see which input failed, look in the log for the `Resource based on …` warning above and for `Fetch failed for resource url`, then request that original URL yourself, from the machine that runs the module. Pages in a CDN or a browser cache that still name a removed original stay broken until the page is refreshed; purge those pages rather than the `.pagespeed.` URLs.
+**The original cannot be fetched.** The module rebuilds a file from its original, so a 404 from the origin (the file was removed or renamed), a fetch that fails (the origin refuses the module's request, a TLS or DNS problem, a timeout) or a domain the module is not [authorized](/docs/domain-configuration/#domain-authorization) to fetch from all end as a 404 on the `.pagespeed.` URL. For a file with a single original (an image, a stylesheet, a script), a rewrite that fails while the original is fetchable is answered with the original instead. A _combined_ file has several originals and no such fallback: if one of them cannot be fetched at that moment, the whole combined URL answers 404. A fetch that timed out, could not connect or got a 5xx answer is remembered for ten seconds, then retried; a 404 or 410 that the origin itself sent is remembered for five minutes by default. To see which input failed, look in the log for the `Resource based on …` warning above and for `Fetch failed for resource url`, then request that original URL yourself, from the machine that runs the module. Pages in a CDN or a browser cache that still name a removed original stay broken until the page is refreshed; purge those pages rather than the `.pagespeed.` URLs.
 
 <a id="pagespeed-404-signing"></a>
 

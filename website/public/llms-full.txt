@@ -3638,7 +3638,7 @@ ongoing security fixes. The move is a package swap and a restart.
 
 ## If apt or rpm already reports an error
 
-These messages come from the archived Google repository, which stopped being maintained and signed. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu:
+These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu:
 
 ```text
 E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is no longer signed.
@@ -3657,7 +3657,7 @@ warning: mod-pagespeed-stable_current_x86_64.rpm: Header V4 DSA/SHA1 Signature, 
 
 Do not re-import Google's key and do not mark the repository as trusted: that keeps the archived package installable. Move to the maintained package instead. On Debian and Ubuntu, step 1 of [the block below](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/#apache-on-debian-and-ubuntu) disables the source file the archived package created, `/etc/apt/sources.list.d/mod-pagespeed.list`, and the `apt-get update` error stops once that file is out of the way. The signed repository that the `install.sh` script from packages.modpagespeed.com adds replaces it, for both Debian-family and Enterprise Linux systems.
 
-**Is it still maintained?** The Google and Apache releases are archived. mod_pagespeed continues the codebase with regular releases and security fixes, and the [release notes](https://modpagespeed.com/docs/release-notes/) list each one.
+**Is it still maintained?** The Google and Apache releases are archived. mod_pagespeed continues the codebase; the [release notes](https://modpagespeed.com/docs/release-notes/) list each release and its security fixes.
 
 ## Before you start
 
@@ -11373,7 +11373,7 @@ ModPagespeedRespectXForwardedProto on
 
 Have the proxy overwrite the header rather than append to it, and do not expose the module's port to clients: with the option on, a client that can reach the module directly can choose the scheme of the URLs it generates. With the option on, the module also picks the `https` address of [`BeaconUrl`](https://modpagespeed.com/docs/configuration/#beaconurl) for pages it sees as HTTPS; the default is one relative path for both schemes, which needs no change. `BeaconUrl` accepts one address or two separated by a space (the second is the `https` one); a single absolute `http:` address gets the same address with `https:` for HTTPS pages.
 
-**2. Check how the module fetches your resources.** The module downloads each CSS, JavaScript and image file it optimizes by its URL. For the host a page was requested on, and for any host your configuration does not name, it sends that fetch to itself, on the port and scheme the request arrived on, with the public name kept in the `Host` header. The fetch therefore does not go back out through the load balancer, and needs no setup, as long as this server answers requests for that name on that port. A hostname you name in the configuration (with `Domain`, `MapOriginDomain` or `MapRewriteDomain`) is fetched by that name instead, through DNS and the network, so a CDN hostname is fetched from the CDN. Use [`MapOriginDomain`](https://modpagespeed.com/docs/domain-configuration/#maporigindomain) when the originals must come from somewhere other than that name, for example `pagespeed MapOriginDomain 127.0.0.1:8080 static.example.com;` (Apache: `ModPagespeedMapOriginDomain`) to fetch `static.example.com` from a local server. Rewritten URLs in the HTML still name `static.example.com`; only the fetch target changes. [`LoadFromFile`](https://modpagespeed.com/docs/configuration/#loadfromfile) reads files from disk and needs no fetch. For `https` origins see [HTTPS configuration](https://modpagespeed.com/docs/https-configuration/).
+**2. Check how the module fetches your resources.** The module downloads each CSS, JavaScript and image file it optimizes by its URL. For a host your configuration does not name, which is usually the case for the host a page was requested on, it sends that fetch to itself, on the port and scheme the request arrived on, with the public name kept in the `Host` header. The fetch therefore does not go back out through the load balancer, and needs no setup, as long as this server answers requests for that name on that port. A hostname you name in the configuration (with `Domain`, `MapOriginDomain` or `MapRewriteDomain`) is fetched by that name instead, through DNS and the network, so a CDN hostname is fetched from the CDN. Use [`MapOriginDomain`](https://modpagespeed.com/docs/domain-configuration/#maporigindomain) when the originals must come from somewhere other than that name, for example `pagespeed MapOriginDomain 127.0.0.1:8080 static.example.com;` (Apache: `ModPagespeedMapOriginDomain`) to fetch `static.example.com` from a local server. Rewritten URLs in the HTML still name `static.example.com`; only the fetch target changes. [`LoadFromFile`](https://modpagespeed.com/docs/configuration/#loadfromfile) reads files from disk and needs no fetch. For `https` origins see [HTTPS configuration](https://modpagespeed.com/docs/https-configuration/).
 
 **3. Send `.pagespeed.` requests to the server that runs the module.** When you serve resources from a CDN hostname with [`MapRewriteDomain`](https://modpagespeed.com/docs/domain-configuration/#maprewritedomain), that hostname's origin must be the server that runs the module, because only the module can answer a `.pagespeed.` request. A CDN that pulls from a separate storage bucket gets a 404 for them (see [Why does a `.pagespeed.` URL return 404?](https://modpagespeed.com/docs/troubleshooting/#optimized-resources-return-404)). Authorize the CDN hostname with [`Domain`](https://modpagespeed.com/docs/configuration/#domain) so that the module may fetch and rewrite the resources named under it.
 
@@ -11414,8 +11414,8 @@ It applies to the in-process module on Apache and nginx, whose directives are na
 Setting [`DownstreamCachePurgeLocationPrefix`](https://modpagespeed.com/docs/configuration/#downstreamcachepurgelocationprefix) turns the downstream-cache integration on. Its effects:
 
 - **HTML keeps the origin's `Cache-Control`.** Without the integration the module replaces the caching headers of the HTML it serves, so a shared cache stores nothing. With it, the origin's `Cache-Control` passes through, and your cache can honor it. Your cache should then hide that header from browsers (the examples below do), so that visitors always ask the cache.
-- **The module purges superseded pages.** When a page was served with less rewriting done than [`DownstreamCacheRewrittenPercentageThreshold`](https://modpagespeed.com/docs/configuration/#downstreamcacherewrittenpercentagethreshold) (95 percent by default), the module sends a purge request for that page to the address `DownstreamCachePurgeLocationPrefix` plus the page's path, using the method of [`DownstreamCachePurgeMethod`](https://modpagespeed.com/docs/configuration/#downstreamcachepurgemethod) (`PURGE` by default). The request carries the headers of the request that triggered it, so a cache that builds its key from request headers removes the right copy. It also carries an `X-PSA-Purge-Request: 1` header, which keeps a purge from triggering another one. The statistics `downstream_cache_purge_attempts` and `successful_downstream_cache_purges` count them, and the message `Purge url is …` appears in the log at info level.
-- **Beacons need a key.** Filters that depend on measurements from visitors' browsers, such as `lazyload_images`, `inline_images` and `prioritize_critical_css`, insert beacon JavaScript into a page now and then. With the integration on, the module only does that for a request that carries a `PS-ShouldBeacon` header whose value equals [`DownstreamCacheRebeaconingKey`](https://modpagespeed.com/docs/configuration/#downstreamcacherebeaconingkey), and it logs a warning once per beacon interval while the key is missing. Your cache therefore has to send a small share of requests through to the module with that header, and must never accept the header from clients.
+- **The module purges superseded pages.** When a page was served with less rewriting done than [`DownstreamCacheRewrittenPercentageThreshold`](https://modpagespeed.com/docs/configuration/#downstreamcacherewrittenpercentagethreshold) (95 percent by default), the module sends a purge request for that page to the address `DownstreamCachePurgeLocationPrefix` plus the page's path, using the method of [`DownstreamCachePurgeMethod`](https://modpagespeed.com/docs/configuration/#downstreamcachepurgemethod): `PURGE` by default, and any other value sends a `GET`. Only `GET` requests for pages lead to a purge. The request carries the headers of the request that triggered it, so a cache that builds its key from request headers removes the right copy. It also carries an `X-PSA-Purge-Request: 1` header, which keeps a purge from triggering another one. The statistics `downstream_cache_purge_attempts` and `successful_downstream_cache_purges` count them, and the message `Purge url is …` appears in the log at info level.
+- **Beacons need a key.** Filters that depend on measurements from visitors' browsers, such as `lazyload_images`, `inline_images` and `prioritize_critical_css`, insert beacon JavaScript into a page now and then. With the integration on and [`DownstreamCacheRebeaconingKey`](https://modpagespeed.com/docs/configuration/#downstreamcacherebeaconingkey) set, the module only does that for a request whose `PS-ShouldBeacon` header equals the key, and it sends that response with caching disabled, so the cache does not store the instrumented copy. Without a key, the module inserts beacons on its usual schedule into pages that the cache then stores and serves to everyone, and it logs a warning once per beacon interval. Your cache therefore has to send a small share of requests through to the module with that header, and must never accept the header from clients.
 
 ```nginx
 # nginx with the module (the server behind the cache)
@@ -11457,6 +11457,10 @@ Three rules decide the outcome, all in the module:
 
 Choose a small number of classes. Every class is a separate copy of every page and a separate trip to the origin. The two examples below use three: AVIF, WebP and neither.
 
+### The Vary header on HTML
+
+When image optimization or image inlining is on (both are in the default `CoreFilters`), the module names the request headers its markup depends on in the `Vary` header of the HTML: `Accept`, `User-Agent` and, when Save-Data qualities are set, `Save-Data`. nginx and Varnish both honor `Vary` and store a separate copy for every distinct `User-Agent`, which leaves almost no hits. The capability class already stands in for `Accept` and `User-Agent`, so the examples below tell the cache to ignore `Vary` on HTML. That is correct as long as the class is the only client-dependent input. If you set Save-Data or small-screen image qualities, the markup also differs by the `Save-Data` header and for mobile browsers: add those to the class, or leave those settings off for pages that the cache stores.
+
 ## nginx proxy_cache
 
 ```nginx
@@ -11497,6 +11501,9 @@ http {
 
             proxy_set_header PS-CapabilityList $ps_capability_list;
             proxy_set_header PS-ShouldBeacon $ps_should_beacon;
+
+            # The cache key already holds the class; see "The Vary header on HTML".
+            proxy_ignore_headers Vary;
 
             proxy_hide_header Cache-Control;
             add_header Cache-Control $ps_cache_control;
@@ -11571,21 +11578,23 @@ sub vcl_miss {
 }
 
 # The ttl was taken from the origin's Cache-Control before this runs;
-# browsers get no-cache so that they always ask this cache.
+# browsers get no-cache so that they always ask this cache. The hash already
+# holds the class, so the module's Vary on HTML is narrowed to compression.
 sub vcl_backend_response {
   if (beresp.http.Content-Type ~ "text/html") {
+    set beresp.http.Vary = "Accept-Encoding";
     unset beresp.http.Cache-Control;
     set beresp.http.Cache-Control = "no-cache, max-age=0";
   }
 }
 ```
 
-The `.pagespeed.` rule matters in practice: a cache that stores them duplicates the module's cache and has to be purged when a file changes, which nothing does. If you terminate TLS in front of Varnish, the page the module sees still has to be HTTPS; see [Behind a TLS terminator, load balancer or CDN](https://modpagespeed.com/docs/cdn-integration/#behind-a-tls-terminator-load-balancer-or-cdn).
+Keep `.pagespeed.` files out of this cache: a cache that stores them duplicates the module's cache and has to be purged when a file changes, which nothing does. If you terminate TLS in front of Varnish, the page the module sees still has to be HTTPS; see [Behind a TLS terminator, load balancer or CDN](https://modpagespeed.com/docs/cdn-integration/#behind-a-tls-terminator-load-balancer-or-cdn).
 
 ## If the cache never gets a hit
 
 - **Look at what the module sends.** `curl -s -D - -o /dev/null -H 'PS-CapabilityList: jw:' http://127.0.0.1:8080/` against the module itself, not the cache, prints the response headers of the HTML, including its `Cache-Control`. If it says `no-cache` or `max-age=0`, `DownstreamCachePurgeLocationPrefix` is not set where the page is served (it can be set per server or per location) or the origin itself sends that.
-- **Check the key.** The cache key must include the capability class. If it varies on something unbounded, such as the whole `User-Agent` or `Accept` string, there is a copy per browser build and almost no hits.
+- **Check the key and `Vary`.** The cache key must include the capability class. If it varies on something unbounded, such as the whole `User-Agent` or `Accept` string, there is a copy per browser build and almost no hits. The module's `Vary` header on HTML has the same effect unless the cache ignores it, as [above](https://modpagespeed.com/docs/downstream-caching/#vary).
 - **Check cookies.** Varnish does not cache a request that carries cookies, and nginx does not cache a response that sets one, unless you tell them to.
 - **The first request is served before optimization is done.** That is expected: with a cache, the first visitor gets the unoptimized page, the module sees that it went out with most of its rewriting pending and asks the cache to purge it, and the next request fetches the optimized one.
 
@@ -18998,12 +19007,12 @@ A rewritten URL such as `/css/a.css+b.css.pagespeed.cc.HASH.css` carries what th
 | Log text | Cause |
 | --- | --- |
 | nothing from the module; the web server answers 404 itself | The request never reached the module ([routing](https://modpagespeed.com/docs/troubleshooting/#pagespeed-404-routing)) |
-| `Decoding of resource name … failed because … no filter with id` (info) | The URL names a filter id this module does not know, or the filter cannot decode the name |
+| `Decoding of resource name … failed because … no filter with id` or `… cannot decode the URL` (info) | The URL names a filter id this module does not know, or the filter cannot decode the name |
 | `Decoding of resource name … failed because … filter_id … is forbidden` (info) | The filter is disabled for the request by [`ForbidFilters`](https://modpagespeed.com/docs/configuration/#forbidfilters) (or `ForbidAllDisabledFilters`) |
 | `Invalid resource signature for … provided. Received …` (info) | [URL signing](https://modpagespeed.com/docs/troubleshooting/#pagespeed-404-signing) is on and the signature does not match |
 | `Resource based on … but cannot access the original` (warning) | [The original cannot be fetched](https://modpagespeed.com/docs/troubleshooting/#pagespeed-404-original) |
 
-**The original cannot be fetched.** The module rebuilds a file from its original, so a 404 from the origin (the file was removed or renamed), a fetch that fails (the origin refuses the module's request, a TLS or DNS problem, a timeout) or a domain the module is not [authorized](https://modpagespeed.com/docs/domain-configuration/#domain-authorization) to fetch from all end as a 404 on the `.pagespeed.` URL. For a file with a single original (an image, a stylesheet, a script), a rewrite that fails while the original is fetchable is answered with the original instead. A _combined_ file has several originals and no such fallback: if one of them cannot be fetched at that moment, the whole combined URL answers 404. A fetch that timed out is remembered for ten seconds, then retried; a 404 or 410 that the origin itself sent is remembered for five minutes by default. To see which input failed, look in the log for the `Resource based on …` warning above and for `Fetch failed for resource url`, then request that original URL yourself, from the machine that runs the module. Pages in a CDN or a browser cache that still name a removed original stay broken until the page is refreshed; purge those pages rather than the `.pagespeed.` URLs.
+**The original cannot be fetched.** The module rebuilds a file from its original, so a 404 from the origin (the file was removed or renamed), a fetch that fails (the origin refuses the module's request, a TLS or DNS problem, a timeout) or a domain the module is not [authorized](https://modpagespeed.com/docs/domain-configuration/#domain-authorization) to fetch from all end as a 404 on the `.pagespeed.` URL. For a file with a single original (an image, a stylesheet, a script), a rewrite that fails while the original is fetchable is answered with the original instead. A _combined_ file has several originals and no such fallback: if one of them cannot be fetched at that moment, the whole combined URL answers 404. A fetch that timed out, could not connect or got a 5xx answer is remembered for ten seconds, then retried; a 404 or 410 that the origin itself sent is remembered for five minutes by default. To see which input failed, look in the log for the `Resource based on …` warning above and for `Fetch failed for resource url`, then request that original URL yourself, from the machine that runs the module. Pages in a CDN or a browser cache that still name a removed original stay broken until the page is refreshed; purge those pages rather than the `.pagespeed.` URLs.
 
 **URL signing.** With `UrlSigningKey` set, every `.pagespeed.` URL carries a signature, and the module treats a URL with a wrong or missing one as not its own, so the web server answers 404 for the file it does not have. Changing the key invalidates every signed URL in HTML that is already cached downstream. `pagespeed AcceptInvalidSignatures on;` (nginx) or `ModPagespeedAcceptInvalidSignatures on` (Apache) accepts them while you rotate the key. On nginx the signature also makes the hash segment longer (ten more characters by default), so the `[^.]{10}` in the `.pagespeed.` location block of the sample configuration no longer matches; use `[^.]{20}`.
 
