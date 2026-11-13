@@ -43,10 +43,10 @@ RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
          GNUPGHOME="${keytmp}" gpg --batch --with-colons --list-keys "${LLVM_APT_KEY_FPR}" 2>/dev/null \
            | awk -F: -v fpr="${LLVM_APT_KEY_FPR}" '$1=="fpr" && $10==fpr { ok=1 } END { exit !ok }' \
          || { echo "ERROR: the apt.llvm.org key file does not hold the pinned key ${LLVM_APT_KEY_FPR}" >&2; exit 1; }; } \
-    && GNUPGHOME="${keytmp}" gpg --batch --armor --export "${LLVM_APT_KEY_FPR}" > /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
+    && GNUPGHOME="${keytmp}" gpg --batch --export "${LLVM_APT_KEY_FPR}" > /usr/share/keyrings/llvm-snapshot.gpg \
     && rm -rf "${keytmp}" \
-    && [ -s /etc/apt/trusted.gpg.d/apt.llvm.org.asc ] \
-    && echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-20 main" \
+    && [ -s /usr/share/keyrings/llvm-snapshot.gpg ] \
+    && echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-20 main" \
        | tee /etc/apt/sources.list.d/llvm-toolchain-jammy-20.list \
     && apt-get update && apt-get install -y \
     build-essential \
@@ -126,8 +126,26 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # the build LOUDLY (not a silent red much later) if the pinned version is not
 # installable from the channel — the signal to bump the pin deliberately.
 COPY nginx-version.txt /tmp/nginx-version
-RUN wget -qO- https://nginx.org/keys/nginx_signing.key | gpg --dearmor \
-       > /usr/share/keyrings/nginx-archive-keyring.gpg \
+# The nginx.org signing key file holds three keys; the repository metadata is
+# signed by one of them. The file is accepted only when every key in it is in
+# this pinned set (fingerprints from https://nginx.org/en/linux_packages.html
+# and the published https://nginx.org/keys/nginx_signing.key), so a swapped
+# file stops the build.
+ARG NGINX_KEY_FPR="573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62 8540A6F18833A80E9C1653A42FD21310B49F6B46 9E9BE90EACBCDE69FE9B204CBCDCD8A38D88A2B3"
+RUN nkey="$(mktemp -d)" \
+    && for i in 1 2 3 4 5; do \
+         wget -qO "${nkey}/nginx.asc" --timeout=20 --tries=1 https://nginx.org/keys/nginx_signing.key \
+           && [ -s "${nkey}/nginx.asc" ] && break; \
+         echo "nginx.org key fetch attempt ${i} failed" >&2; if [ "$i" -lt 5 ]; then sleep $((i * 5)); fi; \
+       done \
+    && { [ -s "${nkey}/nginx.asc" ] \
+         || { echo "ERROR: could not fetch https://nginx.org/keys/nginx_signing.key" >&2; exit 1; }; } \
+    && { GNUPGHOME="${nkey}" gpg --batch --quiet --import "${nkey}/nginx.asc"; \
+         got="$(GNUPGHOME="${nkey}" gpg --batch --with-colons --list-keys | grep -A1 '^pub:' | grep '^fpr:' | cut -d: -f10)"; \
+         [ -n "${got}" ] || { echo "ERROR: no key found in the nginx.org key file" >&2; exit 1; }; \
+         for f in ${got}; do case " ${NGINX_KEY_FPR} " in *" ${f} "*) ;; *) echo "ERROR: unpinned key ${f} in the nginx.org key file" >&2; exit 1;; esac; done; } \
+    && gpg --dearmor < "${nkey}/nginx.asc" > /usr/share/keyrings/nginx-archive-keyring.gpg \
+    && rm -rf "${nkey}" \
     && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu jammy nginx" \
        > /etc/apt/sources.list.d/nginx.list \
     && echo "deb-src [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu jammy nginx" \

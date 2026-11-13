@@ -66,8 +66,18 @@ jobs:
       - name: Install clang-20 + libc++-20 toolchain
         run: |
           bash tools/ci/fetch_retry.sh https://apt.llvm.org/llvm-snapshot.gpg.key "${RUNNER_TEMP}/llvm-snapshot.gpg.key"
-          sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc < "${RUNNER_TEMP}/llvm-snapshot.gpg.key" >/dev/null
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+          # Trust only the pinned key (the one https://apt.llvm.org/ publishes),
+          # scoped to this source with signed-by.
+          LLVM_APT_KEY_FPR=6084F3CF814B57C1CF12EFD515CF4D18AF4F7421
+          gnupg_home="$(mktemp -d)"
+          GNUPGHOME="${gnupg_home}" gpg --batch --quiet --import "${RUNNER_TEMP}/llvm-snapshot.gpg.key"
+          GNUPGHOME="${gnupg_home}" gpg --batch --with-colons --list-keys "${LLVM_APT_KEY_FPR}" 2>/dev/null \
+            | awk -F: -v fpr="${LLVM_APT_KEY_FPR}" '$1=="fpr" && $10==fpr { ok=1 } END { exit !ok }' \
+            || { echo "ERROR: the apt.llvm.org key file does not hold the pinned key ${LLVM_APT_KEY_FPR}" >&2; exit 1; }
+          GNUPGHOME="${gnupg_home}" gpg --batch --export "${LLVM_APT_KEY_FPR}" \
+            | sudo tee /usr/share/keyrings/llvm-snapshot.gpg >/dev/null
+          rm -rf "${gnupg_home}"
+          echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
             | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
