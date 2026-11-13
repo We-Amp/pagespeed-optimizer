@@ -56,7 +56,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Configure
 
-- [Configuration reference: Apache and nginx directives](https://modpagespeed.com/docs/configuration/): Every mod_pagespeed directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.
+- [Configuration reference: Apache and nginx directives](https://modpagespeed.com/docs/configuration/): Every mod_pagespeed directive for Apache, nginx and IIS, generated from the module source: syntax, default and context, and where the config file lives.
 - [Set Cache-Control headers](https://modpagespeed.com/docs/cache-control/): Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with mod_pagespeed.
 - [Worker and reverse-proxy configuration](https://modpagespeed.com/docs/worker-configuration/): Every optimizer worker flag and thin nginx module directive of mod_pagespeed (the Docker and reverse-proxy shape), generated from the source.
 - [Choose a cache mode: safe vs aggressive](https://modpagespeed.com/docs/cache-modes/): Safe or aggressive Cache-Control for optimized responses in mod_pagespeed, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.
