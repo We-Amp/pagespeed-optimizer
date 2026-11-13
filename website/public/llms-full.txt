@@ -4964,7 +4964,7 @@ Allow rewrite_domains to rewrite domains in Set-Cookie headers.
 - **Default:** `off`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Allow rewrite_domains to rewrite &lt;form&gt; and &lt;a&gt; tags in addition to resource tags.
+Allow rewrite_domains to rewrite <form> and <a> tags in addition to resource tags.
 
 #### DomainShardCount
 
@@ -5258,7 +5258,7 @@ Refuse rule packs that are not signed with a key listed by RulePackTrustKey.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Trust rule packs signed with this key: &lt;key id&gt; &lt;base64 Ed25519 public key&gt;
+Trust rule packs signed with this key: <key id> <base64 Ed25519 public key>
 
 ### Bot authentication and licensing
 
@@ -5300,7 +5300,7 @@ Optional issuer pin: when set, an otherwise-authorized token whose iss != this v
 - **Context:** nginx: http, server
 - **Platform:** nginx only
 
-SSRF allowlist: comma-separated https origins the RSL-CAP warm-fetch may contact. Empty =&gt; warm-fetch disabled (fail-closed). Default empty.
+SSRF allowlist: comma-separated https origins the RSL-CAP warm-fetch may contact. Empty => warm-fetch disabled (fail-closed). Default empty.
 
 #### RslCapKeyDirectoryFile
 
@@ -5318,7 +5318,7 @@ Path to a local JWKS file (the issuer's published key directory, copied locally 
 - **Context:** nginx: http, server
 - **Platform:** nginx only
 
-RSL-CAP warm-fetch refresh interval in seconds (clamped). Empty =&gt; default 3600. Default empty.
+RSL-CAP warm-fetch refresh interval in seconds (clamped). Empty => default 3600. Default empty.
 
 #### RslCapKeyDirectoryUrl
 
@@ -5386,7 +5386,7 @@ The signer directory's host identity: the warm-fetch cache key, paired with WebB
 - **Context:** nginx: http, server
 - **Platform:** nginx only
 
-SSRF allowlist: comma-separated https origins (scheme://host[:port]) the warm-fetch may contact. Empty =&gt; warm-fetch disabled (fail-closed). Default empty.
+SSRF allowlist: comma-separated https origins (scheme://host[:port]) the warm-fetch may contact. Empty => warm-fetch disabled (fail-closed). Default empty.
 
 #### WebBotAuthKeyDirectoryFile
 
@@ -5404,7 +5404,7 @@ Path to a local JWKS file (the signer's published key directory, copied locally 
 - **Context:** nginx: http, server
 - **Platform:** nginx only
 
-Warm-fetch refresh interval in seconds (clamped). Empty =&gt; default 3600. Default empty.
+Warm-fetch refresh interval in seconds (clamped). Empty => default 3600. Default empty.
 
 #### WebBotAuthKeyDirectoryUrl
 
@@ -5843,7 +5843,7 @@ Set bound on number of images being rewritten at one time (0 = unbounded).
 - **Default:** `off`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Provenance carry-through: when true (and PreserveImageProvenance is on), PNG images carrying a C2PA / Content Credentials manifest are recompressed AND their original manifest chunks (caBX/iTXt) are carried into the optimized output unmodified, keeping both the byte savings and the provenance. (Manifest-bearing JPEGs already carry their APP11/JUMBF through recompression under PreserveImageProvenance.) Cases where the carrier cannot be preserved byte-exactly -- resize, format conversion (PNG-&gt;JPEG/WebP), GIF, or extraction failure -- fall back to the default detect-and-skip pass-through. No effect when PreserveImageProvenance is false.
+Provenance carry-through: when true (and PreserveImageProvenance is on), PNG images carrying a C2PA / Content Credentials manifest are recompressed AND their original manifest chunks (caBX/iTXt) are carried into the optimized output unmodified, keeping both the byte savings and the provenance. (Manifest-bearing JPEGs already carry their APP11/JUMBF through recompression under PreserveImageProvenance.) Cases where the carrier cannot be preserved byte-exactly -- resize, format conversion (PNG->JPEG/WebP), GIF, or extraction failure -- fall back to the default detect-and-skip pass-through. No effect when PreserveImageProvenance is false.
 
 #### ImageRecompressionQuality
 
@@ -6112,7 +6112,7 @@ Number of bytes above which inline CSS resources will be outlined.
 - **Default:** `2097152`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Largest stylesheet, in bytes, that the CSS rewriter will parse; larger ones are passed through unmodified (&lt;= 0 for no limit).
+Largest stylesheet, in bytes, that the CSS rewriter will parse; larger ones are passed through unmodified (<= 0 for no limit).
 
 #### GoogleFontCssInlineMaxBytes
 
@@ -6571,7 +6571,7 @@ Time to wait after unsuccessful reconnection before another attempt (ms)
 - **Default:** `(empty)`
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Redis server to use in format: &lt;host&gt;[:&lt;port&gt;] or unix:/&lt;socket path&gt;
+Redis server to use in format: <host>[:<port>] or unix:/<socket path>
 
 #### RedisTimeoutUs
 
@@ -8950,7 +8950,7 @@ opt-out and logs a warning at startup and on every browser start. See
 - **Syntax:** `--browser-user-data-dir PATH`
 - **Default:** `<runtime dir>/chrome`
 
-Chrome profile directory (default: &lt;runtime dir&gt;/chrome)
+Chrome profile directory (default: <runtime dir>/chrome)
 
 Chrome profile directory; defaults to a `chrome` directory under the worker's
 runtime directory.
@@ -9192,7 +9192,7 @@ Max decoded pixels (default: 65536)
 - **Syntax:** `--svg-max-paths N`
 - **Default:** `500`
 
-Max &lt;path&gt; elements (default: 500)
+Max <path> elements (default: 500)
 
 #### --svg-max-svg-bytes
 
@@ -10784,7 +10784,7 @@ pagespeed CycloneZeroCopy on
 pagespeed CycloneZeroCopyServe on
 ```
 
-Not every response is eligible for the aliased serve. A response is served by reference only when it is delivered verbatim — on Apache that means a plain-HTTP/1.x main-request `200` of at least 16&nbsp;KB with no `Range` request and no transforming output filter (`deflate`, TLS, HTTP/2). Anything else — for example a response that must be re-compressed for the client — automatically falls back to the regular copying path, and bytes an output filter holds for a slow client are copied out at that point.
+Not every response is eligible for the aliased serve. A response is served by reference only when it is delivered verbatim — on Apache that means a plain-HTTP/1.x main-request `200` of at least 16 KB with no `Range` request and no transforming output filter (`deflate`, TLS, HTTP/2). Anything else — for example a response that must be re-compressed for the client — automatically falls back to the regular copying path, and bytes an output filter holds for a slow client are copied out at that point.
 
 Three [statistics](https://modpagespeed.com/docs/admin-console/) make the behavior observable: `zerocopy_serve_aliased` (responses served by reference), `zerocopy_serve_copied_out` (aliased bytes safely copied out before reuse), and `zerocopy_serve_ineligible` (requests that fell back to copied serving). The first fallback also logs a one-time message explaining why; on Apache that message needs `LogLevel info`, while the statistic is always on.
 
@@ -22640,7 +22640,7 @@ Helm chart are not part of this release and stay at 2.8.1.
 
 **Highlights**
 
-- **Critical CSS is now inlined for HTML pages whose stylesheet contains a “&lt;”.**
+- **Critical CSS is now inlined for HTML pages whose stylesheet contains a “<”.**
   Stylesheets that use `@property` syntax descriptors such as `"<length>"` (Tailwind
   CSS 4 emits these) or range media queries such as `@media (width < 600px)` were
   never inlined by `prioritize_critical_css` or `inline_css`. XHTML pages keep the
@@ -22670,7 +22670,7 @@ Helm chart are not part of this release and stay at 2.8.1.
 
 _Module (all ports unless named)_
 
-- **Critical CSS is now inlined for HTML pages whose stylesheet contains a “&lt;”.**
+- **Critical CSS is now inlined for HTML pages whose stylesheet contains a “<”.**
   On HTML pages, a stylesheet with `@property` syntax descriptors such as
   `"<length>"` (Tailwind CSS 4 emits these) or range media queries such as
   `@media (width < 600px)` was never inlined by `prioritize_critical_css` or

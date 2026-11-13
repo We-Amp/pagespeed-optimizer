@@ -40,6 +40,8 @@ import {
   generateContent,
   loadContext,
   buildIndex,
+  decodeCharacterReferences,
+  decodeReferences,
   distributionLines,
   PUBLIC_DIR,
   TARGETS,
@@ -132,6 +134,76 @@ const combined = [index, generated['.well-known/ai-plugin.json']].join('\n');
 // package versions under the names they shipped with. Everything else is
 // current copy.
 const isReleaseNotes = (slug: string) => /^release-notes(-\d+-\d+)?$/.test(slug);
+
+// The llms files are plain text: they carry each Markdown body with its HTML
+// character references decoded outside code (the .md twins keep them).
+const asText = decodeCharacterReferences;
+
+describe('character references are decoded in the llms files', () => {
+  it('decodes a reference in prose', () => {
+    expect(asText('a stylesheet that contains a \u201c&lt;\u201d.')).toBe(
+      'a stylesheet that contains a \u201c<\u201d.',
+    );
+    expect(asText('&lt;form&gt; &amp; &quot;x&quot; 16&nbsp;KB')).toBe('<form> & "x" 16\u00a0KB');
+  });
+  it('decodes numeric references, decimal and hex', () => {
+    expect(decodeReferences('it&#39;s &#x2014; &#X41;')).toBe("it's \u2014 A");
+  });
+  it('decodes once: &amp;lt; becomes &lt;', () => {
+    expect(asText('write &amp;lt; for <')).toBe('write &lt; for <');
+  });
+  it('leaves unknown names and invalid code points as written', () => {
+    expect(decodeReferences('&bogus; &#0; &#xD800; &#x110000; & alone')).toBe(
+      '&bogus; &#0; &#xD800; &#x110000; & alone',
+    );
+  });
+  it('keeps inline code spans literal', () => {
+    expect(asText('Apache `&lt;Directory&gt;` and &lt;Files&gt;')).toBe(
+      'Apache `&lt;Directory&gt;` and <Files>',
+    );
+    expect(asText('a ``code with ` and &lt;`` then &lt;')).toBe(
+      'a ``code with ` and &lt;`` then <',
+    );
+    expect(asText('a `span\nacross &lt; lines` &gt;')).toBe('a `span\nacross &lt; lines` >');
+    expect(asText('an unpaired ` tick &lt;')).toBe('an unpaired ` tick <');
+  });
+  it('keeps fenced code blocks literal', () => {
+    const md = [
+      '&lt;p&gt;',
+      '',
+      '```html',
+      '<p>&lt;b&gt; &amp; &#39;</p>',
+      '```',
+      '',
+      '~~~~',
+      '&lt;',
+      '~~~',
+      '&gt;',
+      '~~~~',
+      '&lt;after&gt;',
+    ].join('\n');
+    expect(asText(md)).toBe(
+      [
+        '<p>',
+        '',
+        '```html',
+        '<p>&lt;b&gt; &amp; &#39;</p>',
+        '```',
+        '',
+        '~~~~',
+        '&lt;',
+        '~~~',
+        '&gt;',
+        '~~~~',
+        '<after>',
+      ].join('\n'),
+    );
+  });
+  it('the release notes read the character, not the reference', () => {
+    expect(full).toContain('whose stylesheet contains a \u201c<\u201d.');
+    expect(full).not.toContain('contains a \u201c&lt;\u201d');
+  });
+});
 
 describe('llms*.txt drift guard', () => {
   describe('1. byte-equivalence: committed file === fresh render', () => {
@@ -286,14 +358,14 @@ describe('agent files cover the docs collection', () => {
   for (const doc of ctx.docs) {
     it(`llms.txt lists /docs/${doc.slug}/ with its title and description`, () => {
       expect(index).toContain(
-        `- [${doc.data.title}](${docUrl(doc.slug)}): ${doc.data.description}`,
+        asText(`- [${doc.data.title}](${docUrl(doc.slug)}): ${doc.data.description}`),
       );
     });
     it(`llms-full.txt carries the full Markdown of /docs/${doc.slug}/`, () => {
       const md = renderDocMarkdown(doc, ctx.manifests);
       // The H1 is the one the HTML page shows: `h1` when set, else the title.
       expect(md.startsWith(`# ${doc.data.h1 ?? doc.data.title}\n`)).toBe(true);
-      expect(full).toContain(md.trimEnd());
+      expect(full).toContain(asText(md.trimEnd()));
     });
   }
 
@@ -470,7 +542,7 @@ describe('/docs/<slug>.md serves the same Markdown', () => {
     expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
     const body = await res.text();
     expect(body).toBe(renderDocMarkdown(doc, ctx.manifests));
-    expect(full).toContain(body.trimEnd());
+    expect(full).toContain(asText(body.trimEnd()));
     expect(body.startsWith('# Install mod_pagespeed\n')).toBe(true);
     expect(body).toContain(`Canonical URL: ${SITE}/docs/getting-started/`);
   });
@@ -496,19 +568,19 @@ describe('filter reference pages have Markdown twins', () => {
   });
 
   it('llms-full.txt carries the hub once, then each topic once, in index order', () => {
-    expect(full).toContain(hub.trimEnd());
+    expect(full).toContain(asText(hub.trimEnd()));
     expect(full.split(canonical('/docs/filters/')).length - 1).toBe(1);
     const positions = indexable.map((t) => {
-      const md = bodyOf(t).trimEnd();
+      const md = asText(bodyOf(t).trimEnd());
       expect(full.split(md).length - 1, t.name).toBe(1);
       expect(full.split(canonical(t.path)).length - 1, t.name).toBe(1);
       return full.indexOf(md);
     });
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
-    expect(full.indexOf(hub.trimEnd())).toBeGreaterThan(
+    expect(full.indexOf(asText(hub.trimEnd()))).toBeGreaterThan(
       full.indexOf(canonical(`/docs/${ctx.docs.at(-1)!.slug}/`)),
     );
-    expect(full.indexOf(hub.trimEnd())).toBeLessThan(positions[0]);
+    expect(full.indexOf(asText(hub.trimEnd()))).toBeLessThan(positions[0]);
   });
 
   it('the thin topics get no body', () => {
@@ -556,7 +628,7 @@ describe('filter reference pages have Markdown twins', () => {
     expect(body).toBe(bodyOf(topic));
     expect(body.startsWith('# Lazy-load images (lazyload_images)\n')).toBe(true);
     expect(body).toContain(`Canonical URL: ${SITE}/docs/filters/lazyload_images/`);
-    expect(full).toContain(body.trimEnd());
+    expect(full).toContain(asText(body.trimEnd()));
   });
 
   it('/docs/filters.md serves the hub', async () => {
