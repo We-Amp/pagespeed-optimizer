@@ -22,7 +22,7 @@ type Entry = {
   id: string;
   issue: { label: string; href: string };
   heading: string;
-  status: 'Fixed';
+  status: 'Fixed' | 'Fixed before the archive';
   then: string;
   now: string;
   scope?: string;
@@ -87,10 +87,76 @@ const entries: Entry[] = [
       },
     ],
   },
+  {
+    id: 'mod-1485',
+    issue: {
+      label: 'mod_pagespeed #1485',
+      href: 'https://github.com/apache/incubator-pagespeed-mod/issues/1485',
+    },
+    heading: 'The injected s-maxage of 10 goes away once a resource is known to be unimprovable',
+    status: 'Fixed',
+    then: 'A resource the optimizer could not make smaller, such as an image that was already optimal, kept being served with s-maxage=10 on every response.',
+    now: 'Only the first response, sent before the in-place decision, carries s-maxage=10. After the resource is recorded as not improvable, every later response keeps the lifetime the origin gave it and has no s-maxage.',
+    scope:
+      'The test covers the in-place rewrite context only. It does not exercise the header handling of the nginx and Apache adapters.',
+    tests: [
+      {
+        file: 'test/net/instaweb/rewriter/in_place_rewrite_context_test.cc',
+        line: 1123,
+        name: 'InPlaceRewriteContextTest.UnimprovableResourceLosesSMaxAgeOnceDecided',
+      },
+    ],
+  },
+  {
+    id: 'mod-2051',
+    issue: {
+      label: 'mod_pagespeed #2051',
+      href: 'https://github.com/apache/incubator-pagespeed-mod/issues/2051',
+    },
+    heading: 'Lighthouse sees native lazy loading on a page that has not been measured yet',
+    status: 'Fixed',
+    then: 'A Lighthouse run on a page whose image-beacon data had not been gathered yet was told to defer offscreen images that the module had not marked as lazy.',
+    now: 'In the default mode, the images below the first one get the native loading="lazy" attribute, which Lighthouse recognizes. The first image stays eager, since it is the likely largest contentful paint image.',
+    scope:
+      'The test checks the markup the filter emits for two Lighthouse user agents. It does not run a Lighthouse audit.',
+    tests: [
+      {
+        file: 'test/net/instaweb/rewriter/lazyload_images_filter_test.cc',
+        line: 804,
+        name: 'LazyloadImagesFilterTest.LighthouseOnAColdPageGetsNativeLazyLoad',
+      },
+    ],
+  },
+  {
+    id: 'mod-1704',
+    issue: {
+      label: 'mod_pagespeed #1704',
+      href: 'https://github.com/apache/incubator-pagespeed-mod/issues/1704',
+    },
+    heading: 'RedisTTLSec sets an expiry on the keys the cache writes',
+    status: 'Fixed before the archive',
+    then: 'The report found Redis keys written by the cache with no expiry and asked how to set one.',
+    now: 'Fixed upstream before the archive; the issue was never closed. The RedisTTLSec directive sets that expiry, and a regression test now pins it: with a TTL configured, each write sets it (SETEX), and without one a write sets no expiry.',
+    scope:
+      'The tests cover the cache’s own writes. They do not exercise how the directive is parsed or handed to the cache.',
+    tests: [
+      {
+        file: 'test/pagespeed/system/redis_cache_test.cc',
+        line: 1219,
+        name: 'RedisCacheTest.ConfiguredTtlIsSetOnEachWrite',
+      },
+      {
+        file: 'test/pagespeed/system/redis_cache_test.cc',
+        line: 1246,
+        name: 'RedisCacheTest.WithoutATtlAWriteSetsNoExpiry',
+      },
+    ],
+  },
 ];
 
 const statusClasses: Record<Entry['status'], string> = {
   Fixed: 'border-interactive/40 bg-interactive/10 text-text-body',
+  'Fixed before the archive': 'border-interactive/40 bg-interactive/10 text-text-body',
 };
 ---
 
@@ -128,7 +194,7 @@ const statusClasses: Record<Entry['status'], string> = {
       </h2>
       <p class="mt-4 text-text-body">
         Every entry links the archived report and says what users saw then and what happens now.
-        Where a test covers only part of a report, the entry says which part. Each entry links to
+        Where a test covers only part of a report, the entry says which part. One entry, marked as such, was fixed before the archive and only gained its test since. Each entry links to
         the test that keeps it fixed.
       </p>
     </section>
