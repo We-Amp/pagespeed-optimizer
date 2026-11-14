@@ -118,7 +118,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
     title={`Support from the engineers who build ${PRODUCT}`}
   >
     <Fragment slot="lede">
-      Free and open; you pay us for support and expertise. The software and its rule packs are
+      {PRODUCT} and its rule packs are free and open; you pay us for support and expertise. Both are{' '}
       {LICENSE_CLAUSE} and do the same thing with or without a subscription. A subscription decides
       who answers when something breaks.
     </Fragment>
@@ -252,8 +252,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
                 >
                   <code class="text-small">sbom/</code> directory
                 </a>{' '}
-                of the source tree, and each GitHub release carries the SBOM and VEX for that
-                release.
+                of the source tree. Every release from 2.6.0 on carries its SPDX SBOM and VEX.
               </span>
             </li>
             <li class="flex gap-2">
@@ -289,8 +288,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
                 severity, the affected versions and the impact class. When a vulnerability is
                 already public or being exploited, the notice goes out with the release. Priority
                 and Enterprise subscribers also get vulnerability notifications timed to the EU
-                Cyber Resilience Act reporting windows. Each GitHub release carries its SPDX SBOM
-                and VEX document, for everyone.
+                Cyber Resilience Act reporting windows. Every release from 2.6.0 on carries its SPDX
+                SBOM and VEX, for everyone.
               </span>
             </li>
           </ul>

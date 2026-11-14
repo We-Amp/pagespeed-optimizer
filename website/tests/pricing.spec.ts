@@ -126,7 +126,7 @@ test.describe('Pricing page', () => {
     const summary = page.locator('#tiers [data-pricing-what]');
     await expect(summary).toContainText('What we sell is support:');
     await expect(summary).toContainText(
-      'None of the tiers changes what the software does or adds software of its own.',
+      'No tier changes the software or comes with extra software.',
     );
     await expect(summary).toContainText('The rest of what we sell is expertise');
     expect(await top('#tiers [data-pricing-what]')).toBeGreaterThan(cardsBottom);

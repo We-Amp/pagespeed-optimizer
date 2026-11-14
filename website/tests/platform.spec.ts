@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 import { stubUmami, trackedEvents } from './helpers/umami';
 
-// The early-access pages: /platform/ carries one interest form per direction
+// The planned-pack pages: /platform/ carries one interest form per direction
 // (the `wedge` field), the two sub-pages one form each. Every form posts to
 // the shared capture endpoint with topic "platform" and the wedge as a
 // structured field, and fires umami <wedge> plus lead_submit on a successful
@@ -20,7 +20,7 @@ const HUB_WEDGES = [
   'request-a-pack',
 ];
 
-test.describe('Transform packs early access', () => {
+test.describe('Transform packs interest forms', () => {
   test('/platform/ carries one form per direction and the status line', async ({ page }) => {
     await page.goto('/platform/');
     await expect(page.locator('h1')).toHaveText('One interceptor, many packs');

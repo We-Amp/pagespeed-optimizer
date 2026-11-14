@@ -170,8 +170,8 @@ export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))
 // GitHub release assets carry no signature, only SHA256SUMS), the
 // Authenticode-signed Windows installer, cosign-signed container images with
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
-// OpenVEX file; each GitHub release also carries its SPDX SBOM and VEX file,
-// for everyone. No surface may claim provenance on packages. There is no private or subscriber package repository: security
+// OpenVEX file; every release from 2.6.0 on also carries its SPDX SBOM and
+// VEX file, for everyone. No surface may claim provenance on packages. There is no private or subscriber package repository: security
 // fixes ship to everyone at once through the public channels.
 // Signing keys. Each entry copies its fields verbatim from the internal
 // signing-key register, the source of truth for keys (id, name, status,

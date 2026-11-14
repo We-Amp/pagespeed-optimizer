@@ -28,7 +28,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'How do security updates reach me?',
-    a: `Everyone gets security fixes at the same time, as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice of a planned security release: the date, the severity, the affected versions and the impact class. When a vulnerability is already public or being exploited, the notice goes out with the release. Priority and Enterprise subscribers also get vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. Each GitHub release carries its SPDX SBOM and VEX document, and both are also in the source tree.`,
+    a: `Everyone gets security fixes at the same time, as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice of a planned security release: the date, the severity, the affected versions and the impact class. When a vulnerability is already public or being exploited, the notice goes out with the release. Priority and Enterprise subscribers also get vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. Every release from 2.6.0 on carries its SPDX SBOM and VEX document, and both are also in the source tree.`,
   },
   {
     q: 'What counts as a production server?',
@@ -36,7 +36,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'What is signed today?',
-    a: `The apt and yum repositories are GPG-signed with the repository signing key. From 2.5.0 on, each mod_pagespeed GitHub release carries one signature, SHA256SUMS.asc, made with a separate release signing key over the SHA256SUMS file that lists every release file; the release files carry no per-file .asc signatures. The Windows installer is Authenticode-signed by We-Amp B.V. The optimizer worker's release assets on GitHub carry no signature; every one is listed in SHA256SUMS. The container images are cosign-signed and carry an SBOM attestation and build provenance. Each GitHub release carries its SPDX SBOM and VEX document, and both are also in the source tree. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
+    a: `The apt and yum repositories are GPG-signed with the repository signing key. From 2.5.0 on, each mod_pagespeed GitHub release carries one signature, SHA256SUMS.asc, made with a separate release signing key over the SHA256SUMS file that lists every release file; the release files carry no per-file .asc signatures. The Windows installer is Authenticode-signed by We-Amp B.V. The optimizer worker's release assets on GitHub carry no signature; every one is listed in SHA256SUMS. The container images are cosign-signed and carry an SBOM attestation and build provenance. Every release from 2.6.0 on carries its SPDX SBOM and VEX document, and both are also in the source tree. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
   },
   {
     q: 'Can I verify the standard packages without a subscription?',

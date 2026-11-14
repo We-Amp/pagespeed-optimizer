@@ -107,7 +107,7 @@ const PAGE_CARDS = [
   },
   {
     slug: 'platform-consent',
-    eyebrow: 'early access · consent enforcement at the origin',
+    eyebrow: 'planned · consent enforcement at the origin',
     title: 'Does your site leak before consent?',
   },
   {
