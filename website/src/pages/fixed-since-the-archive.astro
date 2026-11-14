@@ -88,26 +88,6 @@ const entries: Entry[] = [
     ],
   },
   {
-    id: 'mod-1485',
-    issue: {
-      label: 'mod_pagespeed #1485',
-      href: 'https://github.com/apache/incubator-pagespeed-mod/issues/1485',
-    },
-    heading: 'The injected s-maxage of 10 goes away once a resource is known to be unimprovable',
-    status: 'Fixed',
-    then: 'A resource the optimizer could not make smaller, such as an image that was already optimal, kept being served with s-maxage=10 on every response.',
-    now: 'Only the first response, sent before the in-place decision, carries s-maxage=10. After the resource is recorded as not improvable, every later response keeps the lifetime the origin gave it and has no s-maxage.',
-    scope:
-      'The test covers the in-place rewrite context only. It does not exercise the header handling of the nginx and Apache adapters.',
-    tests: [
-      {
-        file: 'test/net/instaweb/rewriter/in_place_rewrite_context_test.cc',
-        line: 1123,
-        name: 'InPlaceRewriteContextTest.UnimprovableResourceLosesSMaxAgeOnceDecided',
-      },
-    ],
-  },
-  {
     id: 'mod-2051',
     issue: {
       label: 'mod_pagespeed #2051',
@@ -115,8 +95,8 @@ const entries: Entry[] = [
     },
     heading: 'Lighthouse sees native lazy loading on a page that has not been measured yet',
     status: 'Fixed',
-    then: 'A Lighthouse run on a page whose image-beacon data had not been gathered yet was told to defer offscreen images that the module had not marked as lazy.',
-    now: 'In the default mode, the images below the first one get the native loading="lazy" attribute, which Lighthouse recognizes. The first image stays eager, since it is the likely largest contentful paint image.',
+    then: 'Lighthouse did not recognise the module’s JavaScript-based lazy loading, so a run on a page whose image-beacon data had not been gathered yet still reported offscreen images to defer.',
+    now: 'On a cold page, the module now emits native loading="lazy" for Lighthouse in the default mode, on the images below the first one. The first image stays eager, since it is the likely largest contentful paint image.',
     scope:
       'The test checks the markup the filter emits for two Lighthouse user agents. It does not run a Lighthouse audit.',
     tests: [
