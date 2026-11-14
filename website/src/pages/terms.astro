@@ -35,7 +35,7 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
 >
   <PageHero title="Terms of Service" size="utility" width="prose">
     <p class="mt-4 text-small text-text-annotation">
-      Effective date: 24 October 2026 &middot; Version 2026-10-24
+      Effective date: 14 November 2026 &middot; Version 2026-11-14
     </p>
     <p class="lede mt-6 max-w-2xl">
       These terms are written in plain language. If something is unclear, email
@@ -64,11 +64,7 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
           <li>the websites we operate for the product, and the tools on them;</li>
           <li>
             the free standard package repository at
-            <code class="font-mono text-sm">packages.modpagespeed.com</code>;
-          </li>
-          <li>
-            the private package repository for Priority and Enterprise subscribers, once it is live
-            (it is being set up); and
+            <code class="font-mono text-sm">packages.modpagespeed.com</code>; and
           </li>
           <li>support subscriptions.</li>
         </ul>
@@ -149,21 +145,16 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
           the apt and yum repositories are GPG-signed, release assets are listed with their
           checksums in a SHA256SUMS file, an SPDX software bill of materials (SBOM) is published in
           the source tree, and the container images on GHCR are signed with keyless cosign and carry
-          SBOM and build-provenance attestations. A private package repository for Priority and
-          Enterprise subscribers is being set up; it is not delivered yet.
+          SBOM and build-provenance attestations. Security fixes reach every user at the same time,
+          through the public channels.
         </p>
         <p class="mt-4 text-text-muted">
           <strong>What a subscription grants.</strong> For its term, a subscription gives you the
-          support services of your tier and your order. Once the private package repository is live,
-          a Priority or Enterprise subscription also gives you access to it. That access is for your
-          organization: do not share it outside your organization or use it to mirror the repository
-          for others. You may deploy the packages you obtain on as many of your own systems as you
-          like, and you may redistribute them under the {LICENSE} &mdash; the restriction is on
-          access to the repository, not on the artifacts.
+          support services of your tier and your order. You may deploy the packages on as many of
+          your own systems as you like, and you may redistribute them under the {LICENSE}.
         </p>
         <p class="mt-2 text-text-muted">
-          <strong>What a subscription does not do.</strong> A subscription covers support and, for
-          Priority and Enterprise once it is live, access to the private package repository. The
+          <strong>What a subscription does not do.</strong> A subscription covers support. The
           software itself is the same for everyone and behaves the same with or without one. A
           subscription grants no rights in the software beyond the {LICENSE}, and it does not make
           us responsible for your deployment (see
@@ -242,11 +233,10 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
         <p class="mt-2 text-text-muted">
           <strong>Ending a subscription.</strong> We may suspend or end a subscription if you
           materially breach these terms and do not remedy the breach within 14 days of our written
-          notice; sharing private package repository access outside your organization ends it
-          immediately. When a subscription ends, for whatever reason, support and any access to the
-          private package repository end with it. Your right to keep using, modifying and
-          redistributing every artifact you already obtained does not end: those artifacts are
-          licensed under the {LICENSE}, and nothing we do under these terms revokes that license.
+          notice. When a subscription ends, for whatever reason, support ends with it. Your right to
+          keep using, modifying and redistributing every artifact you already obtained does not end:
+          those artifacts are licensed under the {LICENSE}, and nothing we do under these terms
+          revokes that license.
         </p>
       </div>
 
@@ -260,10 +250,6 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
           <li>
             overload, load-test, scrape or benchmark our websites, demo tools or repositories
             without our written permission;
-          </li>
-          <li>
-            circumvent access controls on the private package repository, or share its access
-            details outside your organization;
           </li>
           <li>submit sites you have no right to test to the analysis tools on this site;</li>
           <li>use the services to attack, disrupt or overload third-party systems; or</li>

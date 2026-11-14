@@ -73,8 +73,8 @@ export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 //               monthlyEur stays null (annual billing only)
 //   includes    what the tier adds, in display order; the first entry of a
 //               higher tier names the tier it builds on
-//   hardened    whether the private package repository is live; false until
-//               it exists (it is being set up)
+//   hardened    always false: there are no subscriber-only builds; the
+//               software and its signed packages are the same for everyone
 //   cta         where the tier's button goes: a hosted checkout page for
 //               Standard and Priority, the contact form for Enterprise;
 //               offer is the umami cta_commercial offer value
@@ -114,7 +114,7 @@ export const SUPPORT_TIERS = [
       offer: 'buy-priority',
       external: true,
     },
-    note: 'everything in Standard plus a private package repository (being set up), for up to 25 production servers',
+    note: 'everything in Standard plus a faster first response and vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for up to 25 production servers',
     includes: [
       'Everything in Standard',
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
@@ -149,10 +149,10 @@ export const SUPPORT_TIERS = [
     ],
   },
 ];
-// The line under the tier cards: the private repository is not a checkmark
-// until it exists, and what is signed and attested is not a tier feature.
-export const PRIVATE_REPO_LINE =
-  'A private package repository for Priority and Enterprise subscribers is being set up. Every signature and attestation is the same for every user, with or without a subscription.';
+// The line under the tier cards: what is signed and attested is not a tier
+// feature; security fixes reach everyone at the same time.
+export const SAME_SOFTWARE_LINE =
+  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription. Security fixes reach every user at the same time.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
@@ -173,8 +173,8 @@ export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
 // OpenVEX file. No surface may claim a per-release SBOM/VEX on the release
 // assets or provenance on packages; release SBOM and VEX are available on
-// request. The private package repository for Priority and Enterprise is being
-// set up; say so, never that it exists.
+// request. There is no private or subscriber package repository: security
+// fixes ship to everyone at once through the public channels.
 // Signing keys. Each entry copies its fields verbatim from the internal
 // signing-key register, the source of truth for keys (id, name, status,
 // purpose, fingerprint, public_url), so this block can later be generated
@@ -229,7 +229,7 @@ export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
   hardenedBuilds: 'not-offered',
   hardenedPricing: 'not-offered',
-  privateRepository: 'being-set-up',
+  privateRepository: 'not-offered',
 };
 // The support ladder as markdown bullets and one line, with each tier's yearly
 // price (pure helpers — see the purity rule below).

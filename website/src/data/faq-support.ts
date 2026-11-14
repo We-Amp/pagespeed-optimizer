@@ -16,7 +16,7 @@ const link = (href: string, text: string) =>
 export const faqSupport: FaqEntry[] = [
   {
     q: 'Does a subscription change what the software does?',
-    a: `No. Every install runs the same software under the ${SOURCE_PUBLICATION.license}, with every optimization enabled by configuration, not by a plan. A subscription changes who answers when you need help. Once the private package repository for Priority and Enterprise is live, it will also change where those subscribers' packages come from.`,
+    a: `No. Every install runs the same software under the ${SOURCE_PUBLICATION.license}, with every optimization enabled by configuration, not by a plan. A subscription changes who answers when you need help; the signed packages are the same for everyone.`,
   },
   {
     q: 'Who answers a ticket?',
@@ -28,15 +28,11 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'How do security updates reach me?',
-    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, and Priority and Enterprise get vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. A private package repository for Priority and Enterprise subscribers, planned to deliver security fixes before the public release, is being set up; until then, Priority and Enterprise subscribers can request the release SBOM and VEX.`,
+    a: `Everyone gets security fixes at the same time, as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. We tell subscribers about a security release before it is published, and Priority and Enterprise subscribers get vulnerability notifications timed to the EU Cyber Resilience Act reporting windows and can request the release SBOM and VEX.`,
   },
   {
     q: 'What counts as a production server?',
     a: 'A server that serves production traffic with the module or the optimizer worker. You choose the band (up to 5, up to 25, or more) when you subscribe; there is no metering and the software never reports a count.',
-  },
-  {
-    q: 'What is the private package repository?',
-    a: 'A private package repository for Priority and Enterprise subscribers, planned to deliver security fixes before the public release, is being set up. Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on request, and all subscribers get advance notice of security releases. Packages in it will carry the same license as the standard packages.',
   },
   {
     q: 'What is signed today?',

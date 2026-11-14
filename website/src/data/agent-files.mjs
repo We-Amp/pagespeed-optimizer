@@ -36,7 +36,7 @@ What it does:
 - Variant-aware caching keyed on a 32-bit capability mask (image format, viewport, pixel density, Save-Data, transfer encoding), served zero-copy from the shared Cyclone cache
 - The module's classic filter set: CSS and JavaScript combining, image spriting, in-place resource optimization, domain mapping, and the built-in admin console
 
-{{PRODUCT_NAME}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; Priority and Enterprise add a private package repository (being set up):
+{{PRODUCT_NAME}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; the software and its signed packages are the same for everyone, and security fixes reach every user at the same time:
 
 {{SUPPORT_LADDER_MD}}
 - {{PRICING_LINE}} {{RESPONSE_TARGETS_LINE}}

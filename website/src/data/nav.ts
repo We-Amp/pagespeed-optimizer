@@ -176,7 +176,7 @@ export const navLinks: Array<{
       {
         href: '/support/#hardened-builds',
         label: 'Signed artifacts',
-        subtitle: 'What is signed today; private package repository (being set up)',
+        subtitle: 'What is signed today, and how to verify it',
         umamiEvent: 'cta_commercial',
         umamiProps: commercial('hardened', 'hardened_builds'),
       },
