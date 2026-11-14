@@ -142,6 +142,10 @@ describe('generated code spans carry no HTML character references', () => {
       'Apache `<Directory>` and &lt;b&gt; \\* `a*b`',
     );
   });
+
+  it('prose() escapes a backslash outside code spans so it is shown, not consumed', () => {
+    expect(prose('C:\\inetpub\\* and `C:\\x`')).toBe('C:\\\\inetpub\\\\\\* and `C:\\x`');
+  });
 });
 
 describe('in-page fragment links resolve', () => {

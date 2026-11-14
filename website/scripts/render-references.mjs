@@ -90,7 +90,13 @@ export function prose(text) {
     .map((part, i) =>
       // Odd parts are code spans: markdown shows them verbatim, so an escape
       // there would appear literally (`&lt;Directory&gt;`).
-      i % 2 ? part : part.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\*/g, '\\*'),
+      i % 2
+        ? part
+        : part
+            .replace(/\\/g, '\\\\')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\*/g, '\\*'),
     )
     .join('')
     .trim();
