@@ -26,29 +26,10 @@ type Entry = {
   then: string;
   now: string;
   scope?: string;
-  tests: { file: string; name: string }[];
+  tests: { file: string; line: number; name: string }[];
 };
 
 const entries: Entry[] = [
-  {
-    id: 'ngx-1319',
-    issue: {
-      label: 'ngx_pagespeed #1319',
-      href: 'https://github.com/apache/incubator-pagespeed-ngx/issues/1319',
-    },
-    heading: 'Optimized images no longer stay 404 after the origin recovers',
-    status: 'Fixed',
-    then: 'One failed fetch of an original image was remembered as if the image were missing, so its optimized .pagespeed. URL kept answering 404 long after the origin was back.',
-    now: 'A fetch that times out, cannot connect or gets a 5xx answer is retried after a short window, and the optimized URL is served again once the origin answers.',
-    scope:
-      'The test covers a timeout and a 503 from the origin, on one server with an in-process cache.',
-    tests: [
-      {
-        file: 'test/net/instaweb/rewriter/image_rewrite_filter_test.cc',
-        name: 'ImageRewriteTest.OptimizedImageRecoversAfterTheOriginFails',
-      },
-    ],
-  },
   {
     id: 'mod-1622',
     issue: {
@@ -62,6 +43,7 @@ const entries: Entry[] = [
     tests: [
       {
         file: 'test/pagespeed/automatic/proxy_interface_test.cc',
+        line: 809,
         name: 'ProxyInterfaceTest.PermanentRedirectDroppingNoscriptReachesCleanUrl',
       },
     ],
@@ -74,14 +56,14 @@ const entries: Entry[] = [
     },
     heading: 'ModifyCachingHeaders off keeps long cache lifetimes on .pagespeed. resources',
     status: 'Fixed',
-    then: 'With ModifyCachingHeaders off, so that a downstream cache could keep the pages, the static resources mod_pagespeed rewrote came back without a usable caching header, even with extend_cache on.',
-    now: 'Your pages keep the caching headers you set, and cache-extended resources are served with max-age=31536000, public, immutable, on the first fetch and after a rebuild from the origin.',
-    scope:
-      'The test checks Cache-Control only. The report also quoted an ETag value; that is not part of this test.',
+    then: 'With ModifyCachingHeaders off on nginx, the static resources mod_pagespeed rewrote came back without a usable caching header, even with extend_cache on.',
+    now: 'ModifyCachingHeaders off leaves the caching headers of your pages alone. A .pagespeed. resource gets the same caching headers from the module whether the setting is on or off.',
+    scope: 'The test pins the nginx module’s caching-header decision for a .pagespeed. resource.',
     tests: [
       {
-        file: 'test/net/instaweb/rewriter/cache_extender_test.cc',
-        name: 'CacheExtenderTest.ExtendedResourceKeepsLongCacheWithoutModifyHeaders',
+        file: 'test/pagespeed/nginx/ngx_caching_header_policy_test.cc',
+        line: 36,
+        name: 'NgxCachingHeaderPolicyTest.AResourceGetsTheSameAnswerEitherWay',
       },
     ],
   },
@@ -94,12 +76,13 @@ const entries: Entry[] = [
     heading: 'In-place optimization no longer floods the message history',
     status: 'Fixed',
     then: 'Every request for an in-place optimized resource wrote an info line such as "URL is not in cache", filling the console and the message history.',
-    now: 'The per-request in-place hit and miss lines are written at debug level on nginx, Envoy and IIS. The in-place statistics still count every request.',
+    now: 'The per-request in-place lookup and miss lines are written at debug level on nginx, Envoy and IIS, and so is the hit line on nginx and IIS. The in-place statistics still count every request.',
     scope:
       'The system test runs on nginx: twenty in-place requests add at most one message-history line. The change does not touch Apache.',
     tests: [
       {
         file: 'test/system/nginx/test_nginx_ipro.py',
+        line: 425,
         name: 'TestNginxIproMessageHistory.test_ipro_requests_do_not_fill_message_history',
       },
     ],
@@ -144,9 +127,9 @@ const statusClasses: Record<Entry['status'], string> = {
         How to read this list
       </h2>
       <p class="mt-4 text-text-body">
-        Every entry links the archived report, says what users saw then and what happens now, and
-        names the test that holds it in place. Where a test covers only part of a report, the entry
-        says which part. The list grows as tests land.
+        Every entry links the archived report and says what users saw then and what happens now.
+        Where a test covers only part of a report, the entry says which part. Each entry links to
+        the test that keeps it fixed.
       </p>
     </section>
 
@@ -192,7 +175,7 @@ const statusClasses: Record<Entry['status'], string> = {
                   <code class="text-[0.9em] bg-bg-elevated px-1 rounded break-all">{t.name}</code>{' '}
                   in{' '}
                   <a
-                    href={`${MASTER}${t.file}`}
+                    href={`${MASTER}${t.file}#L${t.line}`}
                     rel="noopener noreferrer"
                     class="text-interactive hover:text-interactive-hover underline"
                   >
