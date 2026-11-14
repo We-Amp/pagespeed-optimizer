@@ -3477,6 +3477,7 @@ repository and set two directives; see
 | Directives and filters                                                                                                                                                                                                                             | Status in mod_pagespeed 2                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `pagespeed on/off`, `RewriteLevel`, `EnableFilters`, `DisableFilters`, `ForbidFilters`, `Domain`, `MapOriginDomain`, `MapRewriteDomain`, `MapProxyDomain`, `LoadFromFile`, the admin and statistics paths, `FetchHttps`, `UseNativeFetcher` and the rest of the [configuration reference](https://modpagespeed.com/docs/configuration/) | Carry over unchanged                                                                                                          |
+| `FileCacheInodeLimit`, `FileCacheCleanIntervalMs` | Removed on nginx: `nginx -t` fails with `directive "FileCacheInodeLimit" not recognized` (Apache accepts both with a warning). Delete both lines; the disk cache stays within `FileCacheSizeKb` |
 | `FileCachePath`                                                                                                                                                                                                                                    | Accepted; the module keeps its Cyclone volume under it                                                                        |
 | `ShardDomain`                                                                                                                                                                                                                                      | Works, logs a deprecation warning: sharding hurts with HTTP/2 and HTTP/3. Remove it                                           |
 | `UseExperimentalJsMinifier`                                                                                                                                                                                                                        | Accepted and ignored; the tokenizer-based minifier is the only one, the legacy minifier was removed                           |
@@ -3486,7 +3487,7 @@ repository and set two directives; see
 | `insert_ga`, `AnalyticsID`                                                                                                                                                                                                                         | Deprecated with a warning: Universal Analytics stopped processing hits in 2023                                                |
 | `DaemonSocketPath`, `DaemonVolumePath`, `DaemonApiSocketPath`, `DaemonServeStoredEncodings`                                                                                                                                                        | New: hand in-place optimization to the optimizer worker                                                                       |
 
-No directive was renamed. The `.pagespeed.` resource URLs, the `X-Page-Speed`
+Apart from the two removed `FileCache` directives above, no directive was renamed. Run `sudo nginx -t` before you restart: it prints every deprecation warning and stops at the first directive it rejects. The `.pagespeed.` resource URLs, the `X-Page-Speed`
 header and the beacon paths are unchanged, so existing CDN rules keep working.
 
 ## The cache
@@ -3516,7 +3517,7 @@ path.
 
 **Do my pagespeed directives carry over from ngx_pagespeed?**
 
-Yes. The native nginx module keeps the `pagespeed` directive surface and the classic filter names. Every directive loads; a handful of long-inert filters and experimental options are accepted and ignored with a warning, and four directives are new.
+Yes. The native nginx module keeps the `pagespeed` directive surface and the classic filter names. Every directive loads; a handful of long-inert filters and experimental options are accepted and ignored with a warning, and four directives are new. The exception is `FileCacheInodeLimit` and `FileCacheCleanIntervalMs`: nginx no longer accepts them, so remove both.
 
 **Why does nginx refuse to load the new module?**
 
@@ -3808,6 +3809,10 @@ sudo sed -i '/^[[:space:]]*load_module[[:space:]].*ngx_pagespeed_module\.so;/d' 
 sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules &&
 sudo nginx -t && sudo systemctl restart nginx
 ```
+
+If `nginx -t` rejects `pagespeed FileCacheInodeLimit` or
+`pagespeed FileCacheCleanIntervalMs` as "not recognized", delete those two
+lines: nginx no longer accepts them, unlike Apache, which warns and carries on.
 
 The package loads `ngx_pagespeed_module.so` itself, so the `sed` line removes
 the `load_module` line you added to `/etc/nginx/nginx.conf` for the old
@@ -7181,19 +7186,21 @@ Removed option; the name is still accepted and ignored.
 
 #### FileCacheCleanIntervalMs
 
-- **Syntax:** `ModPagespeedFileCacheCleanIntervalMs value` (Apache) · `pagespeed FileCacheCleanIntervalMs value;` (nginx)
+- **Syntax:** `ModPagespeedFileCacheCleanIntervalMs value` (Apache)
 - **Default:** —
-- **Context:** Apache: server config, virtual host · nginx: http, server
+- **Context:** Apache: server config, virtual host
+- **Platform:** Apache only
 
-Removed option; the name is still accepted and ignored.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx no longer accepts it: `nginx -t` fails with `directive "FileCacheCleanIntervalMs" not recognized`, so remove the line from your nginx configuration.
 
 #### FileCacheInodeLimit
 
-- **Syntax:** `ModPagespeedFileCacheInodeLimit value` (Apache) · `pagespeed FileCacheInodeLimit value;` (nginx)
+- **Syntax:** `ModPagespeedFileCacheInodeLimit value` (Apache)
 - **Default:** —
-- **Context:** Apache: server config, virtual host · nginx: http, server
+- **Context:** Apache: server config, virtual host
+- **Platform:** Apache only
 
-Removed option; the name is still accepted and ignored.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx no longer accepts it: `nginx -t` fails with `directive "FileCacheInodeLimit" not recognized`, so remove the line from your nginx configuration.
 
 #### GeneratedFilePrefix
 
