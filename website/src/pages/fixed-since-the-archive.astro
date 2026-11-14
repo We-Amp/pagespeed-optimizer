@@ -22,7 +22,7 @@ type Entry = {
   id: string;
   issue: { label: string; href: string };
   heading: string;
-  status: 'Fixed' | 'Available';
+  status: 'Fixed';
   then: string;
   now: string;
   scope?: string;
@@ -46,25 +46,6 @@ const entries: Entry[] = [
       {
         file: 'test/net/instaweb/rewriter/image_rewrite_filter_test.cc',
         name: 'ImageRewriteTest.OptimizedImageRecoversAfterTheOriginFails',
-      },
-    ],
-  },
-  {
-    id: 'mod-1148',
-    issue: {
-      label: 'mod_pagespeed #1148',
-      href: 'https://github.com/apache/incubator-pagespeed-mod/issues/1148',
-    },
-    heading: 'Brotli for clients that ask for it',
-    status: 'Available',
-    then: 'A request to send Brotli to browsers that list br in Accept-Encoding.',
-    now: 'With DaemonServeStoredEncodings on, an optimized resource such as a script is sent to a client that lists br as the stored Brotli variant, to a gzip-only client as the gzip variant, and to other clients as the original. Each Brotli or gzip response varies on Accept-Encoding.',
-    scope:
-      'Off by default. The test runs the module against a stand-in for the optimizer worker, not a live worker.',
-    tests: [
-      {
-        file: 'test/pagespeed/system/daemon_serve_arm_test.cc',
-        name: 'DaemonServeArmTest.AScriptIsServedAsTheStoredBrotliCopyWhenAsked',
       },
     ],
   },
@@ -105,25 +86,6 @@ const entries: Entry[] = [
     ],
   },
   {
-    id: 'ngx-1709',
-    issue: {
-      label: 'ngx_pagespeed #1709',
-      href: 'https://github.com/apache/incubator-pagespeed-ngx/issues/1709',
-    },
-    heading: 'MapProxyDomain resources are rebuilt after a cache loss',
-    status: 'Fixed',
-    then: 'Images proxied with MapProxyDomain worked at first, then answered 404 a few days later. The thread never found the cause.',
-    now: 'A proxied resource keeps answering 200 with the same bytes after its cache entries are gone and after its origin lifetime has run out: it is fetched again from the origin.',
-    scope:
-      'Partial. The test covers the rebuild path with an in-process cache. It does not cover a shared memcached or a slow origin, so this is a tested behaviour, not a root cause found in the original thread.',
-    tests: [
-      {
-        file: 'test/net/instaweb/rewriter/cache_extender_test.cc',
-        name: 'CacheExtenderTest.ProxiedResourceIsRebuiltAfterCacheLoss',
-      },
-    ],
-  },
-  {
     id: 'ngx-1720',
     issue: {
       label: 'ngx_pagespeed #1720',
@@ -146,7 +108,6 @@ const entries: Entry[] = [
 
 const statusClasses: Record<Entry['status'], string> = {
   Fixed: 'border-interactive/40 bg-interactive/10 text-text-body',
-  Available: 'border-border bg-bg-elevated text-text-body',
 };
 ---
 
