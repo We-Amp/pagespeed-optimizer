@@ -4,7 +4,7 @@ seoTitle: 'mod_pagespeed configuration: Apache, nginx, IIS directives'
 description: 'Every mod_pagespeed directive for Apache, nginx and IIS, generated from the module source: syntax, default and context, and where the config file lives.'
 order: 20
 group: 'Configure'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-14
 faq:
   - q: 'Where is the mod_pagespeed configuration file?'
     a: 'Apache reads `pagespeed.conf` from `/etc/apache2/mods-available/` (Debian, Ubuntu) or `/etc/httpd/conf.d/` (RHEL, AlmaLinux, Rocky); nginx reads `pagespeed` directives from `nginx.conf`, in the `http`, `server` or `location` block; IIS reads `pagespeed.config` from the site root or `%ProgramData%\We-Amp\PageSpeed\`.'
@@ -3483,6 +3483,12 @@ child ceiling is far above the number of children it will really run.
 If you raise them, watch request latency rather than only optimization
 throughput. The reason optimization is capped at half the machine is that the
 remaining half is serving traffic.
+
+One case where raising `NumExpensiveRewriteThreads` helps is a first view of an
+image-heavy page that stalls on its stylesheets and scripts while images are
+being optimized. The cost is more concurrent image work, so more CPU and memory at
+peak. See
+[Stylesheets and scripts respond slowly while images are being optimized](/docs/troubleshooting/#slow-ce-while-optimizing-images).
 
 ## URL segment length limits {#max-url-segments}
 
