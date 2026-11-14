@@ -166,6 +166,9 @@ response is not stored. Once a copy is stale, it is served to such a request onl
 when the response said `public`. The Markdown copy is served to a request that
 carries `Authorization` at most when the page itself was stored under that
 permit. `/llms.txt` is never served to a request that carries `Authorization`.
+When license enforcement (`rsl_cap_enforcement`) is on, a request whose
+Authorization header carries a valid license token is treated as an agent, not as
+a signed-in visitor, and may be served the Markdown copy and /llms.txt.
 
 ### What to do on your origin
 
