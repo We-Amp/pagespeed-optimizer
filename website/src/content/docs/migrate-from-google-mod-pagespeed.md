@@ -3,7 +3,7 @@ title: 'Migrate from the archived Google module'
 description: 'Move from the archived mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2: package swap, what maps to what, cache, rollback.'
 order: 15
 group: 'Upgrade and migrate'
-lastUpdated: 2026-11-13
+lastUpdated: 2026-11-14
 datePublished: 2026-10-08
 faq:
   - q: 'Is mod_pagespeed 2 a drop-in replacement for the archived module?'
@@ -190,6 +190,10 @@ sudo sed -i '/^[[:space:]]*load_module[[:space:]].*ngx_pagespeed_module\.so;/d' 
 sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules &&
 sudo nginx -t && sudo systemctl restart nginx
 ```
+
+If `nginx -t` rejects `pagespeed FileCacheInodeLimit` or
+`pagespeed FileCacheCleanIntervalMs` as "not recognized", delete those two
+lines: nginx no longer accepts them, unlike Apache, which warns and carries on.
 
 The package loads `ngx_pagespeed_module.so` itself, so the `sed` line removes
 the `load_module` line you added to `/etc/nginx/nginx.conf` for the old
