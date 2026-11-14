@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// /pricing/ — the software is free; what is sold is support in three tiers,
+// /pricing/ — the software is free and open, rule packs included; what is sold
+// is support and expertise: support in three tiers,
 // with published yearly prices (euro, excl. VAT). Standard and Priority go
 // straight to the hosted checkout, Enterprise and the audit to the contact
 // form. The page also carries the fixed-price agent-readiness audit, the
@@ -65,7 +66,7 @@ const jsonLd = {
 
 const tierPrice = (t: (typeof SUPPORT_TIERS)[number]) =>
   `${t.prices.from ? 'from ' : ''}${formatEur(t.prices.annualEur)}`;
-const metaDescription = `mod_pagespeed is free under the Apache License 2.0. Support costs ${SUPPORT_TIERS.slice(0, -1).map(tierPrice).join(', ')} or ${tierPrice(SUPPORT_TIERS[SUPPORT_TIERS.length - 1])} a year, excl. VAT. Fixed-price agent-readiness audit.`;
+const metaDescription = `mod_pagespeed and its rule packs are free and open. Support costs ${SUPPORT_TIERS.slice(0, -1).map(tierPrice).join(', ')} or ${tierPrice(SUPPORT_TIERS[SUPPORT_TIERS.length - 1])} a year, excl. VAT. Fixed-price audit and consulting.`;
 
 const auditPoints = [
   'What a crawler that does not run JavaScript sees, compared with what a browser renders',
@@ -76,14 +77,15 @@ const auditPoints = [
 ---
 
 <BaseLayout
-  title="Pricing: free software, paid support — mod_pagespeed"
+  title="mod_pagespeed: free software, paid support and expertise"
   description={metaDescription}
   jsonLd={jsonLd}
 >
-  <PageHero title="Run it on any number of servers. Pay us for support.">
+  <PageHero title="Run it on any number of servers. Pay us for support and expertise.">
     <Fragment slot="lede">
-      {PRODUCT} is {LICENSE_CLAUSE}. Install it and run it, in development and in production, on any
-      number of servers. No registration.
+      Everything you run is free and open, for everyone: the module, the optimizer worker and the
+      rule packs are {LICENSE_CLAUSE}. Install {PRODUCT} and run it, in development and in
+      production. No registration.
     </Fragment>
     <p class="mt-4 text-small text-text-annotation" data-pricing-terms>
       {PRICING_TERMS_LINE}
@@ -96,7 +98,9 @@ const auditPoints = [
     <p class="mt-6 max-w-3xl text-text-muted" data-pricing-what>
       What we sell is support: a direct line to the people who build the software, advance notice of
       planned security releases, and from Priority up, vulnerability notifications timed to the EU
-      Cyber Resilience Act reporting windows. None of the tiers changes what the software does.
+      Cyber Resilience Act reporting windows. No tier changes the software or comes with extra
+      software. The rest of what we sell is expertise: the audit below, and consulting and
+      integration work.
     </p>
     <div class="mt-6 rounded-lg border border-border bg-bg-secondary p-5 text-body text-text-muted">
       <p data-response-targets>
@@ -167,7 +171,8 @@ const auditPoints = [
         is free and takes one URL.
       </p>
       <p class="mt-2 text-body text-text-muted">
-        Longer engagements on caching and reverse-proxy infrastructure run through{' '}
+        Integration into your stack, rules written for your own sites, and longer engagements on
+        caching and reverse-proxy infrastructure run through{' '}
         <a
           href="https://we-amp.com/consulting/"
           class="text-interactive hover:text-interactive-hover underline"

@@ -84,6 +84,10 @@ test.describe('Support page', () => {
     await expect(section).toContainText('SPDX');
     await expect(section).toContainText('cosign');
     await expect(section).toContainText('SBOM and VEX');
+    await expect(section).toContainText(
+      'Every release from 2.6.0 on carries its SPDX SBOM and VEX',
+    );
+    await expect(page.locator('main')).not.toContainText('can ask us to send the copy');
     await expect(section).not.toContainText('custom build targets');
     // Security fixes reach everyone at once; no private repository is offered.
     await expect(section).toContainText('reach everyone at the same time');

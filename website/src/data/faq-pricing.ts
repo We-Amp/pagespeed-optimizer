@@ -24,7 +24,7 @@ const link = (href: string, text: string) =>
 export const faqPricing: FaqEntry[] = [
   {
     q: 'Is the software really free?',
-    a: `Yes. mod_pagespeed is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers. Support is optional.`,
+    a: `Yes. mod_pagespeed is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers. The rule packs we publish are free too, and the same for everyone: the edge-SEO pack is available now (${link('/packs/', 'rule packs')}), and the packs we have planned will be free when they ship. Support is optional.`,
   },
   {
     q: 'What if I never subscribe?',

@@ -12,7 +12,7 @@ import PageHero from '../../components/PageHero.astro';
 import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 
 const description =
-  'Early access: a planned pack that would keep third-party tags inert at the origin until the consent cookie grants their category. Not shipping yet.';
+  'Planned: a pack that would keep third-party tags inert at the origin until the consent cookie grants their category. Not shipping yet.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -33,7 +33,7 @@ const jsonLd = {
     id="consent-title"
     width="prose"
     class="max-w-3xl"
-    eyebrow="Early access · consent enforcement at the origin"
+    eyebrow="Planned · consent enforcement at the origin"
     title="Does your site leak before consent?"
   >
     <Fragment slot="lede">
@@ -81,20 +81,20 @@ const jsonLd = {
     <p class="readout-plate mt-10 px-4 py-3 text-sm text-text-muted">
       <span class="font-mono text-xs text-interactive">Status</span>
       <br />
-      None of these packs ships today. The interceptor they would run on does. Early access means
-      you hear first when there is a build to try, and your input shapes it.
+      None of these packs ships today. The interceptor they would run on does. Leave your details
+      and we tell you when it ships, free for everyone; your input shapes it.
     </p>
 
     <div class="mt-10 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8">
       <h2 class="text-lg font-semibold text-text-body">Tell us you need this</h2>
       <p class="mt-2 text-sm text-text-muted">
-        Leave an email and, if you like, the site. We email you if there is a build to try.
+        Leave an email and, if you like, the site. We email you when it ships.
       </p>
       <PlatformInterestForm wedge="consent-enforcement" pack="Consent enforcement at the origin" />
     </div>
 
     <p class="mt-8 text-sm text-text-annotation">
-      All early-access directions are on the
+      All planned directions are on the
       <a href="/platform/" class="text-interactive hover:text-interactive-hover underline">
         transform packs page
       </a>
