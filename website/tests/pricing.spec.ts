@@ -16,8 +16,13 @@ test.describe('Pricing page', () => {
 
   test('hero states the model, without the word free in the H1', async ({ page }) => {
     const h1 = page.locator('h1').first();
-    await expect(h1).toHaveText('Run it on any number of servers. Pay us for support.');
+    await expect(h1).toHaveText(
+      'Run it on any number of servers. Pay us for support and expertise.',
+    );
     expect(await h1.innerText()).not.toMatch(/\bfree\b/i);
+    await expect(page.locator('main').first()).toContainText(
+      'Everything you run is free and open, for everyone: the module, the optimizer worker and the rule packs',
+    );
     await expect(page.locator('[data-pricing-terms]')).toHaveText(
       'Prices are per year, billed annually, excl. VAT.',
     );
@@ -120,7 +125,10 @@ test.describe('Pricing page', () => {
     expect(await top('[data-pricing-terms]')).toBeLessThan(cardsTop);
     const summary = page.locator('#tiers [data-pricing-what]');
     await expect(summary).toContainText('What we sell is support:');
-    await expect(summary).toContainText('None of the tiers changes what the software does.');
+    await expect(summary).toContainText(
+      'None of the tiers changes what the software does or adds software of its own.',
+    );
+    await expect(summary).toContainText('The rest of what we sell is expertise');
     expect(await top('#tiers [data-pricing-what]')).toBeGreaterThan(cardsBottom);
   });
 

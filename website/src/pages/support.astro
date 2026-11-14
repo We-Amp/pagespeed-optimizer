@@ -5,7 +5,7 @@
 // /support/ — the commercial product page: what a support subscription buys,
 // the three tiers, signed packages and images (what ships today, with a verify
 // recipe), the hosting partner program, the
-// consulting handoff, the path for existing customers, and the FAQ.
+// consulting and integration handoff, the path for existing customers, and the FAQ.
 //
 // Facts: tiers from SUPPORT_TIERS, the pricing status and commercial address
 // from product-facts.mjs, the signing-key URL from the 2.1 release manifest.
@@ -13,7 +13,7 @@
 // rows; /pricing/ is the buying page. Signed artifacts are described
 // only by what ships today; security fixes reach everyone at the same time
 // (there is no private or subscriber repository), and nothing here claims a
-// per-release SBOM/VEX on release assets or provenance on packages.
+// provenance on packages.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SupportTiers from '../components/SupportTiers.astro';
@@ -118,8 +118,9 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
     title={`Support from the engineers who build ${PRODUCT}`}
   >
     <Fragment slot="lede">
-      The software is {LICENSE_CLAUSE} and does the same thing with or without a subscription. A
-      subscription decides who answers when something breaks.
+      Free and open; you pay us for support and expertise. The software and its rule packs are
+      {LICENSE_CLAUSE} and do the same thing with or without a subscription. A subscription decides
+      who answers when something breaks.
     </Fragment>
     <div class="mt-8 flex flex-wrap gap-3">
       <a
@@ -251,7 +252,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
                 >
                   <code class="text-small">sbom/</code> directory
                 </a>{' '}
-                of the source tree.
+                of the source tree, and each GitHub release carries the SBOM and VEX for that
+                release.
               </span>
             </li>
             <li class="flex gap-2">
@@ -287,9 +289,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
                 severity, the affected versions and the impact class. When a vulnerability is
                 already public or being exploited, the notice goes out with the release. Priority
                 and Enterprise subscribers also get vulnerability notifications timed to the EU
-                Cyber Resilience Act reporting windows. The SBOM and VEX are public in the source
-                tree; Priority and Enterprise subscribers can ask us to send the copy for a given
-                release.
+                Cyber Resilience Act reporting windows. Each GitHub release carries its SPDX SBOM
+                and VEX document, for everyone.
               </span>
             </li>
           </ul>
@@ -367,11 +368,12 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
         </a>
       </div>
       <div id="consulting" class="card flex flex-col">
-        <h2 class="text-xl font-semibold text-text-body">Consulting</h2>
+        <h2 class="text-xl font-semibold text-text-body">Consulting and integration</h2>
         <p class="mt-3 flex-1 text-body text-text-muted">
           When the question is your site rather than the software, We-Amp's consulting practice
           takes over: a fixed-price performance and configuration audit delivered as a written
-          report, and longer engagements on caching and reverse-proxy infrastructure.
+          report, integration into your stack, rules written for your own sites, and longer
+          engagements on caching and reverse-proxy infrastructure.
         </p>
         <a
           href={CONSULTING_URL}

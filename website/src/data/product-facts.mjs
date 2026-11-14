@@ -120,7 +120,6 @@ export const SUPPORT_TIERS = [
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
       'Upgrade rehearsal on request',
       'Quarterly review call',
-      'A copy of the release SBOM and VEX on request (both are public)',
       'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
@@ -141,8 +140,8 @@ export const SUPPORT_TIERS = [
     includes: [
       'Everything in Priority',
       'A named engineer',
-      'Custom build targets (distributions, nginx versions)',
-      'Backports',
+      'Custom build targets (distributions, nginx versions), published for everyone',
+      'Backports, published for everyone',
       'Master agreement, purchase order and invoice',
       'Roadmap input and consulting days',
       'Severity 1 (production down) within 4 business hours; other severities per agreement',
@@ -171,9 +170,8 @@ export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))
 // GitHub release assets carry no signature, only SHA256SUMS), the
 // Authenticode-signed Windows installer, cosign-signed container images with
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
-// OpenVEX file. No surface may claim a per-release SBOM/VEX on the release
-// assets or provenance on packages; release SBOM and VEX are available on
-// request. There is no private or subscriber package repository: security
+// OpenVEX file; each GitHub release also carries its SPDX SBOM and VEX file,
+// for everyone. No surface may claim provenance on packages. There is no private or subscriber package repository: security
 // fixes ship to everyone at once through the public channels.
 // Signing keys. Each entry copies its fields verbatim from the internal
 // signing-key register, the source of truth for keys (id, name, status,
