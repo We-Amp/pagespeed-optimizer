@@ -325,6 +325,12 @@ struct AlternateMetadata {
   static constexpr uint16_t kCCOriginPrivateBare = 1 << 11;
   static constexpr uint16_t kCCOriginNoCacheQualified = 1 << 12;
   static constexpr uint16_t kCCOriginNoCacheBare = 1 << 13;
+  // More than one `s-maxage` directive, in one line or across lines.  The
+  // value kept is the last one; the bit lets a consumer refuse to read the
+  // conflicting set as an explicit statement (the cookie rule in
+  // lib/cache/html_cache_policy.h does: repeated s-maxage is no sharing
+  // mark).  Set alongside kCCOriginSMaxagePresent, never instead of it.
+  static constexpr uint16_t kCCOriginSMaxageRepeated = 1 << 14;
 
   uint8_t version = kCurrentVersion;
   uint32_t full_mask = 0;

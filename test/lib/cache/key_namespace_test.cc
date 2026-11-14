@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 We-Amp B.V.
 
-// Every entry this version stores lives under keys that a version composing
-// keys without the "ks2:" namespace never computes, and the reverse.  One case
+// Every entry this version stores lives under keys that an earlier version
+// never computes, and the reverse: neither the versions that composed keys
+// without a namespace nor those that used the previous "ks2:" namespace.  One case
 // per class of stored entry, in both directions: what this version writes
 // cannot be found under the key an earlier version computes for the same URL,
 // and what was stored under such a key cannot be read by this version.
@@ -36,28 +37,44 @@ constexpr std::string_view kScheme = "https";
 // A fixed-width option context signature (64 hex characters).
 const std::string kSignature(64, 'a');
 
-// The key an earlier version computes: the composed string, no namespace.
-cyclone::CacheKey EarlierKey(std::string_view url) {
-  return cyclone::CacheKey("https://example.com" + std::string(url));
-}
-cyclone::CacheKey EarlierContextKey(std::string_view url) {
-  return cyclone::CacheKey("oc1:" + kSignature + "@https://example.com" +
+// The namespaces earlier versions composed keys in: none at all, and the
+// previous "ks2:".  An entry stored under either is never served.
+constexpr std::string_view kEarlierNamespaces[] = {"", "ks2:"};
+
+// The key an earlier version computes: the composed string in its namespace.
+cyclone::CacheKey EarlierKey(std::string_view url, std::string_view ns) {
+  return cyclone::CacheKey(std::string(ns) + "https://example.com" +
                            std::string(url));
+}
+cyclone::CacheKey EarlierContextKey(std::string_view url, std::string_view ns) {
+  return cyclone::CacheKey(std::string(ns) + "oc1:" + kSignature +
+                           "@https://example.com" + std::string(url));
 }
 // A site (64 lowercase hex characters) and the key a version composing
 // site-scoped keys without the namespace computes for it.
 const std::string kSite(64, 'c');
-cyclone::CacheKey EarlierSiteKey(std::string_view url) {
-  return cyclone::CacheKey("st1:" + kSite + "@https://example.com" +
-                           std::string(url));
+cyclone::CacheKey EarlierSiteKey(std::string_view url, std::string_view ns) {
+  return cyclone::CacheKey(std::string(ns) + "st1:" + kSite +
+                           "@https://example.com" + std::string(url));
 }
 
 std::vector<std::byte> Copy(std::span<const std::byte> bytes) {
   return std::vector<std::byte>(bytes.begin(), bytes.end());
 }
 
-class KeyNamespaceTest : public ::testing::Test {
+class KeyNamespaceTest : public ::testing::TestWithParam<std::string_view> {
  protected:
+  // The earlier key forms, in the namespace under test.
+  static cyclone::CacheKey EarlierKey(std::string_view url) {
+    return pagespeed::EarlierKey(url, GetParam());
+  }
+  static cyclone::CacheKey EarlierContextKey(std::string_view url) {
+    return pagespeed::EarlierContextKey(url, GetParam());
+  }
+  static cyclone::CacheKey EarlierSiteKey(std::string_view url) {
+    return pagespeed::EarlierSiteKey(url, GetParam());
+  }
+
   void SetUp() override {
     temp_dir_ = pagespeed::test::MakeTempDir();
     PageSpeedCacheConfig config;
@@ -118,24 +135,27 @@ AlternateMetadata ContentMetadata() {
 
 TEST(KeyNamespaceKeyTest, KeysCarryTheNamespace) {
   EXPECT_EQ(PageSpeedCache::ComposeKeyPreNormalized("/a", kHost, kScheme),
-            cyclone::CacheKey("ks2:https://example.com/a"));
+            cyclone::CacheKey("ks3:https://example.com/a"));
   EXPECT_EQ(
       PageSpeedCache::ComposeKeyPreNormalized("/a", kHost, kScheme, kSignature),
-      cyclone::CacheKey("ks2:oc1:" + kSignature + "@https://example.com/a"));
-  EXPECT_NE(PageSpeedCache::ComposeKeyPreNormalized("/a", kHost, kScheme),
-            EarlierKey("/a"));
-  EXPECT_NE(
-      PageSpeedCache::ComposeKeyPreNormalized("/a", kHost, kScheme, kSignature),
-      EarlierContextKey("/a"));
+      cyclone::CacheKey("ks3:oc1:" + kSignature + "@https://example.com/a"));
   EXPECT_EQ(PageSpeedCache::ComposeSiteKeyPreNormalized("/a", kHost, kScheme,
                                                         "", kSite),
-            cyclone::CacheKey("ks2:st1:" + kSite + "@https://example.com/a"));
-  EXPECT_NE(PageSpeedCache::ComposeSiteKeyPreNormalized("/a", kHost, kScheme,
-                                                        "", kSite),
-            EarlierSiteKey("/a"));
+            cyclone::CacheKey("ks3:st1:" + kSite + "@https://example.com/a"));
+  for (std::string_view ns : kEarlierNamespaces) {
+    SCOPED_TRACE(std::string(ns));
+    EXPECT_NE(PageSpeedCache::ComposeKeyPreNormalized("/a", kHost, kScheme),
+              EarlierKey("/a", ns));
+    EXPECT_NE(PageSpeedCache::ComposeKeyPreNormalized("/a", kHost, kScheme,
+                                                      kSignature),
+              EarlierContextKey("/a", ns));
+    EXPECT_NE(PageSpeedCache::ComposeSiteKeyPreNormalized("/a", kHost, kScheme,
+                                                          "", kSite),
+              EarlierSiteKey("/a", ns));
+  }
 }
 
-TEST_F(KeyNamespaceTest, ContentEntriesAreInTheirOwnKeyspace) {
+TEST_P(KeyNamespaceTest, ContentEntriesAreInTheirOwnKeyspace) {
   WriteThrough(cache_->WriteAlternate("/a", kHost, kScheme, DefaultId(), 4,
                                       ContentMetadata()),
                "body");
@@ -152,7 +172,7 @@ TEST_F(KeyNamespaceTest, ContentEntriesAreInTheirOwnKeyspace) {
                    .has_value());
 }
 
-TEST_F(KeyNamespaceTest, SitedEntriesAreInTheirOwnKeyspace) {
+TEST_P(KeyNamespaceTest, SitedEntriesAreInTheirOwnKeyspace) {
   WriteThrough(cache_->WriteAlternate("/a", kHost, kScheme, DefaultId(), 4,
                                       ContentMetadata(), kSite),
                "body");
@@ -171,7 +191,7 @@ TEST_F(KeyNamespaceTest, SitedEntriesAreInTheirOwnKeyspace) {
                    .has_value());
 }
 
-TEST_F(KeyNamespaceTest, OptionContextEntriesAreInTheirOwnKeyspace) {
+TEST_P(KeyNamespaceTest, OptionContextEntriesAreInTheirOwnKeyspace) {
   const auto key =
       PageSpeedCache::ComposeKeyPreNormalized("/a", kHost, kScheme, kSignature);
   WriteThrough(
@@ -191,7 +211,7 @@ TEST_F(KeyNamespaceTest, OptionContextEntriesAreInTheirOwnKeyspace) {
                    .has_value());
 }
 
-TEST_F(KeyNamespaceTest, SentinelsAreInTheirOwnKeyspace) {
+TEST_P(KeyNamespaceTest, SentinelsAreInTheirOwnKeyspace) {
   // Every class stored through WriteSentinel, none with a metadata prefix:
   // Early Hints, the content hash, the subresource manifest, browser
   // profiles, llms.txt and its freshness record, and decline tombstones.
@@ -217,7 +237,7 @@ TEST_F(KeyNamespaceTest, SentinelsAreInTheirOwnKeyspace) {
   }
 }
 
-TEST_F(KeyNamespaceTest, AgentMarkdownIsInItsOwnKeyspace) {
+TEST_P(KeyNamespaceTest, AgentMarkdownIsInItsOwnKeyspace) {
   AlternateMetadata meta;
   meta.full_mask = static_cast<uint32_t>(SentinelId::kAgentMarkdown);
   meta.content_type = ContentType::kOther;
@@ -236,7 +256,7 @@ TEST_F(KeyNamespaceTest, AgentMarkdownIsInItsOwnKeyspace) {
   EXPECT_FALSE(cache_->ReadAlternate("/b", kHost, kScheme, id).has_value());
 }
 
-TEST_F(KeyNamespaceTest, DurableOriginalsAreInTheirOwnKeyspace) {
+TEST_P(KeyNamespaceTest, DurableOriginalsAreInTheirOwnKeyspace) {
   AlternateMetadata meta;
   meta.full_mask = static_cast<uint32_t>(SentinelId::kOriginalContent);
   meta.content_type = ContentType::kImage;
@@ -255,7 +275,7 @@ TEST_F(KeyNamespaceTest, DurableOriginalsAreInTheirOwnKeyspace) {
   EXPECT_FALSE(cache_->ReadOriginalAlternate("/b", kHost, kScheme).has_value());
 }
 
-TEST_F(KeyNamespaceTest, HeadersSidecarsAreInTheirOwnKeyspace) {
+TEST_P(KeyNamespaceTest, HeadersSidecarsAreInTheirOwnKeyspace) {
   const std::vector<HeaderField> headers = {
       {"X-Content-Type-Options", "nosniff"}};
   auto written = cache_->WriteHeadersSidecar("/a", kHost, kScheme, headers);
@@ -272,6 +292,13 @@ TEST_F(KeyNamespaceTest, HeadersSidecarsAreInTheirOwnKeyspace) {
                static_cast<AlternateId>(SentinelId::kHeadersSidecar), blob));
   EXPECT_FALSE(cache_->ReadHeadersSidecar("/b", kHost, kScheme).has_value());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    EarlierNamespaces, KeyNamespaceTest,
+    ::testing::ValuesIn(kEarlierNamespaces),
+    [](const ::testing::TestParamInfo<std::string_view>& info) {
+      return info.param.empty() ? std::string("none") : std::string("ks2");
+    });
 
 }  // namespace
 }  // namespace pagespeed

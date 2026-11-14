@@ -3,6 +3,7 @@
 
 #include "src/nginx/revalidation_storability.h"
 
+#include "lib/cache/html_cache_policy.h"
 #include "lib/classify/alternate_metadata.h"
 #include "src/nginx/authz_cache_gate.h"
 
@@ -55,6 +56,17 @@ RestampVerdict EvaluateRestampStorability(
   // lawfully stored for anonymous traffic.
   if (!AuthzCacheGateAllows(inputs.request_has_authorization,
                             inputs.refreshed_cc_flags)) {
+    return RestampVerdict::kSkipRestamp;
+  }
+  // The same reasoning for a cookie-bearing exchange: it may extend the
+  // entry's life only while the refreshed headers still satisfy the cookie
+  // rule for the entry's class (cookie_cache_gate.h).
+  if (!CookieRequestMayStore(inputs.request_has_cookie, inputs.entry_class,
+                             HtmlExplicitlyShared(inputs.refreshed_cc_flags,
+                                                  inputs.refreshed_s_maxage),
+                             OriginStatesLifetime(inputs.refreshed_cc_flags,
+                                                  inputs.refreshed_max_age,
+                                                  inputs.refreshed_s_maxage))) {
     return RestampVerdict::kSkipRestamp;
   }
   // A 304 that sets a cookie marks the exchange as personalized; it must

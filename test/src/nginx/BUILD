@@ -28,6 +28,16 @@ gtest_test(
 )
 
 gtest_test(
+    name = "cookie_cache_gate_test",
+    deps = [
+        "//lib/cache:html_cache_policy",
+        "//lib/classify:alternate_metadata",
+        "//lib/classify:content_type",
+        "//src/nginx:cookie_cache_gate",
+    ],
+)
+
+gtest_test(
     name = "agent_self_fetch_test",
     deps = [
         "//lib/net:curl_fetcher",
@@ -51,6 +61,7 @@ gtest_test(
 gtest_test(
     name = "revalidation_storability_test",
     deps = [
+        "//lib/cache:html_cache_policy",
         "//lib/classify:alternate_metadata",
         "//src/nginx:revalidation_storability",
     ],

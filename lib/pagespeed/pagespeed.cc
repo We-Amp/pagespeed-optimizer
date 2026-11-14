@@ -1814,6 +1814,8 @@ static_assert(PS_CC_ORIGIN_NO_CACHE_QUALIFIED ==
               AlternateMetadata::kCCOriginNoCacheQualified);
 static_assert(PS_CC_ORIGIN_NO_CACHE_BARE ==
               AlternateMetadata::kCCOriginNoCacheBare);
+static_assert(PS_CC_ORIGIN_S_MAXAGE_REPEATED ==
+              AlternateMetadata::kCCOriginSMaxageRepeated);
 static_assert(PS_FLAG_NEEDS_REVALIDATION ==
               AlternateMetadata::kFlagNeedsRevalidation);
 static_assert(PS_FLAG_WORKER_PROCESSED ==

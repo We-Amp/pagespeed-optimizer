@@ -408,13 +408,17 @@ class PageSpeedCache {
 
   // The key namespace: the first bytes of every key this version composes.
   // Moving it makes every stored entry unreachable to every other version at
-  // once, at the cost of a cold cache for every component.
-  static constexpr std::string_view kKeyNamespace = "ks2:";
+  // once, at the cost of a cold cache for every component.  It moved from
+  // "ks2:" to "ks3:" when responses to cookie-bearing requests stopped being
+  // shared without an explicit mark from the origin
+  // (lib/cache/html_cache_policy.h, THE COOKIE RULE), so that no entry stored
+  // under the earlier rule is ever served.
+  static constexpr std::string_view kKeyNamespace = "ks3:";
 
   // Compose a CacheKey from URL, pre-normalized hostname, and scheme.
   //
-  // Every key is "ks2:" followed by the composed string ("scheme://host/url",
-  // or the "oc1:" form below).  "ks2:" is the key namespace: keys composed
+  // Every key is "ks3:" followed by the composed string ("scheme://host/url",
+  // or the "oc1:" form below).  "ks3:" is the key namespace: keys composed
   // without it, as every earlier version did, never equal one composed with
   // it, so an earlier version cannot reach an entry this one stores and this
   // one cannot reach an earlier version's.  A test pins the exact strings.
@@ -455,7 +459,7 @@ class PageSpeedCache {
   // pins that equality rather than leaving it to inspection.
   //
   // Injectivity, since the two forms share one hash input space. Both carry
-  // the same "ks2:" namespace prefix, so they are compared after it. A
+  // the same "ks3:" namespace prefix, so they are compared after it. A
   // default-context key is then the composed string "scheme://host/url",
   // whose scheme the caller has already validated as exactly "http" or
   // "https"; a context key always continues "oc1:". No validated scheme is a
@@ -484,11 +488,11 @@ class PageSpeedCache {
   // block's cache fragment); the caller has validated it. EMPTY IS THE OLD
   // KEY: the result is exactly the four-argument overload's, so an unsited
   // caller moves nothing. A non-empty site gives
-  // "ks2:" + "st1:" + site + "@" + the string the four-argument overload
-  // composes after "ks2:", its "oc1:" form included.
+  // "ks3:" + "st1:" + site + "@" + the string the four-argument overload
+  // composes after "ks3:", its "oc1:" form included.
   //
   // Injectivity, alongside the "oc1:" argument above: the site is fixed width
-  // and followed by "@", so its boundary is unambiguous, and after the "ks2:"
+  // and followed by "@", so its boundary is unambiguous, and after the "ks3:"
   // namespace the three shapes differ at their first byte — "s" for a sited
   // key, "h" for a validated scheme ("http"/"https"), "o" for "oc1:". No url
   // or hostname can move a key from one shape to another. The hostname inside stays the origin's, for fetches

@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "lib/cache/origin_cache_control.h"
 #include "lib/classify/alternate_metadata.h"
 
 namespace pagespeed {
@@ -1791,8 +1792,10 @@ TEST(HtmlCachePolicyTest, ShortBodyPrefixIsRefusedNotStored) {
 }
 
 TEST(HtmlCachePolicyTest, MalformedSMaxageIsNotAShareableAssertion) {
-  for (std::string_view line : {"s-maxage=abc", "s-maxage",
-                                "s-maxage=", "s-maxage=-1", "s-maxage=1x"}) {
+  for (std::string_view line :
+       {"s-maxage=abc", "s-maxage", "s-maxage=", "s-maxage=-1", "s-maxage=1x",
+        "s-maxage=0", "S-MaxAge = 0", "s-maxage=60, s-maxage=60",
+        "s-maxage=0, s-maxage=86400"}) {
     StoreInput in;
     in.Add("ETag", "\"a\"");
     in.SetCacheControl(line);
@@ -1801,7 +1804,7 @@ TEST(HtmlCachePolicyTest, MalformedSMaxageIsNotAShareableAssertion) {
     in.request.has_cookie = true;
     ExpectRefused(in, HtmlStoreReason::kCookieRequest);
   }
-  for (std::string_view line : {"s-maxage=60", "S-MaxAge = 0"}) {
+  for (std::string_view line : {"s-maxage=60", "S-MaxAge = 60"}) {
     StoreInput in;
     in.Add("ETag", "\"a\"");
     in.SetCacheControl(line);
@@ -1957,6 +1960,104 @@ TEST(HtmlCachePolicyTest, ServeVerdictIsPure) {
   EXPECT_EQ(f.age_at_store, f_before.age_at_store);
   EXPECT_EQ(f.lifetime_s, f_before.lifetime_s);
   EXPECT_EQ(f.render_ttl_s, f_before.render_ttl_s);
+}
+
+TEST(HtmlCachePolicyTest, CookieRulePredicate) {
+  EXPECT_TRUE(HtmlCookieRequestMayShare(false, false));
+  EXPECT_TRUE(HtmlCookieRequestMayShare(false, true));
+  EXPECT_TRUE(HtmlCookieRequestMayShare(true, true));
+  EXPECT_FALSE(HtmlCookieRequestMayShare(true, false));
+}
+
+TEST(HtmlCachePolicyTest, ExplicitlySharedNeedsPublicOrAPositiveSMaxage) {
+  constexpr uint16_t kCc = Meta::kCCOriginHeaderPresent;
+  EXPECT_FALSE(HtmlExplicitlyShared(0, 0));
+  EXPECT_FALSE(HtmlExplicitlyShared(kCc, 0));
+  EXPECT_FALSE(HtmlExplicitlyShared(kCc | Meta::kCCOriginMustRevalidate, 0));
+  EXPECT_TRUE(HtmlExplicitlyShared(kCc | Meta::kCCOriginPublic, 0));
+  EXPECT_TRUE(HtmlExplicitlyShared(kCc | Meta::kCCOriginSMaxagePresent, 60));
+  // s-maxage=0, or a malformed value (which parses to 0), is not a mark.
+  EXPECT_FALSE(HtmlExplicitlyShared(kCc | Meta::kCCOriginSMaxagePresent, 0));
+  // A value without the directive cannot occur; it is not a mark either.
+  EXPECT_FALSE(HtmlExplicitlyShared(kCc, 60));
+  // A repeated s-maxage is no mark, whatever the kept value; public still is.
+  constexpr uint16_t kRepeated =
+      kCc | Meta::kCCOriginSMaxagePresent | Meta::kCCOriginSMaxageRepeated;
+  EXPECT_FALSE(HtmlExplicitlyShared(kRepeated, 60));
+  EXPECT_TRUE(HtmlExplicitlyShared(kRepeated | Meta::kCCOriginPublic, 60));
+}
+
+TEST(HtmlCachePolicyTest, OriginStatesLifetime) {
+  constexpr uint16_t kCc = Meta::kCCOriginHeaderPresent;
+  EXPECT_FALSE(OriginStatesLifetime(0, 0, 0));
+  EXPECT_FALSE(OriginStatesLifetime(0, 600, 0));  // no header: a default
+  EXPECT_FALSE(OriginStatesLifetime(kCc, 0, 0));
+  EXPECT_FALSE(OriginStatesLifetime(kCc | Meta::kCCOriginSMaxagePresent, 0, 0));
+  EXPECT_TRUE(OriginStatesLifetime(kCc, 600, 0));
+  EXPECT_TRUE(
+      OriginStatesLifetime(kCc | Meta::kCCOriginSMaxagePresent, 0, 600));
+}
+
+TEST(HtmlCachePolicyTest, CookieShareClassForContentType) {
+  using C = CookieShareClass;
+  for (std::string_view ct :
+       {"text/css", "TEXT/CSS", "text/css; charset=utf-8",
+        "application/javascript", "Application/JavaScript;charset=UTF-8",
+        "text/javascript", "application/x-javascript", "image/png",
+        "IMAGE/WebP", " image/svg+xml ; q=1"}) {
+    EXPECT_EQ(C::kStaticAsset, CookieShareClassForContentType(ct)) << ct;
+  }
+  for (std::string_view ct :
+       {"", "text/html", "Text/HTML", "text/html; charset=utf-8",
+        "application/xhtml+xml", "application/json", "text/plain",
+        "text/markdown", "application/octet-stream", "image/", "image",
+        "text/css-not", "font/woff2", "garbage"}) {
+    EXPECT_EQ(C::kPage, CookieShareClassForContentType(ct)) << ct;
+  }
+}
+
+TEST(HtmlCachePolicyTest, CookieRequestMayStoreByClass) {
+  using C = CookieShareClass;
+  // Without a cookie nothing changes.
+  EXPECT_TRUE(CookieRequestMayStore(false, C::kPage, false, false));
+  EXPECT_TRUE(CookieRequestMayStore(false, C::kStaticAsset, false, false));
+  // A page needs the sharing mark; a stated lifetime is not enough.
+  EXPECT_FALSE(CookieRequestMayStore(true, C::kPage, false, true));
+  EXPECT_TRUE(CookieRequestMayStore(true, C::kPage, true, false));
+  // A static asset needs a stated lifetime; no class default applies.
+  EXPECT_FALSE(CookieRequestMayStore(true, C::kStaticAsset, false, false));
+  EXPECT_FALSE(CookieRequestMayStore(true, C::kStaticAsset, true, false));
+  EXPECT_TRUE(CookieRequestMayStore(true, C::kStaticAsset, false, true));
+}
+
+TEST(HtmlCachePolicyTest, CookieRequestMayServeByClass) {
+  using C = CookieShareClass;
+  EXPECT_TRUE(CookieRequestMayServe(false, C::kPage, false));
+  EXPECT_FALSE(CookieRequestMayServe(true, C::kPage, false));
+  EXPECT_TRUE(CookieRequestMayServe(true, C::kPage, true));
+  EXPECT_TRUE(CookieRequestMayServe(true, C::kStaticAsset, false));
+}
+
+TEST(HtmlCachePolicyTest, StoredFieldsAgreeWithTheStoreVerdict) {
+  // The policy's own explicit_shared is HtmlExplicitlyShared over the parsed
+  // Cache-Control, so a front end holding only the stored flags and s-maxage
+  // answers the cookie rule exactly as the policy does.
+  for (const char* line :
+       {"max-age=60", "public, max-age=60", "max-age=60, s-maxage=120",
+        "s-maxage=0", "s-maxage=abc", "s-maxage=60, s-maxage=60",
+        "public, s-maxage=60, s-maxage=60", "max-age=60, must-revalidate",
+        "no-cache", "public"}) {
+    StoreInput in;
+    in.headers = {{"Content-Type", "text/html; charset=utf-8"},
+                  {"Cache-Control", line},
+                  {"ETag", "\"a\""}};
+    const HtmlStoreVerdict v = in.Run();
+    ASSERT_TRUE(v.cc_evaluated) << line;
+    OriginCacheControl cc;
+    AccumulateOriginCacheControl(line, &cc);
+    EXPECT_EQ(v.explicit_shared, HtmlExplicitlyShared(cc.cc_flags, cc.s_maxage))
+        << line;
+  }
 }
 
 }  // namespace

@@ -33,6 +33,7 @@
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
 #include "lib/cache/cache.h"
+#include "lib/cache/origin_cache_control.h"
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
@@ -59,6 +60,12 @@ ABSL_FLAG(std::string, origin_etag, "",
           "Origin ETag stored verbatim (v5, e.g. '\"abc\"')");
 ABSL_FLAG(uint32_t, origin_last_modified, 0,
           "Origin Last-Modified as unix timestamp (v5, 0 = absent)");
+ABSL_FLAG(std::string, origin_cc, "",
+          "Origin Cache-Control value stored with the entry (e.g. "
+          "'public, max-age=600'); empty = no Cache-Control");
+ABSL_FLAG(std::string, content_hex, "",
+          "Content as hex bytes (overrides --content; e.g. a 32-byte "
+          "content-hash sentinel)");
 ABSL_FLAG(std::string, remove_alternate, "",
           "Alternate id as hex (e.g. 0x6c): remove that one alternate of "
           "--url from an EXISTING volume and exit.  The volume is opened at "
@@ -133,6 +140,27 @@ int main(int argc, char* argv[]) {
     }
     content.assign(std::istreambuf_iterator<char>(ifs),
                    std::istreambuf_iterator<char>());
+  } else if (!absl::GetFlag(FLAGS_content_hex).empty()) {
+    const std::string hex = absl::GetFlag(FLAGS_content_hex);
+    auto nib = [](char c) -> int {
+      if (c >= '0' && c <= '9') return c - '0';
+      if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+      if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+      return -1;
+    };
+    if (hex.size() % 2 != 0) {
+      std::cerr << "Error: --content_hex needs an even number of digits\n";
+      return 1;
+    }
+    for (size_t i = 0; i < hex.size(); i += 2) {
+      const int hi = nib(hex[i]);
+      const int lo = nib(hex[i + 1]);
+      if (hi < 0 || lo < 0) {
+        std::cerr << "Error: --content_hex contains a non-hex char\n";
+        return 1;
+      }
+      content.push_back(static_cast<char>((hi << 4) | lo));
+    }
   } else {
     content = absl::GetFlag(FLAGS_content);
   }
@@ -215,6 +243,14 @@ int main(int argc, char* argv[]) {
   meta.cache_inserted_at = static_cast<uint32_t>(std::time(nullptr));
   meta.origin_etag = absl::GetFlag(FLAGS_origin_etag);
   meta.origin_last_modified = absl::GetFlag(FLAGS_origin_last_modified);
+  const std::string origin_cc = absl::GetFlag(FLAGS_origin_cc);
+  if (!origin_cc.empty()) {
+    pagespeed::OriginCacheControl cc;
+    pagespeed::AccumulateOriginCacheControl(origin_cc, &cc);
+    meta.origin_cc_flags = cc.cc_flags;
+    meta.origin_max_age = cc.max_age;
+    meta.origin_s_maxage = cc.s_maxage;
+  }
 
   // Optional v7 content-identity stamp (64 hex chars = 32 bytes).
   const std::string hash_hex = absl::GetFlag(FLAGS_origin_html_hash);
@@ -243,8 +279,15 @@ int main(int argc, char* argv[]) {
   }
 
   // Write alternate.  A sentinel id (e.g. 0x1C, Early Hints) is stored with
-  // WriteSentinel: no metadata prefix, and WriteAlternate refuses it.
-  auto wh = pagespeed::IsSentinel(id)
+  // WriteSentinel: no metadata prefix, and WriteAlternate refuses it.  The
+  // agent Markdown copy (0x7C) is a sentinel with a metadata prefix and has
+  // its own writer.
+  const bool agent_markdown = id == static_cast<pagespeed::AlternateId>(
+                                        pagespeed::SentinelId::kAgentMarkdown);
+  auto wh = agent_markdown ? cache->WriteAgentAlternate(
+                                 url, host, absl::GetFlag(FLAGS_scheme),
+                                 content.size(), meta)
+            : pagespeed::IsSentinel(id)
                 ? cache->WriteSentinel(url, host, absl::GetFlag(FLAGS_scheme),
                                        static_cast<pagespeed::SentinelId>(id),
                                        content.size())

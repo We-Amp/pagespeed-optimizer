@@ -47,8 +47,11 @@
 //                  exchange may not extend its life: the requester carried
 //                  Authorization and the refreshed Cache-Control no longer
 //                  carries a §3.5 permit (public / must-revalidate /
-//                  s-maxage), or the 304 carried Set-Cookie, which marks
-//                  the exchange as personalized.  Deliberately NOT kEvict:
+//                  s-maxage), the requester carried a Cookie header and the
+//                  refreshed headers no longer satisfy the cookie rule for
+//                  the entry (cookie_cache_gate.h), or the 304 carried
+//                  Set-Cookie, which marks the exchange as personalized.
+//                  Deliberately NOT kEvict:
 //                  §3.5 restricts storing the response to the AUTHENTICATED
 //                  request, not the anonymous entry that was already
 //                  lawfully stored — and evicting on an inbound header
@@ -81,6 +84,7 @@
 #include <string_view>
 
 #include "lib/cache/cache.h"
+#include "lib/cache/html_cache_policy.h"
 #include "lib/classify/alternate_id.h"
 
 namespace pagespeed {
@@ -104,6 +108,18 @@ struct RestampStorabilityInputs {
   // header presence.
   bool request_has_authorization = false;
 
+  // The parsed lifetimes AFTER the merge (s-maxage, max-age), for the
+  // cookie rule below.
+  uint32_t refreshed_s_maxage = 0;
+  uint32_t refreshed_max_age = 0;
+  // The request that triggered the revalidation carried a Cookie header.  Such
+  // an exchange may extend the entry's life only while the refreshed headers
+  // still satisfy the cookie rule for the entry's class
+  // (cookie_cache_gate.h): a page must stay marked public or s-maxage above
+  // zero, a static asset must keep a stated lifetime.  Otherwise
+  // kSkipRestamp, for the reasons given for the Authorization case above.
+  bool request_has_cookie = false;
+  CookieShareClass entry_class = CookieShareClass::kPage;
   // The 304 itself carried Set-Cookie.
   bool response_has_set_cookie = false;
 };

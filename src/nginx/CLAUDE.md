@@ -90,6 +90,23 @@ decodes `meta.full_mask` to extract `TransferEncoding` and sets
 `r->headers_out.content_encoding` to prevent nginx's built-in gzip and brotli
 filters from double-compressing the already-compressed content.
 
+**Cookie-bearing requests**: a request carrying `Cookie` or `Cookie2` (any
+value, empty included) is handled by response class (`cookie_cache_gate.h`,
+which calls the HTML cache policy's exported `CookieRequestMayStore` /
+`CookieRequestMayServe`). A page — any type that is not css, JavaScript or an
+image (`CookieShareClassForContentType`: case-insensitive, parameters
+ignored, unknown = page) — is recorded, and served from the cache, only when
+the origin Cache-Control carries `public` or an `s-maxage` above zero. A
+static asset is recorded only with an origin-stated lifetime (max-age,
+s-maxage, or Expires when no Cache-Control line was sent); stored assets are
+served as before. The Markdown copy and the Early Hints set on a miss are
+judged by the recorded page (the default-mask entry; none recorded = fail
+closed); `/llms.txt` is never served to a cookie-bearing request. The 304
+restamp declines to extend an entry once the rule is no longer met.
+Independent of the Authorization gate below; a request carrying both passes
+both. Entries stored before this rule are unreachable: the key namespace
+moved to `ks3:` (`PageSpeedCache::kKeyNamespace`).
+
 **Authorization (RFC 9111 §3.5)**: Authorization-bearing requests are served
 from cache only when the stored entry's origin Cache-Control carries a §3.5
 permit (`public`, `must-revalidate`, or `s-maxage`) — else treated as MISS.
