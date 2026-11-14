@@ -654,10 +654,12 @@ jobs:
             if grep -qE '^(src/nginx/etag_util\.|src/nginx/ngx_pagespeed_module\.cc$|src/nginx/header_key_util\.|src/worker/worker\.cc$|src/worker/api_handlers\.|src/worker/http_server\.|src/worker/worker\.h$|src/nginx/headers_sidecar_replay\.h$|src/nginx/revalidation_storability\.h$|lib/cache/headers_sidecar\.|lib/classify/alternate_metadata\.|tools/e2e/Dockerfile\.prebuilt$|tools/common/|tools/production-tests/)' "${changed}"; then
               etag=true
             fi
-            # The Test::Nginx suite (t/): the nginx module, the cache and
-            # classification code it links, the suite, its runner script,
-            # the image it runs in and this workflow.
-            if grep -qE '^(src/nginx/|lib/cache/|lib/classify/|t/|tools/docker-test-nginx\.sh$|docker/Dockerfile$|docker/nginx-version\.txt$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
+            # The Test::Nginx suite (t/): the nginx module and its direct
+            # dependencies (cache, classification, base, protos, the
+            # webbotauth code, the worker headers it shares), the seed tool,
+            # the suite, its runner script, the image it runs in and this
+            # workflow.
+            if grep -qE '^(src/nginx/|lib/cache/|lib/classify/|lib/base/|src/proto/|src/crypto/webbotauth/|src/worker/shared_config\.|src/worker/serve_stats\.|src/worker/async_css_loader\.|tools/seed-test-cache\.cc$|t/|tools/docker-test-nginx\.sh$|docker/Dockerfile$|docker/nginx-version\.txt$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
               tnginx=true
             fi
             # The website gate (website.yml, the `website` job below): the
@@ -1614,8 +1616,9 @@ jobs:
   # bundle (module, seed tool, sign tool) and builds nothing: the script runs
   # in its prebuilt mode inside the dev image, whose nginx is the one the
   # module was built against. Skipped, not failed, when none of the paths of
-  # the `tnginx` output changed (src/nginx/, lib/cache/, lib/classify/, t/,
-  # the script, the dev image and this file), and skipped on a push to main,
+  # the `tnginx` output changed (src/nginx/ and its direct dependencies, the
+  # seed tool, t/, the script, the dev image and this file; see the `diff`
+  # step of `changes`), and skipped on a push to main,
   # where the diff is not computed; a dispatch runs it. The nightly runs the
   # same suite on every night's build.
   test-nginx:
@@ -1664,6 +1667,9 @@ jobs:
       # /tmp, so runner slots on one host do not collide. prove runs without
       # -v: one line per test file, diagnostics only for a failure.
       - name: Run the Test::Nginx suite
+        # shell: bash runs the step with -eo pipefail, so the docker exit
+        # code survives the pipe into tee (the default shell has no pipefail).
+        shell: bash
         run: |
           # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
           source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"

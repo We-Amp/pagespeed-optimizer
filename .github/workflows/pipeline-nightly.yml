@@ -1970,6 +1970,9 @@ jobs:
       # /tmp, so runner slots on one host do not collide. prove runs without
       # -v: one line per test file, diagnostics only for a failure.
       - name: Run the Test::Nginx suite
+        # shell: bash runs the step with -eo pipefail, so the docker exit
+        # code survives the pipe into tee (the default shell has no pipefail).
+        shell: bash
         run: |
           # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
           source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"

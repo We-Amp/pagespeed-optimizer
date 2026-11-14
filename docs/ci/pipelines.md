@@ -779,9 +779,13 @@ named for the run and attempt, so two runs on one host never share images,
 containers or the volume.
 
 The Test::Nginx job runs when a pull request or a merge group changes
-anything under `src/nginx/`, `lib/cache/`, `lib/classify/` or `t/`,
-`tools/docker-test-nginx.sh`, `docker/Dockerfile`, `docker/nginx-version.txt`
-or `pipeline-pr.yml`, and on a `workflow_dispatch`. It builds nothing: it
+anything under `src/nginx/`, `lib/cache/`, `lib/classify/`, `lib/base/`,
+`src/proto/`, `src/crypto/webbotauth/` or `t/`, `src/worker/shared_config.*`,
+`src/worker/serve_stats.*`, `src/worker/async_css_loader.*`,
+`tools/seed-test-cache.cc`, `tools/docker-test-nginx.sh`, `docker/Dockerfile`,
+`docker/nginx-version.txt` or `pipeline-pr.yml`, and on a
+`workflow_dispatch`. The run step uses `shell: bash` (`-eo pipefail`) so a
+failing suite is not hidden by the pipe into `tee`. It builds nothing: it
 downloads the Linux Build bundle (module, `seed_test_cache`,
 `webbotauth_sign_tool`) and runs `tools/docker-test-nginx.sh` in its prebuilt
 mode (`PREBUILT_DIR`) inside the dev image, whose nginx is the version the
