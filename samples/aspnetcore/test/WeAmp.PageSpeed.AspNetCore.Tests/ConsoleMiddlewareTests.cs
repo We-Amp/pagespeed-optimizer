@@ -158,7 +158,7 @@ public class ConsoleMiddlewareTests : IAsyncLifetime
         public IDisposable? OnChange(Action<T, string?> listener) => null;
     }
 
-    [Fact]
+    [RealWebShellFact]
     public async Task ConsoleRoot_ServesIndexHtml()
     {
         var (host, client, _) = await BuildAppAsync();
@@ -180,7 +180,7 @@ public class ConsoleMiddlewareTests : IAsyncLifetime
         }
     }
 
-    [Fact]
+    [RealWebShellFact]
     public async Task ConsoleDeepLink_ReturnsIndexHtml_SpaFallback()
     {
         var (host, client, _) = await BuildAppAsync();
@@ -200,7 +200,7 @@ public class ConsoleMiddlewareTests : IAsyncLifetime
         }
     }
 
-    [Fact]
+    [RealWebShellFact(NeedsImmutableAssets = true)]
     public async Task ConsoleImmutableAsset_ServesWithLongMaxAge()
     {
         var (host, client, _) = await BuildAppAsync();
@@ -427,5 +427,41 @@ public class ConsoleMiddlewareTests : IAsyncLifetime
             await host.StopAsync();
             host.Dispose();
         }
+    }
+}
+
+/// <summary>
+/// A fact for a console test that needs the real SvelteKit web-shell build
+/// embedded in the assembly. Skipped when the embedded <c>index.html</c> is
+/// a stub (no script tag, or with <see cref="NeedsImmutableAssets"/> no
+/// <c>/_app/immutable/</c> reference).
+/// </summary>
+public sealed class RealWebShellFactAttribute : FactAttribute
+{
+    public bool NeedsImmutableAssets
+    {
+        get => _needsImmutable;
+        set { _needsImmutable = value; Evaluate(); }
+    }
+    private bool _needsImmutable;
+
+    public RealWebShellFactAttribute() { Evaluate(); }
+
+    private void Evaluate()
+    {
+        Skip = null;
+        var asm = typeof(ConsoleMiddleware).Assembly;
+        var name = asm.GetManifestResourceNames()
+            .FirstOrDefault(n => n.EndsWith("index.html", StringComparison.Ordinal));
+        string html = "";
+        if (name != null)
+        {
+            using var s = asm.GetManifestResourceStream(name);
+            if (s != null) { using var r = new StreamReader(s); html = r.ReadToEnd(); }
+        }
+        if (!html.Contains("<script", StringComparison.OrdinalIgnoreCase))
+            Skip = "The embedded web-shell is a stub (no real build); build it with pnpm to run this test.";
+        else if (_needsImmutable && !html.Contains("/_app/immutable/", StringComparison.Ordinal))
+            Skip = "The embedded web-shell has no /_app/immutable/ assets; build it with pnpm to run this test.";
     }
 }
