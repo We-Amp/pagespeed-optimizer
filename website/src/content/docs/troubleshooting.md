@@ -668,7 +668,7 @@ curl -s -o /dev/null -w '%{time_total}s\n' 'https://example.com/css/site.css.pag
 
 If those responses take seconds during that window and are fast afterwards, and other optimized resources are not affected, this is the cause. The URL to test is the `.pagespeed.ce.` one in the page's HTML.
 
-**Workaround:** The heavy image work and these responses share the expensive rewrite pool, whose size [`NumExpensiveRewriteThreads`](/docs/configuration/#numexpensiverewritethreads) controls. With `auto` it is sized from the CPUs the process may use, half of them divided by the number of server processes, never fewer than one. On nginx the divisor is `worker_processes`: with `worker_processes auto` (one worker per core), or with workers pinned by `worker_cpu_affinity`, `auto` resolves to one expensive thread per worker. Most nginx installs use `worker_processes auto`. Setting a larger explicit value, at the `http` level, relieves the stall; in the lab test above, 4 removed it entirely.
+**Workaround:** The heavy image work and these responses share the expensive rewrite pool, whose size [`NumExpensiveRewriteThreads`](/docs/configuration/#numexpensiverewritethreads) controls. With `auto` it is sized from the CPUs the process may use, half of them divided by the number of server processes, never fewer than one. On nginx the divisor is `worker_processes`: with `worker_processes auto` (one worker per core), or with workers pinned by `worker_cpu_affinity`, `auto` resolves to one expensive thread per worker. Setting a larger explicit value, at the `http` level, relieves the stall; in the lab test above, 4 removed it entirely.
 
 <!-- platform: nginx -->
 
