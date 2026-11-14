@@ -134,7 +134,9 @@ public class CookieRequestRecordTests : IDisposable
     [InlineData("max-age=60, must-revalidate")]
     [InlineData("s-maxage=0")]
     [InlineData("s-maxage=abc")]
-    [InlineData("s-maxage=\"60\"")]
+    [InlineData("s-maxage=-5")]
+    [InlineData("s-maxage=60, s-maxage=120")]
+    [InlineData("max-age=60, s-maxage=60, S-MAXAGE=60")]
     public async Task PageForCookieRequest_WithoutPublicOrValidSMaxage_IsNotShared(
         string? cacheControl)
     {
@@ -198,6 +200,8 @@ public class CookieRequestRecordTests : IDisposable
     [InlineData("public, max-age=60")]
     [InlineData("s-maxage=60")]
     [InlineData("max-age=60, s-maxage=120")]
+    [InlineData("s-maxage=\"60\"")]
+    [InlineData("s-maxage=60, s-maxage=120, public")]
     public async Task PageForCookieRequest_MarkedPublicOrSMaxage_IsShared(string cacheControl)
     {
         var app = await StartAsync(a => Page(a, "/p", cacheControl));
@@ -231,6 +235,28 @@ public class CookieRequestRecordTests : IDisposable
             await SendAsync(app, "/p");
             Assert.Equal("HIT", await SendAsync(app, "/p"));  // control
             Assert.NotEqual("HIT", await SendAsync(app, "/p", (name, value)));
+            Assert.Equal(2, Served("/p"));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData("s-maxage=0")]
+    [InlineData("s-maxage=abc")]
+    [InlineData("s-maxage=60, s-maxage=120")]
+    public async Task StoredPageWithInvalidSMaxage_IsNotServedToCookieRequest(string cacheControl)
+    {
+        var app = await StartAsync(a => Page(a, "/p", cacheControl));
+        if (app == null) return;
+        try
+        {
+            await SendAsync(app, "/p");
+            Assert.Equal("HIT", await SendAsync(app, "/p"));  // control
+            Assert.NotEqual("HIT", await SendAsync(app, "/p", SessionCookie));
             Assert.Equal(2, Served("/p"));
         }
         finally
@@ -315,7 +341,7 @@ public class CookieRequestRecordTests : IDisposable
     {
         foreach (var asset in Assets())
         {
-            foreach (var cc in new string?[] { null, "public", "max-age=0", "s-maxage=abc, max-age=60" })
+            foreach (var cc in new string?[] { null, "public", "max-age=0", "s-maxage=0", "no-cache" })
                 yield return new object[] { asset[0], asset[1], cc! };
         }
     }
@@ -326,6 +352,27 @@ public class CookieRequestRecordTests : IDisposable
         string path, string type, string? cacheControl)
     {
         var app = await StartAsync(a => Route(a, path, type, cacheControl, AssetBody));
+        if (app == null) return;
+        try
+        {
+            await SendAsync(app, path, SessionCookie);
+            Assert.NotEqual("HIT", await SendAsync(app, path));
+            Assert.Equal(2, Served(path));
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(Assets))]
+    public async Task AssetForCookieRequest_ExpiresAlongsideCacheControl_IsNoLifetime(
+        string path, string type)
+    {
+        var expires = DateTimeOffset.UtcNow.AddHours(1).ToString("r");
+        var app = await StartAsync(a => Route(a, path, type, "public", AssetBody, expires));
         if (app == null) return;
         try
         {

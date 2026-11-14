@@ -12,27 +12,28 @@ namespace WeAmp.PageSpeed.AspNetCore.Internal;
 /// </summary>
 /// <remarks>
 /// <para>The rule is the native HTML cache policy's cookie rule
-/// (lib/cache/html_cache_policy.h, store rule 8 and serve rule 4), exported
-/// there as <c>HtmlCookieRequestMayShare</c> and
-/// <c>HtmlExplicitlySharedFromFlags</c> and applied by the nginx port through
-/// src/nginx/cookie_cache_gate.h. The C API does not expose it, so it is
-/// restated here; <see cref="MayShare"/> and
-/// <see cref="ExplicitlySharedFromFlags"/> mirror those two functions and
-/// must give the same answers.</para>
+/// (lib/cache/html_cache_policy.h, "THE COOKIE RULE"), exported there as
+/// <c>CookieShareClassForContentType</c>, <c>HtmlExplicitlyShared</c>,
+/// <c>OriginStatesLifetime</c>, <c>HtmlCookieRequestMayShare</c>,
+/// <c>CookieRequestMayStore</c> and <c>CookieRequestMayServe</c>, and applied
+/// by the nginx port through src/nginx/cookie_cache_gate.h. The C API does
+/// not expose those functions, so they are restated here one for one and
+/// must give the same answers. Their inputs are the same: the Cache-Control
+/// flags, max-age and s-maxage as <c>ps_parse_cache_control</c> reports them
+/// on the record path, and as the entry stored them on the serve path.</para>
 ///
-/// <para>A page fetched for a request that carried a <c>Cookie</c> (or
-/// <c>Cookie2</c>) header is recorded only when the origin marked it
-/// explicitly shareable: <c>public</c>, or one <c>s-maxage</c> whose value
-/// is delta-seconds greater than zero. <c>must-revalidate</c> is not such a
-/// mark. A stored page is served to a cookie-bearing request only when the
-/// stored entry carries the mark. Presence of the header is what counts,
-/// whatever its value: an empty <c>Cookie</c> header is a cookie.</para>
-///
-/// <para>Stylesheets, scripts and images are outside that rule. A
-/// stylesheet, script or image fetched for a cookie-bearing request is
-/// recorded only when the origin gave it an explicit freshness lifetime
-/// (<see cref="HasExplicitLifetime"/>); the middleware's own default
-/// lifetime does not stand in for one.</para>
+/// <para>For a request that carried a <c>Cookie</c> (or <c>Cookie2</c>)
+/// header, any value, an empty one included:</para>
+/// <list type="bullet">
+/// <item>a page (anything that is not a stylesheet, script or image) is
+/// recorded, and a stored page served, only when the origin marked it
+/// <c>public</c> or gave it one <c>s-maxage</c> above zero. <c>s-maxage=0</c>,
+/// a malformed value and a repeated <c>s-maxage</c> are no mark, and neither
+/// is <c>must-revalidate</c>;</item>
+/// <item>a stylesheet, script or image is recorded only when the origin
+/// stated a freshness lifetime; the middleware's own default lifetime does
+/// not stand in for one. A stored one is served as before.</item>
+/// </list>
 ///
 /// <para>Independent of the anonymous-request rule
 /// (<see cref="PageSpeedMiddleware.IsAnonymousRequest"/>): a request must
@@ -45,119 +46,133 @@ internal static class CookieRequestCacheRule
         request.Headers.ContainsKey("Cookie") ||
         request.Headers.ContainsKey("Cookie2");
 
+    private static readonly string[] StaticAssetTypes =
+    {
+        "text/css", "application/javascript", "text/javascript",
+        "application/x-javascript", "application/ecmascript", "text/ecmascript",
+    };
+
     /// <summary>
-    /// Is the stored or fetched content of this type judged by the
-    /// explicit-sharing mark? Everything except stylesheets, scripts and
-    /// images (which <see cref="HasExplicitLifetime"/> covers on the record
-    /// side).
+    /// Mirrors <c>CookieShareClassForContentType</c>: true for a stylesheet,
+    /// script or image (kStaticAsset), false for everything else, a missing
+    /// value included (kPage). The media type is compared
+    /// case-insensitively; parameters and surrounding whitespace are ignored.
     /// </summary>
-    public static bool AppliesTo(PageSpeedContentType type) =>
-        type is not (PageSpeedContentType.Css or PageSpeedContentType.Js
-                     or PageSpeedContentType.Image);
+    public static bool IsStaticAsset(string? contentType)
+    {
+        var media = (contentType ?? "").AsSpan();
+        int semi = media.IndexOf(';');
+        if (semi >= 0) media = media[..semi];
+        media = media.Trim(" \t");
+        if (media.Length > 6 &&
+            media.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            return true;
+        foreach (var type in StaticAssetTypes)
+        {
+            if (media.Equals(type, StringComparison.OrdinalIgnoreCase)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Mirrors the nginx port's <c>StoredEntryCookieClass</c>: the stored
+    /// origin Content-Type when there is one, else the class the entry was
+    /// stored under.
+    /// </summary>
+    public static bool StoredEntryIsStaticAsset(
+        string? originContentType, PageSpeedContentType storedType)
+    {
+        if (!string.IsNullOrEmpty(originContentType)) return IsStaticAsset(originContentType);
+        return storedType is PageSpeedContentType.Css or PageSpeedContentType.Js
+            or PageSpeedContentType.Image;
+    }
+
+    /// <summary>
+    /// Mirrors <c>HtmlExplicitlyShared</c>: <c>public</c>, or one
+    /// <c>s-maxage</c> (<see cref="CacheControlCcFlags.SMaxageRepeated"/>
+    /// clear) with a value above zero.
+    /// </summary>
+    public static bool HtmlExplicitlyShared(ushort originCcFlags, uint originSMaxage)
+    {
+        if ((originCcFlags & CacheControlCcFlags.Public) != 0) return true;
+        return (originCcFlags & CacheControlCcFlags.SMaxagePresent) != 0 &&
+               (originCcFlags & CacheControlCcFlags.SMaxageRepeated) == 0 &&
+               originSMaxage > 0;
+    }
+
+    /// <summary>
+    /// Mirrors <c>OriginStatesLifetime</c>: the flags carry
+    /// <see cref="CacheControlCcFlags.HeaderPresent"/> (a Cache-Control line,
+    /// or an <c>Expires</c> folded in by <see cref="FoldExpires"/>), and
+    /// max-age or s-maxage is above zero.
+    /// </summary>
+    public static bool OriginStatesLifetime(
+        ushort originCcFlags, uint originMaxAge, uint originSMaxage)
+    {
+        if ((originCcFlags & CacheControlCcFlags.HeaderPresent) == 0) return false;
+        if (originMaxAge > 0) return true;
+        return (originCcFlags & CacheControlCcFlags.SMaxagePresent) != 0 &&
+               originSMaxage > 0;
+    }
 
     /// <summary>Mirrors <c>HtmlCookieRequestMayShare</c>.</summary>
-    public static bool MayShare(bool requestHasCookie, bool explicitShared) =>
+    public static bool HtmlCookieRequestMayShare(bool requestHasCookie, bool explicitShared) =>
         !requestHasCookie || explicitShared;
 
-    /// <summary>
-    /// Mirrors <c>HtmlExplicitlySharedFromFlags</c>: the mark as the stored
-    /// origin Cache-Control flags record it (<c>public</c>, or an
-    /// <c>s-maxage</c> directive). The flags record that s-maxage was
-    /// present, not its value, so this is one step wider than
-    /// <see cref="ExplicitlySharedFromCacheControl"/>; an entry recorded for
-    /// a cookie-bearing request passed that stricter check first.
-    /// </summary>
-    public static bool ExplicitlySharedFromFlags(ushort originCcFlags) =>
-        (originCcFlags &
-         (CacheControlCcFlags.Public | CacheControlCcFlags.SMaxagePresent)) != 0;
-
-    /// <summary>
-    /// The mark as the origin's Cache-Control value states it: a
-    /// <c>public</c> directive, or exactly one <c>s-maxage</c> whose value is
-    /// unquoted delta-seconds greater than zero.
-    /// </summary>
-    public static bool ExplicitlySharedFromCacheControl(string? cacheControl)
+    /// <summary>Mirrors <c>CookieRequestMayStore</c>.</summary>
+    public static bool CookieRequestMayStore(
+        bool requestHasCookie, bool staticAsset, bool explicitShared,
+        bool originStatesLifetime)
     {
-        if (string.IsNullOrEmpty(cacheControl)) return false;
-        var d = Scan(cacheControl);
-        if (d.Public) return true;
-        return d.SMaxageCount == 1 && d.SMaxage > 0;
+        if (!requestHasCookie) return true;
+        if (staticAsset) return originStatesLifetime;
+        return HtmlCookieRequestMayShare(requestHasCookie, explicitShared);
+    }
+
+    /// <summary>Mirrors <c>CookieRequestMayServe</c>.</summary>
+    public static bool CookieRequestMayServe(
+        bool requestHasCookie, bool staticAsset, bool explicitShared)
+    {
+        if (staticAsset) return true;
+        return HtmlCookieRequestMayShare(requestHasCookie, explicitShared);
     }
 
     /// <summary>
-    /// Does the origin response state its own freshness lifetime for a
-    /// shared cache, greater than zero? <c>s-maxage</c> decides when present,
-    /// otherwise <c>max-age</c>, otherwise <c>Expires</c> against
-    /// <c>Date</c> (or <paramref name="now"/> without one). A directive
-    /// given more than once, or with a value that is not delta-seconds, or
-    /// an <c>Expires</c> that is not an HTTP-date, states nothing.
+    /// The record path's Expires fold, as the nginx port does it: only when
+    /// no Cache-Control line was sent, an <c>Expires</c> that parses as an
+    /// HTTP-date sets <see cref="CacheControlCcFlags.HeaderPresent"/> and
+    /// becomes the max-age (Expires minus Date, or minus
+    /// <paramref name="now"/> without a usable Date; never below zero).
     /// </summary>
-    public static bool HasExplicitLifetime(
-        string? cacheControl, string? expires, string? date, DateTimeOffset now)
+    public static void FoldExpires(
+        ref ushort originCcFlags, ref uint originMaxAge,
+        string? expires, string? date, DateTimeOffset now)
     {
-        var d = Scan(cacheControl ?? "");
-        if (d.SMaxageCount > 1 || d.MaxAgeCount > 1) return false;
-        if (d.SMaxageCount == 1) return d.SMaxage > 0;
-        if (d.MaxAgeCount == 1) return d.MaxAge > 0;
-        if (!TryParseHttpDate(expires, out var expiresAt)) return false;
-        var origin = TryParseHttpDate(date, out var dateAt) ? dateAt : now;
-        return expiresAt > origin;
+        if ((originCcFlags & CacheControlCcFlags.HeaderPresent) != 0) return;
+        if (!TryParseHttpDate(expires, out var expiresAt)) return;
+        var from = TryParseHttpDate(date, out var dateAt) ? dateAt : now;
+        var seconds = (expiresAt - from).TotalSeconds;
+        originCcFlags |= CacheControlCcFlags.HeaderPresent;
+        originMaxAge = seconds <= 0 ? 0
+            : seconds >= uint.MaxValue ? uint.MaxValue : (uint)seconds;
     }
 
-    private struct Directives
+    // RFC 9110 §5.6.7: IMF-fixdate, and the obsolete RFC 850 and asctime forms.
+    private static readonly string[] HttpDateFormats =
     {
-        public bool Public;
-        public int SMaxageCount;
-        public long SMaxage;  // -1 when the value is not delta-seconds
-        public int MaxAgeCount;
-        public long MaxAge;   // -1 when the value is not delta-seconds
-    }
+        "r",
+        "dddd, dd'-'MMM'-'yy HH':'mm':'ss 'GMT'",
+        "ddd MMM d HH':'mm':'ss yyyy",
+        "ddd MMM dd HH':'mm':'ss yyyy",
+    };
 
-    // Comma-split, as the native policy's HasValidSMaxage / CountDirective
-    // walk a Cache-Control line.
-    private static Directives Scan(string cacheControl)
+    private static bool TryParseHttpDate(string? value, out DateTimeOffset at)
     {
-        var d = new Directives { SMaxage = -1, MaxAge = -1 };
-        foreach (var raw in cacheControl.Split(','))
-        {
-            var token = raw.AsSpan();
-            int eq = token.IndexOf('=');
-            var name = (eq >= 0 ? token[..eq] : token).Trim(" \t");
-            var value = eq >= 0 ? token[(eq + 1)..].Trim(" \t") : ReadOnlySpan<char>.Empty;
-            if (name.Equals("public", StringComparison.OrdinalIgnoreCase))
-            {
-                d.Public = true;
-            }
-            else if (name.Equals("s-maxage", StringComparison.OrdinalIgnoreCase))
-            {
-                d.SMaxageCount++;
-                d.SMaxage = eq >= 0 ? DeltaSeconds(value) : -1;
-            }
-            else if (name.Equals("max-age", StringComparison.OrdinalIgnoreCase))
-            {
-                d.MaxAgeCount++;
-                d.MaxAge = eq >= 0 ? DeltaSeconds(value) : -1;
-            }
-        }
-        return d;
+        at = default;
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        return DateTimeOffset.TryParseExact(
+            value.Trim(), HttpDateFormats, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AllowInnerWhite,
+            out at);
     }
-
-    // RFC 9111 §1.2.2 delta-seconds: one or more digits, no quotes, no sign.
-    // Large values saturate. -1 for anything else.
-    private static long DeltaSeconds(ReadOnlySpan<char> value)
-    {
-        if (value.IsEmpty) return -1;
-        long v = 0;
-        foreach (var c in value)
-        {
-            if (c < '0' || c > '9') return -1;
-            v = v >= int.MaxValue ? int.MaxValue : v * 10 + (c - '0');
-        }
-        return v;
-    }
-
-    private static bool TryParseHttpDate(string? value, out DateTimeOffset at) =>
-        DateTimeOffset.TryParseExact(
-            value, "r", CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal, out at);
 }

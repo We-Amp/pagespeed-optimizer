@@ -2403,16 +2403,20 @@ public class MiddlewareTests
     }
 
     [Theory]
-    [InlineData(null, false)]
-    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.MustRevalidate, false)]
-    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.Public, true)]
-    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent, true)]
+    [InlineData(null, 0, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.MustRevalidate, 0, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.Public, 0, true)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent, 60, true)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent, 0, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent
+                | CacheControlCcFlags.SMaxageRepeated, 60, false)]
     public async Task MissPath_CookieRequest_GetsCachedEarlyHintsOnlyFromAPageMarkedShared(
-        int? pageOriginCcFlags, bool expectHints)
+        int? pageOriginCcFlags, int pageOriginSMaxage, bool expectHints)
     {
         var hintsData = Encoding.UTF8.GetBytes("/css/style.css");
         var cache = new EarlyHintsPageSpeedCache(
-            hintsData, pageOriginCcFlags is int f ? (ushort)f : null);
+            hintsData, pageOriginCcFlags is int f ? (ushort)f : null,
+            (uint)pageOriginSMaxage);
 
         var middleware = new PageSpeedMiddleware(
             ctx =>
@@ -2511,6 +2515,7 @@ public class MiddlewareTests
             init => _flags = value;
         }
         public ushort OriginCcFlags { get; init; }
+        public uint OriginSMaxage { get; init; }
 
         // Mirrors ReadResult.NeedsRevalidation: derive from Flags so
         // tests can set either the init-prop or the Flags bit.
@@ -2649,13 +2654,16 @@ public class MiddlewareTests
     {
         private readonly byte[] _hints;
         private readonly ushort? _pageOriginCcFlags;
+        private readonly uint _pageOriginSMaxage;
 
-        // pageOriginCcFlags: the recorded page's origin Cache-Control flags,
-        // or null for no recorded page.
-        public EarlyHintsPageSpeedCache(byte[] hints, ushort? pageOriginCcFlags = null)
+        // pageOriginCcFlags / pageOriginSMaxage: the recorded page's origin
+        // Cache-Control state, or null for no recorded page.
+        public EarlyHintsPageSpeedCache(
+            byte[] hints, ushort? pageOriginCcFlags = null, uint pageOriginSMaxage = 0)
         {
             _hints = hints;
             _pageOriginCcFlags = pageOriginCcFlags;
+            _pageOriginSMaxage = pageOriginSMaxage;
         }
 
         WeAmp.PageSpeed.Native.SafeCacheHandle IPageSpeedCache.Handle =>
@@ -2677,6 +2685,7 @@ public class MiddlewareTests
                 {
                     ContentType = PageSpeedContentType.Html,
                     OriginCcFlags = flags,
+                    OriginSMaxage = _pageOriginSMaxage,
                 }
                 : null;
 
