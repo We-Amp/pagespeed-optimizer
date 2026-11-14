@@ -3123,7 +3123,7 @@ Removed option; the name is still accepted and ignored.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Removed option; the name is still accepted and ignored.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx does not recognize it: `nginx -t` fails and nginx will not start until you remove the line. It has no replacement.
 
 #### DistributedRewriteServers {#distributedrewriteservers}
 
@@ -3131,7 +3131,7 @@ Removed option; the name is still accepted and ignored.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Removed option; the name is still accepted and ignored.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx does not recognize it: `nginx -t` fails and nginx will not start until you remove the line. It has no replacement.
 
 #### DistributedRewriteTimeoutMs {#distributedrewritetimeoutms}
 
@@ -3139,7 +3139,7 @@ Removed option; the name is still accepted and ignored.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Removed option; the name is still accepted and ignored.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx does not recognize it: `nginx -t` fails and nginx will not start until you remove the line. It has no replacement.
 
 #### DistributeFetches {#distributefetches}
 
@@ -3147,7 +3147,7 @@ Removed option; the name is still accepted and ignored.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Removed option; the name is still accepted and ignored.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx does not recognize it: `nginx -t` fails and nginx will not start until you remove the line. It has no replacement.
 
 #### ExperimentalCentralControllerPort {#experimentalcentralcontrollerport}
 
@@ -3192,21 +3192,19 @@ Removed option; the name is still accepted and ignored.
 
 #### FileCacheCleanIntervalMs {#filecachecleanintervalms}
 
-- **Syntax:** `ModPagespeedFileCacheCleanIntervalMs value` (Apache)
+- **Syntax:** `ModPagespeedFileCacheCleanIntervalMs value` (Apache) · `pagespeed FileCacheCleanIntervalMs value;` (nginx)
 - **Default:** —
-- **Context:** Apache: server config, virtual host
-- **Platform:** Apache only
+- **Context:** Apache: server config, virtual host · nginx: http, server
 
-Removed option. Apache still accepts the name and ignores it, with a warning. nginx no longer accepts it: `nginx -t` fails with `directive "FileCacheCleanIntervalMs" not recognized`, so remove the line from your nginx configuration.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx does not recognize it: `nginx -t` fails and nginx will not start until you remove the line. It has no replacement.
 
 #### FileCacheInodeLimit {#filecacheinodelimit}
 
-- **Syntax:** `ModPagespeedFileCacheInodeLimit value` (Apache)
+- **Syntax:** `ModPagespeedFileCacheInodeLimit value` (Apache) · `pagespeed FileCacheInodeLimit value;` (nginx)
 - **Default:** —
-- **Context:** Apache: server config, virtual host
-- **Platform:** Apache only
+- **Context:** Apache: server config, virtual host · nginx: http, server
 
-Removed option. Apache still accepts the name and ignores it, with a warning. nginx no longer accepts it: `nginx -t` fails with `directive "FileCacheInodeLimit" not recognized`, so remove the line from your nginx configuration.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx does not recognize it: `nginx -t` fails and nginx will not start until you remove the line. It has no replacement.
 
 #### GeneratedFilePrefix {#generatedfileprefix}
 
@@ -3300,7 +3298,7 @@ Deprecated and ignored (configured the mobilize filter).
 - **Default:** —
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
-Removed option; the name is still accepted and ignored.
+Removed option. Apache still accepts the name and ignores it, with a warning. nginx does not recognize it: `nginx -t` fails and nginx will not start until you remove the line. It has no replacement.
 
 #### NumShards {#numshards}
 
