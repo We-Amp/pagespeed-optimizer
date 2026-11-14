@@ -814,7 +814,7 @@ pagespeed EnableFilters prioritize_critical_images;
 | `ImageInlineMaxBytes`              | 3072     | Maximum image size in bytes to inline as a data: URI                        |
 | `ImageLimitOptimizedPercent`       | 100      | Only serve the optimized image if it is smaller by this percentage          |
 | `ImageLimitResizeAreaPercent`      | 100      | Limit on resize area relative to original                                   |
-| `ImageResolutionLimitBytes`        | 33554432 | Maximum image resolution in bytes to attempt to optimize                    |
+| `ImageResolutionLimitBytes`        | 33554432 | Maximum decoded image size in bytes (4 bytes per pixel); larger images are skipped |
 | `ImageMaxRewritesAtOnce`           | 8        | Server-wide limit on parallel image optimizations                           |
 
 **Apache:**
@@ -844,6 +844,26 @@ pagespeed ImageLimitResizeAreaPercent 100;
 pagespeed ImageResolutionLimitBytes 33554432;
 pagespeed ImageMaxRewritesAtOnce 8;
 ```
+
+### Large images and `ImageResolutionLimitBytes`
+
+`ImageResolutionLimitBytes` bounds how large an image may be once decoded, assuming 4 bytes per pixel. The default of 33554432 (32 MiB) therefore allows about 8.39 megapixels (8,388,608 pixels). Images above that, such as 12 MP camera originals at 4000x3000 or 4000x2250 photos, are passed through untouched: the original is served unchanged, with no error, and each skip is counted in the `image_norewrites_high_resolution` statistic. Check that statistic if large photos are not being optimized. A 2000x1500 image (3 MP) is well under the limit.
+
+The limit exists to bound memory use. To opt in to larger images, raise it to 64 MiB (about 16 MP, enough for 4000x3000 and 4000x4000):
+
+**Apache:**
+
+```apache
+ModPagespeedImageResolutionLimitBytes 67108864
+```
+
+**nginx:**
+
+```nginx
+pagespeed ImageResolutionLimitBytes 67108864;
+```
+
+Decoding happens for each image being rewritten, so peak memory grows with the limit multiplied by the number of concurrent rewrites (see `ImageMaxRewritesAtOnce`). At 64 MiB, a single image may need roughly 64 MiB of decoded pixel data, and eight concurrent rewrites can reach several hundred MiB, before resize and encode copies. Raise it only if the server has the headroom. Resizing large originals before upload is another way to stay under the limit.
 
 ## Design background: how server-side image rewriting works
 
