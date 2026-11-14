@@ -1,0 +1,272 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
+
+// Fixed since the archive: long-standing reports from the archived Google-era
+// issue trackers that the maintained mod_pagespeed now answers, each one
+// backed by a regression test on master of the public mod_pagespeed
+// repository. Rule: an entry appears here only when its test is merged on
+// master. The page is noindex and linked from no menu until launch.
+//
+// Scope lines are part of the claim: where a test covers only part of a
+// report, the entry says which part. Do not add entries without a merged
+// test, and do not describe any report as still open elsewhere.
+
+const title = 'Fixed since the archive — mod_pagespeed';
+const description =
+  'Long-standing reports from the archived Google-era repositories that mod_pagespeed now answers, each with a regression test you can read.';
+
+const MASTER = 'https://github.com/We-Amp/mod_pagespeed/blob/master/';
+
+type Entry = {
+  id: string;
+  issue: { label: string; href: string };
+  heading: string;
+  status: 'Fixed' | 'Available';
+  then: string;
+  now: string;
+  scope?: string;
+  tests: { file: string; name: string }[];
+};
+
+const entries: Entry[] = [
+  {
+    id: 'ngx-1319',
+    issue: {
+      label: 'ngx_pagespeed #1319',
+      href: 'https://github.com/apache/incubator-pagespeed-ngx/issues/1319',
+    },
+    heading: 'Optimized images no longer stay 404 after the origin recovers',
+    status: 'Fixed',
+    then: 'One failed fetch of an original image was remembered as if the image were missing, so its optimized .pagespeed. URL kept answering 404 long after the origin was back.',
+    now: 'A fetch that times out, cannot connect or gets a 5xx answer is retried after a short window, and the optimized URL is served again once the origin answers.',
+    scope:
+      'The test covers a timeout and a 503 from the origin, on one server with an in-process cache.',
+    tests: [
+      {
+        file: 'test/net/instaweb/rewriter/image_rewrite_filter_test.cc',
+        name: 'ImageRewriteTest.OptimizedImageRecoversAfterTheOriginFails',
+      },
+    ],
+  },
+  {
+    id: 'mod-1148',
+    issue: {
+      label: 'mod_pagespeed #1148',
+      href: 'https://github.com/apache/incubator-pagespeed-mod/issues/1148',
+    },
+    heading: 'Brotli for clients that ask for it',
+    status: 'Available',
+    then: 'A request to send Brotli to browsers that list br in Accept-Encoding.',
+    now: 'With DaemonServeStoredEncodings on, an optimized resource such as a script is sent to a client that lists br as the stored Brotli variant, to a gzip-only client as the gzip variant, and to other clients as the original. Each Brotli or gzip response varies on Accept-Encoding.',
+    scope:
+      'Off by default. The test runs the module against a stand-in for the optimizer worker, not a live worker.',
+    tests: [
+      {
+        file: 'test/pagespeed/system/daemon_serve_arm_test.cc',
+        name: 'DaemonServeArmTest.AScriptIsServedAsTheStoredBrotliCopyWhenAsked',
+      },
+    ],
+  },
+  {
+    id: 'mod-1622',
+    issue: {
+      label: 'mod_pagespeed #1622',
+      href: 'https://github.com/apache/incubator-pagespeed-mod/issues/1622',
+    },
+    heading: 'A redirect away from ?PageSpeed=noscript stays where you sent it',
+    status: 'Fixed',
+    then: 'A site that answered /?PageSpeed=noscript with a 301 to the clean URL saw the parameter added back to the Location header, so the redirect never reached the clean URL.',
+    now: 'The client gets the Location as the origin wrote it, absolute or relative, and the redirect ends on the clean URL.',
+    tests: [
+      {
+        file: 'test/pagespeed/automatic/proxy_interface_test.cc',
+        name: 'ProxyInterfaceTest.PermanentRedirectDroppingNoscriptReachesCleanUrl',
+      },
+    ],
+  },
+  {
+    id: 'ngx-1535',
+    issue: {
+      label: 'ngx_pagespeed #1535',
+      href: 'https://github.com/apache/incubator-pagespeed-ngx/issues/1535',
+    },
+    heading: 'ModifyCachingHeaders off keeps long cache lifetimes on .pagespeed. resources',
+    status: 'Fixed',
+    then: 'With ModifyCachingHeaders off, so that a downstream cache could keep the pages, the static resources mod_pagespeed rewrote came back without a usable caching header, even with extend_cache on.',
+    now: 'Your pages keep the caching headers you set, and cache-extended resources are served with max-age=31536000, public, immutable, on the first fetch and after a rebuild from the origin.',
+    scope:
+      'The test checks Cache-Control only. The report also quoted an ETag value; that is not part of this test.',
+    tests: [
+      {
+        file: 'test/net/instaweb/rewriter/cache_extender_test.cc',
+        name: 'CacheExtenderTest.ExtendedResourceKeepsLongCacheWithoutModifyHeaders',
+      },
+    ],
+  },
+  {
+    id: 'ngx-1709',
+    issue: {
+      label: 'ngx_pagespeed #1709',
+      href: 'https://github.com/apache/incubator-pagespeed-ngx/issues/1709',
+    },
+    heading: 'MapProxyDomain resources are rebuilt after a cache loss',
+    status: 'Fixed',
+    then: 'Images proxied with MapProxyDomain worked at first, then answered 404 a few days later. The thread never found the cause.',
+    now: 'A proxied resource keeps answering 200 with the same bytes after its cache entries are gone and after its origin lifetime has run out: it is fetched again from the origin.',
+    scope:
+      'Partial. The test covers the rebuild path with an in-process cache. It does not cover a shared memcached or a slow origin, so this is a tested behaviour, not a root cause found in the original thread.',
+    tests: [
+      {
+        file: 'test/net/instaweb/rewriter/cache_extender_test.cc',
+        name: 'CacheExtenderTest.ProxiedResourceIsRebuiltAfterCacheLoss',
+      },
+    ],
+  },
+  {
+    id: 'ngx-1720',
+    issue: {
+      label: 'ngx_pagespeed #1720',
+      href: 'https://github.com/apache/incubator-pagespeed-ngx/issues/1720',
+    },
+    heading: 'In-place optimization no longer floods the message history',
+    status: 'Fixed',
+    then: 'Every request for an in-place optimized resource wrote an info line such as "URL is not in cache", filling the console and the message history.',
+    now: 'The per-request in-place hit and miss lines are written at debug level on nginx, Envoy and IIS. The in-place statistics still count every request.',
+    scope:
+      'The system test runs on nginx: twenty in-place requests add at most one message-history line. The change does not touch Apache.',
+    tests: [
+      {
+        file: 'test/system/nginx/test_nginx_ipro.py',
+        name: 'TestNginxIproMessageHistory.test_ipro_requests_do_not_fill_message_history',
+      },
+    ],
+  },
+];
+
+const statusClasses: Record<Entry['status'], string> = {
+  Fixed: 'border-interactive/40 bg-interactive/10 text-text-body',
+  Available: 'border-border bg-bg-elevated text-text-body',
+};
+---
+
+<BaseLayout
+  title={title}
+  description={description}
+  noindex
+  breadcrumbLeafName="Fixed since the archive"
+>
+  <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
+      <span class="mx-1">/</span>
+      <span>Fixed since the archive</span>
+    </nav>
+
+    <SectionHeader
+      id="fixed-since-the-archive"
+      as="h1"
+      eyebrow="Regression tests"
+      title="Fixed since the archive"
+    >
+      <p>
+        These reports were filed in the archived Google-era repositories, the trackers for
+        mod_pagespeed and ngx_pagespeed. Each one is answered in the maintained mod_pagespeed, and
+        each answer has a regression test on master that you can read and run.
+      </p>
+    </SectionHeader>
+
+    <section class="mt-10" aria-labelledby="how-to-read">
+      <h2 id="how-to-read" class="h2-section text-text-body">
+        How to read this list
+      </h2>
+      <p class="mt-4 text-text-body">
+        Every entry links the archived report, says what users saw then and what happens now, and
+        names the test that holds it in place. Where a test covers only part of a report, the entry
+        says which part. The list grows as tests land.
+      </p>
+    </section>
+
+    <hr class="rule-ticked my-14" />
+
+    <ol class="space-y-8">
+      {entries.map((entry) => (
+        <li id={entry.id} class="rounded-card border border-border p-5 md:p-6">
+          <div class="flex flex-wrap items-baseline gap-3">
+            <span
+              class={`rounded border px-2 py-0.5 font-mono text-xs uppercase tracking-wide ${statusClasses[entry.status]}`}
+            >
+              {entry.status}
+            </span>
+            <a
+              href={entry.issue.href}
+              rel="noopener noreferrer"
+              class="font-mono text-sm text-interactive hover:text-interactive-hover underline"
+            >
+              {entry.issue.label}
+            </a>
+          </div>
+          <h2 class="mt-3 text-lg font-semibold text-text-body">{entry.heading}</h2>
+          <dl class="mt-4 space-y-3 text-sm">
+            <div>
+              <dt class="font-semibold text-text-body">Then</dt>
+              <dd class="mt-1 text-text-muted">{entry.then}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-text-body">Now</dt>
+              <dd class="mt-1 text-text-muted">{entry.now}</dd>
+            </div>
+            {entry.scope && (
+              <div>
+                <dt class="font-semibold text-text-body">Scope</dt>
+                <dd class="mt-1 text-text-muted">{entry.scope}</dd>
+              </div>
+            )}
+            <div>
+              <dt class="font-semibold text-text-body">Regression test</dt>
+              {entry.tests.map((t) => (
+                <dd class="mt-1 text-text-muted">
+                  <code class="text-[0.9em] bg-bg-elevated px-1 rounded break-all">{t.name}</code>{' '}
+                  in{' '}
+                  <a
+                    href={`${MASTER}${t.file}`}
+                    rel="noopener noreferrer"
+                    class="text-interactive hover:text-interactive-hover underline"
+                  >
+                    <code class="text-[0.9em] break-all">{t.file}</code>
+                  </a>
+                </dd>
+              ))}
+            </div>
+          </dl>
+        </li>
+      ))}
+    </ol>
+
+    <section class="mt-16 border-t border-border pt-8">
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
+      <ul class="mt-4 space-y-2 text-sm">
+        <li>
+          <a
+            href="/mod-pagespeed-still-maintained/"
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            Is mod_pagespeed still maintained?
+          </a>{' '}
+          &mdash; what stopped, what did not, and what there is to run today.
+        </li>
+        <li>
+          <a
+            href="/docs/release-notes/"
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            Release notes
+          </a>{' '}
+          &mdash; every change, release by release.
+        </li>
+      </ul>
+    </section>
+  </article>
+</BaseLayout>
