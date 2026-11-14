@@ -19445,11 +19445,11 @@ copy and `/llms.txt`, which follow the page they were made from.
 
 **Never stored.** A response is not stored when it sets a cookie
 (`Set-Cookie`), or when it carries `Cache-Control: private` or
-`Cache-Control: no-store`. A response whose `Vary` names a field other than
-`Accept-Encoding`, `User-Agent`, `Accept` or `Save-Data`, including
-`Vary: Cookie` and `Vary: *`, is not stored either. A response that varies on
-`Accept`, `User-Agent` or `Save-Data` can be stored, and those request headers
-then take part in choosing which stored copy answers.
+`Cache-Control: no-store`. A response is stored only when its `Vary` names
+nothing beyond `Accept-Encoding`, `User-Agent`, `Accept` and `Save-Data`. Any
+other field, including `Vary: Cookie`, and `Vary: *`, means it is not stored. For
+a response that varies on `Accept`, `User-Agent` or `Save-Data`, those request
+headers take part in choosing which stored copy answers.
 
 **Requests with a cookie.** A request that carries a `Cookie` header is treated
 by the kind of response:
@@ -19468,16 +19468,18 @@ header is served from a shared copy, and its response is stored, only under the
 permit in RFC 9111 section 3.5: the response says `public`, `must-revalidate`
 or `s-maxage`. Without one of those, the request goes to your origin and the
 response is not stored. Once a copy is stale, it is served to such a request only
-when the response said `public`.
+when the response said `public`. The Markdown copy is served to a request that
+carries `Authorization` at most when the page itself was stored under that
+permit. `/llms.txt` is never served to a request that carries `Authorization`.
 
 ### What to do on your origin
 
 - Mark every personalised page `Cache-Control: private`, or send
   `Vary: Cookie`, which is never stored. `public` or `s-maxage` on a page that
   differs per visitor makes it shared.
-- Mark a per-user response of any type `Cache-Control: private` (or `no-store`).
-  That includes JSONP and scripts. A response of the css, js or image kind with an
-  explicit `max-age` is shared, even when it was fetched with a cookie.
+- A response of any type that differs per visitor must carry
+  `Cache-Control: private` or `no-store`; a response with an explicit lifetime
+  and no `private` may be stored and shared.
 - If your site sets a cookie on every request (analytics, consent), pages that
   are the same for every visitor are shared only when you mark them, for example
   `Cache-Control: public, max-age=600`. Give css, js and images an explicit
