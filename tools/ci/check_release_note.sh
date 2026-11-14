@@ -22,7 +22,9 @@
 #
 # In CI the inputs come from the GitHub API instead of git, so the check works
 # on the shallow checkout the rest of the job already uses:
-#   bash tools/ci/check_release_note.sh --files-from FILE --haystack-from FILE
+#   bash tools/ci/check_release_note.sh --files-from FILE --haystack-from FILE \
+#        [--changelog-added-from FILE] [--head-ref BRANCH]
+# where --changelog-added-from lists the lines the change adds to CHANGELOG.md.
 
 set -euo pipefail
 
@@ -50,18 +52,55 @@ EXEMPT_RE='(^|/)(test|tests|testdata)/|(^|/)[^/]*_test\.(cc|cpp|h|hpp|ts|js)$|(^
 WAIVER_RE='^[[:space:]]*Release-Note:[[:space:]]*none[[:space:]]*[-:–—]+[[:space:]]*'
 WAIVER_MIN_REASON=12
 
+# Security entries. A CHANGELOG.md line that opens a security entry is published
+# text about a fix, so it lands only together with the release that ships the
+# fix. A pull request that adds one is refused unless it is a release landing
+# (a landing/ head branch AND `Release-Note: landing -- <why>`) or carries
+# `Release-Note: security-public -- <why>` (same separators and minimum reason
+# as the waiver). Renaming the Unreleased heading at the release cut adds no
+# such line, so the cut is unaffected.
+SECURITY_LINE_RE='^[[:space:]]*([-*][[:space:]]+)?(#+[[:space:]]+)?(\*\*)?security\b[[:space:]]*(:|\*\*|$)'
+LANDING_RE='^[[:space:]]*Release-Note:[[:space:]]*landing[[:space:]]*[-:–—]+[[:space:]]*'
+LANDING_BRANCH_RE='^landing/'
+SECPUB_RE='^[[:space:]]*Release-Note:[[:space:]]*security-public[[:space:]]*[-:–—]+[[:space:]]*'
+
 # ---------------------------------------------------------------------------
 # Core decision, kept pure so the self-test can drive every branch
 # ---------------------------------------------------------------------------
 #
 # $1 — newline-separated changed-file list
 # $2 — waiver haystack (commit messages and/or PR body)
+# $3 — lines the change adds to CHANGELOG.md (optional)
+# $4 — the pull request's head branch (optional)
 #
 # 0 = pass, 1 = block.
 evaluate_release_note() {
   local changed="$1"
   local haystack="$2"
-  local triggering note_touched waiver_line reason
+  local sec_added="${3:-}" head_ref="${4:-}"
+  local triggering note_touched waiver_line reason sec_lines sec_ok="" why
+
+  sec_lines="$(printf '%s\n' "$sec_added" | grep -iE "$SECURITY_LINE_RE" || true)"
+  if [ -n "$sec_lines" ]; then
+    if printf '%s\n' "$head_ref" | grep -qE "$LANDING_BRANCH_RE"; then
+      why="$(printf '%s\n' "$haystack" | grep -iE "$LANDING_RE" | head -n 1 \
+        | sed -E "s/$LANDING_RE//I; s/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+\$//" || true)"
+      [ "${#why}" -ge "$WAIVER_MIN_REASON" ] && sec_ok=yes
+    fi
+    why="$(printf '%s\n' "$haystack" | grep -iE "$SECPUB_RE" | head -n 1 \
+      | sed -E "s/$SECPUB_RE//I; s/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+\$//" || true)"
+    [ "${#why}" -ge "$WAIVER_MIN_REASON" ] && sec_ok=yes
+    if [ -z "$sec_ok" ]; then
+      echo "" >&2
+      echo "FAILED: this change adds a security entry to CHANGELOG.md outside a release landing:" >&2
+      printf '%s\n' "$sec_lines" | head -n 5 | cut -c1-100 | sed 's/^/  /' >&2
+      echo "" >&2
+      echo "Security changelog entries land only with the release that ships the fix:" >&2
+      echo "from a landing/<version> branch with 'Release-Note: landing -- <why>', or with" >&2
+      echo "'Release-Note: security-public -- <why>' (reason of at least $WAIVER_MIN_REASON characters)." >&2
+      return 1
+    fi
+  fi
 
   triggering="$(printf '%s\n' "$changed" \
     | grep -E "$USER_FACING_RE" \
@@ -221,6 +260,40 @@ self_test() {
   check "waiver must not match a mention     -> BLOCK" 1 \
     "$(printf 'src/a.cc\n')" "I wondered whether to write Release-Note: none but decided against it"
 
+  # --- security entries land only with a release landing ---
+
+  schk() {
+    local name="$1" want="$2" secadd="$3" haystack="$4" ref="$5"
+    local got=0
+    n=$((n + 1))
+    evaluate_release_note "CHANGELOG.md" "$haystack" "$secadd" "$ref" >/dev/null 2>&1 || got=$?
+    if [ "$got" -ne "$want" ]; then
+      echo "  FAIL  $name (wanted exit $want, got $got)" >&2
+      failures=$((failures + 1))
+    else
+      echo "  ok    $name"
+    fi
+  }
+  local SL="Security: a client could read a response meant for another client. Update recommended."
+  local LM="Release-Note: landing -- the 2.9.0 release landing"
+  local PM="Release-Note: security-public -- advisory already published upstream"
+
+  schk "security line, normal branch         -> BLOCK" 1 "$SL" "" "fix/topic"
+  schk "security line, no branch known       -> BLOCK" 1 "$SL" "" ""
+  schk "security line, landing mode          -> pass" 0 "$SL" "$LM" "landing/2.9.0"
+  schk "landing marker, other branch         -> BLOCK" 1 "$SL" "$LM" "fix/topic"
+  schk "landing branch, no marker            -> BLOCK" 1 "$SL" "" "landing/2.9.0"
+  schk "security line, public marker         -> pass" 0 "$SL" "$PM" "fix/topic"
+  schk "public marker, colon separator       -> pass" 0 "$SL" "Release-Note: security-public: advisory already published" "x/y"
+  schk "public marker, no reason             -> BLOCK" 1 "$SL" "Release-Note: security-public --" "fix/topic"
+  schk "public marker, token reason          -> BLOCK" 1 "$SL" "Release-Note: security-public -- ok" "fix/topic"
+  schk "public marker only as a mention      -> BLOCK" 1 "$SL" "we may write Release-Note: security-public -- advisory already out" "fix/topic"
+  schk "security heading, normal branch      -> BLOCK" 1 "### Security" "" "fix/topic"
+  schk "bulleted security entry              -> BLOCK" 1 "- **Security:** hardened a parser" "" "fix/topic"
+  schk "other changelog line                 -> pass" 0 "Changed: the worker lists more options in --help." "" "fix/topic"
+  schk "a word starting with security        -> pass" 0 "Securitykit is a name, not a heading." "" "fix/topic"
+  schk "release cut (heading rename only)    -> pass" 0 "## 2.9.0 - 2026-11-20" "" "release/2.9.0"
+
   # End-to-end through the entry point, because the CI path and the fail-closed
   # branches live there rather than in the pure function above. A gate that
   # cannot see its input must go red, not quietly green.
@@ -252,6 +325,19 @@ self_test() {
   e2e "--files-from, with note            -> pass " 0 --files-from "$tmp/files-pass.txt"
   e2e "--files-from + waiver file         -> pass " 0 \
     --files-from "$tmp/files-block.txt" --haystack-from "$tmp/waiver.txt"
+  printf 'src/worker/rewrite.cc\nCHANGELOG.md\n' > "$tmp/files-sec.txt"
+  printf 'Security: a client could read a response meant for another client.\n' > "$tmp/secadd.txt"
+  : > "$tmp/secadd-none.txt"
+  printf 'Release-Note: landing -- the 2.9.0 release landing\n' > "$tmp/landing.txt"
+  e2e "--changelog-added-from missing     -> BLOCK" 1 \
+    --files-from "$tmp/files-sec.txt" --changelog-added-from "$tmp/nope.txt"
+  e2e "--changelog-added-from, security   -> BLOCK" 1 \
+    --files-from "$tmp/files-sec.txt" --changelog-added-from "$tmp/secadd.txt" --head-ref fix/topic
+  e2e "--changelog-added-from, none       -> pass " 0 \
+    --files-from "$tmp/files-sec.txt" --changelog-added-from "$tmp/secadd-none.txt" --head-ref fix/topic
+  e2e "security + landing/ branch + marker-> pass " 0 \
+    --files-from "$tmp/files-sec.txt" --changelog-added-from "$tmp/secadd.txt" \
+    --haystack-from "$tmp/landing.txt" --head-ref landing/2.9.0
   e2e "no arguments at all                -> BLOCK" 1
   e2e "unresolvable base                  -> BLOCK" 1 --base 0000000000000000000000000000000000000000
 
@@ -272,6 +358,8 @@ BASE=""
 HEAD="HEAD"
 FILES_FROM=""
 HAYSTACK_FROM=""
+CHANGELOG_ADDED_FROM=""
+HEAD_REF="${GITHUB_HEAD_REF:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -280,8 +368,10 @@ while [ $# -gt 0 ]; do
     --head) HEAD="${2:-}"; shift 2 ;;
     --files-from) FILES_FROM="${2:-}"; shift 2 ;;
     --haystack-from) HAYSTACK_FROM="${2:-}"; shift 2 ;;
+    --changelog-added-from) CHANGELOG_ADDED_FROM="${2:-}"; shift 2 ;;
+    --head-ref) HEAD_REF="${2:-}"; shift 2 ;;
     -h|--help)
-      sed -n '6,26p' "${BASH_SOURCE[0]}"
+      sed -n '6,28p' "${BASH_SOURCE[0]}"
       exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -305,7 +395,15 @@ if [ -n "$FILES_FROM" ]; then
     fi
     HAYSTACK="$(cat "$HAYSTACK_FROM")"
   fi
-  evaluate_release_note "$(cat "$FILES_FROM")" "$HAYSTACK"
+  SECADD=""
+  if [ -n "$CHANGELOG_ADDED_FROM" ]; then
+    if [ ! -f "$CHANGELOG_ADDED_FROM" ]; then
+      echo "FAILED: --changelog-added-from '$CHANGELOG_ADDED_FROM' does not exist." >&2
+      exit 1
+    fi
+    SECADD="$(cat "$CHANGELOG_ADDED_FROM")"
+  fi
+  evaluate_release_note "$(cat "$FILES_FROM")" "$HAYSTACK" "$SECADD" "$HEAD_REF"
   exit $?
 fi
 
@@ -329,4 +427,6 @@ CHANGED="$(git diff --name-only "$MERGE_BASE" "$HEAD")"
 COMMIT_MESSAGES="$(git log --format='%B' "$MERGE_BASE..$HEAD")"
 HAYSTACK="$(printf '%s\n%s\n' "$COMMIT_MESSAGES" "${PR_BODY:-}")"
 
-evaluate_release_note "$CHANGED" "$HAYSTACK"
+SECADD="$(git diff -U0 "$MERGE_BASE" "$HEAD" -- CHANGELOG.md | grep -E '^\+' | grep -vE '^\+\+\+' | sed 's/^+//' || true)"
+
+evaluate_release_note "$CHANGED" "$HAYSTACK" "$SECADD" "$HEAD_REF"

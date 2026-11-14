@@ -254,14 +254,22 @@ jobs:
           gh api --paginate "${api}/commits" \
             --jq '.[].commit.message' > "${RUNNER_TEMP}/release-note-haystack.txt"
           gh api "${api}" --jq '.body // ""' >> "${RUNNER_TEMP}/release-note-haystack.txt"
+          # Lines the change adds to CHANGELOG.md (a missing patch fails closed).
+          gh api --paginate "${api}/files" --jq '.[] | select(.filename=="CHANGELOG.md") | (.patch // error("no patch for CHANGELOG.md"))' \
+            | { grep -E '^\+' || true; } | { grep -vE '^\+\+\+' || true; } | sed 's/^+//' \
+            > "${RUNNER_TEMP}/release-note-changelog-added.txt"
           echo "collected $(wc -l < "${RUNNER_TEMP}/release-note-files.txt" | tr -d ' ') changed file name(s)"
 
       - name: Release-note gate - check
         if: github.event_name == 'pull_request'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
           bash tools/ci/check_release_note.sh \
             --files-from "${RUNNER_TEMP}/release-note-files.txt" \
-            --haystack-from "${RUNNER_TEMP}/release-note-haystack.txt"
+            --haystack-from "${RUNNER_TEMP}/release-note-haystack.txt" \
+            --changelog-added-from "${RUNNER_TEMP}/release-note-changelog-added.txt" \
+            --head-ref "$HEAD_REF"
 
       # Doc-drift guard: fails if CLAUDE.md's clang-format/clang-tidy version
       # literals disagree with the pinned pre-commit rev.

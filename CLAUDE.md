@@ -621,6 +621,7 @@ Docker release images via `docker/build-release.sh`.
   Check it before pushing:
   `bash tools/ci/check_release_note.sh --base origin/main --head HEAD`.
   Details in RELEASING.md.
+- Security fixes are not opened as public pull requests or issues; follow `SECURITY.md`.
 - Always verify current branch with `git branch --show-current` before committing.
 - Never use `git commit --amend` unless the user explicitly requests it.
 - Always `git push` after committing unless told otherwise.
