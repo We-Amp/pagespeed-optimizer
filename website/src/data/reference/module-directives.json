@@ -581,6 +581,68 @@
       "safeToPrint": true
     },
     {
+      "name": "AutoCreateCachePath",
+      "kind": "option",
+      "area": "Caching",
+      "platforms": [
+        "iis"
+      ],
+      "syntax": {
+        "apache": null,
+        "nginx": null,
+        "iis": "pagespeed AutoCreateCachePath on|off"
+      },
+      "default": "on",
+      "context": {
+        "apache": null,
+        "nginx": null,
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
+      },
+      "since": null,
+      "description": "Auto-create the per-site cache subdirectory if missing (on|off, default on).",
+      "descriptionSource": "source",
+      "scope": "process",
+      "valueType": "bool",
+      "id": "nacp",
+      "origin": "iis",
+      "deprecated": false,
+      "safeToPrint": false
+    },
+    {
+      "name": "AutoCreateLogDir",
+      "kind": "option",
+      "area": "Statistics, console and logging",
+      "platforms": [
+        "iis"
+      ],
+      "syntax": {
+        "apache": null,
+        "nginx": null,
+        "iis": "pagespeed AutoCreateLogDir on|off"
+      },
+      "default": "on",
+      "context": {
+        "apache": null,
+        "nginx": null,
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
+      },
+      "since": null,
+      "description": "Auto-create the LogDir if missing (on|off, default on).",
+      "descriptionSource": "source",
+      "scope": "process",
+      "valueType": "bool",
+      "id": "nacl",
+      "origin": "iis",
+      "deprecated": false,
+      "safeToPrint": false
+    },
+    {
       "name": "AvifAnimatedRecompressionQuality",
       "kind": "option",
       "area": "Images",
@@ -5277,6 +5339,37 @@
       "origin": "rewrite_options",
       "deprecated": true,
       "safeToPrint": true
+    },
+    {
+      "name": "InfoUrlsLocalOnly",
+      "kind": "directive",
+      "area": "Statistics, console and logging",
+      "platforms": [
+        "iis"
+      ],
+      "syntax": {
+        "apache": null,
+        "nginx": null,
+        "iis": "pagespeed InfoUrlsLocalOnly on|off"
+      },
+      "default": "on",
+      "context": {
+        "apache": null,
+        "nginx": null,
+        "query": false,
+        "iis": [
+          "pagespeed.config (a match rule does not limit it)"
+        ]
+      },
+      "since": null,
+      "description": "Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains, GlobalAdminDomains and GlobalStatisticsDomains) is set for that page; the request's host name (its Host header) must then match it. A request whose host name is on a configured allowlist is served even when it is not local. The value applies to the whole IIS process, not to one site.",
+      "descriptionSource": "generator",
+      "scope": "directory",
+      "valueType": "bool",
+      "id": null,
+      "origin": "iis",
+      "deprecated": false,
+      "safeToPrint": null
     },
     {
       "name": "InheritVHostConfig",
@@ -10771,6 +10864,37 @@
       "origin": "factory",
       "deprecated": false,
       "safeToPrint": null
+    },
+    {
+      "name": "TreatProxiedRequestsAsLocal",
+      "kind": "option",
+      "area": "Statistics, console and logging",
+      "platforms": [
+        "iis"
+      ],
+      "syntax": {
+        "apache": null,
+        "nginx": null,
+        "iis": "pagespeed TreatProxiedRequestsAsLocal on|off"
+      },
+      "default": "off",
+      "context": {
+        "apache": null,
+        "nginx": null,
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
+      },
+      "since": null,
+      "description": "Count a request relayed by a reverse proxy or tunnel on this server (one that carries forwarding headers such as X-Forwarded-For) as local for the admin, statistics, console and message pages and the diagnostic page. Default off: only direct local requests are local. Use AdminDomains and StatisticsDomains to allow named hosts instead.",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": "bool",
+      "id": "tprl",
+      "origin": "iis",
+      "deprecated": false,
+      "safeToPrint": true
     },
     {
       "name": "UrlPrefix",

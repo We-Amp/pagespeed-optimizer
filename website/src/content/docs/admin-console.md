@@ -208,7 +208,7 @@ pagespeed AdminDomains Allow localhost
 pagespeed AdminDomains Allow 10.0.0.*
 ```
 
-On IIS, the `InfoUrlsLocalOnly` directive provides an additional layer of access control. When set to `on` (the default), admin URLs are only accessible from the local machine regardless of the `AdminDomains` setting.
+On IIS, the `InfoUrlsLocalOnly` directive adds a local-only rule. When set to `on` (the default), the admin pages are served to local requests, and to requests whose host name (the `Host` header) is on a configured `AdminDomains` allowlist. With `off`, they are served to every request unless an allowlist is set; the host name must then match it.
 
 </div>
 

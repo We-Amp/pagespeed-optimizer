@@ -16,6 +16,7 @@
 //     pagespeed/apache/apache_config.cc, mod_instaweb.cc    Apache-only options,
 //                                                           the static command table
 //     pagespeed/nginx/ngx_rewrite_options.cc                nginx-only options
+//     pagespeed/iis/iis_rewrite_options.cpp                 IIS-only options
 //     net/instaweb/rewriter/rewrite_filter_names.gperf      filter names
 //   this tree
 //     src/worker/main.cc                                    worker usage text
@@ -107,6 +108,17 @@ export const CONTEXT_BY_SCOPE = {
     query: false,
   },
   process: { apache: ['server config'], nginx: ['http'], query: false },
+};
+
+// IIS reads every directive from pagespeed.config; IisConfiguration refuses a
+// directive whose IisRewriteOptions::GetOptionScope is above directory scope
+// inside a match rule (iis_configuration.cpp).
+const IIS_CONTEXT_BY_SCOPE = {
+  query: ['pagespeed.config', 'match rules'],
+  directory: ['pagespeed.config', 'match rules'],
+  server: ['pagespeed.config, outside match rules'],
+  'legacy-process': ['pagespeed.config, outside match rules'],
+  process: ['pagespeed.config, outside match rules'],
 };
 
 // Enum-valued defaults that are enumerator tokens without a numeric definition.
@@ -224,6 +236,25 @@ const NGINX_ONLY_DIRECTIVES = [
   },
 ];
 
+// IIS-only directives handled by name in IisRewriteOptions::ParseAndSetOptions
+// (iis_rewrite_options.cpp). They set a process global, not a RewriteOptions
+// property, so the source carries no help string; the description summarizes
+// the handler and IisAdminAccessAllowed (iis_local_request.h). `global` names
+// the bool the handler sets, whose initializer is the default. The scope is
+// what GetOptionScope returns for a name on none of its lists.
+const IIS_ONLY_DIRECTIVES = [
+  {
+    name: 'InfoUrlsLocalOnly',
+    global: 'INFO_URLS_LOCAL_ONLY',
+    scope: 'directory',
+    // The handler sets a process global when the line is read, so the match
+    // rule the line sits under does not limit it.
+    contextIis: ['pagespeed.config (a match rule does not limit it)'],
+    description:
+      "Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains, GlobalAdminDomains and GlobalStatisticsDomains) is set for that page; the request's host name (its Host header) must then match it. A request whose host name is on a configured allowlist is served even when it is not local. The value applies to the whole IIS process, not to one site.",
+  },
+];
+
 // An Apache help string that is only an argument-shape hint ("name size_kb",
 // "<Allow|Disallow> domain_wildcard"), not a sentence.
 function isSyntaxHint(help) {
@@ -263,7 +294,7 @@ const AREA_RULES = [
   ['Bot authentication and licensing', /^(WebBotAuth|RslCap)/],
   [
     'Statistics, console and logging',
-    /(Statistics|AdminDomains|AdminPath|ConsoleDomains|ConsolePath|MessagesDomains|MessagesPath|MessageBufferSize|^Log|ListOutstandingUrlsOnError|InstallCrashHandler|ReportUnloadTime|SlowFileLatencyUs|StrictAdminAccess|UsePerVHostStatistics|MaxRewriteInfoLogSize)/,
+    /(Statistics|AdminDomains|AdminPath|ConsoleDomains|ConsolePath|MessagesDomains|MessagesPath|MessageBufferSize|^Log|ListOutstandingUrlsOnError|InstallCrashHandler|ReportUnloadTime|SlowFileLatencyUs|StrictAdminAccess|UsePerVHostStatistics|MaxRewriteInfoLogSize|InfoUrlsLocalOnly|TreatProxiedRequestsAsLocal|AutoCreateLogDir)/,
   ],
   [
     'Images',
@@ -333,10 +364,14 @@ function syntaxFor(name, args, platforms, master = false) {
   const apache = master ? 'ModPagespeed' : `ModPagespeed${name}`;
   const nginx = master ? 'pagespeed' : `pagespeed ${name}`;
   const tail = args ? ` ${args}` : '';
-  return {
+  const syntax = {
     apache: platforms.includes('apache') ? `${apache}${tail}` : null,
     nginx: platforms.includes('nginx') ? `${nginx}${tail};` : null,
   };
+  // IIS spells a directive like nginx, without the semicolon. Only the
+  // IIS-only entries carry the key (see buildModuleDirectives).
+  if (platforms.includes('iis')) syntax.iis = `${nginx}${tail}`;
+  return syntax;
 }
 
 function gitInfo(dir) {
@@ -370,6 +405,7 @@ export function buildModuleDirectives(moduleSrc, warnings) {
   const apacheCc = p('pagespeed/apache/apache_config.cc');
   const modInstawebCc = p('pagespeed/apache/mod_instaweb.cc');
   const ngxCc = p('pagespeed/nginx/ngx_rewrite_options.cc');
+  const iisCc = p('pagespeed/iis/iis_rewrite_options.cpp');
   const overlay = loadOverlay('directives-overlay.json', 'directives');
 
   const constants = parseConstants([
@@ -382,6 +418,7 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     ngxCc,
     p('pagespeed/kernel/base/timer.h'),
     p('pagespeed/system/daemon_reader.h'),
+    iisCc,
   ]);
   for (const [k, v] of [
     ...parseEnumConstants(p('pagespeed/kernel/http/http_names.h')),
@@ -719,6 +756,62 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     });
   }
 
+  // IIS-only options and directives. Only names no other port accepts are
+  // added: the reference does not mark IIS on the options it shares with
+  // Apache and nginx (the IIS module reads the same directives).
+  for (const r of parsePropertyCalls(iisCc, 'add_iis_option', 'iis')) {
+    const name = resolveName(r.nameTok);
+    if (!name || byName.has(name)) continue;
+    const scope = SCOPE_BY_TOKEN[r.scopeTok?.trim().replace(/^(?:\w+::)+/, '')] ?? null;
+    if (!scope) warnings.push(`unresolved scope ${r.scopeTok} for ${name}`);
+    const { value: def, type } = resolveDefaultTok(r.defaultTok, iisCc);
+    if (def === null) warnings.push(`unresolved default for ${name}: ${r.defaultTok}`);
+    const help = normalizeHelp(r.help);
+    byName.set(name, {
+      name,
+      kind: 'option',
+      origin: 'iis',
+      id: literalString(r.idTok),
+      scope,
+      valueType: type,
+      args: argsFor(type, null),
+      default: def,
+      description: help,
+      descriptionSource: help === null ? null : 'source',
+      descriptionByPlatform: {},
+      platforms: ['iis'],
+      safeToPrint: r.safeToPrint,
+      deprecated: false,
+    });
+  }
+  const iisClean = stripComments(iisCc);
+  for (const d of IIS_ONLY_DIRECTIVES) {
+    if (byName.has(d.name)) continue;
+    if (!iisClean.includes(`IsDirective(directive, "${d.name}")`)) {
+      warnings.push(`IIS directive ${d.name} is no longer handled in iis_rewrite_options.cpp`);
+      continue;
+    }
+    const init = new RegExp(`\\bbool ${d.global} = (true|false);`).exec(iisClean);
+    if (!init) warnings.push(`unresolved default for ${d.name}: ${d.global}`);
+    byName.set(d.name, {
+      name: d.name,
+      kind: 'directive',
+      origin: 'iis',
+      id: null,
+      scope: d.scope,
+      valueType: 'bool',
+      args: 'on|off',
+      default: init ? (init[1] === 'true' ? 'on' : 'off') : null,
+      description: d.description,
+      descriptionSource: 'generator',
+      descriptionByPlatform: {},
+      platforms: ['iis'],
+      contextIis: d.contextIis,
+      safeToPrint: null,
+      deprecated: false,
+    });
+  }
+
   // The registered default of RewriteLevel is the base class's PassThrough,
   // but neither server runs with it: Apache's create_dir_config calls
   // SetDefaultRewriteLevel and nginx's NewRewriteOptions calls SetRewriteLevel
@@ -774,6 +867,9 @@ export function buildModuleDirectives(moduleSrc, warnings) {
         nginx: d.platforms.includes('nginx') ? (CONTEXT_BY_SCOPE[nginxScope]?.nginx ?? null) : null,
         query: base.query,
       };
+      if (d.platforms.includes('iis')) {
+        context.iis = d.contextIis ?? IIS_CONTEXT_BY_SCOPE[d.scope] ?? null;
+      }
       const syntax = syntaxFor(d.name, d.args, d.platforms, d.master === true);
       if (d.apacheName) syntax.apache = `${d.apacheName} ${d.args}>`;
       return {

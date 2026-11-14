@@ -86,9 +86,19 @@ export function prose(text) {
     .replace(/(?<![/\w.-])daemons(?![\w/-])/g, 'workers')
     .replace(/(?<![/\w.-])daemon(?![\w/-])/g, 'worker')
     .replace(/\s*See docs\/[\w./-]+\.md\.?/g, '')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*/g, '\\*')
+    .split(/(`[^`]*`)/)
+    .map((part, i) =>
+      // Odd parts are code spans: markdown shows them verbatim, so an escape
+      // there would appear literally (`&lt;Directory&gt;`).
+      i % 2
+        ? part
+        : part
+            .replace(/\\/g, '\\\\')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\*/g, '\\*'),
+    )
+    .join('')
     .trim();
 }
 
@@ -167,6 +177,8 @@ export function renderModuleDirectives() {
   return out.join('\n').trim();
 }
 
+const PLATFORM_ONLY = { apache: 'Apache only', nginx: 'nginx only', iis: 'IIS only' };
+
 function directiveBlock(d) {
   const lines = [];
   const title = d.name === 'ModPagespeed' ? 'pagespeed / ModPagespeed' : d.name;
@@ -174,15 +186,17 @@ function directiveBlock(d) {
   const syn = [];
   if (d.syntax.apache) syn.push(`\`${d.syntax.apache}\` (Apache)`);
   if (d.syntax.nginx) syn.push(`\`${d.syntax.nginx}\` (nginx)`);
+  if (d.syntax.iis) syn.push(`\`${d.syntax.iis}\` (IIS)`);
   lines.push(`- **Syntax:** ${syn.join(' · ')}`);
   lines.push(`- **Default:** ${fmtDefault(d.default)}`);
   const ctx = [];
   if (d.context.apache) ctx.push(`Apache: ${d.context.apache.join(', ')}`);
   if (d.context.nginx) ctx.push(`nginx: ${d.context.nginx.join(', ')}`);
+  if (d.context.iis) ctx.push(`IIS: ${d.context.iis.join(', ')}`);
   if (d.context.query) ctx.push('also per request (query parameter)');
   lines.push(`- **Context:** ${ctx.join(' · ')}`);
   if (d.platforms.length === 1) {
-    lines.push(`- **Platform:** ${d.platforms[0] === 'apache' ? 'Apache only' : 'nginx only'}`);
+    lines.push(`- **Platform:** ${PLATFORM_ONLY[d.platforms[0]]}`);
   }
   if (d.since) lines.push(`- **Since:** ${d.since}`);
   lines.push('');
@@ -204,6 +218,8 @@ const FLAG_SECTION_TITLES = {
   'SVG Auto-Vectorization': 'SVG auto-vectorization',
   'Agent Optimize (EXPERIMENTAL — off by default)': 'Agent optimize (experimental, off by default)',
   'Web Bot Auth (observe-only — off by default)': 'Web Bot Auth (observe-only, off by default)',
+  'RSL-CAP Enforcement (EXPERIMENTAL — off by default)':
+    'RSL-CAP enforcement (experimental, off by default)',
 };
 
 export function renderWorkerFlags() {

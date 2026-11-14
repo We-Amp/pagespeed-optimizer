@@ -4156,7 +4156,9 @@ To see which filters your own pages would benefit from, run them through a
   `—` that the directive has no value of its own.
 - **Context** lists where the directive may appear. On Apache: the server
   config, a `<VirtualHost>`, a `<Directory>`/`<Location>` block, `.htaccess`.
-  On nginx: the `http`, `server` and `location` blocks. "Also per request"
+  On nginx: the `http`, `server` and `location` blocks. On IIS, shown for the
+  IIS-only directives: `pagespeed.config`, and whether the directive may also
+  appear under a match rule. "Also per request"
   marks the options that can also be set on a single request with a
   `PageSpeed…` query parameter or header.
 - **Platform** appears when a directive exists on one server only. An option
@@ -4352,9 +4354,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`v2.8.1`](https://github.com/We-Amp/mod_pagespeed/tree/v2.8.1): 334 directives.
+Generated from the mod_pagespeed source at tag [`v2.8.1`](https://github.com/We-Amp/mod_pagespeed/tree/v2.8.1): 338 directives.
 
-Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (7) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (30) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (44) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (10) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (9) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (48) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (4) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (6) · [Other](https://modpagespeed.com/docs/configuration/#area-other) (2) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (35).
+Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (7) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (33) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (44) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (10) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (9) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (49) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (4) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (6) · [Other](https://modpagespeed.com/docs/configuration/#area-other) (2) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (35).
 
 ### Enabling and filter selection
 
@@ -4997,7 +4999,7 @@ Disable the rewriting of Javascript URLs.
 - **Default:** —
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
-Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP. Access control: files served through a mapping are read directly from disk, so the web server's own access rules for those paths (Apache `&lt;Directory&gt;`, `&lt;Files&gt;` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use `LoadFromFileRule Disallow` for a filename prefix or `LoadFromFileRuleMatch Disallow` for a filename pattern; a disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
+Serves resources under a URL prefix straight from the filesystem instead of fetching them over HTTP. Access control: files served through a mapping are read directly from disk, so the web server's own access rules for those paths (Apache `<Directory>`, `<Files>` and `Require`; nginx `location` allow/deny and authentication) are not applied to them. To control access per path, use `LoadFromFileRule Disallow` for a filename prefix or `LoadFromFileRuleMatch Disallow` for a filename pattern; a disallowed file is fetched over HTTP instead, where the web server's rules apply as usual. If a path should not be reachable at all, do not map it.
 
 #### LoadFromFileCacheTtlMs
 
@@ -5444,7 +5446,7 @@ Verified-bot registry: comma-separated keyid=name pairs.
 
 ### Statistics, console and logging
 
-[`AdminDomains`](https://modpagespeed.com/docs/configuration/#admindomains), [`AdminPath`](https://modpagespeed.com/docs/configuration/#adminpath), [`ConsoleDomains`](https://modpagespeed.com/docs/configuration/#consoledomains), [`ConsolePath`](https://modpagespeed.com/docs/configuration/#consolepath), [`GlobalAdminDomains`](https://modpagespeed.com/docs/configuration/#globaladmindomains), [`GlobalAdminPath`](https://modpagespeed.com/docs/configuration/#globaladminpath), [`GlobalStatisticsDomains`](https://modpagespeed.com/docs/configuration/#globalstatisticsdomains), [`GlobalStatisticsPath`](https://modpagespeed.com/docs/configuration/#globalstatisticspath), [`InstallCrashHandler`](https://modpagespeed.com/docs/configuration/#installcrashhandler), [`ListOutstandingUrlsOnError`](https://modpagespeed.com/docs/configuration/#listoutstandingurlsonerror), [`LogBackgroundRewrite`](https://modpagespeed.com/docs/configuration/#logbackgroundrewrite), [`LogDir`](https://modpagespeed.com/docs/configuration/#logdir), [`LogRewriteTiming`](https://modpagespeed.com/docs/configuration/#logrewritetiming), [`LogUrlIndices`](https://modpagespeed.com/docs/configuration/#logurlindices), [`MaxRewriteInfoLogSize`](https://modpagespeed.com/docs/configuration/#maxrewriteinfologsize), [`MessageBufferSize`](https://modpagespeed.com/docs/configuration/#messagebuffersize), [`MessagesDomains`](https://modpagespeed.com/docs/configuration/#messagesdomains), [`MessagesPath`](https://modpagespeed.com/docs/configuration/#messagespath), [`ReportUnloadTime`](https://modpagespeed.com/docs/configuration/#reportunloadtime), [`SlowFileLatencyUs`](https://modpagespeed.com/docs/configuration/#slowfilelatencyus), [`Statistics`](https://modpagespeed.com/docs/configuration/#statistics), [`StatisticsDomains`](https://modpagespeed.com/docs/configuration/#statisticsdomains), [`StatisticsLogging`](https://modpagespeed.com/docs/configuration/#statisticslogging), [`StatisticsLoggingChartsCSS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](https://modpagespeed.com/docs/configuration/#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](https://modpagespeed.com/docs/configuration/#statisticsloggingmaxfilesizekb), [`StatisticsPath`](https://modpagespeed.com/docs/configuration/#statisticspath), [`StrictAdminAccess`](https://modpagespeed.com/docs/configuration/#strictadminaccess), [`UsePerVHostStatistics`](https://modpagespeed.com/docs/configuration/#usepervhoststatistics)
+[`AdminDomains`](https://modpagespeed.com/docs/configuration/#admindomains), [`AdminPath`](https://modpagespeed.com/docs/configuration/#adminpath), [`AutoCreateLogDir`](https://modpagespeed.com/docs/configuration/#autocreatelogdir), [`ConsoleDomains`](https://modpagespeed.com/docs/configuration/#consoledomains), [`ConsolePath`](https://modpagespeed.com/docs/configuration/#consolepath), [`GlobalAdminDomains`](https://modpagespeed.com/docs/configuration/#globaladmindomains), [`GlobalAdminPath`](https://modpagespeed.com/docs/configuration/#globaladminpath), [`GlobalStatisticsDomains`](https://modpagespeed.com/docs/configuration/#globalstatisticsdomains), [`GlobalStatisticsPath`](https://modpagespeed.com/docs/configuration/#globalstatisticspath), [`InfoUrlsLocalOnly`](https://modpagespeed.com/docs/configuration/#infourlslocalonly), [`InstallCrashHandler`](https://modpagespeed.com/docs/configuration/#installcrashhandler), [`ListOutstandingUrlsOnError`](https://modpagespeed.com/docs/configuration/#listoutstandingurlsonerror), [`LogBackgroundRewrite`](https://modpagespeed.com/docs/configuration/#logbackgroundrewrite), [`LogDir`](https://modpagespeed.com/docs/configuration/#logdir), [`LogRewriteTiming`](https://modpagespeed.com/docs/configuration/#logrewritetiming), [`LogUrlIndices`](https://modpagespeed.com/docs/configuration/#logurlindices), [`MaxRewriteInfoLogSize`](https://modpagespeed.com/docs/configuration/#maxrewriteinfologsize), [`MessageBufferSize`](https://modpagespeed.com/docs/configuration/#messagebuffersize), [`MessagesDomains`](https://modpagespeed.com/docs/configuration/#messagesdomains), [`MessagesPath`](https://modpagespeed.com/docs/configuration/#messagespath), [`ReportUnloadTime`](https://modpagespeed.com/docs/configuration/#reportunloadtime), [`SlowFileLatencyUs`](https://modpagespeed.com/docs/configuration/#slowfilelatencyus), [`Statistics`](https://modpagespeed.com/docs/configuration/#statistics), [`StatisticsDomains`](https://modpagespeed.com/docs/configuration/#statisticsdomains), [`StatisticsLogging`](https://modpagespeed.com/docs/configuration/#statisticslogging), [`StatisticsLoggingChartsCSS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartscss), [`StatisticsLoggingChartsJS`](https://modpagespeed.com/docs/configuration/#statisticsloggingchartsjs), [`StatisticsLoggingIntervalMs`](https://modpagespeed.com/docs/configuration/#statisticsloggingintervalms), [`StatisticsLoggingMaxFileSizeKb`](https://modpagespeed.com/docs/configuration/#statisticsloggingmaxfilesizekb), [`StatisticsPath`](https://modpagespeed.com/docs/configuration/#statisticspath), [`StrictAdminAccess`](https://modpagespeed.com/docs/configuration/#strictadminaccess), [`TreatProxiedRequestsAsLocal`](https://modpagespeed.com/docs/configuration/#treatproxiedrequestsaslocal), [`UsePerVHostStatistics`](https://modpagespeed.com/docs/configuration/#usepervhoststatistics)
 
 #### AdminDomains
 
@@ -5462,6 +5464,15 @@ Access control for the per-host admin pages: Allow or Disallow a domain wildcard
 - **Platform:** nginx only
 
 Set the admin path. Ex: /pagespeed_admin
+
+#### AutoCreateLogDir
+
+- **Syntax:** `pagespeed AutoCreateLogDir on|off` (IIS)
+- **Default:** `on`
+- **Context:** IIS: pagespeed.config, outside match rules
+- **Platform:** IIS only
+
+Auto-create the LogDir if missing (on|off, default on).
 
 #### ConsoleDomains
 
@@ -5513,6 +5524,19 @@ Access control for the global statistics page: Allow or Disallow a domain wildca
 - **Platform:** nginx only
 
 Set the global statistics path. Ex: /ngx_pagespeed_global_statistics
+
+#### InfoUrlsLocalOnly
+
+- **Syntax:** `pagespeed InfoUrlsLocalOnly on|off` (IIS)
+- **Default:** `on`
+- **Context:** IIS: pagespeed.config (a match rule does not limit it)
+- **Platform:** IIS only
+
+Serve the admin (including cache purge), statistics, console and message pages to local requests only. With off, they are served to every request, unless an allowlist (AdminDomains, StatisticsDomains, ConsoleDomains, MessagesDomains, GlobalAdminDomains and GlobalStatisticsDomains) is set for that page; the request's host name (its Host header) must then match it. A request whose host name is on a configured allowlist is served even when it is not local. The value applies to the whole IIS process, not to one site.
+
+A request is local when it comes from the server itself and carries no
+reverse-proxy forwarding headers; `TreatProxiedRequestsAsLocal` changes that
+for one site. See [Admin console access control](https://modpagespeed.com/docs/admin-console/#access-control).
 
 #### InstallCrashHandler
 
@@ -5687,6 +5711,18 @@ Set the statistics path. Ex: /ngx_pagespeed_statistics
 - **Context:** Apache: server config · nginx: http
 
 OPT-IN, default off. When on, the admin, statistics, console and message handlers deny non-loopback clients unless an explicit \*Domains allowlist is configured. The loopback decision uses the validated client connection IP, not the Host header. When off (default) access checks behave exactly as before.
+
+#### TreatProxiedRequestsAsLocal
+
+- **Syntax:** `pagespeed TreatProxiedRequestsAsLocal on|off` (IIS)
+- **Default:** `off`
+- **Context:** IIS: pagespeed.config, outside match rules
+- **Platform:** IIS only
+
+Count a request relayed by a reverse proxy or tunnel on this server (one that carries forwarding headers such as X-Forwarded-For) as local for the admin, statistics, console and message pages and the diagnostic page. Default off: only direct local requests are local. Use AdminDomains and StatisticsDomains to allow named hosts instead.
+
+Turning it on serves these pages to anyone who reaches the site through that
+proxy or tunnel; prefer the `*Domains` allowlists.
 
 #### UsePerVHostStatistics
 
@@ -6227,7 +6263,7 @@ Evaluate nginx script variables ($var) in pagespeed directive arguments at reque
 
 ### Caching
 
-[`AsyncMetadataL2Writes`](https://modpagespeed.com/docs/configuration/#asyncmetadatal2writes), [`AwaitPcacheLookup`](https://modpagespeed.com/docs/configuration/#awaitpcachelookup), [`CacheFlushFilename`](https://modpagespeed.com/docs/configuration/#cacheflushfilename), [`CacheFlushPollIntervalSec`](https://modpagespeed.com/docs/configuration/#cacheflushpollintervalsec), [`CacheFragment`](https://modpagespeed.com/docs/configuration/#cachefragment), [`CompressMetadataCache`](https://modpagespeed.com/docs/configuration/#compressmetadatacache), [`CreateSharedMemoryMetadataCache`](https://modpagespeed.com/docs/configuration/#createsharedmemorymetadatacache), [`CycloneRamCacheKb`](https://modpagespeed.com/docs/configuration/#cycloneramcachekb), [`CycloneZeroCopy`](https://modpagespeed.com/docs/configuration/#cyclonezerocopy), [`CycloneZeroCopyServe`](https://modpagespeed.com/docs/configuration/#cyclonezerocopyserve), [`DefaultCacheHtml`](https://modpagespeed.com/docs/configuration/#defaultcachehtml), [`DefaultSharedMemoryCacheKB`](https://modpagespeed.com/docs/configuration/#defaultsharedmemorycachekb), [`DownstreamCachePurgeLocationPrefix`](https://modpagespeed.com/docs/configuration/#downstreamcachepurgelocationprefix), [`DownstreamCachePurgeMethod`](https://modpagespeed.com/docs/configuration/#downstreamcachepurgemethod), [`DownstreamCacheRebeaconingKey`](https://modpagespeed.com/docs/configuration/#downstreamcacherebeaconingkey), [`DownstreamCacheRewrittenPercentageThreshold`](https://modpagespeed.com/docs/configuration/#downstreamcacherewrittenpercentagethreshold), [`EnableCachePurge`](https://modpagespeed.com/docs/configuration/#enablecachepurge), [`FileCachePath`](https://modpagespeed.com/docs/configuration/#filecachepath), [`FileCacheSizeKb`](https://modpagespeed.com/docs/configuration/#filecachesizekb), [`FileCacheSmallTierPercent`](https://modpagespeed.com/docs/configuration/#filecachesmalltierpercent), [`FinderPropertiesCacheExpirationTimeMs`](https://modpagespeed.com/docs/configuration/#finderpropertiescacheexpirationtimems), [`FinderPropertiesCacheRefreshTimeMs`](https://modpagespeed.com/docs/configuration/#finderpropertiescacherefreshtimems), [`ForceCaching`](https://modpagespeed.com/docs/configuration/#forcecaching), [`HttpCacheCompressionLevel`](https://modpagespeed.com/docs/configuration/#httpcachecompressionlevel), [`ImplicitCacheTtlMs`](https://modpagespeed.com/docs/configuration/#implicitcachettlms), [`LRUCacheByteLimit`](https://modpagespeed.com/docs/configuration/#lrucachebytelimit), [`LRUCacheKbPerProcess`](https://modpagespeed.com/docs/configuration/#lrucachekbperprocess), [`MaxCacheableContentLength`](https://modpagespeed.com/docs/configuration/#maxcacheablecontentlength), [`MaxHtmlCacheTimeMs`](https://modpagespeed.com/docs/configuration/#maxhtmlcachetimems), [`MemcachedServers`](https://modpagespeed.com/docs/configuration/#memcachedservers), [`MemcachedThreads`](https://modpagespeed.com/docs/configuration/#memcachedthreads), [`MemcachedTimeoutUs`](https://modpagespeed.com/docs/configuration/#memcachedtimeoutus), [`MetadataCacheStalenessThresholdMs`](https://modpagespeed.com/docs/configuration/#metadatacachestalenessthresholdms), [`MinResourceCacheTimeToRewriteMs`](https://modpagespeed.com/docs/configuration/#minresourcecachetimetorewritems), [`NonCacheablesForCachePartialHtml`](https://modpagespeed.com/docs/configuration/#noncacheablesforcachepartialhtml), [`OverrideCachingTtlMs`](https://modpagespeed.com/docs/configuration/#overridecachingttlms), [`PubliclyCacheMismatchedHashesExperimental`](https://modpagespeed.com/docs/configuration/#publiclycachemismatchedhashesexperimental), [`PurgeMethod`](https://modpagespeed.com/docs/configuration/#purgemethod), [`RedisDatabaseIndex`](https://modpagespeed.com/docs/configuration/#redisdatabaseindex), [`RedisPassword`](https://modpagespeed.com/docs/configuration/#redispassword), [`RedisReconnectionDelayMs`](https://modpagespeed.com/docs/configuration/#redisreconnectiondelayms), [`RedisServer`](https://modpagespeed.com/docs/configuration/#redisserver), [`RedisTimeoutUs`](https://modpagespeed.com/docs/configuration/#redistimeoutus), [`RedisTTLSec`](https://modpagespeed.com/docs/configuration/#redisttlsec), [`RedisUser`](https://modpagespeed.com/docs/configuration/#redisuser), [`SharedMemoryLocks`](https://modpagespeed.com/docs/configuration/#sharedmemorylocks), [`ShmMetadataCacheCheckpointIntervalSec`](https://modpagespeed.com/docs/configuration/#shmmetadatacachecheckpointintervalsec), [`UseFallbackPropertyCacheValues`](https://modpagespeed.com/docs/configuration/#usefallbackpropertycachevalues)
+[`AsyncMetadataL2Writes`](https://modpagespeed.com/docs/configuration/#asyncmetadatal2writes), [`AutoCreateCachePath`](https://modpagespeed.com/docs/configuration/#autocreatecachepath), [`AwaitPcacheLookup`](https://modpagespeed.com/docs/configuration/#awaitpcachelookup), [`CacheFlushFilename`](https://modpagespeed.com/docs/configuration/#cacheflushfilename), [`CacheFlushPollIntervalSec`](https://modpagespeed.com/docs/configuration/#cacheflushpollintervalsec), [`CacheFragment`](https://modpagespeed.com/docs/configuration/#cachefragment), [`CompressMetadataCache`](https://modpagespeed.com/docs/configuration/#compressmetadatacache), [`CreateSharedMemoryMetadataCache`](https://modpagespeed.com/docs/configuration/#createsharedmemorymetadatacache), [`CycloneRamCacheKb`](https://modpagespeed.com/docs/configuration/#cycloneramcachekb), [`CycloneZeroCopy`](https://modpagespeed.com/docs/configuration/#cyclonezerocopy), [`CycloneZeroCopyServe`](https://modpagespeed.com/docs/configuration/#cyclonezerocopyserve), [`DefaultCacheHtml`](https://modpagespeed.com/docs/configuration/#defaultcachehtml), [`DefaultSharedMemoryCacheKB`](https://modpagespeed.com/docs/configuration/#defaultsharedmemorycachekb), [`DownstreamCachePurgeLocationPrefix`](https://modpagespeed.com/docs/configuration/#downstreamcachepurgelocationprefix), [`DownstreamCachePurgeMethod`](https://modpagespeed.com/docs/configuration/#downstreamcachepurgemethod), [`DownstreamCacheRebeaconingKey`](https://modpagespeed.com/docs/configuration/#downstreamcacherebeaconingkey), [`DownstreamCacheRewrittenPercentageThreshold`](https://modpagespeed.com/docs/configuration/#downstreamcacherewrittenpercentagethreshold), [`EnableCachePurge`](https://modpagespeed.com/docs/configuration/#enablecachepurge), [`FileCachePath`](https://modpagespeed.com/docs/configuration/#filecachepath), [`FileCacheSizeKb`](https://modpagespeed.com/docs/configuration/#filecachesizekb), [`FileCacheSmallTierPercent`](https://modpagespeed.com/docs/configuration/#filecachesmalltierpercent), [`FinderPropertiesCacheExpirationTimeMs`](https://modpagespeed.com/docs/configuration/#finderpropertiescacheexpirationtimems), [`FinderPropertiesCacheRefreshTimeMs`](https://modpagespeed.com/docs/configuration/#finderpropertiescacherefreshtimems), [`ForceCaching`](https://modpagespeed.com/docs/configuration/#forcecaching), [`HttpCacheCompressionLevel`](https://modpagespeed.com/docs/configuration/#httpcachecompressionlevel), [`ImplicitCacheTtlMs`](https://modpagespeed.com/docs/configuration/#implicitcachettlms), [`LRUCacheByteLimit`](https://modpagespeed.com/docs/configuration/#lrucachebytelimit), [`LRUCacheKbPerProcess`](https://modpagespeed.com/docs/configuration/#lrucachekbperprocess), [`MaxCacheableContentLength`](https://modpagespeed.com/docs/configuration/#maxcacheablecontentlength), [`MaxHtmlCacheTimeMs`](https://modpagespeed.com/docs/configuration/#maxhtmlcachetimems), [`MemcachedServers`](https://modpagespeed.com/docs/configuration/#memcachedservers), [`MemcachedThreads`](https://modpagespeed.com/docs/configuration/#memcachedthreads), [`MemcachedTimeoutUs`](https://modpagespeed.com/docs/configuration/#memcachedtimeoutus), [`MetadataCacheStalenessThresholdMs`](https://modpagespeed.com/docs/configuration/#metadatacachestalenessthresholdms), [`MinResourceCacheTimeToRewriteMs`](https://modpagespeed.com/docs/configuration/#minresourcecachetimetorewritems), [`NonCacheablesForCachePartialHtml`](https://modpagespeed.com/docs/configuration/#noncacheablesforcachepartialhtml), [`OverrideCachingTtlMs`](https://modpagespeed.com/docs/configuration/#overridecachingttlms), [`PubliclyCacheMismatchedHashesExperimental`](https://modpagespeed.com/docs/configuration/#publiclycachemismatchedhashesexperimental), [`PurgeMethod`](https://modpagespeed.com/docs/configuration/#purgemethod), [`RedisDatabaseIndex`](https://modpagespeed.com/docs/configuration/#redisdatabaseindex), [`RedisPassword`](https://modpagespeed.com/docs/configuration/#redispassword), [`RedisReconnectionDelayMs`](https://modpagespeed.com/docs/configuration/#redisreconnectiondelayms), [`RedisServer`](https://modpagespeed.com/docs/configuration/#redisserver), [`RedisTimeoutUs`](https://modpagespeed.com/docs/configuration/#redistimeoutus), [`RedisTTLSec`](https://modpagespeed.com/docs/configuration/#redisttlsec), [`RedisUser`](https://modpagespeed.com/docs/configuration/#redisuser), [`SharedMemoryLocks`](https://modpagespeed.com/docs/configuration/#sharedmemorylocks), [`ShmMetadataCacheCheckpointIntervalSec`](https://modpagespeed.com/docs/configuration/#shmmetadatacachecheckpointintervalsec), [`UseFallbackPropertyCacheValues`](https://modpagespeed.com/docs/configuration/#usefallbackpropertycachevalues)
 
 #### AsyncMetadataL2Writes
 
@@ -6236,6 +6272,23 @@ Evaluate nginx script variables ($var) in pagespeed directive arguments at reque
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 Defer the metadata cache's blocking L2 (disk) write off the rewrite critical path onto a single-thread write-behind queue. Reads and the shared-memory L1 write stay synchronous, so same-machine read-your-writes is preserved. Experimental; off by default.
+
+#### AutoCreateCachePath
+
+- **Syntax:** `pagespeed AutoCreateCachePath on|off` (IIS)
+- **Default:** `on`
+- **Context:** IIS: pagespeed.config, outside match rules
+- **Platform:** IIS only
+
+Auto-create the per-site cache subdirectory if missing (on|off, default on).
+
+Creation applies only to a cache directory inside
+`C:\ProgramData\We-Amp\PageSpeed\cache\` or
+`C:\ProgramData\We-Amp\IISWebSpeed\cache\`; a cache directory anywhere else
+must already exist when the site serves its first request, whatever this is set
+to. With `off`, a missing directory is not created and the site does not start
+optimizing. See
+[IIS configuration](https://modpagespeed.com/docs/iis-configuration/#automatic-cache-directory-creation).
 
 #### AwaitPcacheLookup
 
@@ -8174,7 +8227,7 @@ Boolean `--no-…` flags switch off a transform that is on by default; the
 
 <!-- generated:begin worker-flags -->
 
-Sections: [General options](https://modpagespeed.com/docs/worker-configuration/#flags-general-options) (88) · [Windows service](https://modpagespeed.com/docs/worker-configuration/#flags-windows-service) (2) · [Cache key normalization](https://modpagespeed.com/docs/worker-configuration/#flags-cache-key-normalization) (4) · [SVG auto-vectorization](https://modpagespeed.com/docs/worker-configuration/#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](https://modpagespeed.com/docs/worker-configuration/#flags-agent-optimize-experimental-off-by-default) (8) · [Web Bot Auth (observe-only, off by default)](https://modpagespeed.com/docs/worker-configuration/#flags-web-bot-auth-observe-only-off-by-default) (4).
+Sections: [General options](https://modpagespeed.com/docs/worker-configuration/#flags-general-options) (88) · [Windows service](https://modpagespeed.com/docs/worker-configuration/#flags-windows-service) (2) · [Cache key normalization](https://modpagespeed.com/docs/worker-configuration/#flags-cache-key-normalization) (4) · [SVG auto-vectorization](https://modpagespeed.com/docs/worker-configuration/#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](https://modpagespeed.com/docs/worker-configuration/#flags-agent-optimize-experimental-off-by-default) (8) · [Web Bot Auth (observe-only, off by default)](https://modpagespeed.com/docs/worker-configuration/#flags-web-bot-auth-observe-only-off-by-default) (4) · [RSL-CAP enforcement (experimental, off by default)](https://modpagespeed.com/docs/worker-configuration/#flags-rsl-cap-enforcement-experimental-off-by-default) (5).
 
 ### General options
 
@@ -9350,6 +9403,48 @@ keyid=name pairs (comma-separated) promoting a verified signature to a named bot
 - **Default:** —
 
 opt-in verified-crawl counter (experimental): off (default) | private | public. Enabling a non-off mode publishes a discoverable marker at /.well-known/webbotauth-counter. The exact doc is gated by the PAGESPEED_WEB_BOT_AUTH_COUNTER_TOKEN env bearer token.
+
+### RSL-CAP enforcement (experimental, off by default)
+
+[`--rsl-cap-enforcement`](https://modpagespeed.com/docs/worker-configuration/#--rsl-cap-enforcement), [`--rsl-cap-key-directory`](https://modpagespeed.com/docs/worker-configuration/#--rsl-cap-key-directory), [`--rsl-cap-requested-license`](https://modpagespeed.com/docs/worker-configuration/#--rsl-cap-requested-license), [`--rsl-cap-requested-scope`](https://modpagespeed.com/docs/worker-configuration/#--rsl-cap-requested-scope), [`--rsl-cap-issuer`](https://modpagespeed.com/docs/worker-configuration/#--rsl-cap-issuer)
+
+#### --rsl-cap-enforcement
+
+- **Syntax:** `--rsl-cap-enforcement`
+- **Default:** —
+
+Validate Authorization: License capability tokens and answer 401, 402 or pass (status codes only; never settles or meters payment)
+
+Experimental. In the container image, `PAGESPEED_RSL_CAP_ENFORCEMENT=true` sets
+this flag. See [RSL-CAP enforcement](https://modpagespeed.com/docs/rsl-cap/).
+
+#### --rsl-cap-key-directory
+
+- **Syntax:** `--rsl-cap-key-directory URL`
+- **Default:** —
+
+https JWKS key-directory URL of a token issuer to warm-fetch periodically (repeatable)
+
+#### --rsl-cap-requested-license
+
+- **Syntax:** `--rsl-cap-requested-license ID`
+- **Default:** —
+
+License id a token must grant (empty: every valid token is refused with 402)
+
+#### --rsl-cap-requested-scope
+
+- **Syntax:** `--rsl-cap-requested-scope SCOPE`
+- **Default:** —
+
+Scope a token must grant (empty: every valid token is refused with 402)
+
+#### --rsl-cap-issuer
+
+- **Syntax:** `--rsl-cap-issuer ISSUER`
+- **Default:** —
+
+Accept tokens from this issuer only; others are rejected as an unknown issuer (401). Empty: any issuer in the key directories
 
 <!-- generated:end worker-flags -->
 
@@ -16987,7 +17082,7 @@ pagespeed AdminDomains Allow localhost
 pagespeed AdminDomains Allow 10.0.0.*
 ```
 
-On IIS, the `InfoUrlsLocalOnly` directive provides an additional layer of access control. When set to `on` (the default), admin URLs are only accessible from the local machine regardless of the `AdminDomains` setting.
+On IIS, the `InfoUrlsLocalOnly` directive adds a local-only rule. When set to `on` (the default), the admin pages are served to local requests, and to requests whose host name (the `Host` header) is on a configured `AdminDomains` allowlist. With `off`, they are served to every request unless an allowlist is set; the host name must then match it.
 
 Available ACL directives: `StatisticsDomains`, `GlobalStatisticsDomains`, `MessagesDomains`, `ConsoleDomains`, `AdminDomains`, `GlobalAdminDomains`.
 
