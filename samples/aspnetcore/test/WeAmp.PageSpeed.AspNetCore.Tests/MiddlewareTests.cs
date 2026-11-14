@@ -2403,6 +2403,43 @@ public class MiddlewareTests
     }
 
     [Theory]
+    [InlineData(null, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.MustRevalidate, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.Public, true)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent, true)]
+    public async Task MissPath_CookieRequest_GetsCachedEarlyHintsOnlyFromAPageMarkedShared(
+        int? pageOriginCcFlags, bool expectHints)
+    {
+        var hintsData = Encoding.UTF8.GetBytes("/css/style.css");
+        var cache = new EarlyHintsPageSpeedCache(
+            hintsData, pageOriginCcFlags is int f ? (ushort)f : null);
+
+        var middleware = new PageSpeedMiddleware(
+            ctx =>
+            {
+                ctx.Response.StatusCode = 200;
+                ctx.Response.ContentType = "text/html";
+                var body = Encoding.UTF8.GetBytes("<html>fresh</html>");
+                return ctx.Response.Body.WriteAsync(body, 0, body.Length);
+            },
+            _optionsMonitor, _htmlProcessor, cache, _notifier, _logger);
+
+        var context = new DefaultHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/page";
+        context.Request.Scheme = "http";
+        context.Request.Host = new HostString("localhost");
+        context.Request.Headers.Cookie = "session=abc";
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        var links = context.Response.Headers.Link.ToArray();
+        Assert.Equal(expectHints,
+            links.Any(l => l != null && l.Contains("style.css")));
+    }
+
+    [Theory]
     [InlineData("http", "example.com", "/page", "", "/page", "http")]
     [InlineData("https", "example.com", "/page", "?v=1", "/page?v=1", "https")]
     [InlineData("https", "example.com:8080", "/app/page", "", "/app/page", "https")]
@@ -2611,8 +2648,15 @@ public class MiddlewareTests
     private sealed class EarlyHintsPageSpeedCache : IPageSpeedCache
     {
         private readonly byte[] _hints;
+        private readonly ushort? _pageOriginCcFlags;
 
-        public EarlyHintsPageSpeedCache(byte[] hints) => _hints = hints;
+        // pageOriginCcFlags: the recorded page's origin Cache-Control flags,
+        // or null for no recorded page.
+        public EarlyHintsPageSpeedCache(byte[] hints, ushort? pageOriginCcFlags = null)
+        {
+            _hints = hints;
+            _pageOriginCcFlags = pageOriginCcFlags;
+        }
 
         WeAmp.PageSpeed.Native.SafeCacheHandle IPageSpeedCache.Handle =>
             throw new NotSupportedException(
@@ -2627,7 +2671,14 @@ public class MiddlewareTests
         public int ReadSharedConfigAgentEntitled() => 0;
 
         public IReadResult? ReadAlternate(
-            string url, string hostname, string scheme, byte alternateId) => null;
+            string url, string hostname, string scheme, byte alternateId) =>
+            _pageOriginCcFlags is ushort flags && alternateId == 0x08
+                ? new FakeReadResult
+                {
+                    ContentType = PageSpeedContentType.Html,
+                    OriginCcFlags = flags,
+                }
+                : null;
 
         public IReadResult? ReadEarlyHints(
             string url, string hostname, string scheme) =>

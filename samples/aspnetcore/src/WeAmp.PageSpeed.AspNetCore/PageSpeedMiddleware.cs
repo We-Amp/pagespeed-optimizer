@@ -186,6 +186,9 @@ public sealed class PageSpeedMiddleware
                 "Request classification failed, using default mask");
         }
 
+        // Read on the HIT, early-hints and record paths below.
+        bool requestHasCookie = CookieRequestCacheRule.RequestHasCookie(context.Request);
+
         // ── CACHE HIT fast path ──────────────────────────────────
         // Skip cache on force-refresh (Ctrl+F5: Cache-Control: no-cache
         // or Pragma: no-cache).
@@ -237,8 +240,15 @@ public sealed class PageSpeedMiddleware
                     // The response headers the application set when the entry was
                     // stored ride along with it. An entry that cannot be served
                     // with them is treated as a miss and refetched.
-                    var stored = ResolveStoredHeaders(
-                        cached, url, hostname, scheme, servedAgentMarkdown);
+                    // A request carrying a cookie is served only an entry the
+                    // origin marked public or s-maxage (CookieRequestCacheRule);
+                    // otherwise it goes to the application.
+                    var stored = requestHasCookie &&
+                                 !StoredEntrySharedWithCookieRequest(
+                                     cached, url, hostname, scheme, servedAgentMarkdown)
+                        ? new StoredHeaders(false, null)
+                        : ResolveStoredHeaders(
+                            cached, url, hostname, scheme, servedAgentMarkdown);
                     if (stored.Usable)
                     {
                         if (ServeCacheHit(context, cached, url, hostname, scheme, mask,
@@ -268,7 +278,7 @@ public sealed class PageSpeedMiddleware
         // are not stored with the entry.
         var capture = new MissCapture(context.Response);
         var hintLinksBefore = context.Response.Headers.Link.ToArray();
-        AddEarlyHintLinkHeaders(context, url, hostname, scheme);
+        AddEarlyHintLinkHeaders(context, url, hostname, scheme, requestHasCookie);
         capture.OwnLinks.AddRange(SubtractLines(
             context.Response.Headers.Link.ToArray(), hintLinksBefore));
 
@@ -328,6 +338,21 @@ public sealed class PageSpeedMiddleware
         var responseContentType = context.Response.ContentType;
         var psContentType = ClassifyResponseContentType(responseContentType);
         var cacheControl = context.Response.Headers.CacheControl.ToString();
+
+        // A response to a request carrying a cookie is stored only when the
+        // origin opted in (CookieRequestCacheRule): a page needs public or a
+        // valid s-maxage; a stylesheet, script or image needs its own
+        // freshness lifetime.
+        if (record && requestHasCookie)
+        {
+            record = CookieRequestCacheRule.AppliesTo(psContentType)
+                ? CookieRequestCacheRule.ExplicitlySharedFromCacheControl(cacheControl)
+                : CookieRequestCacheRule.HasExplicitLifetime(
+                    cacheControl,
+                    context.Response.Headers.Expires.ToString(),
+                    context.Response.Headers.Date.ToString(),
+                    DateTimeOffset.UtcNow);
+        }
 
         switch (psContentType)
         {
@@ -741,6 +766,52 @@ public sealed class PageSpeedMiddleware
 
     private readonly record struct StoredHeaders(
         bool Usable, IReadOnlyList<KeyValuePair<string, string>>? Fields);
+
+    /// <summary>
+    /// May <paramref name="cached"/> be served to a request carrying a cookie?
+    /// Stylesheets, scripts and images: yes. Anything else: only when the
+    /// entry carries the origin's public or s-maxage mark. The markdown copy
+    /// carries no Cache-Control of its own; the recorded page's mark decides
+    /// for it, and without a recorded page it is not served.
+    /// </summary>
+    private bool StoredEntrySharedWithCookieRequest(
+        IReadResult cached, string url, string hostname, string scheme,
+        bool servedAgentMarkdown)
+    {
+        bool shared;
+        if (servedAgentMarkdown)
+            shared = StoredPageSharedWithCookieRequest(url, hostname, scheme);
+        else if (!CookieRequestCacheRule.AppliesTo(cached.ContentType))
+            shared = true;
+        else
+            shared = CookieRequestCacheRule.ExplicitlySharedFromFlags(cached.OriginCcFlags);
+        if (!shared)
+            _logger.LogDebug(
+                "Request for {Url} carries a cookie and the stored entry is not marked public or s-maxage; refetching",
+                url);
+        return shared;
+    }
+
+    /// <summary>
+    /// Does the page recorded for this URL carry the origin's public or
+    /// s-maxage mark? False when there is no recorded page or it cannot be
+    /// read.
+    /// </summary>
+    private bool StoredPageSharedWithCookieRequest(
+        string url, string hostname, string scheme)
+    {
+        try
+        {
+            using var page = _cache.ReadAlternate(url, hostname, scheme, (byte)DefaultMask);
+            return page != null &&
+                   CookieRequestCacheRule.ExplicitlySharedFromFlags(page.OriginCcFlags);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Reading the recorded page for {Url} failed", url);
+            return false;
+        }
+    }
 
     /// <summary>
     /// Decides how a cache entry is served with respect to the origin's
@@ -1355,12 +1426,19 @@ public sealed class PageSpeedMiddleware
     /// current response is fully generated.
     /// </summary>
     private void AddEarlyHintLinkHeaders(
-        HttpContext context, string url, string hostname, string scheme)
+        HttpContext context, string url, string hostname, string scheme,
+        bool requestHasCookie)
     {
         try
         {
             using var hints = _cache.ReadEarlyHints(url, hostname, scheme);
             if (hints == null) return;
+            // The hints were taken from the stored page, so a request
+            // carrying a cookie gets them only when that page would be
+            // served to it.
+            if (requestHasCookie && !StoredPageSharedWithCookieRequest(
+                    url, hostname, scheme))
+                return;
             AddLinkHeadersFromHints(context, hints.ContentMemory);
         }
         catch (Exception ex)
