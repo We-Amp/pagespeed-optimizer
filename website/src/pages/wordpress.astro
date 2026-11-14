@@ -44,7 +44,7 @@ const faqEntries = [
   },
   {
     q: 'Which mod_pagespeed versions are supported?',
-    a: `The plugin is tested with the current release: the mod_pagespeed ${MODULE_PACKAGE_VERSION} module and the optimizer worker. It also supports mod_pagespeed ${V1_LINE} (v${V1_LINE}.0+r3 or later). Version 0.1.0, the one in the WordPress.org directory, cannot purge the cache on mod_pagespeed 1.17.0 or later, which accept a purge only as a POST request; the next plugin release fixes this. Its license-tier display does not apply to current versions.`,
+    a: `The plugin is tested with the current release: the mod_pagespeed ${MODULE_PACKAGE_VERSION} module and the optimizer worker. It still supports mod_pagespeed ${V1_LINE} (v${V1_LINE}.0+r3 or later). Its license-tier display does not apply to current versions.`,
   },
 ];
 
@@ -220,8 +220,8 @@ const jsonLd = [
         <li class="flex gap-3">
           <span class="font-mono text-sm text-interactive">1.</span>
           <span>
-            Install mod_pagespeed on your web server first &mdash; version {V1_LINE}.0+r3 or later,
-            including the current release. See the
+            Install mod_pagespeed on your web server first &mdash; the current release,
+            {MODULE_PACKAGE_VERSION}, or version {V1_LINE}.0+r3 or later. See the
             <a href="/download/" class="text-interactive hover:text-interactive-hover underline">
               install guide
             </a>
