@@ -449,19 +449,52 @@ public sealed class RealWebShellFactAttribute : FactAttribute
 
     private void Evaluate()
     {
-        Skip = null;
         var asm = typeof(ConsoleMiddleware).Assembly;
         var name = asm.GetManifestResourceNames()
             .FirstOrDefault(n => n.EndsWith("index.html", StringComparison.Ordinal));
-        string html = "";
+        string? html = null;
         if (name != null)
         {
             using var s = asm.GetManifestResourceStream(name);
             if (s != null) { using var r = new StreamReader(s); html = r.ReadToEnd(); }
         }
+        Skip = SkipReasonFor(html, _needsImmutable);
+    }
+
+    /// <summary>
+    /// The skip reason for the embedded index.html, or null to run the test.
+    /// A missing resource (<paramref name="html"/> null) is a broken embed,
+    /// not a stub: the test runs and fails.
+    /// </summary>
+    internal static string? SkipReasonFor(string? html, bool needsImmutable)
+    {
+        if (html == null) return null;
         if (!html.Contains("<script", StringComparison.OrdinalIgnoreCase))
-            Skip = "The embedded web-shell is a stub (no real build); build it with pnpm to run this test.";
-        else if (_needsImmutable && !html.Contains("/_app/immutable/", StringComparison.Ordinal))
-            Skip = "The embedded web-shell has no /_app/immutable/ assets; build it with pnpm to run this test.";
+            return "The embedded web-shell is a stub (no real build); build it with pnpm to run this test.";
+        if (needsImmutable && !html.Contains("/_app/immutable/", StringComparison.Ordinal))
+            return "The embedded web-shell has no /_app/immutable/ assets; build it with pnpm to run this test.";
+        return null;
+    }
+}
+
+public class RealWebShellFactAttributeTests
+{
+    [Fact]
+    public void MissingResource_DoesNotSkip() =>
+        Assert.Null(RealWebShellFactAttribute.SkipReasonFor(null, false));
+
+    [Fact]
+    public void StubResource_Skips() =>
+        Assert.NotNull(RealWebShellFactAttribute.SkipReasonFor("<html></html>", false));
+
+    [Fact]
+    public void RealResource_DoesNotSkip() =>
+        Assert.Null(RealWebShellFactAttribute.SkipReasonFor("<script src=\"/_app/immutable/a.js\">", true));
+
+    [Fact]
+    public void ScriptWithoutImmutable_SkipsOnlyWhenRequired()
+    {
+        Assert.Null(RealWebShellFactAttribute.SkipReasonFor("<script>", false));
+        Assert.NotNull(RealWebShellFactAttribute.SkipReasonFor("<script>", true));
     }
 }
