@@ -19,7 +19,8 @@ namespace WeAmp.PageSpeed.AspNetCore.Tests;
 /// valid <c>s-maxage</c>; a stylesheet, script or image is recorded for it
 /// only with the origin's own freshness lifetime.
 /// Runs the standalone middleware (no worker) with the real native cache.
-/// Requires the native library; skips when it is absent.
+/// Requires the native library: skipped when it is absent locally, failed
+/// when it is absent on CI or with PAGESPEED_E2E_REQUIRE_NATIVE=1.
 /// </summary>
 public class CookieRequestRecordTests : IDisposable
 {
@@ -41,26 +42,20 @@ public class CookieRequestRecordTests : IDisposable
         try { Directory.Delete(_dir, recursive: true); } catch { }
     }
 
-    private async Task<WebApplication?> StartAsync(Action<WebApplication> map)
+    // A missing native library fails the test: the theories are skipped up
+    // front when it is absent locally (NativeLibTheory), and required on CI.
+    private async Task<WebApplication> StartAsync(Action<WebApplication> map)
     {
-        WebApplication app;
-        try
+        var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+        builder.WebHost.UseTestServer();
+        builder.Logging.SetMinimumLevel(LogLevel.Warning);
+        builder.Services.AddPageSpeed(opts =>
         {
-            var builder = WebApplication.CreateBuilder(Array.Empty<string>());
-            builder.WebHost.UseTestServer();
-            builder.Logging.SetMinimumLevel(LogLevel.Warning);
-            builder.Services.AddPageSpeed(opts =>
-            {
-                opts.Cache.VolumePath = Path.Combine(_dir, "volume.dat");
-                opts.Cache.VolumeSizeBytes = 16 * 1024 * 1024;
-                opts.Worker.AutoStart = false;  // standalone: no worker
-            });
-            app = builder.Build();
-        }
-        catch (DllNotFoundException)
-        {
-            return null;  // native library not available
-        }
+            opts.Cache.VolumePath = Path.Combine(_dir, "volume.dat");
+            opts.Cache.VolumeSizeBytes = 16 * 1024 * 1024;
+            opts.Worker.AutoStart = false;  // standalone: no worker
+        });
+        var app = builder.Build();
 
         app.UsePageSpeed();
         app.MapGet("/open.css", (HttpContext ctx) =>
@@ -70,15 +65,7 @@ public class CookieRequestRecordTests : IDisposable
         });
         map(app);
 
-        try
-        {
-            await app.StartAsync();
-        }
-        catch (DllNotFoundException)
-        {
-            await app.DisposeAsync();
-            return null;  // native library not available
-        }
+        await app.StartAsync();
         // An anonymous visit records the page's stylesheet.
         await SendAsync(app, "/open.css");
         return app;
@@ -128,7 +115,7 @@ public class CookieRequestRecordTests : IDisposable
 
     // ── Pages fetched for a cookie-bearing request ──────────────────
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData(null)]
     [InlineData("max-age=60")]
     [InlineData("max-age=60, must-revalidate")]
@@ -141,7 +128,6 @@ public class CookieRequestRecordTests : IDisposable
         string? cacheControl)
     {
         var app = await StartAsync(a => Page(a, "/p", cacheControl));
-        if (app == null) return;
         try
         {
             Assert.NotEqual("HIT", await SendAsync(app, "/p", SessionCookie));
@@ -155,14 +141,13 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData("Cookie", "")]
     [InlineData("Cookie2", "$Version=1")]
     [InlineData("cookie", "a=b")]
     public async Task PageForRequestWithAnyCookieHeader_IsNotShared(string name, string value)
     {
         var app = await StartAsync(a => Page(a, "/p", "max-age=60"));
-        if (app == null) return;
         try
         {
             Assert.NotEqual("HIT", await SendAsync(app, "/p", (name, value)));
@@ -176,13 +161,12 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData("TEXT/HTML; charset=utf-8")]
     [InlineData("Text/Html")]
     public async Task PageForCookieRequest_ContentTypeMatchIsCaseInsensitive(string contentType)
     {
         var app = await StartAsync(a => Page(a, "/p", "max-age=60", contentType));
-        if (app == null) return;
         try
         {
             await SendAsync(app, "/p", SessionCookie);
@@ -196,7 +180,7 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData("public, max-age=60")]
     [InlineData("s-maxage=60")]
     [InlineData("max-age=60, s-maxage=120")]
@@ -205,7 +189,6 @@ public class CookieRequestRecordTests : IDisposable
     public async Task PageForCookieRequest_MarkedPublicOrSMaxage_IsShared(string cacheControl)
     {
         var app = await StartAsync(a => Page(a, "/p", cacheControl));
-        if (app == null) return;
         try
         {
             Assert.NotEqual("HIT", await SendAsync(app, "/p", SessionCookie));
@@ -222,14 +205,13 @@ public class CookieRequestRecordTests : IDisposable
 
     // ── Stored pages and cookie-bearing requests ────────────────────
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData("Cookie", "session=abc")]
     [InlineData("Cookie", "")]
     [InlineData("Cookie2", "$Version=1")]
     public async Task StoredPageWithoutMark_IsNotServedToCookieRequest(string name, string value)
     {
         var app = await StartAsync(a => Page(a, "/p", "max-age=60, must-revalidate"));
-        if (app == null) return;
         try
         {
             await SendAsync(app, "/p");
@@ -244,14 +226,13 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData("s-maxage=0")]
     [InlineData("s-maxage=abc")]
     [InlineData("s-maxage=60, s-maxage=120")]
     public async Task StoredPageWithInvalidSMaxage_IsNotServedToCookieRequest(string cacheControl)
     {
         var app = await StartAsync(a => Page(a, "/p", cacheControl));
-        if (app == null) return;
         try
         {
             await SendAsync(app, "/p");
@@ -266,13 +247,12 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData("public, max-age=60")]
     [InlineData("s-maxage=60")]
     public async Task StoredPageMarkedPublicOrSMaxage_IsServedToCookieRequest(string cacheControl)
     {
         var app = await StartAsync(a => Page(a, "/p", cacheControl));
-        if (app == null) return;
         try
         {
             await SendAsync(app, "/p");
@@ -298,12 +278,11 @@ public class CookieRequestRecordTests : IDisposable
     private static readonly byte[] AssetBody =
         System.Text.Encoding.UTF8.GetBytes("header{background:#0a0a0a}");
 
-    [Theory]
+    [NativeLibTheory]
     [MemberData(nameof(Assets))]
     public async Task AssetForCookieRequest_WithOriginLifetime_IsShared(string path, string type)
     {
         var app = await StartAsync(a => Route(a, path, type, "max-age=3600", AssetBody));
-        if (app == null) return;
         try
         {
             await SendAsync(app, path, SessionCookie);
@@ -317,13 +296,12 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [MemberData(nameof(Assets))]
     public async Task AssetForCookieRequest_WithOriginExpires_IsShared(string path, string type)
     {
         var expires = DateTimeOffset.UtcNow.AddHours(1).ToString("r");
         var app = await StartAsync(a => Route(a, path, type, null, AssetBody, expires));
-        if (app == null) return;
         try
         {
             await SendAsync(app, path, SessionCookie);
@@ -346,13 +324,12 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [MemberData(nameof(AssetsWithoutLifetime))]
     public async Task AssetForCookieRequest_WithoutOriginLifetime_IsNotShared(
         string path, string type, string? cacheControl)
     {
         var app = await StartAsync(a => Route(a, path, type, cacheControl, AssetBody));
-        if (app == null) return;
         try
         {
             await SendAsync(app, path, SessionCookie);
@@ -366,14 +343,13 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [MemberData(nameof(Assets))]
     public async Task AssetForCookieRequest_ExpiresAlongsideCacheControl_IsNoLifetime(
         string path, string type)
     {
         var expires = DateTimeOffset.UtcNow.AddHours(1).ToString("r");
         var app = await StartAsync(a => Route(a, path, type, "public", AssetBody, expires));
-        if (app == null) return;
         try
         {
             await SendAsync(app, path, SessionCookie);
@@ -387,12 +363,11 @@ public class CookieRequestRecordTests : IDisposable
         }
     }
 
-    [Theory]
+    [NativeLibTheory]
     [MemberData(nameof(Assets))]
     public async Task StoredAsset_IsServedToCookieRequest(string path, string type)
     {
         var app = await StartAsync(a => Route(a, path, type, "public", AssetBody));
-        if (app == null) return;
         try
         {
             await SendAsync(app, path);
@@ -408,13 +383,12 @@ public class CookieRequestRecordTests : IDisposable
 
     // ── Authorization handling is unchanged ─────────────────────────
 
-    [Theory]
+    [NativeLibTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task PageForAuthorizationRequest_IsNotSharedEvenWhenMarkedPublic(bool withCookie)
     {
         var app = await StartAsync(a => Page(a, "/p", "public, max-age=60"));
-        if (app == null) return;
         try
         {
             var headers = withCookie
