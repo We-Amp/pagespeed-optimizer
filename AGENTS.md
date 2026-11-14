@@ -22,6 +22,7 @@ module), C#/.NET middleware (`samples/aspnetcore/`), and a pnpm workbench
   (`tools/ci/check_release_note.sh`). If nothing a user can observe changed, put
   `Release-Note: none — <reason>` in a commit message. A reason is required.
   See RELEASING.md → "Every user-facing change carries its note".
+- **Security fixes are not opened as public pull requests or issues;** follow `SECURITY.md`.
 - **clang-format is pinned in `.pre-commit-config.yaml`** (the `mirrors-clang-format`
   rev; CI mirrors it as `clang-format-20` today). Match that rev rather than assuming a
   version — the pin is the source of truth on a bump. Reproduce the CI lint gate with
