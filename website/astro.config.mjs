@@ -293,6 +293,8 @@ export default defineConfig({
           page.includes('/go/') ||
           page.includes('/error/') ||
           page.endsWith('/contact/thanks/') ||
+          // Held for launch: noindex and unlinked until then.
+          page.endsWith('/fixed-since-the-archive/') ||
           // /privacy/ points at the one privacy notice on we-amp.com (production
           // answers it with a 301); the canonical page is there.
           page.endsWith('/privacy/')
