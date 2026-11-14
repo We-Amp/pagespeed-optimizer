@@ -114,13 +114,13 @@ export const SUPPORT_TIERS = [
       offer: 'buy-priority',
       external: true,
     },
-    note: 'everything in Standard plus a faster first response and vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for up to 25 production servers',
+    note: 'everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for up to 25 production servers',
     includes: [
       'Everything in Standard',
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
       'Upgrade rehearsal on request',
       'Quarterly review call',
-      'Release SBOM and VEX on request',
+      'The SBOM and VEX copy for a given release, sent on request (both are public in the source tree)',
       'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
@@ -152,7 +152,7 @@ export const SUPPORT_TIERS = [
 // The line under the tier cards: what is signed and attested is not a tier
 // feature; security fixes reach everyone at the same time.
 export const SAME_SOFTWARE_LINE =
-  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription. Security fixes reach every user at the same time.';
+  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription. Security fixes reach every user at the same time. A build or backport made for an Enterprise customer is published for everyone when it is delivered.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =

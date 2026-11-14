@@ -191,4 +191,4 @@ mod_pagespeed is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells is
 [support](/support/) from the people who build
 the product; the software and its signed packages are the same for everyone,
-and the standard signed packages stay free.
+and free.

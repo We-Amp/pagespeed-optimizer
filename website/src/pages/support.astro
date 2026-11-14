@@ -96,7 +96,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   {
     key: 'security updates',
     value: 'advance notice',
-    detail: 'We tell subscribers about a security release before it is published.',
+    detail:
+      'Advance notice of a planned security release: date, severity, affected versions and impact class. If a vulnerability is already public or exploited, the notice goes out with the release.',
   },
   {
     key: 'scope',
@@ -282,9 +283,13 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             <li class="flex gap-2">
               <Icon name="check" class="mt-1 h-4 w-4 shrink-0 text-interactive" />
               <span>
-                We tell subscribers about a security release before it is published. Priority and
-                Enterprise subscribers also get vulnerability notifications timed to the EU Cyber
-                Resilience Act reporting windows, and the release SBOM and VEX on request.
+                Subscribers get advance notice of a planned security release: the date, the
+                severity, the affected versions and the impact class. When a vulnerability is
+                already public or being exploited, the notice goes out with the release. Priority
+                and Enterprise subscribers also get vulnerability notifications timed to the EU
+                Cyber Resilience Act reporting windows. The SBOM and VEX are public in the source
+                tree; Priority and Enterprise subscribers can ask us to send the copy for a given
+                release.
               </span>
             </li>
           </ul>
