@@ -6,6 +6,8 @@ All notable changes to mod_pagespeed are documented in this file.
 
 Changed: the worker's `--help` output now lists the `--rsl-cap-*` options, which it already accepted.
 
+Changed: in the nginx module, a page fetched for a visitor whose request carries cookies is stored in the cache and shared with other visitors only when the origin marks it `Cache-Control: public` or gives it an `s-maxage`. A cached page is likewise served to a visitor with cookies only when it carried one of those marks; otherwise the request goes to the origin. The same applies to the page's Markdown copy for agents. Sites whose pages are requested with cookies (for example analytics or consent cookies) and are not marked `public` see more requests reach the origin; add `public` to pages that are the same for every visitor to keep them cached. Requests with an `Authorization` header are handled as before. Pages stored by an earlier version stay in the cache until they expire or are purged.
+
 Changed: the JPEG quality of a desktop (full-size) image variant no longer depends on the smaller mobile and tablet variants built before it. Desktop and other full-size JPEG variants can come out larger or smaller than before. A normal-client WebP or AVIF variant is now always compared against the full-size JPEG, so it is no longer refused because of an earlier viewport.
 
 ## 2.8.1 - 2026-11-08

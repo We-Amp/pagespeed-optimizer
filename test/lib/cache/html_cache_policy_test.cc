@@ -1959,5 +1959,41 @@ TEST(HtmlCachePolicyTest, ServeVerdictIsPure) {
   EXPECT_EQ(f.render_ttl_s, f_before.render_ttl_s);
 }
 
+TEST(HtmlCachePolicyTest, CookieRulePredicate) {
+  EXPECT_TRUE(HtmlCookieRequestMayShare(false, false));
+  EXPECT_TRUE(HtmlCookieRequestMayShare(false, true));
+  EXPECT_TRUE(HtmlCookieRequestMayShare(true, true));
+  EXPECT_FALSE(HtmlCookieRequestMayShare(true, false));
+}
+
+TEST(HtmlCachePolicyTest, ExplicitlySharedFromStoredFlags) {
+  EXPECT_FALSE(HtmlExplicitlySharedFromFlags(0));
+  EXPECT_FALSE(HtmlExplicitlySharedFromFlags(Meta::kCCOriginHeaderPresent));
+  EXPECT_FALSE(HtmlExplicitlySharedFromFlags(Meta::kCCOriginHeaderPresent |
+                                             Meta::kCCOriginMustRevalidate));
+  EXPECT_TRUE(HtmlExplicitlySharedFromFlags(Meta::kCCOriginHeaderPresent |
+                                            Meta::kCCOriginPublic));
+  EXPECT_TRUE(HtmlExplicitlySharedFromFlags(Meta::kCCOriginHeaderPresent |
+                                            Meta::kCCOriginSMaxagePresent));
+}
+
+TEST(HtmlCachePolicyTest, StoredFlagsAgreeWithTheStoreVerdict) {
+  // For every well-formed Cache-Control line the policy's own explicit_shared
+  // and the flag-based reading agree, so a front end that holds only the
+  // stored flags answers the cookie rule as the policy does.
+  for (const char* line :
+       {"max-age=60", "public, max-age=60", "max-age=60, s-maxage=120",
+        "s-maxage=0", "max-age=60, must-revalidate", "no-cache", "public"}) {
+    StoreInput in;
+    in.headers = {{"Content-Type", "text/html; charset=utf-8"},
+                  {"Cache-Control", line},
+                  {"ETag", "\"a\""}};
+    const HtmlStoreVerdict v = in.Run();
+    ASSERT_TRUE(v.cc_evaluated) << line;
+    EXPECT_EQ(v.explicit_shared, HtmlExplicitlySharedFromFlags(v.cc_flags))
+        << line;
+  }
+}
+
 }  // namespace
 }  // namespace pagespeed

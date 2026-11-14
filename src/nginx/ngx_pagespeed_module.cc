@@ -61,6 +61,7 @@ extern "C" {
 #include "src/nginx/agent_self_fetch.h"
 #include "src/nginx/authz_cache_gate.h"
 #include "src/nginx/cache_generation_check.h"
+#include "src/nginx/cookie_cache_gate.h"
 #include "src/nginx/early_hints.h"
 #include "src/nginx/early_hints_util.h"
 #include "src/nginx/etag_util.h"
@@ -2671,6 +2672,33 @@ static bool ngx_http_pagespeed_authz_gate_has_auth(ngx_http_request_t* r) {
   return true;
 }
 
+// Does this request carry a Cookie (or the obsolete Cookie2) header?  Input
+// to the cookie gate (src/nginx/cookie_cache_gate.h) on the record, HIT and
+// 304-restamp paths.  Presence is what counts, whatever the value, as for
+// Authorization.  Scans the raw header list rather than a core slot, whose
+// name and shape differ across nginx versions.
+static bool ngx_http_pagespeed_request_has_cookie(ngx_http_request_t* r) {
+  ngx_list_part_t* part = &r->headers_in.headers.part;
+  auto* h = static_cast<ngx_table_elt_t*>(part->elts);
+  for (ngx_uint_t i = 0;; i++) {
+    if (i >= part->nelts) {
+      if (part->next == nullptr) {
+        break;
+      }
+      part = part->next;
+      h = static_cast<ngx_table_elt_t*>(part->elts);
+      i = 0;
+    }
+    if ((h[i].key.len == 6 &&
+         ngx_strncasecmp(h[i].key.data, (u_char*)"Cookie", 6) == 0) ||
+        (h[i].key.len == 7 &&
+         ngx_strncasecmp(h[i].key.data, (u_char*)"Cookie2", 7) == 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Derive the origin's Cache-Control state from the response's header lines.
 //
 // The derivation itself lives in lib/cache
@@ -4032,6 +4060,14 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
         ngx_http_pagespeed_authz_gate_has_auth(r);
     storability_in.response_has_set_cookie =
         ngx_http_pagespeed_get_response_header(r, "Set-Cookie").len > 0;
+    // The stashed entry passed the HIT-side cookie gate; this keeps a 304
+    // that withdraws public / s-maxage from extending it for a cookie-bearing
+    // HTML exchange.
+    storability_in.html_request_has_cookie =
+        ngx_http_pagespeed_request_has_cookie(r) &&
+        (stale->metadata.content_type == ContentType::kHtml ||
+         (stale->metadata.full_mask & 0xFF) ==
+             static_cast<uint32_t>(SentinelId::kAgentMarkdown));
     pagespeed::RestampVerdict storability_verdict =
         pagespeed::EvaluateRestampStorability(storability_in);
     if (unstorable_after_304) {
@@ -4530,6 +4566,18 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     // recording, so record_response (write + notify) is unreachable.
     if (!pagespeed::AuthzCacheGateAllows(
             ngx_http_pagespeed_authz_gate_has_auth(r), parsed_cc.cc_flags)) {
+      ctx->uncacheable = 1;
+    }
+    // A page fetched for a request that carried a cookie enters the shared
+    // cache only when the origin marked it explicitly shareable (public or
+    // s-maxage) — the HTML cache policy's cookie rule, through
+    // src/nginx/cookie_cache_gate.h.  The Markdown copy is rendered from the
+    // stored page, so it is covered by the same refusal.  Same mechanism as
+    // the §3.5 gate above: uncacheable keeps the worker un-notified.
+    if (!pagespeed::CookieCacheGateAllows(
+            ngx_http_pagespeed_request_has_cookie(r),
+            ngx_http_pagespeed_detect_content_type(r) == ContentType::kHtml,
+            parsed_cc.cc_flags)) {
       ctx->uncacheable = 1;
     }
     if (parsed_cc.cc_flags & kCCNoTransform) {
@@ -5633,6 +5681,45 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
                    "for %V",
                    &r->uri);
   }
+  // Cookie rule (src/nginx/cookie_cache_gate.h, the HTML cache policy's
+  // serve rule 4): a stored page is served to a request carrying a Cookie
+  // header only when the stored entry is marked public or s-maxage.  Gated
+  // here, with the same reach as the §3.5 bypass above: the conditional
+  // revalidation, stale-if-error and coalesced-stale serves only ever use an
+  // entry this HIT path stashed.  The Markdown copy stores no Cache-Control
+  // of its own; it is rendered from the recorded page, so the recorded
+  // page's flags decide for it (no recorded page: flags 0, fail closed).
+  // The extra read happens only for a cookie-bearing request that selected
+  // the copy.
+  bool cookie_cache_bypass = false;
+  if (read_result.has_value() && read_result->is_valid() &&
+      ngx_http_pagespeed_request_has_cookie(r)) {
+    const bool selected_markdown =
+        (read_result->metadata.full_mask & 0xFF) ==
+        static_cast<uint32_t>(SentinelId::kAgentMarkdown);
+    bool html_class = read_result->metadata.content_type == ContentType::kHtml;
+    uint16_t share_flags = read_result->metadata.origin_cc_flags;
+    if (selected_markdown) {
+      html_class = true;
+      share_flags = 0;
+      const AlternateId recorded_id = MaskToAlternateId(
+          static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+      auto recorded = cache->ReadAlternateByKey(cache_key, recorded_id);
+      if (recorded.has_value() && recorded->is_valid()) {
+        share_flags = recorded->metadata.origin_cc_flags;
+      }
+    }
+    cookie_cache_bypass =
+        !pagespeed::CookieCacheGateAllows(true, html_class, share_flags);
+    if (cookie_cache_bypass) {
+      ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                     "pagespeed: request carries a cookie and the stored "
+                     "page is not marked public or s-maxage — bypassing "
+                     "cache for %V",
+                     &r->uri);
+    }
+  }
+  const bool request_cache_bypass = authz_cache_bypass || cookie_cache_bypass;
   // Defense-in-depth (issue #1335): re-validate the selected variant's
   // image format against the request's negotiated mask before serving.
   // PageSpeedSelector already hard-disqualifies a format-incompatible
@@ -5682,7 +5769,7 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
   // that carry no block, entries recorded before the gate, and the agent
   // markdown variant pay nothing.  Decisions: headers_sidecar_replay.h.
   bool sidecar_missing = false;
-  if (!authz_cache_bypass && !variant_format_mismatch &&
+  if (!request_cache_bypass && !variant_format_mismatch &&
       read_result.has_value() && read_result->is_valid()) {
     const bool selected_agent_markdown =
         (read_result->metadata.full_mask & 0xFF) ==
@@ -5698,7 +5785,7 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
                      &r->uri);
     }
   }
-  if (!authz_cache_bypass && !variant_format_mismatch && !sidecar_missing &&
+  if (!request_cache_bypass && !variant_format_mismatch && !sidecar_missing &&
       read_result.has_value() && read_result->is_valid()) {
     auto content = read_result->content();
     {  // Zero-byte cache entries are valid (is_valid() checked above).

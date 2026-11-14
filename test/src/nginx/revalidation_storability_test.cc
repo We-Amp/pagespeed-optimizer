@@ -276,6 +276,38 @@ TEST(RevalidationStorabilityTest, SetCookieOn304SkipsRestamp) {
   EXPECT_EQ(RestampVerdict::kSkipRestamp, EvaluateRestampStorability(in));
 }
 
+// --- Cookie-bearing HTML exchange -----------------------------------------
+
+TEST(RevalidationStorabilityTest, CookieRequestKeepsSharedPageFresh) {
+  RestampStorabilityInputs in = Anonymous(kPublicFresh);
+  in.html_request_has_cookie = true;
+  EXPECT_EQ(RestampVerdict::kRestamp, EvaluateRestampStorability(in));
+  in.refreshed_cc_flags =
+      Meta::kCCOriginHeaderPresent | Meta::kCCOriginSMaxagePresent;
+  EXPECT_EQ(RestampVerdict::kRestamp, EvaluateRestampStorability(in));
+}
+
+TEST(RevalidationStorabilityTest, CookieRequestWithWithdrawnMarkSkipsRestamp) {
+  // Plain max-age: storable for anonymous traffic, but a cookie-bearing
+  // exchange may not extend it.  Not an eviction.
+  RestampStorabilityInputs in = Anonymous(Meta::kCCOriginHeaderPresent);
+  in.html_request_has_cookie = true;
+  EXPECT_EQ(RestampVerdict::kSkipRestamp, EvaluateRestampStorability(in));
+  // must-revalidate is a §3.5 permit but does not mark the page shareable.
+  in.refreshed_cc_flags =
+      Meta::kCCOriginHeaderPresent | Meta::kCCOriginMustRevalidate;
+  EXPECT_EQ(RestampVerdict::kSkipRestamp, EvaluateRestampStorability(in));
+  // no-store still dominates.
+  in.refreshed_cc_flags = Meta::kCCOriginHeaderPresent | Meta::kCCOriginNoStore;
+  EXPECT_EQ(RestampVerdict::kEvict, EvaluateRestampStorability(in));
+}
+
+TEST(RevalidationStorabilityTest, NoCookieLeavesPlainPageRestamping) {
+  EXPECT_EQ(
+      RestampVerdict::kRestamp,
+      EvaluateRestampStorability(Anonymous(Meta::kCCOriginHeaderPresent)));
+}
+
 // --- The downstream-advertising helper ------------------------------------
 
 TEST(RevalidationStorabilityTest, ForbidsSharedStoragePredicate) {

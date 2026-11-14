@@ -45,6 +45,7 @@ Set `COMPLIANCE_NO_LIFECYCLE=1` to skip Docker build/up/down (for CI or external
 | File | Coverage |
 |------|----------|
 | `test_authorization.py` | RFC 9111 §3.5 Authorization gate: pass-through without a permit, public/s-maxage/must-revalidate permits, stale tightening, anonymous isolation |
+| `test_cookie_request.py` | Cookie-bearing HTML requests: stored and served only for pages marked public or s-maxage; must-revalidate is not a sharing mark; Authorization and Cookie together pass both rules |
 | `test_cache_control.py` | no-store, no-cache, private, max-age, must-revalidate, s-maxage |
 | `test_conditional_requests.py` | ETag forwarding, If-None-Match, 304 responses |
 | `test_content_length.py` | Content-Length accuracy on HIT and MISS |

@@ -16,6 +16,18 @@ cc_library(
     ],
 )
 
+# Shared-cache gate for cookie-bearing HTML requests - pure C++, testable
+# without nginx headers.  The rule itself is the HTML cache policy's.
+cc_library(
+    name = "cookie_cache_gate",
+    srcs = ["cookie_cache_gate.cc"],
+    hdrs = ["cookie_cache_gate.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cache:html_cache_policy",
+    ],
+)
+
 # 304-restamp storability re-evaluation (issue #1016) - pure C++, testable
 # without nginx headers.
 cc_library(
@@ -25,6 +37,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":authz_cache_gate",
+        ":cookie_cache_gate",
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",
@@ -194,6 +207,7 @@ cc_library(
         ":agent_self_fetch",
         ":authz_cache_gate",
         ":cache_generation_check",
+        ":cookie_cache_gate",
         ":early_hints",
         ":early_hints_util",
         ":etag_util",

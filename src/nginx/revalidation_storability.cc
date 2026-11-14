@@ -5,6 +5,7 @@
 
 #include "lib/classify/alternate_metadata.h"
 #include "src/nginx/authz_cache_gate.h"
+#include "src/nginx/cookie_cache_gate.h"
 
 namespace pagespeed {
 
@@ -55,6 +56,13 @@ RestampVerdict EvaluateRestampStorability(
   // lawfully stored for anonymous traffic.
   if (!AuthzCacheGateAllows(inputs.request_has_authorization,
                             inputs.refreshed_cc_flags)) {
+    return RestampVerdict::kSkipRestamp;
+  }
+  // The same reasoning for a cookie-bearing HTML exchange: it may extend the
+  // entry's life only while the refreshed Cache-Control still marks the page
+  // explicitly shareable (cookie_cache_gate.h).
+  if (!CookieCacheGateAllows(inputs.html_request_has_cookie,
+                             /*html_class=*/true, inputs.refreshed_cc_flags)) {
     return RestampVerdict::kSkipRestamp;
   }
   // A 304 that sets a cookie marks the exchange as personalized; it must

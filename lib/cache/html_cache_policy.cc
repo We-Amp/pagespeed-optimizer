@@ -352,6 +352,17 @@ std::string SidecarDetail(const SidecarClassification& sidecar) {
 
 }  // namespace
 
+// ---- the cookie rule -----------------------------------------------------
+
+bool HtmlCookieRequestMayShare(bool request_has_cookie, bool explicit_shared) {
+  return !request_has_cookie || explicit_shared;
+}
+
+bool HtmlExplicitlySharedFromFlags(uint16_t origin_cc_flags) {
+  return (origin_cc_flags &
+          (Meta::kCCOriginPublic | Meta::kCCOriginSMaxagePresent)) != 0;
+}
+
 // ---- tokens --------------------------------------------------------------
 
 bool IsHttpTokenChar(char c) {
@@ -759,7 +770,7 @@ HtmlStoreVerdict ApplyStoreRules(const HtmlStoreRequest& request,
   }
 
   // 8. Cookie request.
-  if (request.has_cookie && !v.explicit_shared) {
+  if (!HtmlCookieRequestMayShare(request.has_cookie, v.explicit_shared)) {
     return Refuse(std::move(v), HtmlStoreReason::kCookieRequest);
   }
 
@@ -935,7 +946,7 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
     return done(kFall, HtmlServeReason::kAuthRequest);
   }
   // 4. Cookie request.
-  if (request.has_cookie && !stored.explicit_shared) {
+  if (!HtmlCookieRequestMayShare(request.has_cookie, stored.explicit_shared)) {
     return done(kFall, HtmlServeReason::kCookieRequest);
   }
   // 5. Client no-cache.

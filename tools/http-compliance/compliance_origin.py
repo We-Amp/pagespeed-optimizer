@@ -98,6 +98,9 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
     # store-side overwrite of the anonymously cached entry observable.
     authz_anon_counter = 0
 
+    # Per-fetch counter for /cookie/* (test_cookie_request.py).
+    cookie_counter = 0
+
     def _guess_type(self, path: str) -> str:
         _, ext = os.path.splitext(path)
         return MIME_TYPES.get(ext.lower(), "application/octet-stream")
@@ -375,6 +378,44 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/html")
             self.send_header("Content-Length", str(len(content)))
             self.send_header("Cache-Control", authz_cc[path])
+            self.send_header("ETag", etag_for(content))
+            self.send_header("Date", formatdate(usegmt=True))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(content)
+            return True
+        # Cookie-request routes (test_cookie_request.py):
+        # /cookie/<kind>/<anything>, so each test can use a fresh cache key.
+        # The page names the visitor from the request's `visitor` cookie (as
+        # a personalised page would) and carries a per-fetch counter; the
+        # Cache-Control depends on <kind>.  An ETag makes every page
+        # storable.
+        cookie_cc = {
+            "plain": "max-age=3600",
+            "public": "public, max-age=3600",
+            "s-maxage": "max-age=3600, s-maxage=3600",
+            "must-revalidate": "max-age=3600, must-revalidate",
+        }
+        cookie_parts = path.split("/")
+        if (
+            len(cookie_parts) == 4
+            and cookie_parts[1] == "cookie"
+            and cookie_parts[2] in cookie_cc
+        ):
+            visitor = "nobody"
+            for item in (self.headers.get("Cookie") or "").split(";"):
+                name, _, value = item.strip().partition("=")
+                if name == "visitor" and value:
+                    visitor = value
+            ComplianceHandler.cookie_counter += 1
+            content = (
+                "<html><body>visitor:%s fetch:%d</body></html>"
+                % (visitor, ComplianceHandler.cookie_counter)
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Cache-Control", cookie_cc[cookie_parts[2]])
             self.send_header("ETag", etag_for(content))
             self.send_header("Date", formatdate(usegmt=True))
             self.end_headers()

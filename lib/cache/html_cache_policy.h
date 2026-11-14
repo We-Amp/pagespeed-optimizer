@@ -396,6 +396,22 @@ struct HtmlServeVerdict {
 HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
                                       const StoredHtmlFacts& stored);
 
+// The cookie rule on its own: store rule 8 and serve rule 4 above, which both
+// call it.  A request that carried a Cookie header may be answered from, or
+// recorded into, the shared cache only when the response is explicitly
+// shareable (`public`, or `s-maxage`).  Exported for front ends that apply
+// their own gates for the other rules but must give this one the same
+// answer.
+[[nodiscard]] bool HtmlCookieRequestMayShare(bool request_has_cookie,
+                                             bool explicit_shared);
+
+// `explicit_shared` from the stored Cache-Control flag vocabulary
+// (AlternateMetadata::kCCOrigin*): `public`, or an `s-maxage` directive.  For
+// a caller that holds only the stored flags.  The flags record that s-maxage
+// was present, not whether its value parsed, so this is one step wider than
+// ClassifyHtmlForStore, which requires a valid value.
+[[nodiscard]] bool HtmlExplicitlySharedFromFlags(uint16_t origin_cc_flags);
+
 // RFC 9110 §5.6.2 tchar and token: the one implementation, used by the detail
 // sanitiser here, by the decision line's grammar and by the fuzz harness, so
 // what the policy emits and what the formatter admits cannot drift apart.

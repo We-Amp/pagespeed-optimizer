@@ -28,6 +28,14 @@ gtest_test(
 )
 
 gtest_test(
+    name = "cookie_cache_gate_test",
+    deps = [
+        "//lib/classify:alternate_metadata",
+        "//src/nginx:cookie_cache_gate",
+    ],
+)
+
+gtest_test(
     name = "agent_self_fetch_test",
     deps = [
         "//lib/net:curl_fetcher",

@@ -90,6 +90,15 @@ decodes `meta.full_mask` to extract `TransferEncoding` and sets
 `r->headers_out.content_encoding` to prevent nginx's built-in gzip and brotli
 filters from double-compressing the already-compressed content.
 
+**Cookie-bearing HTML requests**: a request carrying `Cookie` (or `Cookie2`)
+is answered from the cache, and its response recorded, only when the page's
+origin Cache-Control carries `public` or `s-maxage` (`cookie_cache_gate.h`,
+which calls the HTML cache policy's `HtmlCookieRequestMayShare`). The Markdown
+copy is judged by the recorded page's flags (the default-mask entry). The
+304 restamp declines to extend such an entry once the mark is withdrawn.
+Non-HTML responses are outside the rule. Independent of the Authorization
+gate below; a request carrying both passes both.
+
 **Authorization (RFC 9111 §3.5)**: Authorization-bearing requests are served
 from cache only when the stored entry's origin Cache-Control carries a §3.5
 permit (`public`, `must-revalidate`, or `s-maxage`) — else treated as MISS.

@@ -32,7 +32,10 @@ Key methods:
   rather than re-implementing either. The normative rule list, with RFC 9111 and
   RFC 9110 section references, is the comment at the top of the header. Exposed on
   the C API as `ps_html_store_classify` in the off and report-only modes only
-  (PS_API 1.12); the serve side is internal. Nothing in the tree calls it yet
+  (PS_API 1.12); the serve side is internal. The nginx port applies only the
+  cookie rule (store rule 8, serve rule 4) through `HtmlCookieRequestMayShare`
+  and `HtmlExplicitlySharedFromFlags` (`src/nginx/cookie_cache_gate.h`); nothing
+  calls the classifiers themselves yet
 - `html_cache_decision.{h,cc}` -- the one-line JSON decision record for that policy.
   A formatter only. Privacy is a property of the key set AND of the value grammar:
   the key set is closed and has no key for a body, header value, cookie, client

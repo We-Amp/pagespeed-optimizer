@@ -47,8 +47,11 @@
 //                  exchange may not extend its life: the requester carried
 //                  Authorization and the refreshed Cache-Control no longer
 //                  carries a §3.5 permit (public / must-revalidate /
-//                  s-maxage), or the 304 carried Set-Cookie, which marks
-//                  the exchange as personalized.  Deliberately NOT kEvict:
+//                  s-maxage), the requester carried a Cookie header on an
+//                  HTML entry and the refreshed Cache-Control no longer
+//                  marks it public or s-maxage, or the 304 carried
+//                  Set-Cookie, which marks the exchange as personalized.
+//                  Deliberately NOT kEvict:
 //                  §3.5 restricts storing the response to the AUTHENTICATED
 //                  request, not the anonymous entry that was already
 //                  lawfully stored — and evicting on an inbound header
@@ -104,6 +107,12 @@ struct RestampStorabilityInputs {
   // header presence.
   bool request_has_authorization = false;
 
+  // The request that triggered the revalidation carried a Cookie header and
+  // the stored entry is HTML (or its Markdown copy).  Such an exchange may
+  // extend the entry's life only while the refreshed flags still mark it
+  // explicitly shareable; otherwise kSkipRestamp, for the reasons given for
+  // the Authorization case above (cookie_cache_gate.h).
+  bool html_request_has_cookie = false;
   // The 304 itself carried Set-Cookie.
   bool response_has_set_cookie = false;
 };
