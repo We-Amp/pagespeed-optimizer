@@ -59,7 +59,7 @@ WAIVER_MIN_REASON=12
 # `Release-Note: security-public -- <why>` (same separators and minimum reason
 # as the waiver). Renaming the Unreleased heading at the release cut adds no
 # such line, so the cut is unaffected.
-SECURITY_LINE_RE='^[[:space:]]*([-*][[:space:]]+)?(#+[[:space:]]+)?(\*\*)?security\b[[:space:]]*(:|\*\*|$)'
+SECURITY_LINE_RE='^[[:space:]]*(([-*][[:space:]]+)?(\*\*)?security\b[^:]{0,40}:|#+[[:space:]]+(\*\*)?security\b)'
 LANDING_RE='^[[:space:]]*Release-Note:[[:space:]]*landing[[:space:]]*[-:–—]+[[:space:]]*'
 LANDING_BRANCH_RE='^landing/'
 SECPUB_RE='^[[:space:]]*Release-Note:[[:space:]]*security-public[[:space:]]*[-:–—]+[[:space:]]*'
@@ -292,6 +292,13 @@ self_test() {
   schk "bulleted security entry              -> BLOCK" 1 "- **Security:** hardened a parser" "" "fix/topic"
   schk "other changelog line                 -> pass" 0 "Changed: the worker lists more options in --help." "" "fix/topic"
   schk "a word starting with security        -> pass" 0 "Securitykit is a name, not a heading." "" "fix/topic"
+  schk "Security, known issue: form          -> BLOCK" 1 "Security, known issue: a client could read a response." "" "fix/topic"
+  schk "Security fix: form                   -> BLOCK" 1 "Security fix: a client could read a response." "" "fix/topic"
+  schk "### Security fixes heading           -> BLOCK" 1 "### Security fixes" "" "fix/topic"
+  schk "bold bullet Security fix:            -> BLOCK" 1 "- **Security fix:** hardened a parser" "" "fix/topic"
+  schk "lowercase security:                  -> BLOCK" 1 "security: a client could read a response." "" "fix/topic"
+  schk "wrapped prose without a colon        -> pass" 0 "Security matters to every release of the worker." "" "fix/topic"
+  schk "prose mentioning security mid-line   -> pass" 0 "Changed: the worker reports a security: header." "" "fix/topic"
   schk "release cut (heading rename only)    -> pass" 0 "## 2.9.0 - 2026-11-20" "" "release/2.9.0"
 
   # End-to-end through the entry point, because the CI path and the fail-closed
