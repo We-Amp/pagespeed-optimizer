@@ -1,5 +1,8 @@
 User-agent: *
 Allow: /
+# Content Signals (contentsignals.org): search and AI-input use allowed; AI training not.
+# Access stays governed by the per-bot rules below.
+Content-Signal: search=yes, ai-input=yes, ai-train=no
 
 # AI crawlers: explicitly allowed
 User-agent: GPTBot
