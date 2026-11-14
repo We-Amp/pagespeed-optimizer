@@ -85,10 +85,11 @@ namespace pagespeed {
 //      the one this leans toward.  `no-store` (§5.2.2.5) is refused.
 //   8. Cookie request.  A request that carried a Cookie header is stored only
 //      when the response is explicitly shareable: `public` (§5.2.2.9) or
-//      a valid `s-maxage` (§5.2.2.10, which also makes the response
-//      shareable; a malformed value asserts nothing).  A
-//      page that varies on the cookie it was fetched with would otherwise be
-//      replayed to clients holding a different cookie.
+//      an `s-maxage` above zero (§5.2.2.10, which also makes the response
+//      shareable; `s-maxage=0` or a malformed value asserts nothing).  A
+//      page that varies on the cookie it was fetched with could otherwise be
+//      served to clients holding a different cookie.  See THE COOKIE RULE
+//      below.
 //   9. Vary (RFC 9110 §12.5.5).  Every Vary line is joined with `, ` and
 //      split into lowercase tokens (RFC 9110 §5.3, §5.6.1).  The set must be
 //      a subset of {accept-encoding}.  Any other token, including `*` and
@@ -272,7 +273,7 @@ struct HtmlStoreVerdict {
   bool lifetime_explicit = false;
   bool needs_validation = false;  // lifetime 0, or no-cache in either form
   bool has_validators = false;    // a non-empty ETag or Last-Modified present
-  bool explicit_shared = false;   // public, or a valid s-maxage
+  bool explicit_shared = false;   // public, or an s-maxage above zero
   uint16_t cc_flags = 0;          // the accumulated kCCOrigin* bits
   std::vector<std::string> vary_tokens;  // lowercased, from the Vary lines
   // True once the header set reached the sidecar gate (rule 9); before that
@@ -396,21 +397,72 @@ struct HtmlServeVerdict {
 HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
                                       const StoredHtmlFacts& stored);
 
-// The cookie rule on its own: store rule 8 and serve rule 4 above, which both
-// call it.  A request that carried a Cookie header may be answered from, or
-// recorded into, the shared cache only when the response is explicitly
-// shareable (`public`, or `s-maxage`).  Exported for front ends that apply
-// their own gates for the other rules but must give this one the same
-// answer.
+// THE COOKIE RULE, exported.  Store rule 8 and serve rule 4 above call
+// HtmlCookieRequestMayShare; a front end that applies its own gates for the
+// other rules (the nginx port, the ASP.NET Core package) calls the functions
+// below, so every front end answers the cookie question the same way.
+//
+// A request that carried a Cookie header (Cookie or Cookie2, any value, an
+// empty one included) is treated by response class:
+//
+//   kPage (everything that is not a static asset: HTML, XHTML, JSON, plain
+//   text, the Markdown copy, and any unknown or missing Content-Type) — the
+//   response may be stored for it, and a stored entry served to it, only when
+//   the response is explicitly shareable: `public`, or a single `s-maxage`
+//   whose value is a valid delta-seconds greater than zero.  `s-maxage=0`, a
+//   malformed value and a repeated `s-maxage` assert nothing.
+//
+//   kStaticAsset (text/css, JavaScript, image/*) — the response may be stored
+//   for it only when the origin stated a freshness lifetime (a max-age or
+//   s-maxage above zero, or an Expires in the future): no class default
+//   applies to a response fetched with a cookie.  A stored asset is served to
+//   a cookie-bearing request as to any other.
+//
+// A request without a cookie is never affected.
+
+enum class CookieShareClass : uint8_t {
+  kPage = 0,
+  kStaticAsset = 1,
+};
+
+// The class of a response from its Content-Type value: the media type is
+// compared case-insensitively, parameters (`; charset=...`) and surrounding
+// whitespace ignored.  text/css, application/javascript, text/javascript,
+// application/x-javascript, application/ecmascript, text/ecmascript and
+// image/* are kStaticAsset; everything else, an empty value included, is
+// kPage.
+[[nodiscard]] CookieShareClass CookieShareClassForContentType(
+    std::string_view content_type);
+
+// `explicit_shared` in the stored Cache-Control vocabulary
+// (AlternateMetadata::kCCOrigin* flags plus the parsed s-maxage value):
+// `public`, or one s-maxage (kCCOriginSMaxageRepeated clear) with a value
+// above zero.  ClassifyHtmlForStore
+// computes its own `explicit_shared` with this function.
+[[nodiscard]] bool HtmlExplicitlyShared(uint16_t origin_cc_flags,
+                                        uint32_t origin_s_maxage);
+
+// Did the origin state a freshness lifetime?  The flags carry
+// kCCOriginHeaderPresent (a Cache-Control line, or an Expires the caller
+// folded into `origin_max_age`), and max-age or s-maxage is above zero.
+[[nodiscard]] bool OriginStatesLifetime(uint16_t origin_cc_flags,
+                                        uint32_t origin_max_age,
+                                        uint32_t origin_s_maxage);
+
+// The page rule alone: !request_has_cookie || explicit_shared.
 [[nodiscard]] bool HtmlCookieRequestMayShare(bool request_has_cookie,
                                              bool explicit_shared);
 
-// `explicit_shared` from the stored Cache-Control flag vocabulary
-// (AlternateMetadata::kCCOrigin*): `public`, or an `s-maxage` directive.  For
-// a caller that holds only the stored flags.  The flags record that s-maxage
-// was present, not whether its value parsed, so this is one step wider than
-// ClassifyHtmlForStore, which requires a valid value.
-[[nodiscard]] bool HtmlExplicitlySharedFromFlags(uint16_t origin_cc_flags);
+// May the response to this request be recorded into the shared cache?
+[[nodiscard]] bool CookieRequestMayStore(bool request_has_cookie,
+                                         CookieShareClass response_class,
+                                         bool explicit_shared,
+                                         bool origin_states_lifetime);
+
+// May this stored entry answer this request?
+[[nodiscard]] bool CookieRequestMayServe(bool request_has_cookie,
+                                         CookieShareClass entry_class,
+                                         bool explicit_shared);
 
 // RFC 9110 §5.6.2 tchar and token: the one implementation, used by the detail
 // sanitiser here, by the decision line's grammar and by the fuzz harness, so

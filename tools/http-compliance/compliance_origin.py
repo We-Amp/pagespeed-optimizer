@@ -40,6 +40,10 @@ VARY_FLIP = {"flip": False, "flip-etag": False, "etag-rev": "1"}
 # send a header a cache hit cannot reproduce.
 SIDECAR_FLIP = {"custom": False}
 
+# Cookie-request stale controls (test_cookie_request.py): paths that answer
+# 500 ("fail") or wait 2.5 s ("slow"), set through /cookie-control.
+COOKIE_CONTROL = {"fail": set(), "slow": set()}
+
 # Serve-side sidecar controls (issue #208): a delay on /sidecar/slow.css
 # (holds the refresh in flight so a concurrent request takes the coalesced
 # stale serve), a 500 on /sidecar/flaky.css (stale-if-error), and the
@@ -386,37 +390,102 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
             return True
         # Cookie-request routes (test_cookie_request.py):
         # /cookie/<kind>/<anything>, so each test can use a fresh cache key.
-        # The page names the visitor from the request's `visitor` cookie (as
-        # a personalised page would) and carries a per-fetch counter; the
-        # Cache-Control depends on <kind>.  An ETag makes every page
-        # storable.
-        cookie_cc = {
-            "plain": "max-age=3600",
-            "public": "public, max-age=3600",
-            "s-maxage": "max-age=3600, s-maxage=3600",
-            "must-revalidate": "max-age=3600, must-revalidate",
+        # The response names the visitor from the request's `visitor` cookie
+        # (as a personalised page would) and carries a per-fetch counter;
+        # <kind> picks the Content-Type and Cache-Control (None: no
+        # Cache-Control at all).  Kinds marked `fixed` keep one ETag per path
+        # and answer a matching If-None-Match with a 304, so a stored copy can
+        # be revalidated; the others change their ETag with every fetch.
+        cookie_kinds = {
+            "plain": ("text/html", "max-age=3600", False),
+            "public": ("text/html", "public, max-age=3600", False),
+            "s-maxage": ("text/html", "max-age=3600, s-maxage=3600", False),
+            "must-revalidate": ("text/html", "max-age=3600, must-revalidate", False),
+            "s-maxage-zero": ("text/html", "max-age=3600, s-maxage=0", True),
+            "s-maxage-bad": ("text/html", "max-age=3600, s-maxage=abc", True),
+            "s-maxage-dup": (
+                "text/html",
+                "max-age=3600, s-maxage=600, s-maxage=600",
+                True,
+            ),
+            "xhtml": ("application/xhtml+xml", "max-age=3600", False),
+            "upper": ("Text/HTML; charset=UTF-8", "max-age=3600", False),
+            "json": ("application/json", "max-age=3600", False),
+            "js-no-cc": ("application/javascript", None, False),
+            "js-max-age": ("application/javascript", "max-age=3600", False),
+            # Stale-serve routes: one second of freshness.  `reval` is
+            # revalidated with a 304; `flaky` answers 500 and `slow` waits
+            # 2.5 s once the test names the path in /cookie-control.
+            "reval": ("text/html", "max-age=1", True),
+            "flaky": ("text/html", "max-age=1", False),
+            "slow": ("text/html", "max-age=2", False),
         }
+        if path == "/cookie-control":
+            query = self.path.split("?", 1)[1] if "?" in self.path else ""
+            params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
+            for mode in ("fail", "slow"):
+                if mode in params:
+                    COOKIE_CONTROL[mode].add(params[mode])
+                if "un" + mode in params:
+                    COOKIE_CONTROL[mode].discard(params["un" + mode])
+            body = b"ok\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Date", formatdate(usegmt=True))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return True
         cookie_parts = path.split("/")
         if (
             len(cookie_parts) == 4
             and cookie_parts[1] == "cookie"
-            and cookie_parts[2] in cookie_cc
+            and cookie_parts[2] in cookie_kinds
         ):
+            ctype, cc, fixed_etag = cookie_kinds[cookie_parts[2]]
+            if path in COOKIE_CONTROL["slow"]:
+                time.sleep(2.5)
+            if path in COOKIE_CONTROL["fail"]:
+                err = b"origin down"
+                self.send_response(500)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(err)))
+                self.send_header("Date", formatdate(usegmt=True))
+                self.end_headers()
+                if send_body:
+                    self.wfile.write(err)
+                return True
+            tag = etag_for(path.encode()) if fixed_etag else None
+            if tag is not None:
+                inm = self.headers.get("If-None-Match")
+                if inm and tag in inm:
+                    self.send_response(304)
+                    self.send_header("ETag", tag)
+                    self.send_header("Cache-Control", cc)
+                    self.send_header("Date", formatdate(usegmt=True))
+                    self.end_headers()
+                    return True
             visitor = "nobody"
             for item in (self.headers.get("Cookie") or "").split(";"):
                 name, _, value = item.strip().partition("=")
                 if name == "visitor" and value:
                     visitor = value
             ComplianceHandler.cookie_counter += 1
-            content = (
-                "<html><body>visitor:%s fetch:%d</body></html>"
-                % (visitor, ComplianceHandler.cookie_counter)
-            ).encode()
+            marker = "visitor:%s fetch:%d" % (visitor, ComplianceHandler.cookie_counter)
+            if "javascript" in ctype:
+                content = ('var cookieTest = "%s";\n' % marker).encode()
+            elif "json" in ctype:
+                content = ('{"marker": "%s"}' % marker).encode()
+            else:
+                content = ("<html><body>%s</body></html>" % marker).encode()
             self.send_response(200)
-            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(content)))
-            self.send_header("Cache-Control", cookie_cc[cookie_parts[2]])
-            self.send_header("ETag", etag_for(content))
+            if cc is not None:
+                self.send_header("Cache-Control", cc)
+            self.send_header("ETag", tag or etag_for(content))
             self.send_header("Date", formatdate(usegmt=True))
             self.end_headers()
             if send_body:

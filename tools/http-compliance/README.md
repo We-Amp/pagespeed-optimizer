@@ -18,7 +18,7 @@ interact with body modification.
 | `test_content_length.py` | Content-Length after body modification | 14 |
 | `test_conditional_requests.py` | If-None-Match, If-Modified-Since, 304 | 16 |
 | `test_content_negotiation.py` | Accept, Vary, Content-Type | 22 |
-| `test_cookie_request.py` | Cookie-bearing requests and the shared page cache | 10 |
+| `test_cookie_request.py` | Cookie-bearing requests and the shared cache | 25 |
 | `test_cache_control.py` | Cache-Control forwarding/respect | 16 |
 | `test_transfer_encoding.py` | Chunked encoding | 10 |
 | `test_head_consistency.py` | HEAD vs GET | 8 |

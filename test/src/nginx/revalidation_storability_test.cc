@@ -276,30 +276,53 @@ TEST(RevalidationStorabilityTest, SetCookieOn304SkipsRestamp) {
   EXPECT_EQ(RestampVerdict::kSkipRestamp, EvaluateRestampStorability(in));
 }
 
-// --- Cookie-bearing HTML exchange -----------------------------------------
+// --- Cookie-bearing exchange ---------------------------------------------
+
+RestampStorabilityInputs CookiePage(uint16_t flags, uint32_t s_maxage = 0) {
+  RestampStorabilityInputs in = Anonymous(flags);
+  in.refreshed_s_maxage = s_maxage;
+  in.refreshed_max_age = 600;
+  in.request_has_cookie = true;
+  in.entry_class = CookieShareClass::kPage;
+  return in;
+}
 
 TEST(RevalidationStorabilityTest, CookieRequestKeepsSharedPageFresh) {
-  RestampStorabilityInputs in = Anonymous(kPublicFresh);
-  in.html_request_has_cookie = true;
-  EXPECT_EQ(RestampVerdict::kRestamp, EvaluateRestampStorability(in));
-  in.refreshed_cc_flags =
-      Meta::kCCOriginHeaderPresent | Meta::kCCOriginSMaxagePresent;
-  EXPECT_EQ(RestampVerdict::kRestamp, EvaluateRestampStorability(in));
+  EXPECT_EQ(RestampVerdict::kRestamp,
+            EvaluateRestampStorability(CookiePage(kPublicFresh)));
+  EXPECT_EQ(
+      RestampVerdict::kRestamp,
+      EvaluateRestampStorability(CookiePage(
+          Meta::kCCOriginHeaderPresent | Meta::kCCOriginSMaxagePresent, 600)));
 }
 
 TEST(RevalidationStorabilityTest, CookieRequestWithWithdrawnMarkSkipsRestamp) {
   // Plain max-age: storable for anonymous traffic, but a cookie-bearing
   // exchange may not extend it.  Not an eviction.
-  RestampStorabilityInputs in = Anonymous(Meta::kCCOriginHeaderPresent);
-  in.html_request_has_cookie = true;
-  EXPECT_EQ(RestampVerdict::kSkipRestamp, EvaluateRestampStorability(in));
+  EXPECT_EQ(
+      RestampVerdict::kSkipRestamp,
+      EvaluateRestampStorability(CookiePage(Meta::kCCOriginHeaderPresent)));
   // must-revalidate is a §3.5 permit but does not mark the page shareable.
-  in.refreshed_cc_flags =
-      Meta::kCCOriginHeaderPresent | Meta::kCCOriginMustRevalidate;
-  EXPECT_EQ(RestampVerdict::kSkipRestamp, EvaluateRestampStorability(in));
+  EXPECT_EQ(RestampVerdict::kSkipRestamp,
+            EvaluateRestampStorability(CookiePage(
+                Meta::kCCOriginHeaderPresent | Meta::kCCOriginMustRevalidate)));
+  // s-maxage=0 is not a mark.
+  EXPECT_EQ(
+      RestampVerdict::kSkipRestamp,
+      EvaluateRestampStorability(CookiePage(
+          Meta::kCCOriginHeaderPresent | Meta::kCCOriginSMaxagePresent, 0)));
   // no-store still dominates.
-  in.refreshed_cc_flags = Meta::kCCOriginHeaderPresent | Meta::kCCOriginNoStore;
-  EXPECT_EQ(RestampVerdict::kEvict, EvaluateRestampStorability(in));
+  EXPECT_EQ(RestampVerdict::kEvict,
+            EvaluateRestampStorability(CookiePage(Meta::kCCOriginHeaderPresent |
+                                                  Meta::kCCOriginNoStore)));
+}
+
+TEST(RevalidationStorabilityTest, CookieRequestOnStaticAssetNeedsALifetime) {
+  RestampStorabilityInputs in = CookiePage(Meta::kCCOriginHeaderPresent);
+  in.entry_class = CookieShareClass::kStaticAsset;
+  EXPECT_EQ(RestampVerdict::kRestamp, EvaluateRestampStorability(in));
+  in.refreshed_max_age = 0;
+  EXPECT_EQ(RestampVerdict::kSkipRestamp, EvaluateRestampStorability(in));
 }
 
 TEST(RevalidationStorabilityTest, NoCookieLeavesPlainPageRestamping) {

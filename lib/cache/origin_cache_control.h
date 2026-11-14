@@ -35,7 +35,9 @@ struct OriginCacheControl {
 // RFC 9111 §5.2.2.7, which restricts only the named fields, and a consumer
 // that acts destructively on the directive must not treat it as blanket.
 // The test is the presence of `=`, not a non-empty argument, because the
-// grammar permits an empty field-name list.
+// grammar permits an empty field-name list.  A second `s-maxage` (in the same
+// line or a later one) also sets kCCOriginSMaxageRepeated; the value kept is
+// still the last one.
 //
 // Exported on the C ABI as `ps_parse_cache_control`, so an embedder stamps the
 // same flags into a stored entry as the engine's own reader expects to find

@@ -280,6 +280,9 @@ PS_EXPORT int ps_normalize_hostname(const char* hostname, char* out_buf,
 #define PS_CC_ORIGIN_PRIVATE_BARE 0x0800u
 #define PS_CC_ORIGIN_NO_CACHE_QUALIFIED 0x1000u
 #define PS_CC_ORIGIN_NO_CACHE_BARE 0x2000u
+/* More than one s-maxage directive was seen (the value kept is the last).
+ * Such a response is not treated as explicitly shareable. */
+#define PS_CC_ORIGIN_S_MAXAGE_REPEATED 0x4000u
 
 /* ---------- cache ---------- */
 

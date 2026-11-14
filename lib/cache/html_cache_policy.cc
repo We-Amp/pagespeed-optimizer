@@ -133,27 +133,6 @@ size_t CountDirective(std::string_view line, std::string_view name) {
   return count;
 }
 
-// Does this Cache-Control line carry an s-maxage with a delta-seconds value?
-// Only that form asserts the response is shareable; a malformed one says
-// nothing, so it cannot admit a request that carried a cookie.
-bool HasValidSMaxage(std::string_view line) {
-  while (!line.empty()) {
-    const size_t comma = line.find(',');
-    const std::string_view token = line.substr(0, comma);
-    line = comma == std::string_view::npos ? std::string_view()
-                                           : line.substr(comma + 1);
-    const size_t eq = token.find('=');
-    if (eq == std::string_view::npos) continue;
-    if (!EqualsIgnoreCase(TrimOws(token.substr(0, eq)), "s-maxage")) continue;
-    const std::string_view value = TrimOws(token.substr(eq + 1));
-    unsigned ignored = 0;
-    if (!value.empty() && ParseDigits(value, &ignored)) {
-      return true;
-    }
-  }
-  return false;
-}
-
 HtmlStoreVerdict Refuse(HtmlStoreVerdict v, HtmlStoreReason reason,
                         std::string detail = std::string()) {
   v.action = HtmlStoreAction::kRefuse;
@@ -354,13 +333,53 @@ std::string SidecarDetail(const SidecarClassification& sidecar) {
 
 // ---- the cookie rule -----------------------------------------------------
 
+CookieShareClass CookieShareClassForContentType(std::string_view content_type) {
+  std::string_view media = content_type.substr(0, content_type.find(';'));
+  media = TrimOws(media);
+  if (StartsWithIgnoreCase(media, "image/") && media.size() > 6) {
+    return CookieShareClass::kStaticAsset;
+  }
+  for (std::string_view type : {"text/css", "application/javascript",
+                                "text/javascript", "application/x-javascript",
+                                "application/ecmascript", "text/ecmascript"}) {
+    if (EqualsIgnoreCase(media, type)) return CookieShareClass::kStaticAsset;
+  }
+  return CookieShareClass::kPage;
+}
+
+bool HtmlExplicitlyShared(uint16_t origin_cc_flags, uint32_t origin_s_maxage) {
+  if ((origin_cc_flags & Meta::kCCOriginPublic) != 0) return true;
+  return (origin_cc_flags & Meta::kCCOriginSMaxagePresent) != 0 &&
+         (origin_cc_flags & Meta::kCCOriginSMaxageRepeated) == 0 &&
+         origin_s_maxage > 0;
+}
+
+bool OriginStatesLifetime(uint16_t origin_cc_flags, uint32_t origin_max_age,
+                          uint32_t origin_s_maxage) {
+  if ((origin_cc_flags & Meta::kCCOriginHeaderPresent) == 0) return false;
+  if (origin_max_age > 0) return true;
+  return (origin_cc_flags & Meta::kCCOriginSMaxagePresent) != 0 &&
+         origin_s_maxage > 0;
+}
+
 bool HtmlCookieRequestMayShare(bool request_has_cookie, bool explicit_shared) {
   return !request_has_cookie || explicit_shared;
 }
 
-bool HtmlExplicitlySharedFromFlags(uint16_t origin_cc_flags) {
-  return (origin_cc_flags &
-          (Meta::kCCOriginPublic | Meta::kCCOriginSMaxagePresent)) != 0;
+bool CookieRequestMayStore(bool request_has_cookie,
+                           CookieShareClass response_class,
+                           bool explicit_shared, bool origin_states_lifetime) {
+  if (!request_has_cookie) return true;
+  if (response_class == CookieShareClass::kStaticAsset) {
+    return origin_states_lifetime;
+  }
+  return HtmlCookieRequestMayShare(request_has_cookie, explicit_shared);
+}
+
+bool CookieRequestMayServe(bool request_has_cookie,
+                           CookieShareClass entry_class, bool explicit_shared) {
+  if (entry_class == CookieShareClass::kStaticAsset) return true;
+  return HtmlCookieRequestMayShare(request_has_cookie, explicit_shared);
 }
 
 // ---- tokens --------------------------------------------------------------
@@ -750,18 +769,15 @@ HtmlStoreVerdict ApplyStoreRules(const HtmlStoreRequest& request,
   OriginCacheControl cc;
   size_t max_age_count = 0;
   size_t s_maxage_count = 0;
-  bool valid_s_maxage = false;
   for (const HeaderField& h : headers) {
     if (!EqualsIgnoreCase(h.name, "cache-control")) continue;
     AccumulateOriginCacheControl(h.value, &cc);
     max_age_count += CountDirective(h.value, "max-age");
     s_maxage_count += CountDirective(h.value, "s-maxage");
-    valid_s_maxage = valid_s_maxage || HasValidSMaxage(h.value);
   }
   v.cc_flags = cc.cc_flags;
   v.cc_evaluated = true;
-  v.explicit_shared =
-      (cc.cc_flags & Meta::kCCOriginPublic) != 0 || valid_s_maxage;
+  v.explicit_shared = HtmlExplicitlyShared(cc.cc_flags, cc.s_maxage);
   if ((cc.cc_flags & Meta::kCCOriginPrivate) != 0) {
     return Refuse(std::move(v), HtmlStoreReason::kPrivate);
   }

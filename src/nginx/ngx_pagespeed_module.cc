@@ -2756,6 +2756,34 @@ static ngx_str_t ngx_http_pagespeed_get_response_header(ngx_http_request_t* r,
   return value;
 }
 
+// The freshness lifetime the response's Expires header states, measured from
+// its Date (or now, without one), clamped at 0.  False when there is no
+// parseable Expires.  The record path stores this as the entry's max-age when
+// the origin sent no Cache-Control line; the cookie gate reads it the same
+// way.
+static bool ngx_http_pagespeed_expires_lifetime(ngx_http_request_t* r,
+                                                int64_t* lifetime) {
+  ngx_str_t expires_hdr = ngx_http_pagespeed_get_response_header(r, "Expires");
+  if (expires_hdr.len == 0) {
+    return false;
+  }
+  time_t expires_time = ngx_parse_http_time(expires_hdr.data, expires_hdr.len);
+  if (expires_time <= 0) {
+    return false;
+  }
+  time_t date_time = 0;
+  if (r->headers_out.date) {
+    date_time = ngx_parse_http_time(r->headers_out.date->value.data,
+                                    r->headers_out.date->value.len);
+  }
+  if (date_time <= 0) {
+    date_time = time(nullptr);
+  }
+  int64_t from_expires = expires_time - date_time;
+  *lifetime = from_expires < 0 ? 0 : from_expires;
+  return true;
+}
+
 // Collect the response's Vary header lines into one comma-separated value.
 //
 // HTTP allows multiple Vary headers which combine as a single comma-list
@@ -3234,29 +3262,14 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
 
   // Expires fallback: when no Cache-Control header is present.
   if (!(parsed_cc.cc_flags & AlternateMetadata::kCCOriginHeaderPresent)) {
-    ngx_str_t expires_hdr =
-        ngx_http_pagespeed_get_response_header(r, "Expires");
-    if (expires_hdr.len > 0) {
-      time_t expires_time =
-          ngx_parse_http_time(expires_hdr.data, expires_hdr.len);
-      if (expires_time > 0) {
-        time_t date_time = 0;
-        if (r->headers_out.date) {
-          date_time = ngx_parse_http_time(r->headers_out.date->value.data,
-                                          r->headers_out.date->value.len);
-        }
-        if (date_time <= 0) {
-          date_time = time(nullptr);
-        }
-        int64_t max_age_from_expires = expires_time - date_time;
-        if (max_age_from_expires < 0) max_age_from_expires = 0;
-        if (max_age_from_expires > static_cast<int64_t>(UINT32_MAX)) {
-          meta.origin_max_age = UINT32_MAX;
-        } else {
-          meta.origin_max_age = static_cast<uint32_t>(max_age_from_expires);
-        }
-        meta.origin_cc_flags |= AlternateMetadata::kCCOriginHeaderPresent;
+    int64_t max_age_from_expires = 0;
+    if (ngx_http_pagespeed_expires_lifetime(r, &max_age_from_expires)) {
+      if (max_age_from_expires > static_cast<int64_t>(UINT32_MAX)) {
+        meta.origin_max_age = UINT32_MAX;
+      } else {
+        meta.origin_max_age = static_cast<uint32_t>(max_age_from_expires);
       }
+      meta.origin_cc_flags |= AlternateMetadata::kCCOriginHeaderPresent;
     }
   }
 
@@ -4061,13 +4074,19 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     storability_in.response_has_set_cookie =
         ngx_http_pagespeed_get_response_header(r, "Set-Cookie").len > 0;
     // The stashed entry passed the HIT-side cookie gate; this keeps a 304
-    // that withdraws public / s-maxage from extending it for a cookie-bearing
-    // HTML exchange.
-    storability_in.html_request_has_cookie =
-        ngx_http_pagespeed_request_has_cookie(r) &&
-        (stale->metadata.content_type == ContentType::kHtml ||
-         (stale->metadata.full_mask & 0xFF) ==
-             static_cast<uint32_t>(SentinelId::kAgentMarkdown));
+    // that withdraws what the cookie rule needs (cookie_cache_gate.h) from
+    // extending it for a cookie-bearing exchange.
+    storability_in.refreshed_s_maxage = updated_meta.origin_s_maxage;
+    storability_in.refreshed_max_age = updated_meta.origin_max_age;
+    storability_in.request_has_cookie =
+        ngx_http_pagespeed_request_has_cookie(r);
+    storability_in.entry_class =
+        (stale->metadata.full_mask & 0xFF) ==
+                static_cast<uint32_t>(SentinelId::kAgentMarkdown)
+            ? pagespeed::CookieShareClass::kPage
+            : pagespeed::StoredEntryCookieClass(
+                  stale->metadata.origin_content_type,
+                  stale->metadata.content_type);
     pagespeed::RestampVerdict storability_verdict =
         pagespeed::EvaluateRestampStorability(storability_in);
     if (unstorable_after_304) {
@@ -4568,17 +4587,32 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
             ngx_http_pagespeed_authz_gate_has_auth(r), parsed_cc.cc_flags)) {
       ctx->uncacheable = 1;
     }
-    // A page fetched for a request that carried a cookie enters the shared
-    // cache only when the origin marked it explicitly shareable (public or
-    // s-maxage) — the HTML cache policy's cookie rule, through
-    // src/nginx/cookie_cache_gate.h.  The Markdown copy is rendered from the
-    // stored page, so it is covered by the same refusal.  Same mechanism as
-    // the §3.5 gate above: uncacheable keeps the worker un-notified.
-    if (!pagespeed::CookieCacheGateAllows(
-            ngx_http_pagespeed_request_has_cookie(r),
-            ngx_http_pagespeed_detect_content_type(r) == ContentType::kHtml,
-            parsed_cc.cc_flags)) {
-      ctx->uncacheable = 1;
+    // The cookie rule (src/nginx/cookie_cache_gate.h): for a request that
+    // carried a cookie, a page enters the shared cache only when the origin
+    // marked it public or gave it an s-maxage above zero, and a static asset
+    // only with a lifetime the origin stated.  The Markdown copy is rendered
+    // from the stored page, so it is covered by the same refusal.  Same
+    // mechanism as the §3.5 gate above: uncacheable keeps the worker
+    // un-notified.  The lifetime is read as the record path stores it:
+    // Expires counts only when no Cache-Control line was sent.
+    if (ngx_http_pagespeed_request_has_cookie(r)) {
+      uint16_t cookie_cc_flags = parsed_cc.cc_flags;
+      uint32_t cookie_max_age = parsed_cc.max_age;
+      if ((cookie_cc_flags & AlternateMetadata::kCCOriginHeaderPresent) == 0) {
+        int64_t from_expires = 0;
+        if (ngx_http_pagespeed_expires_lifetime(r, &from_expires)) {
+          cookie_cc_flags |= AlternateMetadata::kCCOriginHeaderPresent;
+          cookie_max_age = static_cast<uint32_t>(
+              std::min<int64_t>(from_expires, UINT32_MAX));
+        }
+      }
+      const ngx_str_t& ct = r->headers_out.content_type;
+      if (!pagespeed::CookieCacheGateAllowsStore(
+              true,
+              std::string_view(reinterpret_cast<const char*>(ct.data), ct.len),
+              cookie_cc_flags, cookie_max_age, parsed_cc.s_maxage)) {
+        ctx->uncacheable = 1;
+      }
     }
     if (parsed_cc.cc_flags & kCCNoTransform) {
       ctx->no_transform = 1;
@@ -5157,6 +5191,24 @@ void RenderCounterDoc(bool exact, std::string* out) {
 }  // namespace
 
 // Main request handler (PRECONTENT phase, after the access checks)
+// Is the page recorded under `key` (the default-mask entry the record path
+// writes) marked shareable for a cookie-bearing request?  For what the cache
+// derives from that page and stores without Cache-Control of its own: the
+// Markdown copy and the Early Hints set.  No recorded page: false (fail
+// closed).
+static bool ngx_http_pagespeed_recorded_page_shared(
+    PageSpeedCache& cache, const cyclone::CacheKey& key) {
+  const AlternateId recorded_id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  auto recorded = cache.ReadAlternateByKey(key, recorded_id);
+  if (!recorded.has_value() || !recorded->is_valid()) {
+    return false;
+  }
+  return pagespeed::CookieCacheGateAllowsServe(
+      true, pagespeed::CookieShareClass::kPage,
+      recorded->metadata.origin_cc_flags, recorded->metadata.origin_s_maxage);
+}
+
 static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
   ngx_http_pagespeed_loc_conf_t* conf;
   ngx_http_pagespeed_ctx_t* ctx;
@@ -5507,6 +5559,16 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
             /*origin_cc_flags=*/0)) {
       return NGX_DECLINED;  // §3.5: pass through; origin serves /llms.txt
     }
+    // The index is built from the stored pages' Markdown copies, and a
+    // sentinel carries no sharing mark, so under the cookie rule
+    // (cookie_cache_gate.h) a cookie-bearing request is never served it:
+    // pass through, the origin serves its own /llms.txt (or 404).
+    if (!pagespeed::CookieCacheGateAllowsServe(
+            ngx_http_pagespeed_request_has_cookie(r),
+            pagespeed::CookieShareClass::kPage, /*origin_cc_flags=*/0,
+            /*origin_s_maxage=*/0)) {
+      return NGX_DECLINED;
+    }
     auto llms = cache->ReadAlternateByKey(
         cache_key, static_cast<AlternateId>(SentinelId::kLlmsTxt));
     const bool hit = llms.has_value() && llms->is_valid();
@@ -5681,36 +5743,34 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
                    "for %V",
                    &r->uri);
   }
-  // Cookie rule (src/nginx/cookie_cache_gate.h, the HTML cache policy's
-  // serve rule 4): a stored page is served to a request carrying a Cookie
-  // header only when the stored entry is marked public or s-maxage.  Gated
-  // here, with the same reach as the §3.5 bypass above: the conditional
-  // revalidation, stale-if-error and coalesced-stale serves only ever use an
-  // entry this HIT path stashed.  The Markdown copy stores no Cache-Control
-  // of its own; it is rendered from the recorded page, so the recorded
-  // page's flags decide for it (no recorded page: flags 0, fail closed).
-  // The extra read happens only for a cookie-bearing request that selected
-  // the copy.
+  // Cookie rule (src/nginx/cookie_cache_gate.h): a stored page is served to
+  // a request carrying a Cookie header only when the stored entry is marked
+  // public or has an s-maxage above zero; static assets are served as
+  // before.  Gated here, with the same reach as the §3.5 bypass above: the
+  // conditional revalidation, stale-if-error and coalesced-stale serves only
+  // ever use an entry this HIT path stashed.  The Markdown copy stores no
+  // Cache-Control of its own; it is rendered from the recorded page, so the
+  // recorded page decides for it (none recorded: fail closed).  The extra
+  // read happens only for a cookie-bearing request that selected the copy.
+  const bool request_has_cookie = ngx_http_pagespeed_request_has_cookie(r);
   bool cookie_cache_bypass = false;
   if (read_result.has_value() && read_result->is_valid() &&
-      ngx_http_pagespeed_request_has_cookie(r)) {
+      request_has_cookie) {
     const bool selected_markdown =
         (read_result->metadata.full_mask & 0xFF) ==
         static_cast<uint32_t>(SentinelId::kAgentMarkdown);
-    bool html_class = read_result->metadata.content_type == ContentType::kHtml;
-    uint16_t share_flags = read_result->metadata.origin_cc_flags;
     if (selected_markdown) {
-      html_class = true;
-      share_flags = 0;
-      const AlternateId recorded_id = MaskToAlternateId(
-          static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
-      auto recorded = cache->ReadAlternateByKey(cache_key, recorded_id);
-      if (recorded.has_value() && recorded->is_valid()) {
-        share_flags = recorded->metadata.origin_cc_flags;
-      }
+      cookie_cache_bypass =
+          !ngx_http_pagespeed_recorded_page_shared(*cache, cache_key);
+    } else {
+      cookie_cache_bypass = !pagespeed::CookieCacheGateAllowsServe(
+          true,
+          pagespeed::StoredEntryCookieClass(
+              read_result->metadata.origin_content_type,
+              read_result->metadata.content_type),
+          read_result->metadata.origin_cc_flags,
+          read_result->metadata.origin_s_maxage);
     }
-    cookie_cache_bypass =
-        !pagespeed::CookieCacheGateAllows(true, html_class, share_flags);
     if (cookie_cache_bypass) {
       ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                      "pagespeed: request carries a cookie and the stored "
@@ -6708,8 +6768,14 @@ cache_miss:
   // for every Authorization-bearing miss, incl. the authz-bypass arrival
   // that must not leak the stored page's preload/preconnect set.  The
   // HIT-path Link headers already passed the gate.
+  //
+  // The cookie rule takes the same view (cookie_cache_gate.h): the hint set is
+  // derived from the recorded page, so a cookie-bearing miss gets it only
+  // when that page is marked public or s-maxage above zero.
   if (pagespeed::AuthzCacheGateAllows(request_has_authorization,
-                                      /*no stored CC signal*/ 0)) {
+                                      /*no stored CC signal*/ 0) &&
+      (!request_has_cookie ||
+       ngx_http_pagespeed_recorded_page_shared(*cache, cache_key))) {
     // Key on the content type, not only the extension: a clean URL such as
     // "/about" has no extension, but its stored hint set (written for HTML
     // only) is still wanted when the client asks for HTML.

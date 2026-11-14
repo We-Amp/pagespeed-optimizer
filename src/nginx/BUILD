@@ -16,7 +16,7 @@ cc_library(
     ],
 )
 
-# Shared-cache gate for cookie-bearing HTML requests - pure C++, testable
+# Shared-cache gate for cookie-bearing requests - pure C++, testable
 # without nginx headers.  The rule itself is the HTML cache policy's.
 cc_library(
     name = "cookie_cache_gate",
@@ -25,6 +25,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//lib/cache:html_cache_policy",
+        "//lib/classify:content_type",
     ],
 )
 
@@ -37,7 +38,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":authz_cache_gate",
-        ":cookie_cache_gate",
+        "//lib/cache:html_cache_policy",
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",

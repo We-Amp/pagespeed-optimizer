@@ -151,6 +151,9 @@ void AccumulateOriginCacheControl(std::string_view header_value,
         out->max_age = ParseCacheControlSeconds(value);
       } else if (AsciiEqualsIgnoreCase(name, "s-maxage")) {
         out->s_maxage = ParseCacheControlSeconds(value);
+        if ((out->cc_flags & AlternateMetadata::kCCOriginSMaxagePresent) != 0) {
+          out->cc_flags |= AlternateMetadata::kCCOriginSMaxageRepeated;
+        }
         out->cc_flags |= AlternateMetadata::kCCOriginSMaxagePresent;
       }
     }

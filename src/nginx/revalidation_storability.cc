@@ -3,9 +3,9 @@
 
 #include "src/nginx/revalidation_storability.h"
 
+#include "lib/cache/html_cache_policy.h"
 #include "lib/classify/alternate_metadata.h"
 #include "src/nginx/authz_cache_gate.h"
-#include "src/nginx/cookie_cache_gate.h"
 
 namespace pagespeed {
 
@@ -58,11 +58,15 @@ RestampVerdict EvaluateRestampStorability(
                             inputs.refreshed_cc_flags)) {
     return RestampVerdict::kSkipRestamp;
   }
-  // The same reasoning for a cookie-bearing HTML exchange: it may extend the
-  // entry's life only while the refreshed Cache-Control still marks the page
-  // explicitly shareable (cookie_cache_gate.h).
-  if (!CookieCacheGateAllows(inputs.html_request_has_cookie,
-                             /*html_class=*/true, inputs.refreshed_cc_flags)) {
+  // The same reasoning for a cookie-bearing exchange: it may extend the
+  // entry's life only while the refreshed headers still satisfy the cookie
+  // rule for the entry's class (cookie_cache_gate.h).
+  if (!CookieRequestMayStore(inputs.request_has_cookie, inputs.entry_class,
+                             HtmlExplicitlyShared(inputs.refreshed_cc_flags,
+                                                  inputs.refreshed_s_maxage),
+                             OriginStatesLifetime(inputs.refreshed_cc_flags,
+                                                  inputs.refreshed_max_age,
+                                                  inputs.refreshed_s_maxage))) {
     return RestampVerdict::kSkipRestamp;
   }
   // A 304 that sets a cookie marks the exchange as personalized; it must

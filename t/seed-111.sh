@@ -49,3 +49,25 @@ markdown() {  # markdown URL PARENT_CACHE_CONTROL
 
 markdown /md-plain "max-age=600"
 markdown /md-public "public, max-age=600"
+
+# Stored pages whose s-maxage is not an opt-in.  (A shared cache revalidates
+# them before every use, so the tests see the origin either way; they pin
+# that the cookie rule does not count them as marked.)
+page /smaxage-zero "max-age=600, s-maxage=0" \
+  "<html><body>stored smaxage-zero</body></html>"
+page /smaxage-dup "max-age=600, s-maxage=600, s-maxage=600" \
+  "<html><body>stored smaxage-dup</body></html>"
+
+# Early Hints sets: one for a URL with no stored page (every request is a
+# miss), one for a stored page without a sharing mark.
+hints() {  # hints URL
+  "$SEED" --cache "$vol" --url "$1" --host localhost --scheme http \
+    --mask 0x1C --content "/hint.css"
+}
+hints /hints-nopage
+page /hints-unmarked "max-age=600" "<html><body>stored hints</body></html>"
+hints /hints-unmarked
+
+# The /llms.txt index (0x8C).
+"$SEED" --cache "$vol" --url /llms.txt --host localhost --scheme http \
+  --content_type other --mask 0x8C --content "# stored index"

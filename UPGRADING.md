@@ -2,6 +2,9 @@
 
 This document covers upgrading to mod_pagespeed:
 
+- **From 2.8.x or earlier 2.x:** the cache starts empty, and responses
+  fetched for visitors with cookies are shared only when the origin marks
+  them shareable — see the first section below.
 - **From 2.4.0 or earlier 2.x:** the cache directory moves from `v2` to `v3` and
   the cache starts empty — see the first section below.
 - **From 2.1.0:** the cache directory moves from `v1` to `v2` and the cache
@@ -12,6 +15,29 @@ This document covers upgrading to mod_pagespeed:
 - The long appendix at the end describes the 1.x → 2.0 architecture change
   for readers of the nginx line. It is background, not a migration guide:
   a 1.x install upgraded to 2.1.0 or later through the packages does not go through it.
+
+## Upgrading from 2.8.x
+
+- **The cache starts empty.** Entries stored by earlier versions are never
+  used: they stay in the volume until they are evicted, and the cache refills
+  as traffic arrives. The cache directory and file do not change. During a
+  rolling restart, old and new processes do not share entries, so the hit rate
+  stays low until every process runs the new version.
+- **Fewer cache hits for traffic with cookies.** A page fetched for a request
+  that carries a `Cookie` header is cached and shared only when the origin
+  sends `Cache-Control: public` or an `s-maxage` above zero, and a cached page
+  is served to such a request only with the same mark. Sites that set a cookie
+  on every request (analytics, consent) will see fewer cache hits and more
+  requests reaching the origin unless they mark the pages that are the same
+  for every visitor, for example `Cache-Control: public, max-age=600`. Do not
+  mark pages that differ per visitor. "Page" here means every response that is
+  not a stylesheet, script or image.
+- **Static assets without Cache-Control.** On those same sites, stylesheets,
+  scripts and images that the origin serves without `Cache-Control` (or
+  `Expires`) are no longer cached from a request that carries a cookie, so
+  they are cached less until the origin sends an explicit `max-age`. Most real
+  assets already have one.
+- **Authorization** handling is unchanged.
 
 ## Upgrading from 2.4.0
 

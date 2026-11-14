@@ -185,6 +185,7 @@ gtest_test(
     srcs = ["html_cache_policy_test.cc"],
     deps = [
         "//lib/cache:html_cache_policy",
+        "//lib/cache:origin_cache_control",
         "//lib/classify:alternate_metadata",
     ],
 )
