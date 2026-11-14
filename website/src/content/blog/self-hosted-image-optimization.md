@@ -27,7 +27,7 @@ A third-party transformation service can't structurally offer any of the followi
 
 **No third party in the request path.** The image is decoded, transcoded, and served without leaving your network. For a site serving EU users, that removes a data processor from the request path, and a Data Processing Agreement and audit surface with it. The bytes a browser receives came from your server.
 
-**Flat, usage-independent cost.** The software is free to run — your cost is the VMs it runs on, plus a support plan or hardened-build subscription if you want one. Past a break-even point of roughly 200,000–500,000 image requests a month, an additional request costs nothing usage-based — only the bandwidth you would pay your host regardless. A second server for redundancy adds a VM, nothing else.
+**Flat, usage-independent cost.** The software is free to run — your cost is the VMs it runs on, plus a support plan if you want one. Past a break-even point of roughly 200,000–500,000 image requests a month, an additional request costs nothing usage-based — only the bandwidth you would pay your host regardless. A second server for redundancy adds a VM, nothing else.
 
 **Your URLs, your headers, your cache policy.** CDN image services use proprietary URL schemes — `res.cloudinary.com/demo/image/upload/w_300/sample.jpg`, `images.example.com/photo.jpg?w=300`. Migrating off one means rewriting every image URL in your templates, CMS, and API responses. Self-hosted optimization serves the original URL. You set the `Cache-Control`, you set `Vary`, and nothing in your markup has to change.
 

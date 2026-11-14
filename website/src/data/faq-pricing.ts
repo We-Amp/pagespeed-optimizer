@@ -36,7 +36,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'Which tier do I need?',
-    a: `Count production servers: up to 5 is Standard, up to 25 is Priority, more than that (or one organization without a limit) is Enterprise. Choose Priority when your security team wants the release SBOM and VEX. ${link('/support/', 'What each tier includes')}.`,
+    a: `Count production servers: up to 5 is Standard, up to 25 is Priority, more than that (or one organization without a limit) is Enterprise. Choose Priority when you need a next-business-day first response or vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. ${link('/support/', 'What each tier includes')}.`,
   },
   {
     q: 'Which version is current?',

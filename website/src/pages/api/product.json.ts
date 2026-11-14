@@ -63,8 +63,8 @@ const productData = {
     status: SOURCE_PUBLICATION.status,
     license: SOURCE_PUBLICATION.licenseId,
   },
-  // What is for sale is support; Priority and Enterprise add a private package repository
-  // (being set up). Prices are in euro, per year, excl. VAT; Enterprise is a
+  // What is for sale is support; the software and its signed packages are the
+  // same for everyone. Prices are in euro, per year, excl. VAT; Enterprise is a
   // "from" price (annual_from).
 
   support: {
@@ -87,8 +87,8 @@ const productData = {
     contact: COMMERCIAL_EMAIL,
   },
   // Artifact access, expressed additively (new key, existing keys unchanged):
-  // the standard signed packages are free for everyone; the private package
-  // repository for Priority and Enterprise is being set up (not yet live).
+  // the standard signed packages are free for everyone, and there is no private
+  // or subscriber package repository.
   artifacts: {
     standard_packages: ARTIFACT_ACCESS.standardPackages,
     hardened_builds: ARTIFACT_ACCESS.hardenedBuilds,

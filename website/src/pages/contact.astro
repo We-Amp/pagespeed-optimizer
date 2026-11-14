@@ -27,12 +27,6 @@ const TOPICS: Array<{ value: string; label: string; hint: string; commercial: bo
     commercial: true,
   },
   {
-    value: 'hardened',
-    label: 'Private package repository (being set up)',
-    hint: 'Which distributions and versions you run.',
-    commercial: true,
-  },
-  {
     value: 'hosting',
     label: 'Hosting partner program',
     hint: 'Host count, control panel and distributions across your fleet.',
@@ -75,6 +69,7 @@ const TOPIC_ALIASES: Record<string, string> = {
   iispeed: 'iispeed-transfer',
   transfer: 'iispeed-transfer',
   partner: 'hosting',
+  hardened: 'support',
 };
 const COMMERCIAL_TOPICS = TOPICS.filter((t) => t.commercial).map((t) => t.value);
 const topicConfig = {

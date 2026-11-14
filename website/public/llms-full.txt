@@ -15,10 +15,10 @@ What it does:
 - Variant-aware caching keyed on a 32-bit capability mask (image format, viewport, pixel density, Save-Data, transfer encoding), served zero-copy from the shared Cyclone cache
 - The module's classic filter set: CSS and JavaScript combining, image spriting, in-place resource optimization, domain mapping, and the built-in admin console
 
-mod_pagespeed is open source under the Apache License 2.0: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; Priority and Enterprise add a private package repository (being set up):
+mod_pagespeed is open source under the Apache License 2.0: free to install and run, in development and in production, with free signed packages. What We-Amp sells is support, in three tiers; the software and its signed packages are the same for everyone, and security fixes reach every user at the same time:
 
 - Standard support — a direct channel to the engineers who build the product, for up to 5 production servers; €490 a year; First response within 2 business days
-- Priority support — everything in Standard plus a private package repository (being set up), for up to 25 production servers; €1,900 a year; First response next business day; severity 1 (production down) within 8 business hours
+- Priority support — everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for up to 25 production servers; €1,900 a year; First response next business day; severity 1 (production down) within 8 business hours
 - Enterprise — everything in Priority plus a named engineer, custom build targets and backports, for unlimited servers and sites in one organization; from €7,500 a year; Severity 1 (production down) within 4 business hours; other severities per agreement
 - Prices are per year, billed annually, excl. VAT. The price you sign at holds for one year. Existing customers keep their current rate; nobody is repriced mid-term. Response targets are first-response times. Support runs on CET business days, and business hours are CET.
 - Standard and Priority are bought at checkout; Enterprise runs on a master agreement. A fixed-price agent-readiness audit is also available: one site, one written report, one review call, €950 per site excl. VAT.
@@ -140,7 +140,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [API reference: IPC, sockets, and C API](https://modpagespeed.com/docs/api-reference/): mod_pagespeed internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.
 - [Call the worker HTTP API](https://modpagespeed.com/docs/http-api/): Optimizer worker HTTP API for mod_pagespeed: health, stats, Prometheus metrics, cache management, live config and WebSocket streaming, all via curl.
 - [Release notes](https://modpagespeed.com/docs/release-notes/): mod_pagespeed release notes: the current release, the notes of every line, every release in one list, security updates and what changed since upstream.
-- [License](https://modpagespeed.com/docs/license/): mod_pagespeed is licensed under the Apache License 2.0. We sell support; Priority and Enterprise add a private package repository (being set up).
+- [License](https://modpagespeed.com/docs/license/): mod_pagespeed is licensed under the Apache License 2.0. We sell support; the software and its signed packages are the same for everyone.
 - [PageSpeed filters reference](https://modpagespeed.com/docs/filters/): The image, CSS, JavaScript, HTML, and caching filters, what each one does, and which run by default.
 
 ## Release notes by line
@@ -175,7 +175,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [The apt/yum repository](https://modpagespeed.com/download/apt-yum/): The signed apt and yum repository for the Apache and nginx modules and the optimizer worker: one line sets it up.
 - [Features](https://modpagespeed.com/features/): Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS, and variant-aware caching: the full feature set.
 - [Support](https://modpagespeed.com/support/): What a support subscription buys, the three tiers, signed packages and images and how to verify what ships today, the hosting partner program and consulting.
-- [Pricing](https://modpagespeed.com/pricing/): What We-Amp sells: Standard support (a direct channel to the engineers who build the product, for up to 5 production servers; €490 a year; First response within 2 business days); Priority support (everything in Standard plus a private package repository (being set up), for up to 25 production servers; €1,900 a year; First response next business day; severity 1 (production down) within 8 business hours); Enterprise (everything in Priority plus a named engineer, custom build targets and backports, for unlimited servers and sites in one organization; from €7,500 a year; Severity 1 (production down) within 4 business hours; other severities per agreement). The software is free to run. Yearly prices per tier, Buy buttons for Standard and Priority, and a fixed-price agent-readiness audit.
+- [Pricing](https://modpagespeed.com/pricing/): What We-Amp sells: Standard support (a direct channel to the engineers who build the product, for up to 5 production servers; €490 a year; First response within 2 business days); Priority support (everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for up to 25 production servers; €1,900 a year; First response next business day; severity 1 (production down) within 8 business hours); Enterprise (everything in Priority plus a named engineer, custom build targets and backports, for unlimited servers and sites in one organization; from €7,500 a year; Severity 1 (production down) within 4 business hours; other severities per agreement). The software is free to run. Yearly prices per tier, Buy buttons for Standard and Priority, and a fixed-price agent-readiness audit.
 - [Software license](https://modpagespeed.com/license/): mod_pagespeed is open source under the Apache License 2.0: free to install and run, in development and in production.
 - [Security](https://modpagespeed.com/security/): Security policy: how to report a vulnerability, the threat model, supply-chain security and the safe harbor for researchers.
 - [Contact](https://modpagespeed.com/contact/): Setup help, support subscriptions, the hosting partner program, consulting and IISpeed license transfers; replies within one business day (CET). Security disclosure has its own channel.
@@ -3062,10 +3062,12 @@ stay matched by construction.
 Security fixes ship as regular releases through the channel you installed
 from, and every one is listed under Security in the
 [release notes](https://modpagespeed.com/docs/release-notes/#security-updates) by impact class, with
-"update recommended" and the affected versions. The standard signed packages
+"update recommended" and the affected versions. The signed packages
 are free for everyone. A [support subscription](https://modpagespeed.com/support/) adds support from
 the people who build the product, with first-response targets and advance
-notice of security releases. A private package repository for Priority and Enterprise subscribers, planned to deliver security fixes before the public release, is being set up. Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on request.
+notice of planned security releases. Security fixes reach everyone at the same
+time. The SBOM and VEX are public in the source tree; Priority and Enterprise
+subscribers can ask us to send the copy for a given release.
 
 ## Roll back
 
@@ -3085,7 +3087,7 @@ No. They are a matched pair: install, upgrade and roll them back together, and s
 
 **How do security updates reach me?**
 
-As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". A support subscription adds first-response targets and advance notice of security releases. A private package repository for Priority and Enterprise subscribers, planned to deliver security fixes before the public release, is being set up. Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on request.
+As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". Security fixes reach everyone at the same time. A support subscription adds first-response targets and advance notice of planned security releases. The SBOM and VEX are public in the source tree; Priority and Enterprise subscribers can ask us to send the copy for a given release.
 
 ---
 
@@ -3274,7 +3276,8 @@ what changed and what did not; the archived 1.0 docs are at [/1.0/](https://modp
 mod_pagespeed is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells is
 [support](https://modpagespeed.com/support/) from the people who build
-the product; Priority and Enterprise add a private package repository (being set up), and the standard signed packages stay free.
+the product; the software and its signed packages are the same for everyone,
+and free.
 
 ## Frequently asked questions
 
@@ -22686,7 +22689,7 @@ notes.
 
 # License
 
-mod_pagespeed is licensed under the Apache License 2.0. We sell support; Priority and Enterprise add a private package repository (being set up).
+mod_pagespeed is licensed under the Apache License 2.0. We sell support; the software and its signed packages are the same for everyone.
 
 Canonical URL: https://modpagespeed.com/docs/license/
 

@@ -11,9 +11,9 @@
 // from product-facts.mjs, the signing-key URL from the 2.1 release manifest.
 // Prices, the checkout links and the first-response targets come with the tier
 // rows; /pricing/ is the buying page. Signed artifacts are described
-// only by what ships today; the private package repository is stated as being set up, and nothing
-// here claims a per-release SBOM/VEX on release assets or provenance on
-// packages.
+// only by what ships today; security fixes reach everyone at the same time
+// (there is no private or subscriber repository), and nothing here claims a
+// per-release SBOM/VEX on release assets or provenance on packages.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SupportTiers from '../components/SupportTiers.astro';
@@ -66,7 +66,7 @@ const jsonLd = [
     '@type': 'WebPage',
     name: `Support for ${PRODUCT}`,
     url: 'https://modpagespeed.com/support/',
-    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, first-response targets per tier, and a private package repository (being set up) for Priority and Enterprise.`,
+    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, first-response targets per tier, and advance notice of security releases.`,
     publisher: { '@type': 'Organization', name: 'We-Amp B.V.', url: 'https://we-amp.com/' },
   },
   {
@@ -96,7 +96,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   {
     key: 'security updates',
     value: 'advance notice',
-    detail: 'We tell subscribers about a security release before it is published.',
+    detail:
+      'Advance notice of a planned security release: date, severity, affected versions and impact class. If a vulnerability is already public or exploited, the notice goes out with the release.',
   },
   {
     key: 'scope',
@@ -108,7 +109,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
 
 <BaseLayout
   title={`${PRODUCT} support from the people who build it`}
-  description="Support subscriptions for mod_pagespeed: a direct line to its engineers, response targets, a private repository (being set up)."
+  description="Support subscriptions for mod_pagespeed: a direct line to its engineers, response targets, advance notice of security releases."
   jsonLd={jsonLd}
 >
   <PageHero
@@ -270,20 +271,25 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           </ul>
         </div>
         <div class="card">
-          <h3 class="font-semibold text-text-body">Private package repository (being set up)</h3>
+          <h3 class="font-semibold text-text-body">Security releases</h3>
           <ul class="mt-4 space-y-3 text-body text-text-muted">
-            <li class="flex gap-2">
-              <Icon name="lock" class="mt-1 h-4 w-4 shrink-0 text-interactive" />
-              <span>
-                A private package repository for Priority and Enterprise subscribers, planned to
-                deliver security fixes before the public release, is being set up.
-              </span>
-            </li>
             <li class="flex gap-2">
               <Icon name="shield-check" class="mt-1 h-4 w-4 shrink-0 text-interactive" />
               <span>
-                Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on
-                request, and all subscribers get advance notice of security releases.
+                Security fixes reach everyone at the same time, as regular releases through the
+                channel you installed from.
+              </span>
+            </li>
+            <li class="flex gap-2">
+              <Icon name="check" class="mt-1 h-4 w-4 shrink-0 text-interactive" />
+              <span>
+                Subscribers get advance notice of a planned security release: the date, the
+                severity, the affected versions and the impact class. When a vulnerability is
+                already public or being exploited, the notice goes out with the release. Priority
+                and Enterprise subscribers also get vulnerability notifications timed to the EU
+                Cyber Resilience Act reporting windows. The SBOM and VEX are public in the source
+                tree; Priority and Enterprise subscribers can ask us to send the copy for a given
+                release.
               </span>
             </li>
           </ul>
@@ -292,14 +298,14 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             adds support, not a different license.
           </p>
           <a
-            href="/contact/?topic=hardened"
+            href="/contact/?topic=support"
             class="btn-secondary mt-6"
             data-umami-event="cta_commercial"
-            data-umami-event-offer="hardened"
+            data-umami-event-offer="support"
             data-umami-event-surface="support"
             data-umami-event-position="hardened_builds"
           >
-            Ask about the private repository
+            Ask about support
           </a>
         </div>
       </div>

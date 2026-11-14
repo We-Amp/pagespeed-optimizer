@@ -35,8 +35,8 @@ export { PRICE_VALID_UNTIL };
 // sold separately and are deliberately not part of this offer (the standard
 // packages cost €0).
 export const DEFAULT_OFFER_DESCRIPTION =
-  `${LICENSE_CLAUSE_CAP} — the standard signed packages are free ` +
-  `to install and run. Support plans are sold separately; Priority and Enterprise add a private package repository (being set up): ${SUPPORT_URL}`;
+  `${LICENSE_CLAUSE_CAP} — the signed packages are free ` +
+  `to install and run. Support plans are sold separately; the software and its signed packages are the same for everyone: ${SUPPORT_URL}`;
 
 // Return policy intentionally omitted from structured data — /terms/ grants no
 // unconditional money-back guarantee; the EU 14-day withdrawal right for a

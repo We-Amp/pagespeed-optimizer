@@ -35,8 +35,8 @@ test.describe('Pricing page', () => {
     await expect(page.locator('#tiers [data-tier="priority"]')).not.toContainText(
       'Private package repository',
     );
-    await expect(page.locator('#tiers [data-private-repo]')).toContainText(
-      'A private package repository for Priority and Enterprise subscribers is being set up.',
+    await expect(page.locator('#tiers [data-same-software]')).toContainText(
+      'the software and its signed packages are the same for everyone',
     );
     await expect(page.locator('#tiers [data-tier="standard"]')).not.toContainText(
       'Private package repository',

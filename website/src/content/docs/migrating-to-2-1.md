@@ -3,7 +3,7 @@ title: 'Migrate from ModPageSpeed 2.0'
 description: 'Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed: unprivileged worker, loopback-bound API, configuration carries over.'
 order: 11
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-11-14
 faq:
   - q: 'Do I have to recreate my cache volume?'
     a: 'No. On its first start, the optimizer worker (2.1.0 and later) migrates a volume created by 2.0 in place: it adopts the cache files into the unprivileged `pagespeed` user and keeps the warm cache, deleting nothing. Native-package installs are different: there the cache lives in a versioned directory and a package upgrade starts it cold by design.'
@@ -190,4 +190,5 @@ what changed and what did not; the archived 1.0 docs are at [/1.0/](/1.0/).
 mod_pagespeed is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells is
 [support](/support/) from the people who build
-the product; Priority and Enterprise add a private package repository (being set up), and the standard signed packages stay free.
+the product; the software and its signed packages are the same for everyone,
+and free.
