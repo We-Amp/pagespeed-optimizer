@@ -847,9 +847,9 @@ pagespeed ImageMaxRewritesAtOnce 8;
 
 ### Large images and `ImageResolutionLimitBytes`
 
-`ImageResolutionLimitBytes` bounds how large an image may be once decoded, assuming 4 bytes per pixel. The default of 33554432 (32 MiB) therefore allows about 8.39 megapixels (8,388,608 pixels). Images above that, such as 12 MP camera originals at 4000x3000 or 4000x2250 photos, are passed through untouched: the original is served unchanged, with no error, and each skip is counted in the `image_norewrites_high_resolution` statistic. Check that statistic if large photos are not being optimized. A 2000x1500 image (3 MP) is well under the limit.
+`ImageResolutionLimitBytes` bounds how large an image may be once decoded, assuming 4 bytes per pixel. The default of 33554432 (32 MiB) therefore allows about 8.39 megapixels (8,388,608 pixels). Images above that, such as 12 MP camera originals at 4000x3000, are passed through untouched: the original is served unchanged, with no error, and each skip is counted in the `image_norewrites_high_resolution` statistic. Check that statistic if large photos are not being optimized. Even a 4000x2250 image (9 MP) is over the limit, while a 2000x1500 image (3 MP) is well under it.
 
-The limit exists to bound memory use. To opt in to larger images, raise it to 64 MiB (about 16 MP, enough for 4000x3000 and 4000x4000):
+The limit exists to bound memory use. To opt in to larger images, raise it to 64 MiB (about 16.8 MP, enough for 4000x3000 and 4000x4000):
 
 **Apache:**
 
