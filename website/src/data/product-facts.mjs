@@ -120,7 +120,7 @@ export const SUPPORT_TIERS = [
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
       'Upgrade rehearsal on request',
       'Quarterly review call',
-      'The SBOM and VEX copy for a given release, sent on request (both are public in the source tree)',
+      'A copy of the release SBOM and VEX on request (both are public)',
       'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
