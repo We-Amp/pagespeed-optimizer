@@ -93,15 +93,17 @@ nginx that your distribution ships. For nginx.org's stable nginx there is a
 separate package, `nginx-module-pagespeed-nginxorg`, built for one nginx
 version at a time (currently 1.30.6), for amd64 on Debian 13, Ubuntu 24.04 and
 Enterprise Linux 9. It cannot be installed together with the distribution
-package. The module does not load into a different nginx build, and we have not documented or tested it for the `sw-nginx`
-package. We make no claim that it works there. Running our module means
-running one of those supported nginx builds yourself, outside the panel's
-nginx, and you own that setup and its upgrades.
+package. The module does not load into a different nginx build, and we have
+not documented or tested it for the `sw-nginx` package. We make no claim that
+it works there. Running our module means running one of those supported nginx
+builds yourself, outside the panel's nginx, and you own that setup and its
+upgrades.
 
 If you are replacing another ngx_pagespeed build, see
 [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/): your
 `pagespeed` directives carry over to the maintained module, except seven
-removed names that must be deleted.
+deprecated names: 2.8.2 refuses them, so delete them before you install it. The
+next release accepts them with a deprecation warning.
 
 Plesk is a trademark of its owner. This page is not affiliated with or endorsed
 by Plesk.
