@@ -204,14 +204,17 @@ It renders as a callout titled "From the next release" (`[Label]` overrides the 
 as on the other callouts) and as a `> **From the next release**` blockquote in the
 Markdown copies. Write the marker at the top level, starting at the first column with
 three colons: the Markdown copies convert only those (the check also finds nested ones).
-Wrap whole blocks only, headings included (a section that is new goes in the marker with its heading): a new sentence inside an existing paragraph
+Wrap whole blocks only, headings included (a section that is new goes in the marker with its heading;
+it keeps its anchor but stays out of "On this page", see `src/lib/rehype-next-release-headings.mjs`): a new sentence inside an existing paragraph
 moves into its own marker block after it, a changed table row goes back to its
 released text with the new row in a one-row table inside the marker, and text that
 replaced released text keeps the released text outside the marker. Frontmatter (a
 FAQ answer) cannot hold a marker, so it keeps the released wording. For a generated
 reference entry, add it to `src/data/reference/next-release.json` (region, entry name,
 `after`) and run `node scripts/render-references.mjs`; the renderer wraps the entry's
-block, heading included, and leaves it out of the region's index links and counts. `test/next-release-markers.test.ts` fails on a marker without `after` and on
+block, heading included, and leaves it out of the region's index links and counts.
+Module directives cannot be marked (the directive finder needs that region flat), so the
+renderer refuses them; describe an unreleased module directive in a docs-page marker. `test/next-release-markers.test.ts` fails on a marker without `after` and on
 every marker whose `after` is older than the released version, the newer of
 `release.semver` in the 2.1 manifest and `MODULE_PACKAGE_VERSION` in
 `src/data/product-facts.mjs`. So it fires on the release's own site update, which

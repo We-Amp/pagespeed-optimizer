@@ -169,9 +169,25 @@ const indexLinks = (list, marks) =>
     .map((e) => `[\`${e.name}\`](#${headingId(e.name)})`)
     .join(', ');
 
-/** The next-release entries of one region; a name the data lacks is an error. */
-function nextReleaseMarks(region, names) {
-  const marks = loadNextRelease()[region] ?? {};
+/**
+ * Regions whose entries cannot be marked. The module-directives region is
+ * flat on purpose: rehype-directive-blocks and the directive finder treat
+ * each `h4` and the siblings after it as one directive, and a marker would put
+ * the heading inside an aside, out of that run.
+ */
+const UNMARKABLE_REGIONS = new Set(['module-directives']);
+
+/**
+ * The next-release entries of one region; a name the data lacks, or an entry
+ * in a region that cannot be marked, is an error.
+ */
+export function nextReleaseMarks(region, names, regions = loadNextRelease()) {
+  const marks = regions[region] ?? {};
+  if (UNMARKABLE_REGIONS.has(region) && Object.keys(marks).length) {
+    throw new Error(
+      `next-release.json lists ${region} entries (${Object.keys(marks).join(', ')}), but that region cannot be marked: the directive finder needs its flat headings. Describe the unreleased directive in a marker on a docs page instead.`,
+    );
+  }
   const known = new Set(names);
   const orphans = Object.keys(marks).filter((k) => !known.has(k));
   if (orphans.length) {

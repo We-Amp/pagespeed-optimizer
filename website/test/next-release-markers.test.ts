@@ -22,6 +22,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { MODULE_PACKAGE_VERSION } from '../src/data/product-facts.mjs';
+import { nextReleaseMarks } from '../scripts/render-references.mjs';
 import { releaseManifest } from './lib/release-manifest';
 import { compareVersions } from './lib/version-rules';
 
@@ -175,5 +176,24 @@ describe('the marker rules', () => {
       0,
     );
     expect(compareVersions(releasedVersion, MODULE_PACKAGE_VERSION)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('next-release.json', () => {
+  it('marks entries of the regions that can carry a marker', () => {
+    const regions = { 'thin-module-directives': { a: '2.8.2' } };
+    expect(nextReleaseMarks('thin-module-directives', ['a', 'b'], regions)).toEqual({ a: '2.8.2' });
+  });
+
+  it('refuses a name the reference data does not have', () => {
+    const regions = { 'worker-flags': { gone: '2.8.2' } };
+    expect(() => nextReleaseMarks('worker-flags', ['a'], regions)).toThrow(/unknown worker-flags/);
+  });
+
+  it('refuses module directives: the directive finder needs that region flat', () => {
+    const regions = { 'module-directives': { ModPagespeedX: '2.8.2' } };
+    expect(() => nextReleaseMarks('module-directives', ['ModPagespeedX'], regions)).toThrow(
+      /module-directives entries \(ModPagespeedX\), but that region cannot be marked/,
+    );
   });
 });
