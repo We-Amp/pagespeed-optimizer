@@ -78,9 +78,9 @@ While the flag is off, an agent request **transparently receives the normal
 HTML** of the same URL — never an error, never a half-rendered page. Turning the
 feature off is always safe.
 
+:::next-release{after="2.8.2"}
 ## State a content-use policy (`content-signal`)
 
-:::next-release{after="2.8.2"}
 A Markdown response can tell agents how you allow your content to be used,
 with a `content-signal` header in the [Content Signals](https://contentsignals.org/)
 format. The nginx module sends it only when you set one; there is no default

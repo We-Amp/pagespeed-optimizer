@@ -149,16 +149,25 @@ export function loadNextRelease() {
 }
 
 /**
- * Wrap everything below a block's `####` heading in a next-release marker when
- * the entry is in `marks` (one region of next-release.json).
+ * Wrap a block, its `####` heading included, in a next-release marker when the
+ * entry is in `marks` (one region of next-release.json).
  */
 function withNextRelease(block, marks, key) {
   const after = marks[key];
   if (!after) return block;
-  const [heading, ...body] = block.split('\n');
-  const rest = body.join('\n').trim();
-  return `${heading}\n\n:::next-release{after="${after}"}\n${rest}\n:::`;
+  return `:::next-release{after="${after}"}\n${block.trim()}\n:::`;
 }
+
+/**
+ * The comma-separated links that index a list of entries, and their count.
+ * Entries in `marks` are not released yet, so they stay out of both; their
+ * block is still rendered, inside its marker.
+ */
+const released = (list, marks) => list.filter((e) => !marks[e.name]);
+const indexLinks = (list, marks) =>
+  released(list, marks)
+    .map((e) => `[\`${e.name}\`](#${headingId(e.name)})`)
+    .join(', ');
 
 /** The next-release entries of one region; a name the data lacks is an error. */
 function nextReleaseMarks(region, names) {
@@ -203,17 +212,17 @@ export function renderModuleDirectives() {
   const out = [];
   const nav = [...byArea.entries()]
     .filter(([, list]) => list.length)
-    .map(([area, list]) => `[${area}](#${areaId(area)}) (${list.length})`);
+    .map(([area, list]) => `[${area}](#${areaId(area)}) (${released(list, marks).length})`);
   const { repo, tag } = data.source;
   out.push(
-    `Generated from the mod_pagespeed source at tag [\`${tag}\`](${repo}/tree/${tag}): ${data.directives.length} directives.`,
+    `Generated from the mod_pagespeed source at tag [\`${tag}\`](${repo}/tree/${tag}): ${released(data.directives, marks).length} directives.`,
     '',
   );
   out.push(`Areas: ${nav.join(' · ')}.`, '');
   for (const [area, list] of byArea) {
     if (!list.length) continue;
     out.push(`### ${area} {#${areaId(area)}}`, '');
-    out.push(list.map((d) => `[\`${d.name}\`](#${headingId(d.name)})`).join(', '), '');
+    out.push(indexLinks(list, marks), '');
     for (const d of list) {
       out.push(withNextRelease(withNotes(directiveBlock(d), notes, d.name), marks, d.name), '');
     }
@@ -291,13 +300,16 @@ export function renderWorkerFlags() {
       .replace(/-+$/, '')}`;
   out.push(
     `Sections: ${[...sections.entries()]
-      .map(([s, list]) => `[${FLAG_SECTION_TITLES[s] ?? s}](#${sectionId(s)}) (${list.length})`)
+      .map(
+        ([s, list]) =>
+          `[${FLAG_SECTION_TITLES[s] ?? s}](#${sectionId(s)}) (${released(list, marks).length})`,
+      )
       .join(' · ')}.`,
     '',
   );
   for (const [section, list] of sections) {
     out.push(`### ${FLAG_SECTION_TITLES[section] ?? section} {#${sectionId(section)}}`, '');
-    out.push(list.map((f) => `[\`${f.name}\`](#${headingId(f.name)})`).join(', '), '');
+    out.push(indexLinks(list, marks), '');
     for (const f of list) {
       out.push(withNextRelease(withNotes(flagBlock(f), notes, f.name), marks, f.name), '');
     }
@@ -335,7 +347,7 @@ export function renderThinModuleDirectives() {
     data.directives.map((d) => d.name),
   );
   const out = [];
-  out.push(data.directives.map((d) => `[\`${d.name}\`](#${headingId(d.name)})`).join(', '), '');
+  out.push(indexLinks(data.directives, marks), '');
   for (const d of data.directives) {
     const arg =
       THIN_PLACEHOLDERS[d.name] ??

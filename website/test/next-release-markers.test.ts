@@ -51,7 +51,9 @@ function findMarkers(source: string, file: string): Marker[] {
       return;
     }
     if (fence) return;
-    const m = line.match(/^\s*:::next-release(?:\[[^\]]*\])?(\{[^}]*\})?\s*$/);
+    // Nested markers count too: inside a blockquote (`> `) or a list item
+    // (indented), and with a longer `::::` fence.
+    const m = line.match(/^(?:\s*>)*\s*:{3,}next-release(?:\[[^\]]*\])?(\{[^}]*\})?\s*$/);
     if (!m) return;
     const after = m[1]?.match(/\bafter="([^"]*)"/)?.[1] ?? null;
     out.push({ where: `${file}:${i + 1}`, after });
@@ -134,17 +136,21 @@ describe('the marker rules', () => {
     ':::',
     ':::next-release',
     ':::',
+    '> ::::next-release{after="2.8.0"}',
+    '  :::next-release[x]{after="2.8.2"}',
     '```md',
     ':::next-release',
     '```',
   ].join('\n');
   const markers = findMarkers(src, 'page.md');
 
-  it('finds markers with and without a label or after, not inside fenced code', () => {
+  it('finds markers with and without a label or after, nested or with a longer fence, not inside fenced code', () => {
     expect(markers).toEqual([
       { where: 'page.md:3', after: '2.8.2' },
       { where: 'page.md:7', after: '2.8.1' },
       { where: 'page.md:9', after: null },
+      { where: 'page.md:11', after: '2.8.0' },
+      { where: 'page.md:12', after: '2.8.2' },
     ]);
   });
 

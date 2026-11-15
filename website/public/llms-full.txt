@@ -8040,7 +8040,7 @@ URL normalization, the cache mode when no directive sets it) from the
 
 <!-- generated:begin thin-module-directives -->
 
-[`pagespeed`](https://modpagespeed.com/docs/worker-configuration/#pagespeed), [`pagespeed_cache_path`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_cache_path), [`pagespeed_disallow`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_disallow), [`pagespeed_hot_threshold`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_hot_threshold), [`pagespeed_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_max_age), [`pagespeed_immutable_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_immutable_max_age), [`pagespeed_synthesize_swr`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_synthesize_swr), [`pagespeed_conditional_revalidation`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_conditional_revalidation), [`pagespeed_stale_if_error_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_stale_if_error_max_age), [`pagespeed_html_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_html_max_age), [`pagespeed_css_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_css_max_age), [`pagespeed_image_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_image_max_age), [`pagespeed_force_refresh_html`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_force_refresh_html), [`pagespeed_force_refresh`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_force_refresh), [`pagespeed_trust_x_forwarded_proto`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_trust_x_forwarded_proto), [`pagespeed_cache_mode`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_cache_mode), [`pagespeed_agent_content_signal`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_agent_content_signal)
+[`pagespeed`](https://modpagespeed.com/docs/worker-configuration/#pagespeed), [`pagespeed_cache_path`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_cache_path), [`pagespeed_disallow`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_disallow), [`pagespeed_hot_threshold`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_hot_threshold), [`pagespeed_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_max_age), [`pagespeed_immutable_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_immutable_max_age), [`pagespeed_synthesize_swr`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_synthesize_swr), [`pagespeed_conditional_revalidation`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_conditional_revalidation), [`pagespeed_stale_if_error_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_stale_if_error_max_age), [`pagespeed_html_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_html_max_age), [`pagespeed_css_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_css_max_age), [`pagespeed_image_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_image_max_age), [`pagespeed_force_refresh_html`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_force_refresh_html), [`pagespeed_force_refresh`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_force_refresh), [`pagespeed_trust_x_forwarded_proto`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_trust_x_forwarded_proto), [`pagespeed_cache_mode`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_cache_mode)
 
 #### pagespeed
 
@@ -8268,9 +8268,9 @@ defaults of [`pagespeed_css_max_age`](https://modpagespeed.com/docs/worker-confi
 [`pagespeed_image_max_age`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_image_max_age) follow the mode. See
 [Cache modes](https://modpagespeed.com/docs/cache-modes/) for the full reference.
 
-#### pagespeed_agent_content_signal
-
 > **From the next release**
+>
+> #### pagespeed_agent_content_signal
 >
 > - **Syntax:** `pagespeed_agent_content_signal value | off;`
 > - **Default:** `(empty)`
@@ -19571,9 +19571,9 @@ While the flag is off, an agent request **transparently receives the normal
 HTML** of the same URL — never an error, never a half-rendered page. Turning the
 feature off is always safe.
 
-## State a content-use policy (`content-signal`)
-
 > **From the next release**
+>
+> ## State a content-use policy (`content-signal`)
 >
 > A Markdown response can tell agents how you allow your content to be used,
 > with a `content-signal` header in the [Content Signals](https://contentsignals.org/)
