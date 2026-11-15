@@ -7,9 +7,12 @@
 // in reader mode, to crawlers and in a Markdown copy of the page. Every page
 // of every type is loaded and every heading checked:
 //
-//   - its text (textContent, innerText, a selection of it) never ends in "#";
-//   - its accessible name never ends in "#" and never holds the link's label;
+//   - its permalink adds nothing to its text: textContent, innerText and a
+//     selection of the heading read the same with the permalink removed;
+//   - its accessible name is its own text, never the link's label;
 //   - every permalink holds no text of its own (the "#" is CSS generated);
+//
+// No check looks for a literal "#": a heading may end in one ("C#").
 //   - on a screen that can hover, a permalink is invisible until its heading
 //     is hovered or the link is focused;
 //   - on a touch screen, a visible permalink keeps a gap to the heading text.
@@ -53,38 +56,60 @@ const STATIC = staticRoutes();
 /** Pages whose headings carry permalinks. */
 const WITH_ANCHORS = new Set([...DOCS, ...HOW]);
 
-interface HeadingFacts {
-  tag: string;
+interface Reading {
   textContent: string;
   innerText: string;
   selection: string;
 }
 
-/** Text of every visible heading, read the way a reader, a copy or a crawler reads it. */
-async function headingTexts(page: Page): Promise<HeadingFacts[]> {
-  return page.locator(':is(h1, h2, h3, h4, h5, h6)').evaluateAll((els) =>
-    els
-      .filter((el) => el.getClientRects().length > 0)
-      .map((el) => {
-        const sel = window.getSelection();
-        let selection = '';
-        if (sel) {
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          sel.removeAllRanges();
-          sel.addRange(range);
-          selection = sel.toString();
-          sel.removeAllRanges();
-        }
-        return {
-          tag: el.tagName.toLowerCase(),
-          textContent: (el.textContent ?? '').trim(),
-          innerText: (el as HTMLElement).innerText.trim(),
-          selection: selection.trim(),
-        };
-      }),
-  );
+interface HeadingFacts {
+  tag: string;
+  id: string;
+  withLink: Reading;
+  withoutLink: Reading;
 }
+
+/**
+ * Every visible heading that has a permalink (an in-page link to itself as a
+ * direct child), read the way a reader, a copy or a crawler reads it, once as
+ * served and once with the permalink taken out of the page.
+ */
+async function headingTexts(page: Page): Promise<HeadingFacts[]> {
+  return page.locator(':is(h1, h2, h3, h4, h5, h6)[id]').evaluateAll((els) => {
+    const read = (el: HTMLElement) => {
+      const sel = window.getSelection();
+      let selection = '';
+      if (sel) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        selection = sel.toString();
+        sel.removeAllRanges();
+      }
+      return { textContent: el.textContent ?? '', innerText: el.innerText, selection };
+    };
+    const out = [];
+    for (const el of els as HTMLElement[]) {
+      // checkVisibility also skips the body of a closed <details>, which
+      // keeps its layout boxes but leaves the accessibility tree.
+      if (!el.checkVisibility()) continue;
+      const link = Array.from(el.children).find(
+        (c) => c.tagName === 'A' && c.getAttribute('href') === `#${el.id}`,
+      );
+      if (!link) continue;
+      const withLink = read(el);
+      const next = link.nextSibling;
+      link.remove();
+      const withoutLink = read(el);
+      el.insertBefore(link, next);
+      out.push({ tag: el.tagName.toLowerCase(), id: el.id, withLink, withoutLink });
+    }
+    return out;
+  });
+}
+
+const squash = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 async function load(page: Page, path: string): Promise<boolean> {
   const res = await page.goto(path, { waitUntil: 'load' });
@@ -108,22 +133,21 @@ test.describe('heading permalinks, every page', () => {
     test(`${path}`, async ({ page }) => {
       if (!(await load(page, path))) return;
 
-      // (d) The text a reader, a copy or a crawler takes never ends in "#".
-      for (const h of await headingTexts(page)) {
-        for (const [how, value] of Object.entries({
-          textContent: h.textContent,
-          innerText: h.innerText,
-          selection: h.selection,
-        })) {
-          expect(value, `${h.tag} ${how}: "${value}"`).not.toMatch(/#\s*$/);
+      // (d) The permalink adds no character to the text a reader, a copy or a
+      // crawler takes from the heading.
+      const headings = await headingTexts(page);
+      for (const h of headings) {
+        for (const how of ['textContent', 'innerText', 'selection'] as const) {
+          expect(h.withLink[how], `${h.tag}#${h.id} ${how}`).toBe(h.withoutLink[how]);
         }
       }
 
-      // (c) Accessible names: never end in "#", never carry the link's label.
+      // (c) Accessible names: a heading with a permalink is named by its own
+      // text; no heading carries a permalink's label.
       const names = (await axQuery(page, 'body', 'heading')).map((h) => h.name);
-      for (const n of names) {
-        expect(n, `heading name "${n}"`).not.toMatch(/#\s*$/);
-        expect(n, `heading name "${n}"`).not.toContain('Link to “');
+      for (const n of names) expect(n, `heading name "${n}"`).not.toContain('Link to “');
+      for (const h of headings) {
+        expect(names, `name of ${h.tag}#${h.id}`).toContain(squash(h.withoutLink.textContent));
       }
 
       const anchors = page.locator(':is(h1, h2, h3, h4, h5, h6) > .heading-anchor');
@@ -155,13 +179,17 @@ test.describe('heading permalinks, every page', () => {
         expect(f.opacity, `resting opacity in #${f.id}`).toBe('0');
       }
 
-      // (a) Hovering the heading reveals its permalink; focus does too.
-      const first = anchors.first();
-      if (await first.isVisible()) {
-        await first.locator('xpath=..').hover();
-        await expect(first).toHaveCSS('opacity', '1');
+      // (a) Hovering a heading reveals its permalink and leaving hides it
+      // again; checked on the first few visible permalinks of the page.
+      let hovered = 0;
+      for (let i = 0; i < count && hovered < 5; i++) {
+        const anchor = anchors.nth(i);
+        if (!(await anchor.isVisible())) continue;
+        await anchor.locator('xpath=..').hover();
+        await expect(anchor).toHaveCSS('opacity', '1');
         await page.mouse.move(0, 0);
-        await expect(first).toHaveCSS('opacity', '0');
+        await expect(anchor).toHaveCSS('opacity', '0');
+        hovered++;
       }
     });
   }
