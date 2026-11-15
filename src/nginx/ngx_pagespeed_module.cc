@@ -3950,16 +3950,16 @@ static void ngx_http_pagespeed_add_agent_markdown_headers(
 // ours is safe even if duplicating tokens like Accept-Encoding.
 //
 // Whether our line names Accept is pagespeed::EmittedVaryNamesAccept: the
-// origin's marker unless `origin_vary_line_sent` says the origin's own line
-// (which then lists it) goes out too, and, while agent optimization is on,
-// every HTML response, because the same URL may answer an
-// `Accept: text/markdown` request with the page's Markdown copy.
+// entry's marker, and, while agent optimization is on, every HTML response,
+// because the same URL may answer an `Accept: text/markdown` request with the
+// page's Markdown copy — unless `origin_line_lists_accept` says an origin
+// Vary line on this response already lists it.
 static void ngx_http_pagespeed_emit_vary(ngx_http_request_t* r, ContentType ct,
                                          bool origin_varies_accept,
-                                         bool origin_vary_line_sent) {
+                                         bool origin_line_lists_accept) {
   std::string_view vary_val = pagespeed::VaryForServedResponse(
       ct, pagespeed::EmittedVaryNamesAccept(
-              ct, origin_varies_accept, origin_vary_line_sent,
+              ct, origin_varies_accept, origin_line_lists_accept,
               g_shared_config.agent_optimize_entitled));
   if (vary_val.empty()) return;
   add_response_header(r, "Vary",
@@ -4145,10 +4145,12 @@ static ngx_int_t ngx_http_pagespeed_serve_stale_on_error(
   // Built from the stashed entry, so its stored Accept-negotiation marker is
   // the only thing that can put Accept back into Vary here (unless the
   // replayed origin Vary line already lists it).
-  ngx_http_pagespeed_emit_vary(
-      r, smeta.content_type,
-      (smeta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0,
-      ctx->sidecar_carried_vary != 0);
+  {
+    const bool marked =
+        (smeta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0;
+    ngx_http_pagespeed_emit_vary(r, smeta.content_type, marked,
+                                 marked && ctx->sidecar_carried_vary != 0);
+  }
   add_response_header_cstr(r, "X-PageSpeed", "STALE");
   add_response_header_cstr(r, "X-PageSpeed-Stale", "if-error");
 
@@ -4772,10 +4774,13 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     // (it stays in headers_out) or one just added from the stored block — it
     // already lists Accept when the origin negotiates on it, so the computed
     // line does not repeat it (the MISS shape).
-    ngx_http_pagespeed_emit_vary(
-        r, updated_meta.content_type,
-        (updated_meta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0,
-        replayed_vary || saw_vary_304);
+    {
+      const bool marked = (updated_meta.flags &
+                           AlternateMetadata::kFlagOriginVariesAccept) != 0;
+      ngx_http_pagespeed_emit_vary(
+          r, updated_meta.content_type, marked,
+          pagespeed::VaryListsAccept(vary_304) || (marked && replayed_vary));
+    }
 
     // Add X-PageSpeed: REVALIDATED header.
     {
@@ -4945,8 +4950,12 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     // and whatever the URL already has stored is dropped, so each client gets
     // the origin's answer to its own request.  `varies_accept` is now always
     // false; the branch stays so the marker keeps one writer.
+    // Read once, before this filter adds a Vary line of its own: the store
+    // decision and the Accept check of our line below both see only the
+    // origin's lines.
+    const std::string origin_vary = ngx_http_pagespeed_combined_vary(r);
     const pagespeed::VaryStoreVerdict vary_verdict =
-        pagespeed::ClassifyVaryForStore(ngx_http_pagespeed_combined_vary(r));
+        pagespeed::ClassifyVaryForStore(origin_vary);
     if (!vary_verdict.storable) {
       ctx->uncacheable = 1;
       ngx_http_pagespeed_drop_on_vary_refusal(r);
@@ -4959,12 +4968,12 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     // Must be after the Vary uncacheable check above.
     //
     // On MISS the origin's response — including its own Vary — passes
-    // through to the client untouched (origin_vary_line_sent), so the
-    // origin's Accept is never repeated; with agent optimization on, an HTML
-    // response that the origin does not vary on Accept still gets it.
+    // through to the client untouched, so an Accept the origin lists is never
+    // repeated; with agent optimization on, an HTML response whose origin
+    // lines do not list Accept still gets it.
     ngx_http_pagespeed_emit_vary(r, ngx_http_pagespeed_detect_content_type(r),
                                  vary_verdict.varies_accept,
-                                 /*origin_vary_line_sent=*/true);
+                                 pagespeed::VaryListsAccept(origin_vary));
     if (r->method == NGX_HTTP_HEAD) {
       ctx->head_request = 1;
     }
@@ -6388,12 +6397,12 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
         // the shape a MISS sends.
         auto emit_served_vary = [&] {
           ngx_http_pagespeed_replay_sidecar(r, ctx);
-          ngx_http_pagespeed_emit_vary(
-              r, meta.content_type,
+          const bool marked =
               !ctx->served_agent_markdown &&
-                  (meta.flags & AlternateMetadata::kFlagOriginVariesAccept) !=
-                      0,
-              ctx->sidecar_carried_vary != 0);
+              (meta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0;
+          ngx_http_pagespeed_emit_vary(
+              r, meta.content_type, marked,
+              marked && ctx->sidecar_carried_vary != 0);
         };
 
         switch (freshness.verdict) {

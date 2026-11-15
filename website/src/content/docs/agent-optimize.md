@@ -174,7 +174,9 @@ copy and `/llms.txt`, which follow the page they were made from.
 `Cache-Control: no-store`. A response is stored only when its `Vary` names
 nothing beyond `Accept-Encoding`. Any other field, including `Vary: Accept`,
 `Vary: User-Agent`, `Vary: Save-Data`, `Vary: Cookie` and `Vary: *`, means it is
-not stored, and each request is answered by your origin.
+not stored, and each request is answered by your origin. This is the `Vary`
+your origin sends; the `Vary` mod_pagespeed adds to its own responses (such as
+`Accept` with agent optimization on) does not count.
 
 **Requests with a cookie.** A request that carries a `Cookie` header is treated
 by the kind of response:

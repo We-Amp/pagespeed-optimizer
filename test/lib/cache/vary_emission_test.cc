@@ -203,8 +203,8 @@ TEST(VaryEmission, ImageRowNamesEverySelectionHeader) {
 // EmittedVaryNamesAccept: when the line we emit names Accept.
 // ---------------------------------------------------------------------------
 
-// Agent optimization off: exactly the rule the serve paths used before — the
-// origin's marker, unless the origin's own line already went out with it.
+// Agent optimization off: the rule the serve paths used before — the entry's
+// marker, unless an origin line on the response already lists Accept.
 TEST(EmittedVaryNamesAccept, AgentOffKeepsThePreviousRule) {
   for (ContentType ct : kAllTypes) {
     SCOPED_TRACE(static_cast<int>(ct));
@@ -215,22 +215,21 @@ TEST(EmittedVaryNamesAccept, AgentOffKeepsThePreviousRule) {
   }
 }
 
-// Agent optimization on: every HTML response names Accept, whether or not the
-// origin negotiates and whether or not the origin's own line went out — the
-// MISS path (origin line always sent) included.
-TEST(EmittedVaryNamesAccept, AgentOnHtmlAlwaysNamesAccept) {
+// Agent optimization on: an HTML response names Accept whether or not the
+// entry is marked, as long as no origin line already lists it.
+TEST(EmittedVaryNamesAccept, AgentOnHtmlNamesAccept) {
   EXPECT_TRUE(EmittedVaryNamesAccept(ContentType::kHtml, false, false, true));
-  EXPECT_TRUE(EmittedVaryNamesAccept(ContentType::kHtml, false, true, true));
   EXPECT_TRUE(EmittedVaryNamesAccept(ContentType::kHtml, true, false, true));
   EXPECT_EQ(VaryForServedResponse(
                 ContentType::kHtml,
-                EmittedVaryNamesAccept(ContentType::kHtml, false, true, true)),
+                EmittedVaryNamesAccept(ContentType::kHtml, false, false, true)),
             "Accept-Encoding, User-Agent, Accept");
 }
 
-// ...except when the origin's own Vary line already lists it: the response
-// still names Accept exactly once, from the origin's line.
+// ...and never when an origin line on the response (the MISS passthrough, a
+// 304's own line, a replayed stored line) already lists it.
 TEST(EmittedVaryNamesAccept, AgentOnNeverDuplicatesTheOriginsAccept) {
+  EXPECT_FALSE(EmittedVaryNamesAccept(ContentType::kHtml, false, true, true));
   EXPECT_FALSE(EmittedVaryNamesAccept(ContentType::kHtml, true, true, true));
 }
 
@@ -241,34 +240,51 @@ TEST(EmittedVaryNamesAccept, AgentOnLeavesOtherTypesAlone) {
                          ContentType::kImage, ContentType::kOther}) {
     SCOPED_TRACE(static_cast<int>(ct));
     for (bool marker : {false, true}) {
-      for (bool line_sent : {false, true}) {
-        EXPECT_EQ(EmittedVaryNamesAccept(ct, marker, line_sent, true),
-                  EmittedVaryNamesAccept(ct, marker, line_sent, false));
+      for (bool lists : {false, true}) {
+        EXPECT_EQ(EmittedVaryNamesAccept(ct, marker, lists, true),
+                  EmittedVaryNamesAccept(ct, marker, lists, false));
       }
     }
   }
 }
 
-// Whatever the inputs, the emitted line plus an origin line that lists Accept
-// never names it twice.  (Images are left out: their row names Accept for the
+// Whatever the inputs, our line plus an origin line that lists Accept never
+// names it twice.  (Images are left out: their row names Accept for the
 // format selection itself, independent of this decision.)
 TEST(EmittedVaryNamesAccept, AcceptAppearsAtMostOnceAcrossBothLines) {
   for (ContentType ct : {ContentType::kHtml, ContentType::kCss,
                          ContentType::kJs, ContentType::kOther}) {
     for (bool marker : {false, true}) {
-      for (bool line_sent : {false, true}) {
+      for (bool lists : {false, true}) {
         for (bool agent : {false, true}) {
-          const bool origin_line_lists_accept = marker && line_sent;
           const size_t ours = CountToken(
               VaryForServedResponse(
-                  ct, EmittedVaryNamesAccept(ct, marker, line_sent, agent)),
+                  ct, EmittedVaryNamesAccept(ct, marker, lists, agent)),
               "accept");
-          EXPECT_LE(ours + (origin_line_lists_accept ? 1u : 0u), 1u)
-              << static_cast<int>(ct) << marker << line_sent << agent;
+          EXPECT_LE(ours + (lists ? 1u : 0u), 1u)
+              << static_cast<int>(ct) << marker << lists << agent;
         }
       }
     }
   }
+}
+
+// VaryListsAccept: the field Accept as a list member, nothing else.
+TEST(VaryListsAccept, FindsTheAcceptMember) {
+  EXPECT_TRUE(VaryListsAccept("Accept"));
+  EXPECT_TRUE(VaryListsAccept("accept"));
+  EXPECT_TRUE(VaryListsAccept("Accept-Encoding, ACCEPT"));
+  EXPECT_TRUE(VaryListsAccept(" \tAccept\t ,Origin"));
+  EXPECT_TRUE(VaryListsAccept("Accept-Encoding,,Accept"));
+}
+
+TEST(VaryListsAccept, IgnoresOtherFields) {
+  EXPECT_FALSE(VaryListsAccept(""));
+  EXPECT_FALSE(VaryListsAccept("Accept-Encoding"));
+  EXPECT_FALSE(VaryListsAccept("Accept-Language, User-Agent"));
+  EXPECT_FALSE(VaryListsAccept("*"));
+  EXPECT_FALSE(VaryListsAccept("Accepts"));
+  EXPECT_FALSE(VaryListsAccept("X-Accept"));
 }
 
 }  // namespace
