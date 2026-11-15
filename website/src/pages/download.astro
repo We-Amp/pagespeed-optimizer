@@ -167,8 +167,8 @@ const integrations = [
     name: 'ASP.NET Core Sidecar',
     badge: 'NuGet · Linux',
     description:
-      'WeAmp.PageSpeed.Sidecar adds the current mod_pagespeed module to your app, run behind Kestrel: your app stays the front door and a bundled nginx optimizer runs on loopback behind it. One dotnet add package pulls the native binaries.',
-    note: 'Want the nginx-module behavior under .NET? Start here.',
+      'WeAmp.PageSpeed.Sidecar adds the current mod_pagespeed module to your Kestrel app via middleware, with a bundled nginx optimizer on loopback behind it. One dotnet add package pulls the native binaries.',
+    note: 'Now GA. Want the classic nginx-module behavior under .NET? Start here.',
     requirements: '.NET 8 or .NET 10 on Linux (linux-x64, linux-arm64).',
     href: '/docs/aspnet-getting-started/#the-sidecar-weamppagespeedsidecar',
     cta: 'Sidecar guide',

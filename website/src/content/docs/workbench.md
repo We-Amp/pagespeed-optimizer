@@ -16,7 +16,7 @@ from your network. It loads no third-party scripts and makes no outbound network
 
 <img
   src="/images/worker-console-dashboard.png"
-  alt="The worker web console Dashboard after a few minutes of sample traffic: total bandwidth saved (109.5 MB, a 67% reduction), counters for notifications, variants written, compression, errors, connections, thread pool, cache entries and cache hits, and Activity charts for throughput, cache entries and size, and errors and thread pool"
+  alt="The worker web console Dashboard after a few minutes of sample traffic: total bandwidth saved (109.5 MB, a 67% reduction), counters for notifications, variants written, compression, errors, connections, thread pool, cache and cache hits, and Activity charts for throughput, cache entries and size, and errors and thread pool"
   width="1440"
   height="900"
   loading="lazy"
@@ -24,7 +24,7 @@ from your network. It loads no third-party scripts and makes no outbound network
 />
 
 :::tip[See it live]
-[Our console](https://we-amp.com/pagespeed_global_admin/) runs on our own production deployment and is open to read. It is the module admin console, with the optimizer worker's panels next to the module's, and shows real optimization stats from the traffic that deployment serves. The dashboard above is this web console on a test worker with sample traffic.
+[Our console](https://we-amp.com/pagespeed_global_admin/) runs on our own production deployment and is open to read. The dashboard above is this web console on a test worker with sample traffic.
 :::
 
 ## Accessing the console
