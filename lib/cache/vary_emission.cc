@@ -37,4 +37,11 @@ std::string_view VaryForServedResponse(ContentType ct,
   return entry_varies_accept ? "Accept" : std::string_view();
 }
 
+bool EmittedVaryNamesAccept(ContentType ct, bool origin_varies_accept,
+                            bool origin_vary_line_sent, bool agent_optimize) {
+  // The origin's own line already lists Accept: never a second member.
+  if (origin_varies_accept && origin_vary_line_sent) return false;
+  return origin_varies_accept || (agent_optimize && ct == ContentType::kHtml);
+}
+
 }  // namespace pagespeed
