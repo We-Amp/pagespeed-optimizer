@@ -39,23 +39,29 @@ the sites that used PageSpeed.
 
 ## Get nginx running again
 
-1. Find every file that still has a `pagespeed` directive:
+1. Find every place that still refers to the module:
 
    ```bash
-   sudo grep -rn "pagespeed" /etc/nginx /var/www/vhosts/system 2>/dev/null
+   sudo grep -rn "pagespeed" /etc/nginx
    ```
 
-   Directory layout differs between installations; widen the search if your
-   configuration lives elsewhere.
+   Directory layout differs between installations, and a panel may keep
+   per-domain configuration elsewhere. Widen the search to wherever your
+   configuration lives. Per-domain directives are often visible only in the
+   panel, so check there too.
 
-2. Remove or comment out those lines. Typical places are:
-   - the per-domain **additional nginx directives** field for each domain in
-     the control panel, and
-   - any included file, such as a snippet or custom configuration you added by
-     hand.
+2. Remove or comment out what you find:
+   - every `pagespeed ...;` directive, not only `pagespeed on;`. Directives
+     such as `pagespeed FileCachePath` fail the same way.
+   - any `load_module` line that points at `ngx_pagespeed.so`. The file is gone,
+     so nginx fails on that line as well.
 
-   Every `pagespeed ...;` line has to go, not only `pagespeed on;`. Directives
-   such as `pagespeed FileCachePath` fail the same way.
+   Remove them where they were entered. Plesk generates the per-domain web
+   server configuration, and a hand edit to a generated file is overwritten the
+   next time the panel regenerates it. So change the per-domain **additional
+   nginx directives** field for each domain in the control panel, and any
+   custom include file you created yourself. Edit only files the panel does not
+   generate.
 
 3. Test the configuration, then reload nginx:
 
@@ -78,11 +84,10 @@ These are independent choices. None of them is required to get nginx running.
 
 **Use mod_pagespeed with Apache.** The maintained
 [mod_pagespeed](/docs/installation-module/) has an Apache module. Our
-documentation covers stock Apache on Debian, Ubuntu and the RHEL family, and
-Apache under cPanel with EasyApache 4. It does not cover Apache as installed
-and managed by Plesk, and we have not tested it there, so we cannot say whether
-or how well it works in that setup. If you try it, treat it as unverified and
-test on a staging domain first. We would like to hear how it goes through the
+documentation covers stock Apache on Debian, Ubuntu and the RHEL family. It
+does not cover Apache as installed and managed by Plesk, and we have not tested
+it there, so we cannot say whether it works in that setup. If you try it, treat
+it as unverified and test on a staging domain first. We would like to hear how it goes through the
 [contact page](/contact/).
 
 **Run nginx with our module outside Plesk's nginx.** The
@@ -90,9 +95,9 @@ test on a staging domain first. We would like to hear how it goes through the
 nginx that your distribution ships, or into the nginx.org stable package, and
 each build is pinned to that exact nginx version. It does not load into a
 different nginx build, and we have not documented or tested it for the `sw-nginx`
-package. We make no claim that it works there. A separate nginx, for example on
-another host or in front of the panel's web server, is a workable layout; you
-own that setup and its upgrades.
+package. We make no claim that it works there. Running our module means
+running one of those supported nginx builds yourself, outside the panel's
+nginx, and you own that setup and its upgrades.
 
 If you are replacing another ngx_pagespeed build, see
 [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/): your
