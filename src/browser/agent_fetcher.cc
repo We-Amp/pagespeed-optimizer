@@ -778,3 +778,4 @@ ResolveHostFn RealHostResolver() { return WindowsResolve; }
 #endif  // _WIN32
 
 }  // namespace pagespeed
+// proof

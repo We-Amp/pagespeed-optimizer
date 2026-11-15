@@ -42,7 +42,7 @@ jobs:
       checks: read
       contents: read
       pull-requests: read
-    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-pr.yml@main
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-pr.yml@ci-dev
 
   # Does this push change the full tier's own definition? A hosted job reads
   # tools/ci/full_tier_scope.sh (and the push_range_base.sh it calls) from
