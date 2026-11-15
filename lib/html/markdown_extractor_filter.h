@@ -159,7 +159,7 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   void MarkAnchorText() {
     for (OpenAnchor& a : anchor_open_pos_) a.has_text = true;
   }
-  int anchor_depth_ = 0;   // open <a> nesting (Issue F (5))
+  int anchor_depth_ = 0;  // open <a> nesting (Issue F (5))
   bool item_open_ = false;
   bool in_table_ = false;
   bool in_cell_ = false;

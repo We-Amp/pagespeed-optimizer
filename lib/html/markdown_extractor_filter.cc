@@ -997,8 +997,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
         if (!anchor_open_pos_.empty()) {
           const OpenAnchor open = anchor_open_pos_.back();
           anchor_open_pos_.pop_back();
-          if (!open.has_text && open.pos < o->size() &&
-              (*o)[open.pos] == '[') {
+          if (!open.has_text && open.pos < o->size() && (*o)[open.pos] == '[') {
             o->resize(open.pos);
             break;
           }
