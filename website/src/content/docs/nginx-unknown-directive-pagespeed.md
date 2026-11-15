@@ -53,15 +53,13 @@ the sites that used PageSpeed.
 2. Remove or comment out what you find:
    - every `pagespeed ...;` directive, not only `pagespeed on;`. Directives
      such as `pagespeed FileCachePath` fail the same way.
-   - any `load_module` line that points at `ngx_pagespeed.so`. The file is gone,
-     so nginx fails on that line as well.
+   - any `load_module` line that points at a missing module file.
 
-   Remove them where they were entered. Plesk generates the per-domain web
-   server configuration, and a hand edit to a generated file is overwritten the
-   next time the panel regenerates it. So change the per-domain **additional
-   nginx directives** field for each domain in the control panel, and any
-   custom include file you created yourself. Edit only files the panel does not
-   generate.
+   Remove them where they were entered. A panel can generate parts of the
+   web server configuration, so make the change in the panel's per-domain nginx
+   settings rather than in generated files, and in any custom include file you
+   created yourself. See Plesk's own documentation for how your version handles
+   custom nginx directives.
 
 3. Test the configuration, then reload nginx:
 
@@ -70,11 +68,10 @@ the sites that used PageSpeed.
    sudo systemctl reload nginx
    ```
 
-   Run `nginx -t` through the same nginx binary the panel uses if your host has
-   more than one.
+   If your host has more than one nginx, run `nginx -t` with the binary your
+   server actually uses.
 
-Your sites serve normally again, without PageSpeed optimization. Nothing else
-in the configuration depends on those lines.
+Your sites serve normally again, without PageSpeed optimization.
 
 ## Options going forward
 
@@ -92,16 +89,19 @@ it as unverified and test on a staging domain first. We would like to hear how i
 
 **Run nginx with our module outside Plesk's nginx.** The
 [nginx module](/docs/installation-module/#native-nginx-module) loads into the
-nginx that your distribution ships, or into the nginx.org stable package, and
-each build is pinned to that exact nginx version. It does not load into a
-different nginx build, and we have not documented or tested it for the `sw-nginx`
+nginx that your distribution ships. For nginx.org's stable nginx there is a
+separate package, `nginx-module-pagespeed-nginxorg`, built for one nginx
+version at a time (currently 1.30.6), for amd64 on Debian 13, Ubuntu 24.04 and
+Enterprise Linux 9. It cannot be installed together with the distribution
+package. The module does not load into a different nginx build, and we have not documented or tested it for the `sw-nginx`
 package. We make no claim that it works there. Running our module means
 running one of those supported nginx builds yourself, outside the panel's
 nginx, and you own that setup and its upgrades.
 
 If you are replacing another ngx_pagespeed build, see
 [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/): your
-`pagespeed` directives carry over to the maintained module.
+`pagespeed` directives carry over to the maintained module, except seven
+removed names that must be deleted.
 
 Plesk is a trademark of its owner. This page is not affiliated with or endorsed
 by Plesk.
