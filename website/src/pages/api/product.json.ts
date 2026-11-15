@@ -123,23 +123,27 @@ const productData = {
     proactive_variant_generation: true,
   },
   deployment: ['apt-yum-packages', 'docker', 'kubernetes-sidecar', 'aspnet-core-middleware'],
+  // The ASP.NET Core sidecar package: the current module, run behind Kestrel.
+  // It used to sit under the 1.15 entry of related_products; it follows the
+  // current release, so it is a top-level key now.
+  nuget_sidecar: {
+    description: `The current ${PRODUCT_NAME} module, run behind Kestrel.`,
+    package: PKG_SIDECAR,
+    native_assets_package: PKG_SIDECAR_NATIVE,
+    install: `dotnet add package ${PKG_SIDECAR}`,
+    platforms: SIDECAR_RIDS,
+    bundled_nginx: SIDECAR_NGINX_VERSION,
+    topology:
+      'inverse: your ASP.NET Core Kestrel app is the public front door; the bundled nginx runs on loopback behind it as the optimize-proxy',
+    url: 'https://www.nuget.org/packages/WeAmp.PageSpeed.Sidecar',
+  },
   // Key name is a public contract (predates the convergence). No lifecycle
   // status or date fields here — this is a published, agent-readable
   // endpoint, so those stay out the same way they stay out of llms.txt.
   related_products: [
     {
       product: `mod_pagespeed ${V1_LINE}`,
-      description: `The mod_pagespeed ${V1_LINE} line, continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. ${PRODUCT_NAME} 2 is its drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
-      nuget_sidecar: {
-        package: PKG_SIDECAR,
-        native_assets_package: PKG_SIDECAR_NATIVE,
-        install: `dotnet add package ${PKG_SIDECAR}`,
-        platforms: SIDECAR_RIDS,
-        bundled_nginx: SIDECAR_NGINX_VERSION,
-        topology:
-          'inverse: your ASP.NET Core Kestrel app is the public front door; the bundled nginx runs on loopback behind it as the optimize-proxy',
-        url: 'https://www.nuget.org/packages/WeAmp.PageSpeed.Sidecar',
-      },
+      description: `The mod_pagespeed ${V1_LINE} line, continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. The current ${PRODUCT_NAME} is its drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
       links: {
         overview: 'https://modpagespeed.com/',
         docs: 'https://modpagespeed.com/docs/',
@@ -148,7 +152,7 @@ const productData = {
     },
     {
       product: `ModPageSpeed ${V2_LINE}`,
-      description: `The Docker/Helm stack from the ${V2_LINE} re-architecture, whose engine continues as the ${PRODUCT_NAME} 2 optimizer worker. Its ASP.NET Core middleware, ${PKG_ASPNETCORE}, continues as the ASP.NET Core form of ${PRODUCT_NAME} 2.`,
+      description: `The Docker/Helm stack from the ${V2_LINE} re-architecture, whose engine continues as the ${PRODUCT_NAME} optimizer worker. Its ASP.NET Core middleware, ${PKG_ASPNETCORE}, continues as the ASP.NET Core form of ${PRODUCT_NAME}.`,
       links: {
         migration_guide: 'https://modpagespeed.com/docs/migrating-to-2-1/',
       },
