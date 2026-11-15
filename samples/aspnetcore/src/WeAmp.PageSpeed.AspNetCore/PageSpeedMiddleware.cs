@@ -962,17 +962,20 @@ public sealed class PageSpeedMiddleware
         /// <summary>
         /// Adds <c>Accept</c> to the outgoing <c>Vary</c> when
         /// <see cref="AgentVaryAccept"/> is set. The origin's headers are
-        /// captured first, so the token is never stored with the entry and
-        /// never counts as the origin varying on Accept. Not listed twice when
-        /// the origin already names it. Runs once, and only before the
-        /// response has started.
+        /// captured first, so the token is never stored with the entry, and it
+        /// is recorded as this middleware's own, so the store rule
+        /// (<see cref="VaryStoreRule"/>, read again by
+        /// <see cref="UncacheableNow"/>) never counts it as the origin varying
+        /// on Accept. Not listed twice when the origin already names it; the
+        /// origin's token then stays the origin's. Runs once, and only before
+        /// the response has started.
         /// </summary>
         public void ApplyAgentVaryAccept()
         {
             Capture();
             if (_agentVaryApplied || !AgentVaryAccept || _response.HasStarted) return;
             _agentVaryApplied = true;
-            MergeVary(_response.Headers, "Accept");
+            OwnVaryTokens.AddRange(MergeVary(_response.Headers, "Accept"));
         }
 
         private List<KeyValuePair<string, string>>? _captured;

@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 We-Amp B.V.
 
+using System.Net.Http;
 using System.Text;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
@@ -247,20 +251,20 @@ public class AgentResponseHeadersTests
     [NativeLibTheory]
     [InlineData("Accept", null)]
     [InlineData(null, "Accept")]
-    public async Task HtmlMiss_OriginsOwnAccept_IsStoredAndNotListedTwice(
+    public async Task HtmlMiss_OriginsOwnAccept_StaysTheOrigins_AndIsListedOnce(
         string? vary, string? lateVary)
     {
         // The origin names Accept itself, in its handler or in an OnStarting
-        // callback: it is stored as the origin's and marked, and the outgoing
-        // response lists it once.
+        // callback: it counts as the origin's, so the store rule keeps the
+        // response out of the cache exactly as with agent optimization off,
+        // and the outgoing response lists Accept once.
         var on = await RunMiss(agentOptimize: true, entitled: 1, raiseOnStarting: true,
             next: OriginPage(vary, lateVary));
+        var off = await RunMiss(agentOptimize: false, entitled: 1, raiseOnStarting: true,
+            next: OriginPage(vary, lateVary));
 
-        Assert.NotNull(on.Cache.WrittenFlags);
-        Assert.NotEqual(0, on.Cache.WrittenFlags!.Value & CacheFlags.OriginVariesAccept);
-        Assert.Contains(on.Cache.Offered.Single(),
-            h => h.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase) &&
-                 Tokens(h.Value).Contains("Accept"));
+        Assert.Null(off.Cache.WrittenFlags);
+        Assert.Null(on.Cache.WrittenFlags);
         Assert.Single(Tokens(on.Context.Response.Headers.Vary),
             t => t.Equals("Accept", StringComparison.OrdinalIgnoreCase));
     }
@@ -490,6 +494,166 @@ public class AgentResponseHeadersTests
 
         public CacheStats GetStats() => new(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         public void RecordServeHit(PageSpeedContentType t, uint o, ulong b, uint m) { }
+        public void Dispose() { }
+    }
+}
+
+/// <summary>
+/// Against the real cache (native library): with agent optimization on, a
+/// page whose origin sends no <c>Vary</c> goes MISS then HIT, both responses
+/// name <c>Accept</c> in <c>Vary</c>, and the stored entry holds no
+/// <c>Accept</c> of the middleware's own. A conditional request answered 304
+/// from the entry leaves it storable and served as a HIT. (The middleware
+/// never sends a conditional request to the application itself; a stale
+/// entry is refreshed by the worker, so there is no 304 restamp here.)
+/// </summary>
+public sealed class AgentVaryStoredEntryTests : IDisposable
+{
+    private const string Page =
+        "<!doctype html><html><head><title>t</title>" +
+        "<link rel=\"stylesheet\" href=\"/site.css\">" +
+        "</head><body><img src=\"/a.jpg\"><p>hello</p></body></html>";
+
+    private readonly string _dir =
+        Path.Combine(Path.GetTempPath(), $"ps_agentvary_{Guid.NewGuid():N}");
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dir, true); } catch { }
+    }
+
+    [NativeLibTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NoOriginVary_MissThenHit_StoredEntryHasNoAcceptOfOurs(bool agentOptimize)
+    {
+        Directory.CreateDirectory(_dir);
+        using var real = new PageSpeedCache(new WeAmp.PageSpeed.PageSpeedCacheOptions
+        {
+            VolumePath = Path.Combine(_dir, "volume.dat"),
+            VolumeSizeBytes = 16 * 1024 * 1024,
+        });
+        var cache = new AgentEntitledCache(real);
+        var options = new PageSpeedOptions { Enabled = true, EnableAgentOptimize = agentOptimize };
+        var monitor = Substitute.For<IOptionsMonitor<PageSpeedOptions>>();
+        monitor.CurrentValue.Returns(options);
+        var notifierOptions = Substitute.For<IOptionsMonitor<PageSpeedOptions>>();
+        notifierOptions.CurrentValue.Returns(new PageSpeedOptions());
+        var notifier = new WorkerNotificationService(
+            notifierOptions, new InternalWorkerEndpoint(),
+            Substitute.For<ILogger<WorkerNotificationService>>());
+
+        int originRuns = 0;
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        await using var web = builder.Build();
+        web.Use(next => new PageSpeedMiddleware(
+            next, monitor, new HtmlProcessor(real, monitor), cache, notifier,
+            Substitute.For<ILogger<PageSpeedMiddleware>>()).InvokeAsync);
+        RequestDelegate origin = async ctx =>
+        {
+            originRuns++;
+            ctx.Response.ContentType = "text/html; charset=utf-8";
+            ctx.Response.Headers.CacheControl = "public, max-age=60";
+            await ctx.Response.WriteAsync(Page);
+        };
+        web.Run(origin);
+        await web.StartAsync();
+        var client = web.GetTestClient();
+
+        async Task<HttpResponseMessage> Get(string? ifNoneMatch = null)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, "/page");
+            req.Headers.Accept.ParseAdd("text/html");
+            if (ifNoneMatch != null) req.Headers.IfNoneMatch.ParseAdd(ifNoneMatch);
+            var r = await client.SendAsync(req);
+            await r.Content.ReadAsByteArrayAsync();
+            return r;
+        }
+        static string Vary(HttpResponseMessage r) =>
+            string.Join(", ", r.Headers.TryGetValues("Vary", out var v) ? v : Array.Empty<string>());
+        static string Header(HttpResponseMessage r, string name) =>
+            r.Headers.TryGetValues(name, out var v) ? string.Join(",", v) : "";
+        static int AcceptCount(string vary) =>
+            vary.Split(',').Count(t => t.Trim().Equals("Accept", StringComparison.OrdinalIgnoreCase));
+
+        var expectedAccept = agentOptimize ? 1 : 0;
+
+        var miss = await Get();
+        Assert.Equal(200, (int)miss.StatusCode);
+        Assert.Equal("MISS", Header(miss, "X-PageSpeed"));
+        Assert.Equal(expectedAccept, AcceptCount(Vary(miss)));
+
+        var hit = await Get();
+        Assert.Equal(200, (int)hit.StatusCode);
+        Assert.Equal("HIT", Header(hit, "X-PageSpeed"));
+        Assert.Equal(expectedAccept, AcceptCount(Vary(hit)));
+        Assert.Equal(1, originRuns);
+
+        // The stored entry: what the store decision saw and what was written.
+        Assert.Single(cache.Offered);
+        Assert.DoesNotContain(cache.Offered[0], h =>
+            h.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase) && AcceptCount(h.Value) > 0);
+        using (var entry = real.ReadBest("/page", "localhost", "http", 0x08))
+        {
+            Assert.NotNull(entry);
+            Assert.Equal(0, entry!.Flags & CacheFlags.OriginVariesAccept);
+        }
+        using (var block = real.ReadAlternate("/page", "localhost", "http", SentinelId.HeadersSidecar))
+        {
+            if (block != null &&
+                HeadersSidecar.TryParse(block.ContentMemory.Span, out var fields))
+            {
+                Assert.DoesNotContain(fields, h =>
+                    h.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase) &&
+                    AcceptCount(h.Value) > 0);
+            }
+        }
+
+        // A conditional request is answered 304 from the entry, and the entry
+        // still serves as a HIT afterwards.
+        var etag = Header(hit, "ETag");
+        Assert.NotEmpty(etag);
+        var notModified = await Get(etag);
+        Assert.Equal(304, (int)notModified.StatusCode);
+        Assert.Equal(expectedAccept, AcceptCount(Vary(notModified)));
+        var again = await Get();
+        Assert.Equal("HIT", Header(again, "X-PageSpeed"));
+        Assert.Equal(expectedAccept, AcceptCount(Vary(again)));
+        Assert.Equal(1, originRuns);
+
+        await web.StopAsync();
+    }
+
+    /// <summary>The real cache, with the worker's agent optimization on.</summary>
+    private sealed class AgentEntitledCache(PageSpeedCache inner) : IPageSpeedCache
+    {
+        public List<List<KeyValuePair<string, string>>> Offered { get; } = new();
+
+        public IReadResult? ReadBest(string url, string hostname, string scheme, uint mask) =>
+            inner.ReadBest(url, hostname, scheme, mask);
+        public IReadResult? ReadBestAgent(string url, string hostname, string scheme, uint mask, int e) =>
+            inner.ReadBestAgent(url, hostname, scheme, mask, e);
+        public int ReadSharedConfigAgentEntitled() => 1;
+        public IReadResult? ReadAlternate(string url, string hostname, string scheme, byte id) =>
+            inner.ReadAlternate(url, hostname, scheme, id);
+        public IReadResult? ReadEarlyHints(string url, string hostname, string scheme) =>
+            inner.ReadEarlyHints(url, hostname, scheme);
+        public CacheWriter BeginWrite(string url, string hostname, string scheme, CacheWriteParams p) =>
+            inner.BeginWrite(url, hostname, scheme, p);
+        public CacheWriter BeginWriteSentinel(string url, string hostname, string scheme, byte id, ulong len) =>
+            inner.BeginWriteSentinel(url, hostname, scheme, id, len);
+        public CacheStats GetStats() => inner.GetStats();
+        public HeadersSidecarWriteResult WriteHeadersSidecar(
+            string url, string hostname, string scheme,
+            IReadOnlyList<KeyValuePair<string, string>> headers)
+        {
+            Offered.Add(headers.ToList());
+            return inner.WriteHeadersSidecar(url, hostname, scheme, headers);
+        }
+        public void RecordServeHit(PageSpeedContentType t, uint o, ulong b, uint m) =>
+            inner.RecordServeHit(t, o, b, m);
+        SafeCacheHandle IPageSpeedCache.Handle => ((IPageSpeedCache)inner).Handle;
         public void Dispose() { }
     }
 }
