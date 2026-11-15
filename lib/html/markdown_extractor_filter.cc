@@ -186,6 +186,22 @@ bool IsInlineHidden(HtmlElement* el) {
   return false;
 }
 
+// True when the text between a link's '[' and its close holds nothing a reader
+// can see: whitespace, or an even run of '*' (the marker pairs an empty
+// icon-font <i>/<b> leaves behind; an odd run is a literal asterisk such as a
+// footnote mark).
+bool LinkTextIsEmpty(std::string_view t) {
+  std::size_t stars = 0;
+  for (char c : t) {
+    if (c == '*') {
+      ++stars;
+    } else if (c != ' ' && c != '\t' && c != '\r' && c != '\n') {
+      return false;
+    }
+  }
+  return stars % 2 == 0;
+}
+
 std::string EscapeCell(std::string_view s) {
   std::string out;
   out.reserve(s.size());
@@ -390,6 +406,7 @@ void MarkdownExtractorFilter::StartDocument() {
   content_root_depth_ = 0;
   article_depth_ = 0;
   anchor_depth_ = 0;
+  anchor_open_pos_.clear();
   item_open_ = false;
   in_table_ = false;
   in_cell_ = false;
@@ -754,6 +771,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
     case HtmlName::kA:
       if (pre_depth_ == 0) {
         std::string* o = Out();
+        anchor_open_pos_.push_back(o->size());
         o->append("[");
         // Issue F (5): record where the link text begins so a block element
         // wrapped in this anchor can be flattened into one '[text](href)'. Only
@@ -967,6 +985,20 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
         if (anchor_depth_ > 0) --anchor_depth_;  // Issue F (5)
         const char* href = element->AttributeValue(HtmlName::kHref);
         std::string* o = Out();
+        // A link with no visible text (an empty heading permalink, an icon-only
+        // link whose svg / aria-hidden child was stripped) is dropped rather
+        // than emitted as '[](href)'; empty emphasis markers from an icon-font
+        // <i> count as empty. aria-label is deliberately not used as text. An
+        // image inside the link counts as content, so image links are kept.
+        if (!anchor_open_pos_.empty()) {
+          const std::size_t open = anchor_open_pos_.back();
+          anchor_open_pos_.pop_back();
+          if (open < o->size() && (*o)[open] == '[' &&
+              LinkTextIsEmpty(std::string_view(*o).substr(open + 1))) {
+            o->resize(open);
+            break;
+          }
+        }
         o->append("](");
         if (href != nullptr) o->append(SanitizeUrl(href));
         o->append(")");
