@@ -621,7 +621,7 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         int runs = 0;
         var res = await Get(
             (c, next) => { c.Response.Headers.Vary = "Accept-Encoding"; return next(); },
-            c => { runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("ae{}"); },
+            c => { if (FromClient(c)) runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("ae{}"); },
             "/outer-ae.css");
         Assert.Equal(1, runs);
         Assert.Equal("HIT", Values(res[1].Response, "X-PageSpeed").Single());
