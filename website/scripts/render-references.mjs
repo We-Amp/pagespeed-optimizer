@@ -18,6 +18,14 @@
 // longer exists in the data is an error, so a removed flag cannot leave a
 // stale note behind.
 //
+// An entry that is merged but not in a release yet is listed in
+// src/data/reference/next-release.json (region -> name -> the last released
+// version when it was written). Its block below the heading is wrapped in a
+// `:::next-release{after="X.Y.Z"}` marker, the same marker docs pages use; the
+// generated JSON cannot carry it, because the drift gate regenerates that from
+// source. test/next-release-markers.test.ts fails once a newer version is
+// released, and on a name the data no longer has.
+//
 // The rendered regions are deterministic; test/reference/rendered-regions.test.ts
 // re-renders them and fails when a page's region differs (data or notes
 // changed without `npm run gen:references`, or a region was hand-edited).
@@ -131,6 +139,38 @@ function withNotes(block, notes, key) {
   return note ? `${block}\n\n${note}` : block;
 }
 
+/** src/data/reference/next-release.json: { region: { name: after } }. */
+export function loadNextRelease() {
+  const path = resolve(REFERENCE_DIR, 'next-release.json');
+  if (!existsSync(path)) return {};
+  const regions = JSON.parse(readFileSync(path, 'utf8'));
+  delete regions._comment;
+  return regions;
+}
+
+/**
+ * Wrap everything below a block's `####` heading in a next-release marker when
+ * the entry is in `marks` (one region of next-release.json).
+ */
+function withNextRelease(block, marks, key) {
+  const after = marks[key];
+  if (!after) return block;
+  const [heading, ...body] = block.split('\n');
+  const rest = body.join('\n').trim();
+  return `${heading}\n\n:::next-release{after="${after}"}\n${rest}\n:::`;
+}
+
+/** The next-release entries of one region; a name the data lacks is an error. */
+function nextReleaseMarks(region, names) {
+  const marks = loadNextRelease()[region] ?? {};
+  const known = new Set(names);
+  const orphans = Object.keys(marks).filter((k) => !known.has(k));
+  if (orphans.length) {
+    throw new Error(`next-release.json names unknown ${region} entries: ${orphans.join(', ')}`);
+  }
+  return marks;
+}
+
 function assertNoOrphanNotes(region, notes, names) {
   const known = new Set(names);
   const orphans = [...notes.keys()].filter((k) => !known.has(k));
@@ -149,6 +189,10 @@ export function renderModuleDirectives() {
   assertNoOrphanNotes(
     'module-directives',
     notes,
+    data.directives.map((d) => d.name),
+  );
+  const marks = nextReleaseMarks(
+    'module-directives',
     data.directives.map((d) => d.name),
   );
   const byArea = new Map(data.areas.map((a) => [a, []]));
@@ -171,7 +215,7 @@ export function renderModuleDirectives() {
     out.push(`### ${area} {#${areaId(area)}}`, '');
     out.push(list.map((d) => `[\`${d.name}\`](#${headingId(d.name)})`).join(', '), '');
     for (const d of list) {
-      out.push(withNotes(directiveBlock(d), notes, d.name), '');
+      out.push(withNextRelease(withNotes(directiveBlock(d), notes, d.name), marks, d.name), '');
     }
   }
   return out.join('\n').trim();
@@ -230,6 +274,10 @@ export function renderWorkerFlags() {
     notes,
     data.flags.map((f) => f.name),
   );
+  const marks = nextReleaseMarks(
+    'worker-flags',
+    data.flags.map((f) => f.name),
+  );
   const sections = new Map();
   for (const f of data.flags) {
     if (!sections.has(f.section)) sections.set(f.section, []);
@@ -250,7 +298,9 @@ export function renderWorkerFlags() {
   for (const [section, list] of sections) {
     out.push(`### ${FLAG_SECTION_TITLES[section] ?? section} {#${sectionId(section)}}`, '');
     out.push(list.map((f) => `[\`${f.name}\`](#${headingId(f.name)})`).join(', '), '');
-    for (const f of list) out.push(withNotes(flagBlock(f), notes, f.name), '');
+    for (const f of list) {
+      out.push(withNextRelease(withNotes(flagBlock(f), notes, f.name), marks, f.name), '');
+    }
   }
   return out.join('\n').trim();
 }
@@ -280,6 +330,10 @@ export function renderThinModuleDirectives() {
     notes,
     data.directives.map((d) => d.name),
   );
+  const marks = nextReleaseMarks(
+    'thin-module-directives',
+    data.directives.map((d) => d.name),
+  );
   const out = [];
   out.push(data.directives.map((d) => `[\`${d.name}\`](#${headingId(d.name)})`).join(', '), '');
   for (const d of data.directives) {
@@ -299,7 +353,7 @@ export function renderThinModuleDirectives() {
       `- **Default:** ${fmtDefault(d.default)}${d.defaultNote ? ` (${d.defaultNote})` : ''}`,
     );
     lines.push(`- **Context:** ${d.context.join(', ')}`);
-    out.push(withNotes(lines.join('\n'), notes, d.name), '');
+    out.push(withNextRelease(withNotes(lines.join('\n'), notes, d.name), marks, d.name), '');
   }
   return out.join('\n').trim();
 }

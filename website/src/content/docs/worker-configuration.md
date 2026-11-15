@@ -307,6 +307,7 @@ defaults of [`pagespeed_css_max_age`](#pagespeed_css_max_age) and
 
 #### pagespeed_agent_content_signal {#pagespeed_agent_content_signal}
 
+:::next-release{after="2.8.2"}
 - **Syntax:** `pagespeed_agent_content_signal value | off;`
 - **Default:** `(empty)`
 - **Context:** http, server, location
@@ -323,6 +324,7 @@ pagespeed_agent_content_signal "search=yes, ai-input=yes, ai-train=no";
 The value must be printable ASCII on one line, up to 512 bytes; nginx refuses
 to start with any other value. See
 [Serve Markdown to AI agents](/docs/agent-optimize/).
+:::
 
 <!-- generated:end thin-module-directives -->
 
