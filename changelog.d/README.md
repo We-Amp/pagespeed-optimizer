@@ -17,7 +17,6 @@ deletes them.
   `fixed`, `removed`, `documentation`, `upgrade-notes`, `known-issues`.
 - At most one fragment per category. If a change needs two (a security fix
   that also changes a default), use the same slug with two categories.
-- A name that already exists on `main` is rejected; pick another slug.
 - Security entries (a `*.security.md` fragment, or a Security line added to
   `CHANGELOG.md`) land only together with the release that ships the fix: the
   release-note gate refuses them unless the pull request is a
