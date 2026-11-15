@@ -64,8 +64,22 @@ TEST_F(MarkdownExtractorFilterTest, IconOnlyLinkIsOmitted) {
   EXPECT_EQ(Md("<p>Go<a href=\"/g\"><i class=\"icon\"></i></a></p>"), "Go");
 }
 
-TEST_F(MarkdownExtractorFilterTest, AsteriskOnlyLinkIsKept) {
+TEST_F(MarkdownExtractorFilterTest, AsteriskTextLinksAreKept) {
   EXPECT_EQ(Md("<p>Note<a href=\"#fn\">*</a></p>"), "Note[*](#fn)");
+  EXPECT_EQ(Md("<p>Note<a href=\"#fn\">**</a></p>"), "Note[**](#fn)");
+  EXPECT_EQ(Md("<p>Note<a href=\"#fn\">* *</a></p>"), "Note[* *](#fn)");
+}
+
+TEST_F(MarkdownExtractorFilterTest, TextInNestedSpansKeepsLink) {
+  EXPECT_EQ(Md("<p><a href=\"/n\"><span><span>deep</span></span></a></p>"),
+            "[deep](/n)");
+  EXPECT_EQ(Md("<p><a href=\"/n\"><span aria-hidden=\"true\">x</span>"
+               "<span>shown</span></a></p>"),
+            "[shown](/n)");
+}
+
+TEST_F(MarkdownExtractorFilterTest, EntityOnlyLinkIsKept) {
+  EXPECT_EQ(Md("<p>a<a href=\"/e\">&amp;</a></p>"), "a[&](/e)");
 }
 
 TEST_F(MarkdownExtractorFilterTest, ImageLinkWithAltIsKept) {
