@@ -171,10 +171,11 @@ module's own filters also work without the worker: leave out step 2 and the
    blocks. Remove the `include` lines before purging (deb) or removing (rpm)
    the package, or `nginx -t` fails.
 
-   Then add these lines to each existing `server` block that should be
-   optimized (on Debian and Ubuntu, `/etc/nginx/sites-available/default` or
-   your site's own file). Keep the block's `root` and `location` lines as they
-   are; a new file with only these lines serves nginx's default page:
+   Then add the `pagespeed` and `include` lines below to each existing
+   `server` block that should be optimized (on Debian and Ubuntu,
+   `/etc/nginx/sites-available/default` or your site's own file), and keep
+   that block's `root` and `location` lines. A `server` block without a `root`
+   serves nginx's built-in welcome page, not your site:
 
    ```nginx
    server {
@@ -353,10 +354,11 @@ optimization works exactly as before.
 ### Before you start
 
 - **Install the optimizer.** Install the `pagespeed-optimizer` package from
-  the same repository (`sudo apt-get install pagespeed-optimizer`) and start
-  it. Module and optimizer releases are versioned separately, so their version
-  numbers can differ; install the optimizer version the repository offers. They
-  are a matched pair: install, upgrade and roll them back together.
+  the same repository (`sudo apt-get install pagespeed-optimizer` or
+  `sudo dnf install pagespeed-optimizer`) and start it. The module and the
+  optimizer are versioned separately, so their version numbers can differ:
+  install the optimizer the repository currently offers, and upgrade or roll
+  back the two together.
 - **Let nginx reach the optimizer's files.** The optimizer runs as the
   unprivileged `pagespeed` user. Its cache directory, notification socket and
   shared configuration are open to members of the `pagespeed` group only. When
@@ -375,9 +377,11 @@ optimization works exactly as before.
 
 ### Configuration
 
-Add both directives to each existing `server` block that should use the
-optimizer (on Debian and Ubuntu, `/etc/nginx/sites-available/default` or your
-site's own file), next to its `root` and `location` lines:
+Add the `pagespeed` lines below to each existing `server` block that should
+use the optimizer (on Debian and Ubuntu, `/etc/nginx/sites-available/default`
+or your site's own file), and keep that block's `root` and `location` lines.
+A `server` block without a `root` serves nginx's built-in welcome page, not
+your site:
 
 ```nginx
 server {

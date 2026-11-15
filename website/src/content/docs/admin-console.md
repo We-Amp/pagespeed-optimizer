@@ -136,7 +136,7 @@ Module versions before the one that made the handler lookup case-sensitive (see 
 </Location>
 ```
 
-The Debian and Ubuntu package already ships both blocks with `Require local`, so nothing needs editing after install. To allow a specific address as well, add a `Require ip <address>` line inside the block.
+The Debian/Ubuntu and RHEL-family packages already ship both blocks with `Require local`, so nothing needs editing after install. To allow another address as well, add a `Require ip <address>` line inside the block.
 
 </div>
 
