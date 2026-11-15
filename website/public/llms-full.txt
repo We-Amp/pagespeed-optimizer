@@ -4279,14 +4279,14 @@ To see which filters your own pages would benefit from, run them through a
   `—` that the directive has no value of its own.
 - **Context** lists where the directive may appear. On Apache: the server
   config, a `<VirtualHost>`, a `<Directory>`/`<Location>` block, `.htaccess`.
-  On nginx: the `http`, `server` and `location` blocks. On IIS, shown for the
-  IIS-only directives: `pagespeed.config`, and whether the directive may also
-  appear under a match rule. "Also per request"
+  On nginx: the `http`, `server` and `location` blocks. On IIS:
+  `pagespeed.config`, and whether the directive may also appear under a match
+  rule. "Also per request"
   marks the options that can also be set on a single request with a
   `PageSpeed…` query parameter or header.
 - **Platform** appears when a directive exists on one server only. An option
-  whose block says the source carries no help text is accepted by nginx but
-  is not registered as an Apache directive.
+  whose block says the source carries no help text is accepted by nginx and
+  IIS but is not registered as an Apache directive.
 - A **since** version is not shown: the module source does not record the
   release a directive first appeared in. Additions are listed per release in
   the [release notes](https://modpagespeed.com/docs/release-notes/).
