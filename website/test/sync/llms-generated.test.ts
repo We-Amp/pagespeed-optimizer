@@ -739,11 +739,11 @@ describe('product-facts consumers reflect the single source', () => {
     expect(data.related_products[0].product).toBe(`mod_pagespeed ${V1_LINE}`);
     expect(data.related_products[0]).not.toHaveProperty('status');
     expect(data.related_products[0]).not.toHaveProperty('support_until');
-    // The sidecar follows the current release: a top-level key, not part of
-    // the 1.15 entry.
-    expect(data.related_products[0]).not.toHaveProperty('nuget_sidecar');
-    expect(data.nuget_sidecar.bundled_nginx).toBe(SIDECAR_NGINX_VERSION);
-    expect(data.nuget_sidecar.package).toBe(PKG_SIDECAR);
+    expect(data.related_products[0].nuget_sidecar.bundled_nginx).toBe(SIDECAR_NGINX_VERSION);
+    expect(data.related_products[0].nuget_sidecar.package).toBe(PKG_SIDECAR);
+    expect(data.related_products[0].nuget_sidecar.description).toBe(
+      'The current mod_pagespeed module, run behind Kestrel.',
+    );
     expect(data.related_products[1].product).toBe(`ModPageSpeed ${V2_LINE}`);
     expect(data.related_products[1]).not.toHaveProperty('status');
     expect(data.related_products[1]).not.toHaveProperty('support_until');
