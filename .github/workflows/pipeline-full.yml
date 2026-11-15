@@ -1200,9 +1200,9 @@ jobs:
           set -euo pipefail
           TAG="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "IMAGE_TAG=$TAG" >> "$GITHUB_ENV"
-          docker build -f docker/Dockerfile.worker.prebuilt   -t "ccs/worker:$TAG"   .
-          docker build -f docker/Dockerfile.nginx.prebuilt    -t "ccs/nginx:$TAG"    .
-          docker build -f docker/Dockerfile.combined.prebuilt -t "ccs/combined:$TAG" .
+          docker build --build-arg APT_REFRESH="$(date -u +%Y%m%dT%H%M%SZ)" -f docker/Dockerfile.worker.prebuilt   -t "ccs/worker:$TAG"   .
+          docker build --build-arg APT_REFRESH="$(date -u +%Y%m%dT%H%M%SZ)" -f docker/Dockerfile.nginx.prebuilt    -t "ccs/nginx:$TAG"    .
+          docker build --build-arg APT_REFRESH="$(date -u +%Y%m%dT%H%M%SZ)" -f docker/Dockerfile.combined.prebuilt -t "ccs/combined:$TAG" .
 
       - name: Cache-sharing gate
         run: |

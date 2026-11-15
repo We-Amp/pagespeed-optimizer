@@ -157,25 +157,18 @@ if [ "${LOCAL_BUNDLE_OK}" -ne 1 ]; then
   fi
 fi
 
-# Ensure pagespeed2-base-runtime exists AND matches the current Dockerfile.
-# Persistent CI runners keep the image across jobs, so a plain
-# "rebuild if missing" check (the previous behaviour) silently reuses a
-# stale image when Dockerfile.base-runtime changes -- invisibly breaking
-# downstream consumers (e.g. nginx version drift between builder and
-# runtime → "module … version X instead of Y", HTTP Compliance red).
-# Stamp the image with the SHA-256 of the Dockerfile and rebuild on drift.
+# Always (re)build pagespeed2-base-runtime so release images take the latest
+# Ubuntu security updates. A persistent runner keeps the image across jobs, and
+# reusing it (even with a matching Dockerfile hash) freezes whatever packages
+# its apt layer held when it was built. --pull refreshes the pinned base, and a
+# per-build APT_REFRESH busts the apt layer cache. The Dockerfile hash label is
+# still stamped for tooling that inspects it.
 EXPECTED_HASH=$(sha256sum docker/Dockerfile.base-runtime | awk '{print $1}')
-ACTUAL_HASH=$(docker image inspect pagespeed2-base-runtime \
-  --format '{{ index .Config.Labels "weamp.base-runtime.dockerfile_sha256" }}' 2>/dev/null || true)
-if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
-  echo "Rebuilding pagespeed2-base-runtime (Dockerfile sha mismatch: have='${ACTUAL_HASH}' want='${EXPECTED_HASH}')"
-  # APT_REFRESH busts the apt dist-upgrade layer so a warm cache can't re-freeze
-  # OS-package CVEs (the image CVE gate); pass today's UTC date fresh each run.
-  docker build -t pagespeed2-base-runtime \
-    --build-arg APT_REFRESH="$(date -u +%F)" \
-    --label "weamp.base-runtime.dockerfile_sha256=${EXPECTED_HASH}" \
-    -f docker/Dockerfile.base-runtime .
-fi
+echo "Building pagespeed2-base-runtime (fresh apt layer)"
+docker build --pull -t pagespeed2-base-runtime \
+  --build-arg APT_REFRESH="$(date -u +%Y%m%dT%H%M%SZ)" \
+  --label "weamp.base-runtime.dockerfile_sha256=${EXPECTED_HASH}" \
+  -f docker/Dockerfile.base-runtime .
 
 mkdir -p .ci-artifacts
 install -m 755 "${BUNDLE_DIR}/factory_worker" .ci-artifacts/

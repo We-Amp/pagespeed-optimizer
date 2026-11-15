@@ -97,7 +97,10 @@ LABEL org.opencontainers.image.title="mod_pagespeed Nginx Module" \
 # else, but must not move nginx past the module's embedded
 # NGINX_VERSION_NUM or the module refuses to load (emerg at startup).
 COPY artifacts/nginx-version /tmp/nginx-version
-RUN apt-get update \
+# APT_REFRESH: pass a fresh value per build (date or run id) so the upgrade layer
+# is never served from cache and always takes the latest security updates.
+ARG APT_REFRESH=unset
+RUN echo "apt refresh ${APT_REFRESH}" && apt-get update \
     && NV="$(cat /tmp/nginx-version)" \
     && apt-get install -y --allow-downgrades --no-install-recommends \
        "nginx=${NV}-1~noble" gettext-base \

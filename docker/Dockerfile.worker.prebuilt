@@ -45,7 +45,10 @@ LABEL org.opencontainers.image.title="mod_pagespeed Worker" \
 # gosu: removed — the entrypoint has exec'd factory_worker directly since #133.
 # nginx comes from base-runtime but the worker never runs a proxy (that's the
 # nginx/combined images) — purge it from this image's CVE surface.
-RUN apt-get update && apt-get -y dist-upgrade \
+# APT_REFRESH: pass a fresh value per build (date or run id) so the upgrade layer
+# is never served from cache and always takes the latest security updates.
+ARG APT_REFRESH=unset
+RUN echo "apt refresh ${APT_REFRESH}" && apt-get update && apt-get -y dist-upgrade \
     && apt-get install -y --no-install-recommends \
     socat fonts-liberation \
     && apt-get purge -y nginx \
