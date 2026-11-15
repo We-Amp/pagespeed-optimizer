@@ -4768,13 +4768,14 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
     // rewritten as a 200 carrying the cached bytes, so it is a served-from-
     // entry response: updated_meta is a copy of the stored metadata (flags
     // included), which is what carries the origin's Accept negotiation.
-    // When the origin's own Vary line was just added from the stored block,
-    // it already lists Accept, so the computed line does not repeat it (the
-    // MISS shape).
+    // When an origin Vary line goes out on this response — the 304's own
+    // (it stays in headers_out) or one just added from the stored block — it
+    // already lists Accept when the origin negotiates on it, so the computed
+    // line does not repeat it (the MISS shape).
     ngx_http_pagespeed_emit_vary(
         r, updated_meta.content_type,
         (updated_meta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0,
-        replayed_vary);
+        replayed_vary || saw_vary_304);
 
     // Add X-PageSpeed: REVALIDATED header.
     {
