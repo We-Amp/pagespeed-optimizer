@@ -190,22 +190,23 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
           date, the severity band, the affected versions and the impact class. It carries no patch,
           binary, mitigation or technical detail. A notice is not a security update: the release,
           and the public advisory with any mitigation, reach every user at the same time through the
-          public channels. A notice is planning information, not a promise: the date, the severity
-          band and the affected versions can change, and we tell you when they do. We do not promise
-          a fixed lead time. You can change your security contact by email to your support address.
+          public channels. A public security advisory is not an advance notice. A notice is planning
+          information, not a promise: the date, the severity band and the affected versions can
+          change, and we send an updated notice if they do. We do not promise a fixed lead time. You
+          can change your security contact by email to your support address.
         </p>
         <p class="mt-2 text-text-muted">
           A notice is confidential until the release is public. Share it only with people in your
           organization, including its contractors, who need it to plan the update. You may also
           share it in confidence with your auditors and security advisers, and with a CSIRT or a
           competent authority. If you subscribe as an individual, share it only with the people who
-          help you run your servers. You are responsible for everyone you share a notice with
-          keeping it confidential. A notice stops being confidential when the release is public,
-          when we publish its contents, or when they otherwise become public through no fault of
-          yours. This duty continues after your subscription ends, until the release is public.
-          Nothing here stops you from making a disclosure the law requires, such as a report to a
-          public authority or under a court order. A public security advisory is not an advance
-          notice.
+          help you run your servers. You are responsible for the people in your organization and the
+          contractors, auditors and advisers you share a notice with keeping it confidential. A
+          notice stops being confidential when the release is public, when we publish its contents,
+          or when they otherwise become public through no fault of yours. This duty continues after
+          your subscription ends, until the release is public. Nothing here stops you from making a
+          disclosure the law requires, such as a report to a public authority or under a court
+          order.
         </p>
         <p class="mt-2 text-text-muted">
           If a notice is shared in breach of these terms, we may stop sending you advance notices;
@@ -213,7 +214,9 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
           a notice: when a vulnerability is already exploited or public, the notice goes out when
           the release is published. If the law or a competent authority requires it, we may stop
           sending advance notices, or send them when the release is published; we tell you if we do.{' '}
-          <em>Warranty and liability</em> applies to advance notices.
+          <em>Warranty and liability</em> applies to advance notices. The same applies to the
+          vulnerability notifications timed to the EU Cyber Resilience Act reporting windows that
+          some tiers include.
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Ordering and payment.</strong> Prices are published on the
@@ -242,8 +245,8 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
           purchase and those mandatory law requires, fees already paid are not refunded, except for
           the pro-rata refunds described under <em>Circumstances beyond our control</em> and
           <em>Changes to these terms</em>. Where an order form or subscription agreement signed by{' '}
-          {VENDOR} states something different, it prevails for that subscription. Your own general
-          or purchasing terms do not apply, even if an order refers to them. The
+          {VENDOR} states something different, it prevails for that subscription. We reject your own
+          general or purchasing terms; they do not apply, even if an order refers to them. The
           <a
             href={LICENSING_TERMS_URL}
             class="text-interactive hover:text-interactive-hover underline"
@@ -366,10 +369,13 @@ const SUPPORT_TARGETS = SUPPORT_TIERS.filter((t) => t.kind === 'support')
         </p>
         <p class="mt-2 text-text-muted">
           <strong>What we never limit or exclude.</strong> Nothing in these terms limits or excludes
-          our liability for fraud; for intent (<em>opzet</em>) or deliberate recklessness (
-          <em>bewuste roekeloosheid</em>) of {VENDOR} or of the persons charged with its management
-          or direction; for death or personal injury caused by our negligence; or for anything else
-          that cannot be limited or excluded under applicable law.
+          our liability for fraud; for intent (<em>opzet</em>) or deliberate recklessness
+          <span class="whitespace-nowrap">
+            (<em>bewuste roekeloosheid</em>)
+          </span>{' '}
+          of {VENDOR} or of the persons charged with its management or direction; for death or
+          personal injury caused by our negligence; or for anything else that cannot be limited or
+          excluded under applicable law.
         </p>
         <p class="mt-4 text-text-muted">
           <strong>Consumers (EU/EEA).</strong> If you are a consumer, nothing in this section
