@@ -5626,7 +5626,7 @@ void ExpectBlockTextNeverHoldsMarkup(std::string_view page) {
   }
 }
 
-// `<!-->`: a browser ends the comment at once; the parser runs on to `-->`.
+// `<!-->`: a browser and the parser end the comment at once.
 TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupShortComment) {
   ExpectBlockTextNeverHoldsMarkup(
       "<html><head><!--><select>--><link rel=stylesheet href=/s.css></head>"
@@ -5640,7 +5640,7 @@ TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupShortComment3) {
       "<body><p>x</p></body></html>");
 }
 
-// `--!>`: a browser ends a comment there; the parser does not.
+// `--!>`: a browser and the parser end a comment there.
 TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupBangComment) {
   ExpectBlockTextNeverHoldsMarkup(
       "<html><head><!-- x --!><select>--><link rel=stylesheet href=/s.css>"
