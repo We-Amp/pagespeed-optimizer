@@ -4048,7 +4048,8 @@ TEST(PageSpeedCApi, CacheOpenRefusedVolumeReportsReason) {
   }
 
   ps_cache_t* second = nullptr;
-  EXPECT_NE(ps_cache_open(&config, &second), PS_OK);
+  const ps_error_t err = ps_cache_open(&config, &second);
+  EXPECT_EQ(err, PS_ERR_IO);
   EXPECT_EQ(second, nullptr);
   EXPECT_NE(std::string(ps_last_error_message()).find("must be a plain file"),
             std::string::npos)
@@ -6530,6 +6531,10 @@ TEST(PageSpeedCApi, MapErrorAlternateNotFound) {
 
 TEST(PageSpeedCApi, MapErrorIoError) {
   EXPECT_EQ(MapError(cyclone::CacheError::IoError), PS_ERR_IO);
+}
+
+TEST(PageSpeedCApi, MapErrorVolumeFileRefused) {
+  EXPECT_EQ(MapError(cyclone::CacheError::VolumeFileRefused), PS_ERR_IO);
 }
 
 TEST(PageSpeedCApi, MapErrorCorrupted) {

@@ -1992,6 +1992,9 @@ TEST_F(PageSpeedCacheTest, OpenFailureIsDamagedVolumeClassification) {
   // treated as damage.
   EXPECT_FALSE(
       PageSpeedCache::OpenFailureIsDamagedVolume(cyclone::CacheError::IoError));
+  // A volume the cache library refuses (not a plain file) is not damage.
+  EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
+      cyclone::CacheError::VolumeFileRefused));
   // Configuration, geometry and environment failures a delete cannot fix.
   EXPECT_FALSE(PageSpeedCache::OpenFailureIsDamagedVolume(
       cyclone::CacheError::InvalidArgument));

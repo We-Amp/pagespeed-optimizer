@@ -587,7 +587,7 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 #
 # Bumped to cyclone 2d4db30 (13 commits past 03c5e8a).  A volume path that
 # is not a plain file is reported (new, tail-appended
-# CacheError::VolumeFileRefused; MapError's default covers it) and not used.
+# CacheError::VolumeFileRefused; MapError maps it to PS_ERR_IO) and not used.
 # New, unset by default: VolumeConfig::owner, for which a process running as
 # root creates the volume file.  An idle cache handle no longer wakes up every
 # 100 ms.  No on-disk format or shared-mapping change, no new source file,
