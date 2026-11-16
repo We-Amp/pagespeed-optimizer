@@ -66,7 +66,7 @@ const jsonLd = [
     '@type': 'WebPage',
     name: `Support for ${PRODUCT}`,
     url: 'https://modpagespeed.com/support/',
-    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, first-response targets per tier, and advance notice of security releases.`,
+    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the developer who builds it, first-response targets per tier, and advance notice of security releases.`,
     publisher: { '@type': 'Organization', name: 'We-Amp B.V.', url: 'https://we-amp.com/' },
   },
   {
@@ -85,7 +85,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   {
     key: 'channel',
     value: 'direct',
-    detail: 'Tickets and email go to the engineers who build the product. Nobody in between.',
+    detail: 'Tickets and email go to the developer who builds the product. Nobody in between.',
   },
   {
     key: 'response',
@@ -102,20 +102,20 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   {
     key: 'scope',
     value: 'people and response',
-    detail: 'A subscription covers your named contacts and our response, not installations. The software, updates and fixes are the same and free on every server.',
+    detail: 'A subscription covers the people at your organization who can open tickets, and our response, not installations. The software, updates and fixes are the same and free on every server.',
   },
 ];
 ---
 
 <BaseLayout
   title={`${PRODUCT} support from the people who build it`}
-  description="Support subscriptions for mod_pagespeed: a direct line to its engineers, response targets, advance notice of security releases."
+  description="Support subscriptions for mod_pagespeed: a direct line to its developer, response targets, advance notice of security releases."
   jsonLd={jsonLd}
 >
   <PageHero
     id="support-title"
     eyebrow={`Support · ${PRODUCT}`}
-    title={`Support from the engineers who build ${PRODUCT}`}
+    title={`Support from the developer who builds ${PRODUCT}`}
   >
     <Fragment slot="lede">
       {PRODUCT} and its rule packs are free and open; you pay us for support and expertise. Both are{' '}
