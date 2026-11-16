@@ -288,16 +288,16 @@ ModPagespeedPngLossyFallbackMaxSizePercent 20
 pagespeed PngLossyFallbackMaxSizePercent 20;
 ```
 
-With 20, the lossy file must be at most 20 percent of the lossless one. The trial runs only when all of these hold:
+With 20, the lossy file must be at most 20 percent of the lossless one. The trial runs only when the first two hold; the lossy file is served only when the last two also hold:
 
-- the PNG is opaque and not animated, `convert_png_to_jpeg` and `convert_jpeg_to_webp` are on, and `WebpRecompressionQuality` is at least 50;
+- the PNG is opaque and not animated, `convert_png_to_jpeg`, `convert_jpeg_to_webp` and `convert_to_webp_lossless` are on, the browser accepts lossless WebP, and `WebpRecompressionQuality` is at least 50;
 - the lossless WebP is at least 64 KiB and at least `PngLossyFallbackMinBytesPerMegapixel` (default 250000) per megapixel of the image as served, so text, UI and charts that merely look noisy stay lossless;
 - the lossy file is within the configured percentage of the lossless one;
 - no 32x32 tile of the decoded lossy image falls below 29.5 dB PSNR against the source pixels, which keeps out local damage such as small coloured text over a noisy backdrop.
 
-A failed or timed-out trial leaves the lossless output. AVIF output for these images stays lossless; when the browser accepts AVIF, the smaller of the AVIF and the lossy WebP is served. With the `debug` filter on, the page names the outcome for each trial. The statistics `image_png_lossy_fallback_attempted`, `image_png_lossy_fallback_adopted` and `image_png_lossy_fallback_rejected_quality` count the trials.
+A failed or timed-out trial leaves the lossless output. AVIF output for these images stays lossless; when `convert_to_avif_lossless` is on and the browser accepts AVIF, the smaller of the lossless AVIF and the lossy WebP is served. GIF sources never take the fallback. With the `debug` filter on, the page names the outcome for each trial. The statistics `image_png_lossy_fallback_attempted`, `image_png_lossy_fallback_adopted` and `image_png_lossy_fallback_rejected_quality` count the trials.
 
-Per-image results depend on the picture. On the test images, a smooth 1200 px photo went from 776 KB to 27 KB, a 1200 px photo on a plain background from 310 KB to 8.9 KB, and a 1600 px star field from 572 KB to 45 KB. On misclassified photos the lossy file is typically 13 to 35 times smaller than the lossless one.
+Per-image results depend on the picture. On the test images, a smooth 1200 px photo went from 776 KB to 27 KB, a 1200 px photo on a plain background from 310 KB to 8.9 KB, and a 1200 px star field from 572 KB to 45 KB. On misclassified photos the lossy file is typically 13 to 35 times smaller than the lossless one.
 
 **Caveat:** with the option on, a PNG that the debug filter describes as "sensitive to compression noise" can still be served as lossy WebP when the lossy output is much smaller and passes the quality check. Where lossy output is not acceptable, such as X-ray, microscopy or CAD images, or any image that must stay pixel-exact, set `PngLossyFallbackMaxSizePercent 0` in the server block, `location` or `<Directory>` that holds them, or put `data-pagespeed-no-transform` on the `<img>`. The option has directory scope, so a query parameter cannot switch it. Turning off `convert_png_to_jpeg` also disables the fallback, along with all other lossy PNG output.
 
