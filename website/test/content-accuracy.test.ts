@@ -138,8 +138,13 @@ const SCAN_EXCLUSIONS: Array<{ test: (rel: string) => boolean; why: string }> = 
     // Presentational only. Components render claims that arrive as PROPS from
     // the pages and data modules already in scope, so the claim is caught at
     // its source rather than at each render site.
-    test: (rel) => rel.startsWith('src/components/'),
-    why: 'src/components/** — presentational; claims arrive as props from scanned pages',
+    //
+    // EXCEPT src/components/home/: the home page's sections. They are the
+    // home page's own copy, split out of src/pages/index.astro one file per
+    // section, so they carry product claims as literals and stay in scope
+    // (the "home" bucket below).
+    test: (rel) => rel.startsWith('src/components/') && !rel.startsWith('src/components/home/'),
+    why: 'src/components/** except home/ — presentational; claims arrive as props from scanned pages',
   },
 ];
 
@@ -232,6 +237,15 @@ const SCAN_BUCKETS: ScanBucket[] = [
     extFloors: { '.mjs': 1 },
   },
   { name: 'layouts', files: walk(path.join(WEBSITE_ROOT, 'src/layouts'), ['.astro']), floor: 1 },
+  {
+    // The home page's sections (hero, the seven numbered sections, sponsor,
+    // closing): page copy that lives under src/components/. Ten files today;
+    // the floor catches the directory moving or the exclusion above swallowing
+    // it again.
+    name: 'home',
+    files: walk(path.join(WEBSITE_ROOT, 'src/components/home'), ['.astro']),
+    floor: 8,
+  },
   {
     // One template is left: the AI-plugin manifest. llms.txt and llms-full.txt
     // are generated from the docs collection (scanned as content), the release
@@ -524,6 +538,13 @@ const RETIRED_LABEL_PENDING_FILE = path.join(WEBSITE_ROOT, 'scripts/retired-labe
 const RETIRED_LABEL_PENDING: Record<string, number> = existsSync(RETIRED_LABEL_PENDING_FILE)
   ? (JSON.parse(readFileSync(RETIRED_LABEL_PENDING_FILE, 'utf8')).sources ?? {})
   : {};
+
+// The lines that keep the "mod_pagespeed 2" shorthand (rule l): history and
+// records only, one exact line each.
+const SHORTHAND_ALLOW_FILE = path.join(WEBSITE_ROOT, 'scripts/product-name-shorthand-allow.json');
+const SHORTHAND_ALLOW_LINES: Array<{ file: string; line: string; why: string }> = JSON.parse(
+  readFileSync(SHORTHAND_ALLOW_FILE, 'utf8'),
+).lines;
 
 const DENYLIST: DenyRule[] = [
   {
@@ -1371,6 +1392,7 @@ const DENYLIST: DenyRule[] = [
       'src/content/docs/release-notes-2-5.mdx',
       'src/content/docs/release-notes-2-6.mdx',
       'src/content/docs/release-notes-2-7.mdx',
+      'src/content/docs/release-notes-2-8.mdx',
       'src/content/docs/release-notes.mdx',
       // The legal pages, which enumerate the predecessor lines by name because
       // the terms they state apply to each of them.
@@ -1455,8 +1477,8 @@ const DENYLIST: DenyRule[] = [
   {
     id: 'k-retired-2.1-product-label',
     // RULE (owner ruling, 2026-10-20): the product is plain "mod_pagespeed".
-    // "2.1" is retired as a product label. "mod_pagespeed 2" is the form for
-    // contrasting with the 1.x lineage, and an exact three-part version,
+    // "2.1" is retired as a product label. "The current mod_pagespeed" is the
+    // form for contrasting with the 1.x lineage (rule l), and an exact three-part version,
     // rendered from the release manifest, is for release facts (download,
     // install output, release notes, advisories). The name followed by "2.1"
     // as a label tells a reader there is a 2.1 product to go and find, and
@@ -1475,7 +1497,7 @@ const DENYLIST: DenyRule[] = [
     // The rename itself is a separate change: `pending` lists the hits that
     // were there when this rule landed (scripts/retired-label-pending.json,
     // whose `pages` half feeds the built-output lint's rule of the same name).
-    why: 'The product is mod_pagespeed, with no version (owner ruling, 2026-10-20). "2.1" is retired as a product label: write "mod_pagespeed", "mod_pagespeed 2" only to contrast with the 1.x line, and an exact three-part version from the release manifest where the version is the point. Allowed: exact versions (2.1.0), version-scoped phrases that do not follow the name ("since 2.1.0"), identifiers and slugs, and the 2.1.0 release notes and announcement post.',
+    why: 'The product is mod_pagespeed, with no version (owner ruling, 2026-10-20). "2.1" is retired as a product label: write "mod_pagespeed", "the current mod_pagespeed" to contrast with the 1.x line, and an exact three-part version from the release manifest where the version is the point. Allowed: exact versions (2.1.0), version-scoped phrases that do not follow the name ("since 2.1.0"), identifiers and slugs, and the 2.1.0 release notes and announcement post.',
     re: new RegExp(
       [
         // The label in prose, any case, underscore or space; not the start of
@@ -1517,11 +1539,59 @@ const DENYLIST: DenyRule[] = [
     variantsGood: [
       'mod_pagespeed 2.1.0 converged the module line and the optimizer worker.',
       'mod_pagespeed 2.5.0 is the current release.',
-      'mod_pagespeed 2 is a drop-in for 1.14 and 1.15 configurations.',
+      'The current mod_pagespeed is a drop-in for 1.14 and 1.15 configurations.',
       'Since 2.1.0 the worker drops privileges at startup.',
       'The 2.1.0 notes are at /docs/release-notes-2-1/.',
       "const rel = await getRelease('2.1');",
       'Migrate from ModPageSpeed 2.0: see /docs/migrating-to-2-1/.',
+    ],
+  },
+  {
+    id: 'l-mod_pagespeed-2-shorthand',
+    // RULE (owner ruling, 2026-11-15): "mod_pagespeed 2" is not a product name
+    // either. Write "mod_pagespeed", or "the current mod_pagespeed" where the
+    // copy contrasts it with the 1.x line. The shorthand stays only where the
+    // text is history or a record: dated blog posts, release notes, the 2026
+    // rows of the project timelines, and the JSON-LD alternate name. Those
+    // lines are listed one by one in scripts/product-name-shorthand-allow.json,
+    // so a new use fails, in a blog post too.
+    //
+    // The second branch catches the shorthand assembled from the constants,
+    // `${PRODUCT_NAME} 2` or its {{…}} template form.
+    why: 'The product is mod_pagespeed (owner ruling, 2026-11-15). Write "mod_pagespeed", or "the current mod_pagespeed" to contrast with 1.x; an exact version (2.8.1) where the version is the point. Kept uses (history, records) are listed line by line in scripts/product-name-shorthand-allow.json.',
+    re: new RegExp(
+      [
+        // The shorthand in prose: the name and a bare major "2", not the start
+        // of a version ("2.8.1") or a longer number.
+        /\bmod[_ ]pagespeed 2(?![.\d])/.source,
+        // The shorthand assembled from the constants.
+        /\bPRODUCT_(?:DISPLAY_)?NAME\}{1,2} 2(?![.\d])/.source,
+      ].join('|'),
+      'i',
+    ),
+    // The generated agent files repeat the docs and blog text verbatim; their
+    // prose is scanned at its sources (the docs and blog bodies,
+    // src/data/agent-files.mjs, the templates).
+    exemptFile: (rel) => rel === 'public/llms.txt' || rel === 'public/llms-full.txt',
+    exemptFileExpectation: ['public/llms-full.txt', 'public/llms.txt'],
+    exemptLines: SHORTHAND_ALLOW_LINES,
+    bad: 'mod_pagespeed 2 keeps the same directives and filter names.',
+    good: 'The current mod_pagespeed keeps the same directives and filter names; 2.8.1 is the newest release.',
+    variantsBad: [
+      'Install mod_pagespeed 2 on Debian 12.',
+      'The maintained line is <span class="whitespace-nowrap">mod_pagespeed 2</span>.',
+      "q: 'Is mod_pagespeed 2 a drop-in replacement?'",
+      'Its license transfers to mod_pagespeed 2, free of charge.',
+      'MOD_PAGESPEED 2 is open source.',
+      'const NAME = `${PRODUCT_NAME} 2`;',
+      '{{PRODUCT_NAME}} 2 converges the lineage.',
+    ],
+    variantsGood: [
+      'mod_pagespeed 2.8.1 is the current release.',
+      'mod_pagespeed 2.1.0 converged the module line and the optimizer worker.',
+      'mod_pagespeed 1.15 users upgrade in place.',
+      'mod_pagespeed 20 times faster is not a claim we make.',
+      'The current mod_pagespeed runs on Apache and nginx.',
     ],
   },
 ];
@@ -2080,8 +2150,8 @@ function unpendedViolations(rule: DenyRule): { failures: string[]; pendingHits: 
 // (3) CANONICAL-SOURCE consistency — the ground truth the denylist relies on.
 // ---------------------------------------------------------------------------
 describe('canonical sources hold ground-truth product facts', () => {
-  it('product-facts.mjs SIDECAR_NGINX_VERSION === 1.30.4', () => {
-    expect(facts.SIDECAR_NGINX_VERSION).toBe('1.30.4');
+  it('product-facts.mjs SIDECAR_NGINX_VERSION === 1.30.6', () => {
+    expect(facts.SIDECAR_NGINX_VERSION).toBe('1.30.6');
   });
 
   // The social-card generator rasterizes a wordmark onto all 72 cards, and a
@@ -2132,6 +2202,7 @@ describe('canonical sources hold ground-truth product facts', () => {
       'Debian 13 trixie': '1.26.3',
       'Ubuntu 22.04 jammy': '1.18.0',
       'Ubuntu 24.04 noble': '1.24.0',
+      'Ubuntu 26.04 resolute': '1.28.3',
     });
   });
 
@@ -2982,6 +3053,29 @@ describe('sentence-bounded windows', () => {
   });
 });
 
+describe('scan surface: the home page sections stay in scope', () => {
+  const HOME_DIR = path.join(WEBSITE_ROOT, 'src/components/home');
+
+  it('every home section file is scanned', () => {
+    const onDisk = readdirSync(HOME_DIR)
+      .filter((n) => n.endsWith('.astro'))
+      .map((n) => path.join(HOME_DIR, n));
+    expect(onDisk.length).toBeGreaterThan(0);
+    const unscanned = onDisk.filter((f) => !SCAN_FILES.includes(f));
+    expect(unscanned, unscanned.length ? `\n${unscanned.join('\n')}\n` : undefined).toEqual([]);
+  });
+
+  it('the exclusion covers the other components, not the home sections', () => {
+    expect(isExcluded(path.join(HOME_DIR, 'Hero.astro'))).toBe(false);
+    expect(isExcluded(path.join(WEBSITE_ROOT, 'src/components/CTAButton.astro'))).toBe(true);
+    expect(isExcluded(path.join(WEBSITE_ROOT, 'src/components/instrument/Chip.astro'))).toBe(true);
+  });
+
+  it('the home page itself is still scanned', () => {
+    expect(SCAN_FILES).toContain(path.join(WEBSITE_ROOT, 'src/pages/index.astro'));
+  });
+});
+
 describe('canary fixtures: the scan path (walker, filter, splitter) still works', () => {
   it('the canary fixtures are NOT part of the real scan surface', () => {
     const leaked = SCAN_FILES.filter((f) => f.startsWith(CANARY_DIR));
@@ -3048,7 +3142,7 @@ const COMMERCIAL_PAGE_SOURCES = [
 // A currency symbol or code next to a number, a per-period rate ("/yr",
 // "/mo", "per year"), or an hours target ("7 business hours", "within 3
 // hours"). Deliberately blind to the bands and step counts the pages do
-// state ("up to 25 production servers", "within 3 business days").
+// state ("up to 3 people", "within 3 business days").
 const PRICE_AMOUNT =
   /[€$£]\s?\d|\b\d[\d.,]*\s?(?:EUR|USD|GBP|euros?|dollars?)\b|\d[\d.,]*\s*\/\s*(?:yr|year|mo|month)\b|\bper (?:year|month)\b|\b\d+\s*(?:business\s+)?hours?\b/i;
 // The published amounts and targets, as they appear in the sources: euro
@@ -3087,7 +3181,7 @@ describe('commercial copy: only published amounts, one commercial address', () =
       expect(PRICE_AMOUNT.test(bad), bad).toBe(true);
     }
     for (const good of [
-      'up to 25 production servers',
+      'up to 3 people',
       'within 3 business days',
       'Under 1 million pageviews a month',
       'early subscribers keep their quoted rate for three years',
@@ -3134,5 +3228,112 @@ describe('commercial copy: only published amounts, one commercial address', () =
 
   it('the commercial address is the single-sourced one', () => {
     expect(facts.COMMERCIAL_EMAIL).toBe('info@we-amp.com');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Single-sourced facts in page sources.
+//
+// The live-site count, its as-of month, the current release version and the
+// support and audit prices live in product-facts.mjs. A page or component
+// that types one of them out goes stale the next time the fact moves, while
+// the pages that import it move with it. Scanned RAW, comments included, for
+// the same reason as the denylist: a number in a comment drifts into copy.
+// ---------------------------------------------------------------------------
+const PAGE_SOURCE_DIRS = ['src/pages', 'src/components', 'src/layouts'].map((rel) =>
+  path.join(WEBSITE_ROOT, rel),
+);
+
+function pageSourceFiles(): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(dir)) {
+      const abs = path.join(dir, name);
+      if (statSync(abs).isDirectory()) walk(abs);
+      else if (/\.(?:astro|ts|tsx|mjs|js|md|mdx)$/.test(name)) out.push(abs);
+    }
+  };
+  PAGE_SOURCE_DIRS.forEach(walk);
+  return out;
+}
+
+// The rounded form the pages render (roundDownDisplay to the nearest 10,000).
+function roundedLiveSites(): string {
+  const sites = Number(facts.BUILTWITH_SITES.replace(/,/g, ''));
+  return `${(Math.floor(sites / 10000) * 10000).toLocaleString('en-US')}+`;
+}
+
+function hardCodedFacts(): Array<{ label: string; literal: RegExp }> {
+  const rounded = roundedLiveSites();
+  const priceLiterals = [
+    ...facts.SUPPORT_TIERS.map((t) => t.prices.annualEur),
+    facts.AUDIT_PRICE_EUR,
+  ].map((n) => facts.formatEur(n));
+  return [
+    { label: 'BUILTWITH_SITES', literal: new RegExp(escapeForRegExp(facts.BUILTWITH_SITES)) },
+    { label: 'the rounded live-site count', literal: new RegExp(escapeForRegExp(rounded)) },
+    {
+      label: 'BUILTWITH_AS_OF next to BuiltWith',
+      literal: new RegExp(`BuiltWith[^\\n]{0,40}${escapeForRegExp(facts.BUILTWITH_AS_OF)}`),
+    },
+    {
+      label: 'MODULE_PACKAGE_VERSION',
+      literal: new RegExp(`(?<![\\d.])${escapeForRegExp(facts.MODULE_PACKAGE_VERSION)}(?![\\d])`),
+    },
+    ...priceLiterals.map((p) => ({
+      label: `the published price ${p}`,
+      literal: new RegExp(`${escapeForRegExp(p)}(?!\\d|[.,]\\d)`),
+    })),
+  ];
+}
+
+function hardCodedFactHits(files: string[]): string[] {
+  const rules = hardCodedFacts();
+  const hits: string[] = [];
+  for (const file of files) {
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        for (const r of rules) {
+          if (r.literal.test(line)) {
+            hits.push(`${path.relative(WEBSITE_ROOT, file)}:${i + 1}: ${r.label}`);
+          }
+        }
+      });
+  }
+  return hits;
+}
+
+describe('single-sourced facts: page sources import them, never type them out', () => {
+  it('the matcher flags typed-out copies and passes the imported forms', () => {
+    const rules = hardCodedFacts();
+    const flagged = (line: string) => rules.some((r) => r.literal.test(line));
+    for (const bad of [
+      `<span>${facts.BUILTWITH_SITES} live sites</span>`,
+      `the core behind ${roundedLiveSites()} live sites`,
+      `BuiltWith, ${facts.BUILTWITH_AS_OF}`,
+      `Install ${facts.MODULE_PACKAGE_VERSION} today`,
+      `Support costs ${facts.formatEur(facts.SUPPORT_TIERS[0].prices.annualEur)} a year`,
+      `Support costs ${facts.formatEur(facts.SUPPORT_TIERS[0].prices.annualEur)}, or more`,
+    ]) {
+      expect(flagged(bad), bad).toBe(true);
+    }
+    for (const good of [
+      '<span>{builtwithLiveRounded} live sites</span>',
+      'BuiltWith, {BUILTWITH_AS_OF}',
+      'Hacker News in May 2026',
+      `version ${facts.MODULE_PACKAGE_VERSION}0`,
+      'up to 3 people',
+    ]) {
+      expect(flagged(good), good).toBe(false);
+    }
+  });
+
+  it('no page, component or layout source types out a single-sourced fact', () => {
+    const hits = hardCodedFactHits(pageSourceFiles());
+    expect(
+      hits,
+      hits.length ? `\nimport these from product-facts.mjs:\n${hits.join('\n')}\n` : undefined,
+    ).toEqual([]);
   });
 });

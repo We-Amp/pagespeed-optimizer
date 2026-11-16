@@ -475,6 +475,7 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpoint) {
   stats_.image_unconverted_fallthrough.store(4);
   stats_.image_size_refused_webp.store(5);
   stats_.image_size_refused_avif.store(6);
+  stats_.image_savedata_refused.store(7);
   stats_.image_budget_rescued_webp.store(2);
   stats_.image_budget_rescued_avif.store(1);
 
@@ -498,6 +499,7 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpoint) {
   EXPECT_EQ(j["image_unconverted_fallthrough"], 4);
   EXPECT_EQ(j["image_size_refused"]["webp"], 5);
   EXPECT_EQ(j["image_size_refused"]["avif"], 6);
+  EXPECT_EQ(j["image_savedata_refused"], 7);
   EXPECT_EQ(j["image_budget_rescued"]["webp"], 2);
   EXPECT_EQ(j["image_budget_rescued"]["avif"], 1);
 
@@ -628,6 +630,7 @@ TEST_F(ApiHandlersIntegrationTest,
 
 TEST_F(ApiHandlersIntegrationTest, MetricsEndpoint) {
   stats_.notifications_received.store(42);
+  stats_.image_savedata_refused.store(7);
   stats_.webp_generated.store(10);
 
   std::string resp =
@@ -645,6 +648,8 @@ TEST_F(ApiHandlersIntegrationTest, MetricsEndpoint) {
   EXPECT_NE(resp.find("pagespeed_image_unconverted_fallthrough_total"),
             std::string::npos);
   EXPECT_NE(resp.find("pagespeed_image_size_refused_webp_total"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_image_savedata_refused_total 7"),
             std::string::npos);
   EXPECT_NE(resp.find("pagespeed_image_budget_rescued_avif_total"),
             std::string::npos);

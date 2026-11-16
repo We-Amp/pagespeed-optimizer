@@ -4,7 +4,7 @@ description: 'Install, uninstall and maintain mod_pagespeed on cPanel / EasyApac
 order: 6
 group: 'Install'
 datePublished: 2026-05-20
-lastUpdated: 2026-10-20
+lastUpdated: 2026-11-15
 ---
 
 mod_pagespeed ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today.
@@ -29,7 +29,7 @@ gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 ```
 
-`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
+`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on all three. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
 ### 2. Remove mod_ruid2 if it is installed {#mod-ruid2}
 
@@ -90,7 +90,7 @@ sudo rm -f /etc/yum.repos.d/modpagespeed-ea4.repo
 
 Any third-party EA4 module — `ea-apache24-mod_pagespeed` included — blocks `cpanel/elevate` OS-major upgrades (for example EL8 → EL9 or EL9 → EL10), the same way `mod_passenger` does. cPanel's elevate preflight stops on the installed package; the upgrade does not start.
 
-Because mod_pagespeed is built for **both EL8 and EL9**, an EL8 → EL9 upgrade has a target-OS package waiting — you reinstall the EL9 build after elevate finishes (an EL8-only module would leave you with nothing to reinstall). The remove-before / reinstall-after flow below is still required, because elevate's preflight halts on any third-party module regardless of whether a target-OS build exists.
+Because mod_pagespeed is built for **EL8, EL9 and EL10**, an EL8 → EL9 or EL9 → EL10 upgrade has a target-OS package waiting — you reinstall the build for the new release after elevate finishes (a module built for one release only would leave you with nothing to reinstall). The remove-before / reinstall-after flow below is still required, because elevate's preflight halts on any third-party module regardless of whether a target-OS build exists.
 
 Remove the module before the upgrade window and reinstall after:
 
@@ -154,9 +154,9 @@ httpd -M 2>/dev/null | grep pagespeed         # confirm the module is loaded
 
 If it does not appear, re-check the _Apache Modules_ step in WHM Customize and re-provision. See [Troubleshooting](/docs/troubleshooting/) for the general "module not running" checklist.
 
-### `rpm -q` shows a leading `2:` (e.g. `2:1.15.0-...`) — is that version 2?
+### What is the leading `2:`?
 
-No. The leading `2:` is the RPM **epoch**, not a major version — the installed package's version string currently reads **1.15.0**. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places; read it as "epoch 2, version 1.15.0".
+It is the RPM **epoch**, not part of the version: `rpm -q` shows `2:2.8.1-...`, which reads as epoch 2, version 2.8.1. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places.
 
 ---
 

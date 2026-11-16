@@ -261,6 +261,91 @@ TEST_F(ServeStatsTest, V11LayoutOrdering) {
   EXPECT_EQ(offsetof(ServeStats, headers_sidecar_fall_through) % 8, 0u);
 }
 
+TEST_F(ServeStatsTest, SplitBlockFollowsTheIdentityPairAndMovesNothing) {
+  // The offsets a peer built before the split block knows.
+  EXPECT_EQ(offsetof(ServeStats, boot_id), 11480u);
+  EXPECT_EQ(offsetof(ServeStats, split_html), 11496u);
+  EXPECT_EQ(sizeof(ServeStats), 11592u);
+  EXPECT_LE(sizeof(ServeStats), ServeStats::kFileSize);
+}
+
+TEST_F(ServeStatsTest, SplitCountsOnlyServesWithAnEncodedSize) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  constexpr uint32_t kGzipMask = 1u << 6;
+  // 10000 raw, 3000 as gzip, 2400 served: encoding 7000, rewrite 600.
+  RecordServeHitSplit(stats, ContentType::kCss, 10000, 3000, 2400, kGzipMask,
+                      "a.example");
+  // Identity: nothing for the encoding to save.
+  RecordServeHitSplit(stats, ContentType::kCss, 8000, 8000, 5000, 0,
+                      "a.example");
+  // Served bytes above the encoded origin: the rewrite part is negative.
+  RecordServeHitSplit(stats, ContentType::kHtml, 6000, 1500, 2100, kGzipMask,
+                      "");
+  // No encoded size known: totals only.
+  RecordServeHit(stats, ContentType::kCss, 4000, 1000, kGzipMask);
+  RecordServeHitSplit(stats, ContentType::kOther, 1, 1, 1, 0, "");
+
+  const ServeStats::SplitCounters css =
+      ReadServeSplit(stats, ContentType::kCss);
+  EXPECT_EQ(css.original_bytes, 18000u);
+  EXPECT_EQ(css.compressed_original_bytes, 11000u);
+  EXPECT_EQ(css.optimized_bytes, 7400u);
+  EXPECT_EQ(stats->css_original_bytes, 22000u);
+  EXPECT_EQ(stats->css_optimized_hits, 3u);
+  // Encoding saved: 18000 - 11000 = 7000.  Rewrite saved: 11000 - 7400 = 3600.
+  EXPECT_EQ(css.original_bytes - css.compressed_original_bytes, 7000u);
+  EXPECT_EQ(css.compressed_original_bytes - css.optimized_bytes, 3600u);
+
+  const ServeStats::SplitCounters html =
+      ReadServeSplit(stats, ContentType::kHtml);
+  EXPECT_EQ(html.compressed_original_bytes, 1500u);
+  EXPECT_LT(static_cast<int64_t>(html.compressed_original_bytes),
+            static_cast<int64_t>(html.optimized_bytes));
+  EXPECT_EQ(ReadServeSplit(stats, ContentType::kOther).original_bytes, 0u);
+  EXPECT_EQ(ReadServeSplit(nullptr, ContentType::kCss).original_bytes, 0u);
+  RecordServeHitSplit(nullptr, ContentType::kCss, 1, 1, 1, 0, "");
+  CloseServeStats(stats);
+}
+
+// A writer that never records the split (a front end built before it) leaves
+// the block at zero while the totals grow: coverage reads 0, not a measured 0.
+TEST_F(ServeStatsTest, ServesRecordedWithoutTheSplitLeaveItAtZero) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHit(stats, ContentType::kCss, 9000, 3000, 1u << 6);
+  RecordServeHit(stats, ContentType::kImage, 9000, 3000, 0);
+  EXPECT_EQ(stats->css_original_bytes, 9000u);
+  for (const ContentType type : {ContentType::kHtml, ContentType::kCss,
+                                 ContentType::kJs, ContentType::kImage}) {
+    const ServeStats::SplitCounters s = ReadServeSplit(stats, type);
+    EXPECT_EQ(s.original_bytes, 0u);
+    EXPECT_EQ(s.compressed_original_bytes, 0u);
+    EXPECT_EQ(s.optimized_bytes, 0u);
+  }
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, SplitBlockIsZeroedWithTheCountersOnReuse) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHitSplit(stats, ContentType::kJs, 900, 400, 300, 0, "");
+  RecordServeHitSplit(stats, ContentType::kImage, 900, 900, 300, 0, "");
+  EXPECT_EQ(ReadServeSplit(stats, ContentType::kJs).original_bytes, 900u);
+  CloseServeStats(stats);
+  // Same-version reuse zeroes every counter, the split block included.
+  stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  for (const ContentType type : {ContentType::kHtml, ContentType::kCss,
+                                 ContentType::kJs, ContentType::kImage}) {
+    const ServeStats::SplitCounters s = ReadServeSplit(stats, type);
+    EXPECT_EQ(s.original_bytes, 0u);
+    EXPECT_EQ(s.compressed_original_bytes, 0u);
+    EXPECT_EQ(s.optimized_bytes, 0u);
+  }
+  CloseServeStats(stats);
+}
+
 TEST_F(ServeStatsTest, AtomicIncrement) {
   ServeStats* stats = CreateServeStats(path_);
   ASSERT_NE(stats, nullptr);
@@ -445,9 +530,11 @@ TEST_F(ServeStatsTest, StructSize) {
   EXPECT_EQ(ServeStats::kVersion, 11u);
   // The exact size is pinned in the header too; asserted here so the failure
   // names the surface rather than a translation unit.
-  EXPECT_EQ(sizeof(ServeStats), 11496u);
+  // 11496 through v11, plus the 96-byte split block appended after boot_id
+  // without a version bump.
+  EXPECT_EQ(sizeof(ServeStats), 11592u);
   EXPECT_EQ(sizeof(ServeStats::HostSlot), 168u);
-  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4888u)
+  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4792u)
       << "headroom shrank: the next append may need a kFileSize bump";
 }
 

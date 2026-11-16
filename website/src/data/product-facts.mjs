@@ -67,14 +67,14 @@ export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 // /api/product.json describe. Prices are in euro, per year, excl. VAT
 // (prices are listed in EUR; checkout runs on FastSpring); the first-response target
 // of each tier is the last entry of its `includes`.
-//   servers     the production-server band the tier covers (one organization's
-//               production deployment)
+//   scope       what the tier covers: people and response, never a count of
+//               servers or installations
 //   prices      annualEur is the yearly price; from marks "from" pricing;
 //               monthlyEur stays null (annual billing only)
 //   includes    what the tier adds, in display order; the first entry of a
 //               higher tier names the tier it builds on
-//   hardened    whether the private package repository is live; false until
-//               it exists (it is being set up)
+//   hardened    always false: there are no subscriber-only builds; the
+//               software and its signed packages are the same for everyone
 //   cta         where the tier's button goes: a hosted checkout page for
 //               Standard and Priority, the contact form for Enterprise;
 //               offer is the umami cta_commercial offer value
@@ -84,7 +84,7 @@ export const SUPPORT_TIERS = [
     name: 'Standard support',
     kind: 'support',
     hardened: false,
-    servers: 'up to 5 production servers',
+    scope: 'one organization, 1 person',
     prices: { annualEur: 490, from: false, monthlyEur: null },
     cta: {
       href: 'https://mpspro.onfastspring.com/support-standard-annual',
@@ -92,7 +92,7 @@ export const SUPPORT_TIERS = [
       offer: 'buy-standard',
       external: true,
     },
-    note: 'a direct channel to the engineers who build the product, for up to 5 production servers',
+    note: 'a direct channel to the engineers who build the product, for one organization and one person at your organization who can open tickets',
     includes: [
       'Ticket and email channel to the engineers who build the product',
       'Configuration, upgrade and incident help',
@@ -106,7 +106,7 @@ export const SUPPORT_TIERS = [
     name: 'Priority support',
     kind: 'support',
     hardened: false,
-    servers: 'up to 25 production servers',
+    scope: 'one organization, up to 3 people',
     prices: { annualEur: 1900, from: false, monthlyEur: null },
     cta: {
       href: 'https://mpspro.onfastspring.com/support-priority-annual',
@@ -114,13 +114,13 @@ export const SUPPORT_TIERS = [
       offer: 'buy-priority',
       external: true,
     },
-    note: 'everything in Standard plus a private package repository (being set up), for up to 25 production servers',
+    note: 'everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for one organization and up to 3 people at it who can open tickets, with faster first-response targets',
     includes: [
       'Everything in Standard',
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
+      'Up to 3 people at your organization who can open tickets',
       'Upgrade rehearsal on request',
       'Quarterly review call',
-      'Release SBOM and VEX on request',
       'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
@@ -129,7 +129,7 @@ export const SUPPORT_TIERS = [
     name: 'Enterprise',
     kind: 'support',
     hardened: false,
-    servers: 'unlimited servers and sites, one organization',
+    scope: 'one organization, people as agreed',
     prices: { annualEur: 7500, from: true, monthlyEur: null },
     cta: {
       href: '/contact/?topic=enterprise',
@@ -137,22 +137,23 @@ export const SUPPORT_TIERS = [
       offer: 'enterprise',
       external: false,
     },
-    note: 'everything in Priority plus a named engineer, custom build targets and backports, for unlimited servers and sites in one organization',
+    note: 'everything in Priority plus a named engineer, response targets per agreement, custom build targets and backports, for one organization and the people at it agreed in your order',
     includes: [
       'Everything in Priority',
       'A named engineer',
-      'Custom build targets (distributions, nginx versions)',
-      'Backports',
+      'People at your organization who can open tickets, as agreed',
+      'Custom build targets (distributions, nginx versions), published for everyone',
+      'Backports, published for everyone',
       'Master agreement, purchase order and invoice',
       'Roadmap input and consulting days',
       'Severity 1 (production down) within 4 business hours; other severities per agreement',
     ],
   },
 ];
-// The line under the tier cards: the private repository is not a checkmark
-// until it exists, and what is signed and attested is not a tier feature.
-export const PRIVATE_REPO_LINE =
-  'A private package repository for Priority and Enterprise subscribers is being set up. Every signature and attestation is the same for every user, with or without a subscription.';
+// The line under the tier cards: what is signed and attested is not a tier
+// feature; security fixes reach everyone at the same time.
+export const SAME_SOFTWARE_LINE =
+  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription, on every server. Security fixes reach every user at the same time. A build or backport made for an Enterprise customer is published for everyone when it is delivered.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
@@ -171,10 +172,9 @@ export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))
 // GitHub release assets carry no signature, only SHA256SUMS), the
 // Authenticode-signed Windows installer, cosign-signed container images with
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
-// OpenVEX file. No surface may claim a per-release SBOM/VEX on the release
-// assets or provenance on packages; release SBOM and VEX are available on
-// request. The private package repository for Priority and Enterprise is being
-// set up; say so, never that it exists.
+// OpenVEX file; every release from 2.6.0 on also carries its SPDX SBOM and
+// VEX file, for everyone. No surface may claim provenance on packages. There is no private or subscriber package repository: security
+// fixes ship to everyone at once through the public channels.
 // Signing keys. Each entry copies its fields verbatim from the internal
 // signing-key register, the source of truth for keys (id, name, status,
 // purpose, fingerprint, public_url), so this block can later be generated
@@ -229,7 +229,7 @@ export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
   hardenedBuilds: 'not-offered',
   hardenedPricing: 'not-offered',
-  privateRepository: 'being-set-up',
+  privateRepository: 'not-offered',
 };
 // The support ladder as markdown bullets and one line, with each tier's yearly
 // price (pure helpers — see the purity rule below).
@@ -494,14 +494,21 @@ export const PKG_OPTIMIZER = 'pagespeed-optimizer'; // the optimizer worker
 // (X-Mod-Pagespeed on Apache, X-Page-Speed on nginx), which is what the
 // homepage quick-start shows. Bump it when new module packages are published;
 // test/sync/module-package-version.test.ts compares it with the live index.
-export const MODULE_PACKAGE_VERSION = '2.7.0';
+export const MODULE_PACKAGE_VERSION = '2.8.2';
 
 // --- NuGet packages ---------------------------------------------------------
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
-export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // mod_pagespeed 1.15 sidecar
+export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // the current module, run behind Kestrel
 export const PKG_SIDECAR_NATIVE = 'WeAmp.PageSpeed.Sidecar.NativeAssets.Linux';
-export const SIDECAR_VERSION = '1.17.0'; // WeAmp.PageSpeed.Sidecar package version on nuget.org (follows the module packages)
-export const SIDECAR_NGINX_VERSION = '1.30.4'; // nginx bundled inside the sidecar package (its nuspec release notes)
+// From 2.6.0 on the sidecar packages carry the product version and ship with
+// every full release (release-notes-2-6.mdx, release-notes-2-8.mdx), so the
+// package version is the release version in the release manifest.
+// Its own literal: a module-only release moves MODULE_PACKAGE_VERSION but not the NuGet packages.
+export const SIDECAR_VERSION = '2.8.1'; // WeAmp.PageSpeed.Sidecar package version on nuget.org
+// nginx bundled in the sidecar native pair: the bundled nginx of the release,
+// docker/nginx-version.txt (release-notes-2-5.mdx: 1.30.6 covers the
+// container images and the sidecar native pair).
+export const SIDECAR_NGINX_VERSION = '1.30.6';
 export const SIDECAR_RIDS = ['linux-x64', 'linux-arm64'];
 export const ASPNETCORE_RIDS = ['linux-x64', 'linux-arm64', 'osx-arm64', 'win-x64'];
 // Target frameworks the ASP.NET Core middleware ships for.
@@ -521,22 +528,92 @@ export const STOCK_NGINX_ALMA = '1.20.1'; // AlmaLinux 9 (rpm/Apache target)
 
 // The signed apt matrix for nginx-module-pagespeed (Debian + Ubuntu), each row
 // pinned to the distro's stock nginx. Order is the install-doc display order.
-// Debian 11 (bullseye) is deliberately absent: the repository's bullseye
-// suite tops out at the final 1.15.0 module packages (glibc 2.34, needed by
-// the 2.1 serving components, is not available there) — see
-// migrating-to-2-1.md's Debian 11 platform note and release-notes.mdx's
+// Debian 11 (bullseye) is deliberately absent: it is end of life and no
+// longer supported, and the repository's bullseye suite carries no packages
+// (glibc 2.34, needed by the serving components, is not available there) — see
+// migrate-from-1-15.md's Debian 11 platform note and release-notes.mdx's
 // current-release operator note.
 export const NGINX_APT_DISTROS = [
   { distro: 'Debian 12 bookworm', nginx: '1.22.1' },
   { distro: 'Debian 13 trixie', nginx: '1.26.3' },
   { distro: 'Ubuntu 22.04 jammy', nginx: '1.18.0' },
   { distro: 'Ubuntu 24.04 noble', nginx: STOCK_NGINX_UBUNTU },
+  { distro: 'Ubuntu 26.04 resolute', nginx: '1.28.3' },
 ];
 export const NGINX_APT_ARCHES = 'amd64 + arm64';
 // Compact prose listing of the prebuilt apt matrix, e.g.
-// "Debian 11 bullseye (nginx 1.18.0), Debian 12 bookworm (nginx 1.22.1), …".
+// "Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), …".
 const aptMatrix = (rows) => rows.map((d) => `${d.distro} (nginx ${d.nginx})`).join(', ');
 export const NGINX_APT_MATRIX = /* @__PURE__ */ aptMatrix(NGINX_APT_DISTROS);
+
+// The Enterprise Linux releases of nginx-module-pagespeed in the signed yum
+// repository (release-notes-2-8.mdx, 2.8.0 Packages: x86_64 and aarch64 on 9,
+// x86_64 only on 10). `nginx` is the stock nginx the el9 build is pinned to.
+export const NGINX_RPM_DISTROS = [
+  { release: '9', family: 'el9', arches: 'x86_64 + aarch64', nginx: STOCK_NGINX_ALMA },
+  { release: '10', family: 'el10', arches: 'x86_64', nginx: null },
+];
+
+// Platform lists for install blurbs, derived from the two tables above so
+// every page names the same releases. "Debian 12/13, Ubuntu 22.04/24.04/26.04".
+const splitDistro = (row) => {
+  const [name, version, codename] = row.distro.split(' ');
+  return { name, version, codename };
+};
+const aptByName = (rows) => {
+  /** @type {Map<string, string[]>} */
+  const byName = new Map();
+  for (const row of rows) {
+    const { name, version } = splitDistro(row);
+    byName.set(name, [...(byName.get(name) ?? []), version]);
+  }
+  return [...byName];
+};
+const joinAnd = (items) =>
+  items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+const aptShort = (rows, space) =>
+  aptByName(rows)
+    .map(([name, versions]) => `${name}${space}${versions.join('/')}`)
+    .join(', ');
+const rpmShort = (rows) => joinAnd(rows.map((r) => `${r.release} (${r.arches})`));
+/** "Debian 12/13, Ubuntu 22.04/24.04/26.04" (plain spaces). */
+export const NGINX_APT_SHORT = /* @__PURE__ */ aptShort(NGINX_APT_DISTROS, ' ');
+/** The same with non-breaking spaces between a distribution and its versions. */
+export const NGINX_APT_SHORT_NBSP = /* @__PURE__ */ aptShort(NGINX_APT_DISTROS, '\u00a0');
+/** "9 (x86_64 + aarch64) and 10 (x86_64)" */
+export const NGINX_RPM_SHORT = /* @__PURE__ */ rpmShort(NGINX_RPM_DISTROS);
+/** "Debian 12 and 13 and Ubuntu 22.04, 24.04 and 26.04" */
+export const NGINX_APT_PROSE = /* @__PURE__ */ aptByName(NGINX_APT_DISTROS)
+  .map(([name, versions]) => `${name} ${joinAnd(versions)}`)
+  .join(' and ');
+// The Apache module (mod-pagespeed) ships in the same apt suites and EL
+// releases as the nginx module (the apt index serves mod-pagespeed in every
+// suite of NGINX_APT_DISTROS), so the lists below are shared by both modules.
+/** "Debian 12/13, Ubuntu 22.04/24.04/26.04" for either module. */
+export const MODULE_APT_SHORT = NGINX_APT_SHORT;
+/** One row per supported release of the Apache module, for a bullet list. */
+export const APACHE_PLATFORM_ROWS = /* @__PURE__ */ [
+  ...NGINX_APT_DISTROS.map((row) => {
+    const { name, version, codename } = splitDistro(row);
+    return `${name} ${version} (${codename}), ${NGINX_APT_ARCHES}`;
+  }),
+  ...NGINX_RPM_DISTROS.map(
+    (r) =>
+      `AlmaLinux ${r.release} / RHEL ${r.release} / Rocky ${r.release} (${r.family}), ${r.arches}`,
+  ),
+];
+/** One row per supported release, for a bullet list. */
+export const NGINX_PLATFORM_ROWS = /* @__PURE__ */ [
+  ...NGINX_APT_DISTROS.map((row) => {
+    const { name, version, codename } = splitDistro(row);
+    return `${name} ${version} (${codename}), ${NGINX_APT_ARCHES}, stock nginx ${row.nginx}`;
+  }),
+  ...NGINX_RPM_DISTROS.map(
+    (r) =>
+      `AlmaLinux ${r.release} / RHEL ${r.release} / Rocky ${r.release} (${r.family}), ${r.arches}` +
+      (r.nginx ? `, stock nginx ${r.nginx}` : ''),
+  ),
+];
 
 // --- Software license -------------------------------------------------------
 // Single source of truth for the license the software is distributed under,

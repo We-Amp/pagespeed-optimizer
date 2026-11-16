@@ -35,7 +35,9 @@ struct OriginCacheControl {
 // RFC 9111 §5.2.2.7, which restricts only the named fields, and a consumer
 // that acts destructively on the directive must not treat it as blanket.
 // The test is the presence of `=`, not a non-empty argument, because the
-// grammar permits an empty field-name list.
+// grammar permits an empty field-name list.  A second `s-maxage` (in the same
+// line or a later one) also sets kCCOriginSMaxageRepeated; the value kept is
+// still the last one.
 //
 // Exported on the C ABI as `ps_parse_cache_control`, so an embedder stamps the
 // same flags into a stored entry as the engine's own reader expects to find
@@ -58,8 +60,8 @@ void AccumulateOriginCacheControl(std::string_view header_value,
                                   OriginCacheControl* out);
 
 // Parse a Cache-Control delta-seconds argument, saturating at UINT32_MAX.
-// Leading SP and a surrounding pair of double quotes are tolerated (both
-// occur in the wild); anything non-numeric after that yields 0, which is
+// Surrounding optional whitespace and a surrounding pair of double quotes are
+// tolerated (both occur in the wild); anything non-numeric after that yields 0, which is
 // how a malformed lifetime becomes "no lifetime" rather than a huge one.
 uint32_t ParseCacheControlSeconds(std::string_view value);
 

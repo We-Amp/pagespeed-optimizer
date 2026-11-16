@@ -56,6 +56,12 @@ class AnalysisQueue {
     // (not the structural hash) so distinct URLs sharing a template don't
     // starve each other in the queue's per-key dedup.
     bool force_agent_render = false;
+    // The notification's site and sender bits (wire v6), carried with the
+    // work. Every cache read and write for this item uses `site`; the agent
+    // render, which fetches from `hostname`, runs only when `host_vouched`.
+    std::string site;
+    bool host_vouched = false;
+    bool from_module = false;
   };
 
   explicit AnalysisQueue(size_t max_size = 1000);

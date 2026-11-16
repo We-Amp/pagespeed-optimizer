@@ -209,7 +209,7 @@
       "name": "--no-async-css",
       "arg": null,
       "default": null,
-      "description": "Disable async CSS loading (keep stylesheets render-blocking)",
+      "description": "Disable async CSS loading (keep stylesheets render-blocking and inline no above-the-fold CSS)",
       "section": "Options",
       "platform": null
     },
@@ -264,24 +264,24 @@
     {
       "name": "--denoise-threshold",
       "arg": "LEVEL",
-      "default": "0.3",
-      "description": "Noise level threshold 0.0-1.0 (default: 0.3, 0=disable)",
+      "default": null,
+      "description": "Deprecated and ignored (accepted so existing command lines keep working)",
       "section": "Options",
       "platform": null
     },
     {
       "name": "--denoise-sigma-spatial",
       "arg": "F",
-      "default": "3.0",
-      "description": "Bilateral filter spatial sigma, max 10.0 (default: 3.0)",
+      "default": null,
+      "description": "Deprecated and ignored",
       "section": "Options",
       "platform": null
     },
     {
       "name": "--denoise-sigma-range",
       "arg": "F",
-      "default": "25.0",
-      "description": "Bilateral filter range sigma (default: 25.0)",
+      "default": null,
+      "description": "Deprecated and ignored",
       "section": "Options",
       "platform": null
     },
@@ -923,6 +923,46 @@
       "default": null,
       "description": "opt-in verified-crawl counter (experimental): off (default) | private | public. Enabling a non-off mode publishes a discoverable marker at /.well-known/webbotauth-counter. The exact doc is gated by the PAGESPEED_WEB_BOT_AUTH_COUNTER_TOKEN env bearer token.",
       "section": "Web Bot Auth (observe-only — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-enforcement",
+      "arg": null,
+      "default": null,
+      "description": "Validate Authorization: License capability tokens and answer 401, 402 or pass (status codes only; never settles or meters payment)",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-key-directory",
+      "arg": "URL",
+      "default": null,
+      "description": "https JWKS key-directory URL of a token issuer to warm-fetch periodically (repeatable)",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-requested-license",
+      "arg": "ID",
+      "default": null,
+      "description": "License id a token must grant (empty: every valid token is refused with 402)",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-requested-scope",
+      "arg": "SCOPE",
+      "default": null,
+      "description": "Scope a token must grant (empty: every valid token is refused with 402)",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
+      "name": "--rsl-cap-issuer",
+      "arg": "ISSUER",
+      "default": null,
+      "description": "Accept tokens from this issuer only; others are rejected as an unknown issuer (401). Empty: any issuer in the key directories",
+      "section": "RSL-CAP Enforcement (EXPERIMENTAL — off by default)",
       "platform": null
     },
     {

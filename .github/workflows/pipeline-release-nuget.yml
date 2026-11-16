@@ -104,7 +104,8 @@ permissions:
 jobs:
   event-guard:
     name: Event guard (refuses merge_group, unexpected events, refs and actors)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     steps:
       - name: Refuse events, refs and actors this pipeline must never run on
         env:
@@ -136,7 +137,8 @@ jobs:
   ref-guard:
     name: Ref guard
     needs: event-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       ref: ${{ steps.guard.outputs.ref }}
@@ -201,7 +203,8 @@ jobs:
   ci-release-gate:
     name: CI run of the release commit
     needs: ref-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 75
     # Reads the workflow runs of this public repository with the default
     # read-only token; no extra permission is requested. The script comes
@@ -228,7 +231,8 @@ jobs:
   vendor:
     name: Vendor Dependencies
     needs: ref-guard
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 30
     env:
@@ -333,7 +337,8 @@ jobs:
     name: Vendor Dependencies (hosted)
     needs: ref-guard
     if: ${{ vars.FLEET_ENABLED != 'true' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
@@ -350,7 +355,8 @@ jobs:
   security-gates:
     name: Security Gates (SBOM + Grype + VEX)
     needs: ref-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       GRYPE_FAIL_ON: ${{ inputs.grype_severity || 'medium' }}
@@ -427,7 +433,8 @@ jobs:
   linux-release-build:
     name: Linux Release Build
     needs: [ref-guard, vendor]
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 90
     env: &linux-x64-env
@@ -471,7 +478,17 @@ jobs:
       - name: Remote cache settings
         run: |
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            echo "DOCKER_CACHE_HOST_ARG=--add-host=bazel-remote-cache:${BAZEL_CACHE_HOST}" >> "$GITHUB_ENV"
+            # The cache alias plus the optional credentials mount; every flag is one
+            # word, so the joined string is expanded unquoted by the docker run steps.
+            # A tag cut before the helper existed has no such file: the cache alias alone.
+            CACHE_ARGS=()
+            if [ -f "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh" ]; then
+              source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+              remote_cache_docker_args CACHE_ARGS
+            else
+              CACHE_ARGS+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")  # predates remote-cache-docker-args.sh
+            fi
+            echo "DOCKER_CACHE_HOST_ARG=${CACHE_ARGS[*]}" >> "$GITHUB_ENV"
             echo "BAZEL_CACHE_FLAG=" >> "$GITHUB_ENV"
             echo "using the remote Bazel cache from the runner environment"
           else
@@ -495,7 +512,7 @@ jobs:
           fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/release-artifacts"
-          docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
+          docker run --rm --init ${DOCKER_CACHE_HOST_ARG} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
@@ -539,7 +556,7 @@ jobs:
           fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/docker-artifacts"
-          docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
+          docker run --rm --init ${DOCKER_CACHE_HOST_ARG} \
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
@@ -581,7 +598,8 @@ jobs:
     name: Linux Release Build (hosted)
     needs: [ref-guard, vendor-hosted]
     if: ${{ vars.FLEET_ENABLED != 'true' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
     env: *linux-x64-env
     steps: *linux-build-steps
@@ -606,7 +624,8 @@ jobs:
   linux-release-tests:
     name: Linux Release Tests
     needs: [ref-guard, linux-release-build]
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 60
     env: *linux-x64-env
@@ -653,7 +672,13 @@ jobs:
           EXTRA_DOCKER=()
           CACHE_FLAG="--remote_cache="
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            # A tag cut before the helper existed has no such file: the cache alias alone.
+            if [ -f "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh" ]; then
+              source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+              remote_cache_docker_args EXTRA_DOCKER
+            else
+              EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")  # predates remote-cache-docker-args.sh
+            fi
             CACHE_FLAG=""
           fi
           docker run --rm --init ${EXTRA_DOCKER[@]+"${EXTRA_DOCKER[@]}"} \
@@ -681,7 +706,8 @@ jobs:
     name: Linux Release Tests (hosted)
     needs: [ref-guard, linux-release-build-hosted]
     if: ${{ vars.FLEET_ENABLED != 'true' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 300
     env: *linux-x64-env
     steps: *linux-test-steps
@@ -1218,7 +1244,8 @@ jobs:
   sidecar-pack:
     name: Sidecar packages (fetch, verify, test, pack)
     needs: ref-guard
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
       artifact: ${{ steps.pin.outputs.artifact }}
@@ -1449,7 +1476,8 @@ jobs:
       && needs.macos-release-tests.result == 'success'
       && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: release
     permissions:
@@ -1596,13 +1624,27 @@ jobs:
           name: ${{ needs.sidecar-pack.outputs.artifact }}
           path: samples/aspnetcore/nupkg
 
+      # The package checks come from main, never from the tree being released:
+      # an older tag does not carry the script. It is checked out just before
+      # its first use, after the steps that run the released tree's own code.
+      - name: Checkout main (package checks)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trust
+          sparse-checkout: |
+            tools/ci/nupkg_checks.sh
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - name: Expect seven packages
         run: |
           set -euo pipefail
           cd samples/aspnetcore/nupkg
           VERSION="${RELEASE_TAG#v}"
-          # The same script the publish rehearsal runs (docs/ci/release.md).
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" expect-seven . "$VERSION"
+          # The same script the publish rehearsal runs (docs/ci/release.md), taken
+          # from the trusted checkout of main.
+          "${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh" expect-seven . "$VERSION"
           # Only a dry run with a module release of another version carries the note
           # (a real run never resolves to one); it travels with the packages.
           if [ -s README-SIDECAR-PIN.txt ]; then
@@ -1617,14 +1659,14 @@ jobs:
       - name: Guard against wrong source-control metadata in the .nupkg files
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" metadata samples/aspnetcore/nupkg
+          "${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh" metadata samples/aspnetcore/nupkg
 
       # A failed SPA build or a drifted EmbedWebShell glob would ship an
       # empty console and every install would answer 503 for /console/.
       - name: Guard against shipping an empty /console/ SPA
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/tools/ci/nupkg_checks.sh" console-spa samples/aspnetcore/nupkg
+          "${GITHUB_WORKSPACE}/trust/tools/ci/nupkg_checks.sh" console-spa samples/aspnetcore/nupkg
 
       # Real runs only. A draft that already exists for the tag is reused
       # (an operator may have created it by hand); otherwise it is created.
@@ -1762,7 +1804,8 @@ jobs:
       && needs.macos-release-tests.result == 'success'
       && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env: *package-env
     steps: *package-steps
@@ -1774,7 +1817,8 @@ jobs:
     name: Sign SHA256SUMS
     needs: [ref-guard, package]
     if: ${{ !cancelled() && needs.package.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: release
     steps:
@@ -1834,7 +1878,8 @@ jobs:
     name: Attach SHA256SUMS.asc to the draft release
     needs: [ref-guard, sign-checksums]
     if: ${{ !cancelled() && needs.sign-checksums.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: write
@@ -1882,7 +1927,8 @@ jobs:
     name: Publish to nuget.org (Trusted Publishing)
     needs: [ref-guard, package, attach-signature]
     if: ${{ !cancelled() && needs.package.result == 'success' && needs.attach-signature.result == 'success' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: release
     permissions:
@@ -1932,7 +1978,8 @@ jobs:
     name: Promote draft to published GitHub release
     needs: [ref-guard, publish-nuget]
     if: ${{ !cancelled() && needs.publish-nuget.result == 'success' && inputs.auto_promote == true }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment: release
     permissions:

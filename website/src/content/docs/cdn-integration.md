@@ -3,7 +3,7 @@ title: 'Integrate with a CDN'
 description: 'Run mod_pagespeed behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.'
 order: 24
 group: 'Configure'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-11-15
 ---
 
 mod_pagespeed runs behind any CDN. The one thing to get right is how your CDN
@@ -52,6 +52,11 @@ capability classes that mod_pagespeed actually uses.
   visitor got and serves it to every device class.
 - **CSS/JS** is unaffected — it uses only `Vary: Accept-Encoding`, which CDNs
   handle well.
+
+The [safe cache mode](/docs/cache-modes/) limits the cost of low CDN hit rates:
+its short TTLs and ETag-based 304 revalidation keep the bandwidth overhead
+small. See [cache-control headers](/docs/cache-control/) for the TTL and
+revalidation directives behind this behavior.
 
 ## Image format and the Accept header {#image-format-negotiation}
 
@@ -136,6 +141,9 @@ If a non-browser client must receive the original format:
 
 ## Per-CDN recommendations
 
+Purge cached HTML in any CDN after upgrading. See
+[Hydrated pages](/docs/hydrated-pages/).
+
 ### Cloudflare
 
 Cloudflare does not key its cache on `Vary: Accept` or `Vary: User-Agent`
@@ -206,20 +214,39 @@ Downstream browser caches and ISP proxies handle `Vary: User-Agent` at the
 per-client level, which produces correct behavior since each client has a stable
 User-Agent.
 
-## Future directions
+## Behind a TLS terminator, load balancer or CDN {#behind-a-tls-terminator-load-balancer-or-cdn}
 
-We are evaluating these approaches to improve CDN compatibility:
+When a proxy in front of the server ends TLS, or a load balancer or CDN forwards requests to it over plain HTTP, the module sees an `http` request for a name that visitors know as `https`. Three things need attention: URLs that the module writes in absolute form come out with `http` (mixed-content warnings on an HTTPS page), the beacon is injected with its `http` address, and the CDN or load balancer has to route `.pagespeed.` requests to the right server.
 
-- **Configurable Vary strategy** — A directive to remove User-Agent from Vary
-  for operators behind CDNs that handle device classification themselves.
-- **Client Hints** — Using `Sec-CH-Mobile`, `Sec-CH-Viewport-Width`, and
-  `Sec-CH-DPR` instead of User-Agent parsing. Modern standard but not
-  universally supported yet.
-- **Custom capability header** — Emitting an `X-PS-Cap` header with the
-  normalized capability class, enabling CDN cache key customization.
+**1. Tell the module the visitor's scheme.** The module takes the scheme of a request from the connection, unless [`RespectXForwardedProto`](/docs/configuration/#respectxforwardedproto) is on and the request carries an `X-Forwarded-Proto` header, in which case the scheme in that header wins. The option is off by default. It reads the header on Apache and nginx and accepts only `http` and `https`; any other value is ignored and a warning is logged. It changes the scheme only: the module reads no other `X-Forwarded-*` header, so `X-Forwarded-Host` and `X-Forwarded-Port` do not rename the host or the port. The proxy must therefore pass the public name in the `Host` header.
 
-For now, the [safe cache mode](/docs/cache-modes/) mitigates the worst impact of
-CDN cache misses — even with low CDN hit rates, the short TTLs and ETag-based
-304 revalidation keep bandwidth overhead minimal. See
-[cache-control headers](/docs/cache-control/) for the TTL and revalidation
-directives behind this behavior.
+The proxy that terminates TLS sets the two headers (many load balancers and CDNs add `X-Forwarded-Proto` themselves; check what yours sends):
+
+```nginx
+# The nginx in front, which holds the certificate
+location / {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+and the server that runs the module trusts it:
+
+```nginx
+# nginx with the module
+pagespeed RespectXForwardedProto on;
+```
+
+```apache
+# Apache with the module
+ModPagespeedRespectXForwardedProto on
+```
+
+Have the proxy overwrite the header rather than append to it, and do not expose the module's port to clients: with the option on, a client that can reach the module directly can choose the scheme of the URLs it generates. With the option on, the module also picks the `https` address of [`BeaconUrl`](/docs/configuration/#beaconurl) for pages it sees as HTTPS; the default is one relative path for both schemes, which needs no change. `BeaconUrl` accepts one address or two separated by a space (the second is the `https` one); a single absolute `http:` address gets the same address with `https:` for HTTPS pages.
+
+**2. Check how the module fetches your resources.** The module downloads each CSS, JavaScript and image file it optimizes by its URL. For a host your configuration does not name, which is usually the case for the host a page was requested on, it sends that fetch to itself, on the port and scheme the request arrived on, with the public name kept in the `Host` header. The fetch therefore does not go back out through the load balancer, and needs no setup, as long as this server answers requests for that name on that port. A hostname you name in the configuration (with `Domain`, `MapOriginDomain` or `MapRewriteDomain`) is fetched by that name instead, through DNS and the network, so a CDN hostname is fetched from the CDN. Use [`MapOriginDomain`](/docs/domain-configuration/#maporigindomain) when the originals must come from somewhere other than that name, for example `pagespeed MapOriginDomain 127.0.0.1:8080 static.example.com;` (Apache: `ModPagespeedMapOriginDomain`) to fetch `static.example.com` from a local server. Rewritten URLs in the HTML still name `static.example.com`; only the fetch target changes. [`LoadFromFile`](/docs/configuration/#loadfromfile) reads files from disk and needs no fetch. For `https` origins see [HTTPS configuration](/docs/https-configuration/).
+
+**3. Send `.pagespeed.` requests to the server that runs the module.** When you serve resources from a CDN hostname with [`MapRewriteDomain`](/docs/domain-configuration/#maprewritedomain), that hostname's origin must be the server that runs the module, because only the module can answer a `.pagespeed.` request. A CDN that pulls from a separate storage bucket gets a 404 for them (see [Why does a `.pagespeed.` URL return 404?](/docs/troubleshooting/#optimized-resources-return-404)). Authorize the CDN hostname with [`Domain`](/docs/configuration/#domain) so that the module may fetch and rewrite the resources named under it.
+
+**Caching the HTML in front of the module.** The module sends HTML so that shared caches do not keep it. If a CDN or cache in front is meant to store rewritten HTML, read [Downstream caching with nginx proxy_cache and Varnish](/docs/downstream-caching/) first: it explains how to key the cache and how the module purges stale pages. For images behind a CDN, key on the normalized `Accept` header as described [above](#image-format-negotiation).

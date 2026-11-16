@@ -7,12 +7,16 @@ cc_binary(
     name = "seed_test_cache",
     srcs = ["seed-test-cache.cc"],
     deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:origin_cache_control",
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",
         "//lib/classify:capability_mask",
         "//lib/classify:content_type",
+        "//src/nginx:site_identity",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/flags:parse",
+        "@com_google_absl//absl/strings",
     ],
 )

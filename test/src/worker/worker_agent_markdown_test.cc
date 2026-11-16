@@ -16,10 +16,12 @@
 #include "test/src/worker/worker_test_fixture.h"
 // clang-format on
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
@@ -30,6 +32,8 @@
 #include "lib/classify/capability_mask.h"
 #include "src/proto/worker_ipc.h"
 #include "src/worker/browser_analysis_manager.h"
+#include "src/worker/browser_analysis_manager_internal.h"
+#include "src/worker/html_scanner.h"
 #include "src/worker/worker.h"
 #include "test/test_util/worker_quiescence.h"
 
@@ -84,6 +88,8 @@ TEST_F(WorkerTest, ContentHashIdempotency_OptimizedIdentityDoesNotSelfPurge) {
   // alternate_write_failures + errors in lockstep (the live prod bug).
   WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -104,13 +110,12 @@ TEST_F(WorkerTest, ContentHashIdempotency_OptimizedIdentityDoesNotSelfPurge) {
 
   // First notification: worker writes the optimized identity + sentinel.
   SendNotification(notification);
-  std::string variant;
-  for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    variant = ReadVariant(worker.cache(), cache_url, opt_mask);
-    if (worker.stats().html_assembly_complete.load() >= 1 && !variant.empty())
-      break;
-  }
+  // Wait for the first work item to retire: the variant appearing is not
+  // enough, because the URL stays marked in flight until the item is done and
+  // the repeat below would be turned away.
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  std::string variant = ReadVariant(worker.cache(), cache_url, opt_mask);
   ASSERT_FALSE(variant.empty()) << "First HTML variant not written";
   // Sanity: the identity slot now carries the worker-processed optimized
   // bytes (this is what the 2nd read re-hashes, exposing the bug).
@@ -129,16 +134,17 @@ TEST_F(WorkerTest, ContentHashIdempotency_OptimizedIdentityDoesNotSelfPurge) {
   // optimized slot 0x08 — WITHOUT re-writing raw.
   worker.ClearDedupAndCooldown(notification_url, "", "https");
   SendNotification(notification);
-  // Give the 2nd notification time to run to completion.
-  for (int i = 0; i < 30 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().notifications_received.load() >= 2 &&
-        worker.stats().notifications_skipped_dedup.load() == 0) {
-      // Allow the worker thread to fully finish processing.
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
-      break;
-    }
-  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  // The assertions below only mean something if the repeat was actually
+  // processed: a notification turned away (in flight, or deduplicated) leaves
+  // every counter they check unchanged.
+  ASSERT_EQ(worker.stats().notifications_skipped_inflight.load(), 0u)
+      << "repeat notification was rejected as already in flight";
+  ASSERT_EQ(worker.stats().notifications_skipped_dedup.load(), 0u)
+      << "repeat notification was skipped as a duplicate";
+  ASSERT_EQ(worker.stats().html_processed.load(), 2u)
+      << "repeat notification was not processed";
 
   EXPECT_EQ(worker.stats().content_hash_stale.load(), chs_before)
       << "No origin change: must NOT self-purge (content_hash_stale stable)";
@@ -227,6 +233,8 @@ TEST_F(WorkerTest, AgentMarkdownStaysServedAcrossReprocess) {
   // serve gate refuses (NotFound) and HTML is served instead.
   WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -248,13 +256,12 @@ TEST_F(WorkerTest, AgentMarkdownStaysServedAcrossReprocess) {
   // First notification: worker writes optimized identity + the kContentHash
   // sentinel = SHA256(raw).
   SendNotification(notification);
-  std::string variant;
-  for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    variant = ReadVariant(worker.cache(), cache_url, opt_mask);
-    if (worker.stats().html_assembly_complete.load() >= 1 && !variant.empty())
-      break;
-  }
+  // Wait for the first work item to retire: the variant appearing is not
+  // enough, because the URL stays marked in flight until the item is done and
+  // the repeat below would be turned away.
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  std::string variant = ReadVariant(worker.cache(), cache_url, opt_mask);
   ASSERT_FALSE(variant.empty()) << "First HTML variant not written";
 
   // Read the live kContentHash sentinel (SHA256 of the raw origin HTML) and
@@ -293,14 +300,17 @@ TEST_F(WorkerTest, AgentMarkdownStaysServedAcrossReprocess) {
   // Re-process WITHOUT an origin change.
   worker.ClearDedupAndCooldown(notification_url, "", "https");
   SendNotification(notification);
-  for (int i = 0; i < 30 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().notifications_received.load() >= 2 &&
-        worker.stats().notifications_skipped_dedup.load() == 0) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(200));
-      break;
-    }
-  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  // The assertions below only mean something if the repeat was actually
+  // processed: a notification turned away (in flight, or deduplicated) leaves
+  // every counter they check unchanged.
+  ASSERT_EQ(worker.stats().notifications_skipped_inflight.load(), 0u)
+      << "repeat notification was rejected as already in flight";
+  ASSERT_EQ(worker.stats().notifications_skipped_dedup.load(), 0u)
+      << "repeat notification was skipped as a duplicate";
+  ASSERT_EQ(worker.stats().html_processed.load(), 2u)
+      << "repeat notification was not processed";
 
   // The markdown variant must STILL exist and STILL be servable — meaning the
   // live sentinel was NOT rewritten to an optimized-content hash.
@@ -509,6 +519,8 @@ TEST_F(WorkerTest, AgentMarkdownWorkerProcessedIdentityPurgesConservatively) {
   // that would falsely preserve here.
   WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -645,6 +657,8 @@ TEST_F(WorkerTest, ContentHashStaleSelfPurgeCountsAsFencedNotFailure) {
   // write_failures==content_hash_stale==errors that false-alarms the dashboard).
   WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -714,6 +728,199 @@ TEST_F(WorkerTest, ContentHashStaleSelfPurgeCountsAsFencedNotFailure) {
       << "A benign purge-fence must NOT count as a hard write failure";
   EXPECT_EQ(worker.stats().errors.load(), err_before)
       << "A benign purge-fence must NOT increment errors";
+}
+
+// An origin-refreshed sentinel that arrives while another notification for the
+// same URL is being processed must not be lost: forced reloads send it once,
+// and nothing resends it.  Both frames go out in one write, so the sentinel is
+// dispatched before the first item can finish.
+TEST_F(WorkerTest, OriginRefreshedSentinelDuringInFlightNotificationIsKept) {
+  WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
+  NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  CacheOriginal(worker.cache(), "/held.html", kAgentHtml);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+
+  CapabilityMask opt_mask;
+  CacheNotification notification;
+  notification.url = "http://example.com/held.html";
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = opt_mask.Encode();
+  CacheNotification refresh = notification;
+  refresh.capability_mask = kOriginRefreshedSentinel;
+
+  std::vector<char> frames = notification.Serialize();
+  const std::vector<char> second = refresh.Serialize();
+  frames.insert(frames.end(), second.begin(), second.end());
+  SendRawNotificationBytes(frames);
+
+  // The held sentinel is dispatched again as a notification of its own when
+  // the first item retires, so wait for the worker to go quiet after both.
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  ASSERT_EQ(worker.stats().html_processed.load(), 1u);
+  ASSERT_EQ(worker.stats().notifications_skipped_inflight.load(), 1u)
+      << "the sentinel was expected to meet the in-flight guard";
+
+  const WorkerStats& s = worker.stats();
+  const uint64_t handled =
+      s.origin_refresh_purges.load() + s.origin_refresh_unchanged.load() +
+      s.origin_refresh_deferred.load() + s.origin_refresh_rate_limited.load() +
+      s.origin_refresh_rebuild_refused.load();
+  EXPECT_GE(handled, 1u)
+      << "origin-refreshed sentinel was dropped while a notification for the "
+         "same URL was in flight";
+}
+
+// =============================================================================
+// Agent render and /llms.txt need a sender that vouched for the host
+// =============================================================================
+
+namespace {
+
+// Seeds a profile for `html`'s template so the worker takes the warm-template
+// branch, where an agent request queues a per-URL render.
+void SeedProfileFor(Worker& worker, const std::string& url,
+                    const std::string& html) {
+  HtmlScanner scanner;
+  HtmlScanResult scan = scanner.Scan(url, html);
+  ASSERT_TRUE(scan.success);
+  OptimizationProfile profile;
+  profile.template_hash_hex = "feed";
+  profile.analyzed_url = url;
+  profile.expires_at = 0;
+  worker.TestBrowserManager()->TestStoreProfile(
+      TemplateDetector::HashStructure(scan), profile);
+}
+
+CacheNotification AgentHtmlNotification(const std::string& url,
+                                        bool host_vouched) {
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kHtml;
+  n.capability_mask = CapabilityMask().Encode();
+  n.agent_request = true;
+  n.host_vouched = host_vouched;
+  return n;
+}
+
+}  // namespace
+
+TEST_F(WorkerTest, UnvouchedHtmlQueuesNoAgentRenderAndIsStillOptimized) {
+  WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string url = "http://example.com/unvouched.html";
+  CacheOriginal(worker.cache(), "/unvouched.html", kAgentHtml);
+  SeedProfileFor(worker, url, kAgentHtml);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  SendNotification(AgentHtmlNotification(url, /*host_vouched=*/false));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_FALSE(worker.TestBrowserManager()->TestDequeue().has_value())
+      << "no agent render was queued for an unvouched host";
+  EXPECT_EQ(worker.stats().notifications_unvouched_render_skipped.load(), 1u);
+  // The HTML pass still ran: the identity was rewritten, or, when the pass
+  // changed nothing (an unconfirmed profile keeps the stylesheet
+  // render-blocking and inlines no block), stamped with its source hash.
+  auto identity =
+      ReadVariantWithMeta(worker.cache(), "/unvouched.html", CapabilityMask());
+  ASSERT_TRUE(identity.has_value());
+  const bool rewritten =
+      (identity->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) != 0;
+  bool stamped = false;
+  for (std::byte b : identity->metadata.origin_html_hash) {
+    stamped = stamped || b != std::byte{0};
+  }
+  EXPECT_TRUE(rewritten || stamped) << "the page itself was still optimized";
+}
+
+TEST_F(WorkerTest, VouchedHtmlStillQueuesTheAgentRender) {
+  WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string url = "http://example.com/vouched.html";
+  CacheOriginal(worker.cache(), "/vouched.html", kAgentHtml);
+  SeedProfileFor(worker, url, kAgentHtml);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  SendNotification(AgentHtmlNotification(url, /*host_vouched=*/true));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  auto item = worker.TestBrowserManager()->TestDequeue();
+  ASSERT_TRUE(item.has_value());
+  EXPECT_TRUE(item->force_agent_render);
+  EXPECT_TRUE(item->host_vouched);
+  EXPECT_EQ(worker.stats().notifications_unvouched_render_skipped.load(), 0u);
+}
+
+TEST_F(WorkerTest, AnalysisOfAnUnvouchedPageMayNotRunTheAgentRender) {
+  AnalysisQueue::Item item;
+  item.url = "http://example.com/p.html";
+  item.hostname = "example.com";
+  item.host_vouched = false;
+  EXPECT_FALSE(browser_internal::MayRunAgentRender(item, true, true));
+  item.host_vouched = true;
+  EXPECT_TRUE(browser_internal::MayRunAgentRender(item, true, true));
+  EXPECT_FALSE(browser_internal::MayRunAgentRender(item, false, true));
+  EXPECT_FALSE(browser_internal::MayRunAgentRender(item, true, false));
+}
+
+TEST_F(WorkerTest, UnvouchedLlmsTxtRequestStartsNoBuild) {
+  WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
+  config.browser_analysis.agent_optimize_llms_txt = true;
+  WarningRecordingHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  // An empty hostname: had the build started, it would stop at its first
+  // check, before any fetch, and say so.
+  CacheNotification n;
+  n.url = "/llms.txt";
+  n.scheme = "https";
+  n.content_type = ContentType::kOther;
+  n.capability_mask = kLlmsTxtSentinel;
+  n.host_vouched = false;
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().notifications_unvouched_render_skipped.load(), 1u);
+  for (const std::string& w : handler.warnings()) {
+    EXPECT_EQ(w.find("llms.txt: empty hostname"), std::string::npos)
+        << "the build started: " << w;
+  }
+
+  // The same request, vouched, reaches the build as before.
+  n.host_vouched = true;
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().notifications_unvouched_render_skipped.load(), 1u);
+  bool reached = false;
+  for (const std::string& w : handler.warnings()) {
+    reached |= w.find("llms.txt: empty hostname") != std::string::npos;
+  }
+  EXPECT_TRUE(reached) << "the vouched request reaches the build";
 }
 
 }  // namespace

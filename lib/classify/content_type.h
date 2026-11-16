@@ -33,6 +33,12 @@ enum class ContentType : uint8_t {
 //   ""                             -> kOther
 ContentType ClassifyContentType(std::string_view content_type_header);
 
+// True only when the media type of a Content-Type header value is exactly
+// `text/html` (ASCII case-insensitive, parameters such as charset ignored).
+// Unlike ClassifyContentType, which files application/xhtml+xml under kHtml
+// too, this tells an HTML document from an XHTML one. "" -> false.
+bool IsTextHtmlMediaType(std::string_view content_type_header);
+
 // Return the canonical MIME string for a ContentType.
 // Returns "application/octet-stream" for kOther.
 std::string_view ContentTypeMime(ContentType type);

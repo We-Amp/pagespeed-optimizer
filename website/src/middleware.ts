@@ -53,8 +53,15 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   // 0b. The styled error pages live at the extensionless /404 and /500 routes.
   // A literal request to the trailing-slash variant doesn't match the special
   // error route and falls through to the 404 page; redirect it to the canonical
-  // no-slash URL so /500/ serves the real 500 page.
-  if (pathname === '/500/' || pathname === '/404/') {
+  // no-slash URL so /500/ serves the real 500 page. The build prerenders the
+  // error pages under the trailing-slash path, so the rule must not run then:
+  // it would write a redirect stub into 404.html and 500.html instead of the
+  // pages, and the built server would answer every miss with that stub. The dev
+  // server marks these routes as prerendered too, so check for dev explicitly.
+  if (
+    (import.meta.env.DEV || !context.isPrerendered) &&
+    (pathname === '/500/' || pathname === '/404/')
+  ) {
     return context.redirect(pathname.replace(/\/$/, ''), 301);
   }
 

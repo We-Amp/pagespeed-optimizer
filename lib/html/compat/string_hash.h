@@ -12,12 +12,17 @@
 // affect output; matching canonical anyway keeps future ports trivial.
 // CaseFoldStringEqual is expressed over lib/base's StringCaseEqual, which is
 // MemCaseEqual's exact contract (size equality + case-insensitive compare).
+//
+// The functors pass the HashString result through absl::HashOf, as canonical
+// does: absl's Swiss tables do not mix a custom hasher's output, and unmixed
+// short keys would all share one probe tag.
 
 #ifndef PAGESPEED_LIB_HTML_COMPAT_STRING_HASH_H_
 #define PAGESPEED_LIB_HTML_COMPAT_STRING_HASH_H_
 
 #include <cstddef>
 
+#include "absl/hash/hash.h"
 #include "lib/base/string_util.h"
 #include "lib/html/compat/string.h"
 
@@ -47,13 +52,14 @@ struct CaseFold {
 
 struct CasePreserveStringHash {
   size_t operator()(const GoogleString& str) const {
-    return HashString<CasePreserve, size_t>(str.data(), str.size());
+    return absl::HashOf(
+        HashString<CasePreserve, size_t>(str.data(), str.size()));
   }
 };
 
 struct CaseFoldStringHash {
   size_t operator()(const GoogleString& str) const {
-    return HashString<CaseFold, size_t>(str.data(), str.size());
+    return absl::HashOf(HashString<CaseFold, size_t>(str.data(), str.size()));
   }
 };
 

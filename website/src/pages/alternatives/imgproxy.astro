@@ -1,10 +1,16 @@
 ---
 import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { productJsonLd } from '../../data/software-jsonld';
-import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import {
+  editionClause,
+  FREE_TO_RUN_LINE,
+  NGINX_APT_SHORT_NBSP,
+  NGINX_RPM_SHORT,
+} from '../../data/product-facts.mjs';
 
 const rows = [
   {
@@ -53,7 +59,7 @@ const rows = [
   },
   {
     label: 'License',
-    mps: 'Licensed under the Apache License&nbsp;2.0. The software is free. We sell support; Priority and Enterprise add a private package repository (being set up). See the <a href="/license/" class="text-interactive hover:text-interactive-hover underline">software license</a>.',
+    mps: 'Licensed under the Apache License&nbsp;2.0. The software is free. We sell support; the software and its signed packages are the same for everyone. See the <a href="/license/" class="text-interactive hover:text-interactive-hover underline">software license</a>.',
     other: 'MIT (OSS) / commercial (Pro)',
   },
   {
@@ -78,9 +84,8 @@ const jsonLd = [
   description="Both self-hosted; imgproxy is image-only while mod_pagespeed is a full HTML pipeline (images, CSS, JS, critical CSS). Where each tool actually shines."
   jsonLd={jsonLd}
 >
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
-    <!-- Breadcrumb -->
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+  <PageHero id="imgproxy-title" width="prose" class="max-w-3xl" title="mod_pagespeed vs imgproxy">
+    <nav slot="before" class="mb-6 text-small text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">
         Home
       </a>
@@ -91,11 +96,11 @@ const jsonLd = [
       <span class="mx-1">/</span>
       <span>vs imgproxy</span>
     </nav>
+  </PageHero>
 
-    <h1 class="mt-6 h1-hero text-text-body">mod_pagespeed vs imgproxy</h1>
-
+  <article class="container-prose max-w-3xl pb-16">
     <!-- TL;DR -->
-    <section class="mt-8">
+    <section>
       <h2 class="h2-section text-text-body">TL;DR</h2>
       <p class="mt-4 text-text-body">
         imgproxy is a focused, self-hosted image processing server. mod_pagespeed is a self-hosted
@@ -105,7 +110,7 @@ const jsonLd = [
         <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
           full page-level optimization layer
         </a>{' '}
-        that the original mod_pagespeed provided, mod_pagespeed 2 is the closer fit.
+        that the original mod_pagespeed provided, the current mod_pagespeed is the closer fit.
       </p>
     </section>
 
@@ -178,10 +183,7 @@ const jsonLd = [
 
     <!-- Migrating -->
     <section class="mt-12">
-      <h2
-        id="migrating-from-imgproxy-to-modpagespeed"
-        class="h2-section scroll-mt-24 text-text-body"
-      >
+      <h2 id="migrating-from-imgproxy-to-modpagespeed" class="h2-section text-text-body">
         Migrating from imgproxy to mod_pagespeed
       </h2>
       <p class="mt-4 text-text-body">
@@ -222,22 +224,36 @@ const jsonLd = [
     <!-- Code & config -->
     <section class="mt-12">
       <h2 class="h2-section text-text-body">Code &amp; config side-by-side</h2>
-      <p class="mt-4 text-text-body">
+      <p id="config-1" class="mt-4 text-text-body">
         <strong>WebP conversion in imgproxy</strong> (URL-based):
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>/insecure/rs:fit:800:600/f:webp/plain/https://example.com/photo.jpg</code></pre>
-      <p class="mt-4 text-text-body">
+      <pre
+        tabindex="0"
+        role="region"
+        aria-labelledby="config-1"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>/insecure/rs:fit:800:600/f:webp/plain/https://example.com/photo.jpg</code></pre>
+      <p id="config-2" class="mt-4 text-text-body">
         <strong>WebP conversion in mod_pagespeed.</strong> Install the nginx module on
-        Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 +
-        aarch64):
+        {NGINX_APT_SHORT_NBSP} (amd64 + arm64), or AlmaLinux/RHEL/Rocky&nbsp;{NGINX_RPM_SHORT}:
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre
+        tabindex="0"
+        role="region"
+        aria-labelledby="config-2"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
-      <p class="mt-4 text-text-body">
+      <p id="config-3" class="mt-4 text-text-body">
         Then enable the filter (nginx config; it decides per-request from the client's
         <code>Accept</code> header):
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre
+        tabindex="0"
+        role="region"
+        aria-labelledby="config-3"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>pagespeed on;
 pagespeed EnableFilters convert_jpeg_to_webp;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">
@@ -248,7 +264,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
+      <div class="rounded-card border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Outgrowing an image-only layer</h2>
         <p class="mt-3 text-text-body">
           If you ended up scripting CSS minification and critical CSS around imgproxy, one pipeline
@@ -265,7 +281,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
             data-umami-event="cta_vs_imgproxy_buy"
           >
-            Support plans
+            Support pricing
           </a>
           <a
             href="#migrating-from-imgproxy-to-modpagespeed"

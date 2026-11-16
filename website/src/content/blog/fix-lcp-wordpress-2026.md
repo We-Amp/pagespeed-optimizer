@@ -92,6 +92,7 @@ pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
 pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters prioritize_critical_css;
+pagespeed EnableFilters recompress_images;
 pagespeed EnableFilters convert_jpeg_to_webp;
 pagespeed EnableFilters inline_preview_images;
 pagespeed EnableFilters hint_preload_subresources;
@@ -117,7 +118,7 @@ A four-point checklist confirms the fix landed:
 
 1. Re-run PSI on the same URL. The LCP element timing breakdown should show smaller element render delay and resource load duration.
 2. DevTools → Performance panel → record again under the same throttling profile. The previously attributed element either has a smaller LCP marker or a different element has become the LCP. Either is progress.
-3. Open the page with `?PageSpeedFilters=+debug` (or `?ModPagespeedFilters=+debug` on Apache) — the response includes HTML comments showing which filters ran and which images were rewritten. Confirm the hero image is in the rewritten set.
+3. Open the page with `?PageSpeedFilters=+debug` — the response includes HTML comments showing which filters ran and which images were rewritten. Confirm the hero image is in the rewritten set.
 4. After 28 days, check Search Console → Core Web Vitals report. The URL group should move from "Needs improvement" to "Good". Watch the field number, not just lab — lab improvements that don't show up in CrUX after 28 days are usually attribution mismatches, not real regressions.
 
 ## Configuration cheat sheet

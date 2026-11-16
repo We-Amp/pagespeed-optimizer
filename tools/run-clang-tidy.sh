@@ -39,10 +39,14 @@ echo "Running clang-tidy (fix=$([[ -n "$FIX_FLAG" ]] && echo yes || echo no))...
 
 # Map the bazel remote-cache alias only when BAZEL_CACHE_HOST is exported
 # (see .bazelrc); no environment-specific address is stored in this tree.
+CACHE_DOCKER_ARGS=()
+# shellcheck source=ci/remote-cache-docker-args.sh
+source "$SCRIPT_DIR/ci/remote-cache-docker-args.sh"
+remote_cache_docker_args CACHE_DOCKER_ARGS
 docker run --rm \
   -v "$REPO_ROOT:/workspace" \
   -w /workspace \
-  ${BAZEL_CACHE_HOST:+--add-host=bazel-remote-cache:${BAZEL_CACHE_HOST}} \
+  ${CACHE_DOCKER_ARGS[@]+"${CACHE_DOCKER_ARGS[@]}"} \
   "$IMAGE" \
   bash -c '
     set -e

@@ -55,8 +55,9 @@ package rows from the signed repository's distribution matrix.
 | Native module package, Debian 13 trixie                                             | nginx 1.26.3 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Ubuntu 22.04 jammy                                           | nginx 1.18.0 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Ubuntu 24.04 noble                                           | nginx 1.24.0 (the distribution's stock nginx; exact-version pin) | Native module         |
+| Native module package, Ubuntu 26.04 resolute                                        | nginx 1.28.3 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, AlmaLinux 9 (yum)                                            | nginx 1.20.1 (stock nginx; exact-version pin)                    | Native module         |
-| NuGet sidecar `WeAmp.PageSpeed.Sidecar`                                             | nginx 1.30.4, bundled in the package                             | Thin module + worker  |
+| NuGet sidecar `WeAmp.PageSpeed.Sidecar`                                             | nginx 1.30.6, bundled in the package                             | Thin module + worker  |
 
 <!-- generated:end nginx-compat -->
 
@@ -304,6 +305,27 @@ defaults of [`pagespeed_css_max_age`](#pagespeed_css_max_age) and
 [`pagespeed_image_max_age`](#pagespeed_image_max_age) follow the mode. See
 [Cache modes](/docs/cache-modes/) for the full reference.
 
+:::next-release{after="2.8.2"}
+#### pagespeed_agent_content_signal {#pagespeed_agent_content_signal}
+
+- **Syntax:** `pagespeed_agent_content_signal value | off;`
+- **Default:** `(empty)`
+- **Context:** http, server, location
+
+The `content-signal` header sent with a Markdown response for agents (the
+page's Markdown copy and `/llms.txt`), in the
+[Content Signals](https://contentsignals.org/) format. Unset, no header is
+sent; `off` stops an inherited value.
+
+```nginx
+pagespeed_agent_content_signal "search=yes, ai-input=yes, ai-train=no";
+```
+
+The value must be printable ASCII on one line, up to 512 bytes; nginx refuses
+to start with any other value. See
+[Serve Markdown to AI agents](/docs/agent-optimize/).
+:::
+
 <!-- generated:end thin-module-directives -->
 
 ### Cache-Control directives {#cache-control-directives}
@@ -333,8 +355,9 @@ rewrites its shared config (the ~1s poll).
 
 A mismatch clears itself: once the worker publishes the matching generation,
 the module turns its cache back on without a reload and logs "now matches".
-The fix is to run the same release of both, from packages or from one image
-tag.
+The module and the worker are versioned separately, so their version numbers
+can differ. The fix is to upgrade or roll back both together, from packages or
+from one image tag.
 
 Three variables expose the result, as this nginx worker last saw it:
 
@@ -394,7 +417,7 @@ Boolean `--no-…` flags switch off a transform that is on by default; the
 
 <!-- generated:begin worker-flags -->
 
-Sections: [General options](#flags-general-options) (88) · [Windows service](#flags-windows-service) (2) · [Cache key normalization](#flags-cache-key-normalization) (4) · [SVG auto-vectorization](#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](#flags-agent-optimize-experimental-off-by-default) (8) · [Web Bot Auth (observe-only, off by default)](#flags-web-bot-auth-observe-only-off-by-default) (4).
+Sections: [General options](#flags-general-options) (88) · [Windows service](#flags-windows-service) (2) · [Cache key normalization](#flags-cache-key-normalization) (4) · [SVG auto-vectorization](#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](#flags-agent-optimize-experimental-off-by-default) (8) · [Web Bot Auth (observe-only, off by default)](#flags-web-bot-auth-observe-only-off-by-default) (4) · [RSL-CAP enforcement (experimental, off by default)](#flags-rsl-cap-enforcement-experimental-off-by-default) (5).
 
 ### General options {#flags-general-options}
 
@@ -711,7 +734,7 @@ See [Preconnect injection](#preconnect-injection).
 - **Syntax:** `--no-async-css`
 - **Default:** —
 
-Disable async CSS loading (keep stylesheets render-blocking)
+Disable async CSS loading (keep stylesheets render-blocking and inline no above-the-fold CSS)
 
 Enabled does not mean applied: see [Async CSS](#async-css) for the per-page
 conditions deferral requires.
@@ -751,7 +774,7 @@ Enable speculation rules injection (default: off)
 Disable content-aware quality presets
 
 Falls back to the `Unknown` content class for every image. See
-[Content analysis and denoising](#content-analysis-and-denoising).
+[Content analysis](#content-analysis-and-denoising).
 
 #### --no-preserve-c2pa {#--no-preserve-c2pa}
 
@@ -770,28 +793,28 @@ Recompress manifest-bearing PNGs and re-splice C2PA chunks (PNG only; default: o
 #### --denoise-threshold {#--denoise-threshold}
 
 - **Syntax:** `--denoise-threshold LEVEL`
-- **Default:** `0.3`
+- **Default:** —
 
-Noise level threshold 0.0-1.0 (default: 0.3, 0=disable)
+Deprecated and ignored (accepted so existing command lines keep working)
 
-Range 0.0-1.0; `0` disables denoising. See
-[Content analysis and denoising](#content-analysis-and-denoising).
+Removed: noisy images are no longer smoothed before encoding. The flag is
+still accepted and ignored.
 
 #### --denoise-sigma-spatial {#--denoise-sigma-spatial}
 
 - **Syntax:** `--denoise-sigma-spatial F`
-- **Default:** `3.0`
+- **Default:** —
 
-Bilateral filter spatial sigma, max 10.0 (default: 3.0)
+Deprecated and ignored
 
-Range 0.0-10.0.
+Removed. Still accepted and ignored.
 
 #### --denoise-sigma-range {#--denoise-sigma-range}
 
 - **Syntax:** `--denoise-sigma-range F`
-- **Default:** `25.0`
+- **Default:** —
 
-Bilateral filter range sigma (default: 25.0)
+Deprecated and ignored
 
 #### --no-quality-verify {#--no-quality-verify}
 
@@ -1327,7 +1350,10 @@ factory_worker --strip-query-extensions css,js,png,jpg,webp
 ```
 
 Consolidates cache entries for static assets that differ only by a cache-busting
-query string. See [URL normalization](#url-normalization).
+query string. The whole query string is dropped for every listed extension, on
+every site the worker serves, so list an extension only when no site's server
+returns different content for it depending on the query string. See
+[URL normalization](#url-normalization).
 
 #### --strip-query-groups {#--strip-query-groups}
 
@@ -1335,6 +1361,15 @@ query string. See [URL normalization](#url-normalization).
 - **Default:** —
 
 Comma-separated group names (e.g., images,static)
+
+```bash
+factory_worker --strip-query-groups static
+```
+
+A group stands for a fixed list of extensions (`images`, `static`) and works
+exactly like listing them with
+[`--strip-query-extensions`](#--strip-query-extensions), on every site the
+worker serves. See [URL normalization](#url-normalization).
 
 #### --strip-query-params {#--strip-query-params}
 
@@ -1346,6 +1381,11 @@ Comma-separated param names (e.g., utm_source,fbclid)
 ```bash
 factory_worker --strip-query-params utm_source,utm_medium,fbclid
 ```
+
+Removes only the named parameters and keeps the rest of the query string, on
+every site the worker serves. This is the right setting for tracking parameters
+such as `utm_source` or `fbclid`: list only parameters that no site's server
+uses to choose what it returns. See [URL normalization](#url-normalization).
 
 #### --host-alias {#--host-alias}
 
@@ -1554,6 +1594,48 @@ keyid=name pairs (comma-separated) promoting a verified signature to a named bot
 
 opt-in verified-crawl counter (experimental): off (default) | private | public. Enabling a non-off mode publishes a discoverable marker at /.well-known/webbotauth-counter. The exact doc is gated by the PAGESPEED_WEB_BOT_AUTH_COUNTER_TOKEN env bearer token.
 
+### RSL-CAP enforcement (experimental, off by default) {#flags-rsl-cap-enforcement-experimental-off-by-default}
+
+[`--rsl-cap-enforcement`](#--rsl-cap-enforcement), [`--rsl-cap-key-directory`](#--rsl-cap-key-directory), [`--rsl-cap-requested-license`](#--rsl-cap-requested-license), [`--rsl-cap-requested-scope`](#--rsl-cap-requested-scope), [`--rsl-cap-issuer`](#--rsl-cap-issuer)
+
+#### --rsl-cap-enforcement {#--rsl-cap-enforcement}
+
+- **Syntax:** `--rsl-cap-enforcement`
+- **Default:** —
+
+Validate Authorization: License capability tokens and answer 401, 402 or pass (status codes only; never settles or meters payment)
+
+Experimental. In the container image, `PAGESPEED_RSL_CAP_ENFORCEMENT=true` sets
+this flag. See [RSL-CAP enforcement](/docs/rsl-cap/).
+
+#### --rsl-cap-key-directory {#--rsl-cap-key-directory}
+
+- **Syntax:** `--rsl-cap-key-directory URL`
+- **Default:** —
+
+https JWKS key-directory URL of a token issuer to warm-fetch periodically (repeatable)
+
+#### --rsl-cap-requested-license {#--rsl-cap-requested-license}
+
+- **Syntax:** `--rsl-cap-requested-license ID`
+- **Default:** —
+
+License id a token must grant (empty: every valid token is refused with 402)
+
+#### --rsl-cap-requested-scope {#--rsl-cap-requested-scope}
+
+- **Syntax:** `--rsl-cap-requested-scope SCOPE`
+- **Default:** —
+
+Scope a token must grant (empty: every valid token is refused with 402)
+
+#### --rsl-cap-issuer {#--rsl-cap-issuer}
+
+- **Syntax:** `--rsl-cap-issuer ISSUER`
+- **Default:** —
+
+Accept tokens from this issuer only; others are rejected as an unknown issuer (401). Empty: any issuer in the key directories
+
 <!-- generated:end worker-flags -->
 
 ## Proactive variant generation
@@ -1610,6 +1692,23 @@ factory_worker --mobile-width 480 --tablet-width 768 --desktop-width 0
 [`--host-alias`](#--host-alias) normalize the cache key: query strings that only
 bust caches and host aliases that serve the same content collapse onto one
 cache entry.
+
+The query-string settings apply to every site the worker serves, not to one
+site, and requests whose URLs differ only in what a setting removes share one
+cache entry. Choose them with that in mind:
+
+- Prefer [`--strip-query-params`](#--strip-query-params) for tracking
+  parameters (`utm_source`, `utm_medium`, `fbclid`): it removes only the
+  parameters you name.
+- Use [`--strip-query-extensions`](#--strip-query-extensions) or
+  [`--strip-query-groups`](#--strip-query-groups) only for file types whose
+  query strings are cache-busters on every site the worker serves, such as a
+  version number after a stylesheet or image URL.
+- Leave out any parameter or file type for which a site's server returns
+  different content depending on the query string, such as a theme, language or
+  size parameter.
+
+All three settings are empty by default: nothing is removed until you list it.
 
 ## Image quality {#image-quality-flags}
 
@@ -1673,18 +1772,15 @@ Disabling verification ([`--no-quality-verify`](#--no-quality-verify)) skips the
 SSIMULACRA2 measurement pass entirely, reducing CPU cost at the risk of
 inconsistent visual quality.
 
-## Content analysis and denoising
+## Content analysis {#content-analysis-and-denoising}
 
 The worker classifies image content (photo, screenshot, illustration, noisy) and
-applies content-aware encoding presets. A bilateral filter denoises images that
-exceed the noise threshold before encoding, improving compression efficiency.
-The flags are [`--no-content-analysis`](#--no-content-analysis),
-[`--denoise-threshold`](#--denoise-threshold),
-[`--denoise-sigma-spatial`](#--denoise-sigma-spatial) and
-[`--denoise-sigma-range`](#--denoise-sigma-range).
+applies content-aware encoding presets. Images are not smoothed before
+encoding. The flag is [`--no-content-analysis`](#--no-content-analysis); the
+`--denoise-*` flags are deprecated and ignored.
 
 Content analysis is fast (runs on the already-decoded pixel buffer) and feeds
-into both the learned quality model and the denoising decision. Disabling it
+into the learned quality model. Disabling it
 falls back to the `Unknown` content class for all images.
 
 ## HTML transforms {#html-optimization-flags}
@@ -1739,7 +1835,7 @@ with the stylesheet deferred, and only while that page still serves the exact
 stylesheet the confirmation was made against — publish new styles and the check
 runs again before deferral resumes. Everywhere the confirmation does not apply,
 including a page whose browser analysis has not completed, the stylesheet stays
-render-blocking and the above-the-fold CSS is still inlined. Disable the
+render-blocking and no above-the-fold CSS is inlined next to it. Disable the
 transform entirely with `--no-async-css`.
 
 Under a nonce-only or `strict-dynamic` CSP, host allowlists including `'self'`
@@ -1767,7 +1863,7 @@ suppress them is the coarse `--disable-html` / `--disable-css` /
 
 ### Image pipeline {#image-pipeline}
 
-Decodes source images, applies content-aware quality and denoising, and
+Decodes source images, applies content-aware quality, and
 re-encodes to modern formats (WebP, AVIF). Emits viewport, density, and
 Save-Data variants. Metadata (EXIF, ICC profiles other than sRGB) is
 stripped. Always-on baseline under `pagespeed on;`; there is no
@@ -2453,7 +2549,7 @@ http {
 
 ```ini
 [Unit]
-Description=ModPageSpeed Factory Worker
+Description=PageSpeed Optimizer Worker
 After=network.target
 
 [Service]

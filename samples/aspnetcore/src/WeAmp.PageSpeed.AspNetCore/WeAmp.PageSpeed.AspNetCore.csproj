@@ -18,7 +18,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <RootNamespace>WeAmp.PageSpeed.AspNetCore</RootNamespace>
     <Title>WeAmp.PageSpeed for ASP.NET Core — Core Web Vitals middleware</Title>
-    <Description>Drop-in ASP.NET Core middleware that improves Core Web Vitals without touching your app code: critical CSS inlining, LCP preload, lazy loading, and on-demand WebP/AVIF transcoding on every HTML response. The C++23 PageSpeed engine runs in-process via P/Invoke. Single-package install with transitive native binaries for linux-x64, linux-arm64, osx-arm64, and win-x64.</Description>
+    <Description>The mod_pagespeed engine for ASP.NET Core: drop-in middleware that improves Core Web Vitals without touching your app code, with critical CSS inlining, LCP preload, lazy loading, and on-demand WebP/AVIF transcoding on every HTML response. The C++23 engine runs in-process via P/Invoke. Single-package install with transitive native binaries for linux-x64, linux-arm64, osx-arm64, and win-x64.</Description>
     <PackageTags>aspnetcore middleware pagespeed mod-pagespeed mod_pagespeed web-performance core-web-vitals web-vitals lcp inp cls webp avif image-optimization critical-css lazy-loading lighthouse performance weamp</PackageTags>
   </PropertyGroup>
 

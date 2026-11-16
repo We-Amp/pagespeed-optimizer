@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <list>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -34,13 +35,15 @@ class UrlRegistry {
  public:
   explicit UrlRegistry(size_t max_entries = 500000);
 
-  // Record a URL+hostname+scheme as cached.  Moves to front if already present.
+  // Record a URL+hostname+scheme as cached in `site`'s keyspace (empty: the
+  // unsited keyspace).  Moves to front if already present.  A non-empty site
+  // is also remembered as a known site; see KnownSites().
   void Record(std::string_view url, std::string_view hostname,
-              std::string_view scheme);
+              std::string_view scheme, std::string_view site = {});
 
-  // Remove a URL+hostname+scheme (e.g., on purge).
+  // Remove a URL+hostname+scheme in one keyspace (e.g., on purge).
   void Remove(std::string_view url, std::string_view hostname,
-              std::string_view scheme);
+              std::string_view scheme, std::string_view site = {});
 
   // Update the cached alternate count for an already-recorded URL.
   // No-op when the URL is not currently tracked (e.g., LRU-evicted between
@@ -50,7 +53,8 @@ class UrlRegistry {
   // thread so the /v1/cache/urls listing can report it without doing a
   // per-row cache chain traversal on the event-loop thread.
   void SetAlternateCount(std::string_view url, std::string_view hostname,
-                         std::string_view scheme, uint32_t count);
+                         std::string_view scheme, uint32_t count,
+                         std::string_view site = {});
 
   // Current number of tracked URLs.
   size_t size() const;
@@ -60,10 +64,30 @@ class UrlRegistry {
   // even after LRU eviction purges all entries for a hostname.
   bool HasHostname(std::string_view hostname) const;
 
+  // Known sites: every non-empty site recorded since the set was last
+  // cleared, up to kMaxKnownSites. Like the known hostnames they survive LRU
+  // eviction and ClearAll(); only ClearKnownSites() drops them.
+  bool HasSite(std::string_view site) const;
+  // Sorted.
+  std::vector<std::string> KnownSites() const;
+  // Drops the known sites and marks the set changed, so the known-sites file
+  // is rewritten as empty. Called only when the whole volume is purged.
+  void ClearKnownSites();
+  // Seeds the known sites from the known-sites file at start, without
+  // marking the set changed.
+  void LoadKnownSites(const std::vector<std::string>& sites);
+  // The known sites when they changed since the last call, or nothing. For
+  // the known-sites file writer.
+  std::optional<std::vector<std::string>> TakeKnownSitesIfChanged();
+  // Sites seen past the kMaxKnownSites cap, which were not remembered.
+  uint64_t known_sites_overflow() const;
+
   struct Entry {
     std::string url;
     std::string hostname;
     std::string scheme;
+    // The keyspace the entry was stored in; empty for the unsited one.
+    std::string site;
     // Number of unique cached alternates for this URL, refreshed by the
     // worker on each notification (and on async agent-markdown writes).
     // Cached here so listing avoids a per-row cache traversal.
@@ -83,13 +107,16 @@ class UrlRegistry {
   // List URLs with offset-based pagination.
   // Returns up to `limit` entries starting at `offset`.
   // When `hostname` is non-empty, only entries matching that hostname
-  // are included (offset/total reflect the filtered set).
-  Page List(size_t offset, size_t limit, std::string_view hostname = {}) const;
+  // are included, and when `site` is non-empty only entries of that site
+  // (offset/total reflect the filtered set).
+  Page List(size_t offset, size_t limit, std::string_view hostname = {},
+            std::string_view site = {}) const;
 
  private:
-  // Composite key for the map: "url\0hostname\0scheme"
+  // Composite key for the map: "url\0hostname\0scheme", followed by
+  // "\0site" for a non-empty site.
   static std::string MakeKey(std::string_view url, std::string_view hostname,
-                             std::string_view scheme);
+                             std::string_view scheme, std::string_view site);
 
   mutable std::mutex mutex_;
   size_t max_entries_;
@@ -109,6 +136,11 @@ class UrlRegistry {
   // have been evicted.  Stores normalized forms (lowercase, no trailing
   // dot, default ports stripped).
   std::unordered_set<std::string> known_hostnames_;
+
+  // Known sites (see HasSite). Bounded by kMaxKnownSites.
+  std::unordered_set<std::string> known_sites_;
+  bool known_sites_changed_ = false;
+  uint64_t known_sites_overflow_ = 0;
 };
 
 }  // namespace pagespeed

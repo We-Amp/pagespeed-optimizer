@@ -76,13 +76,17 @@ class PipelineTest : public ::testing::Test {
 
   // Pre-populate cache with content at default mask (Desktop/Identity = 0x08).
   void CacheOriginal(PageSpeedCache* cache, const std::string& url,
-                     const std::string& content) {
+                     const std::string& content,
+                     const std::string& origin_content_type = "") {
     CapabilityMask default_mask;  // Desktop/Identity = 0x08
     AlternateId id =
         MaskToAlternateId(static_cast<uint8_t>(default_mask.Encode() & 0xFF));
     AlternateMetadata meta;
     meta.full_mask = default_mask.Encode();
     meta.content_type = ContentType::kOther;
+    // The front end records the origin's Content-Type; the worker inlines
+    // critical CSS only into a page recorded as text/html.
+    meta.origin_content_type = origin_content_type;
     auto wh = cache->WriteAlternate(url, "", "https", id, content.size(), meta);
     ASSERT_TRUE(wh.has_value()) << "Failed to open write handle";
     auto written = wh->write_sync(
@@ -217,6 +221,8 @@ TEST_F(PipelineTest, HtmlPipelineEndToEnd) {
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler_);
   auto thread = StartWorker(worker);
   // Pre-populate cache with HTML containing inline CSS.
@@ -231,7 +237,7 @@ TEST_F(PipelineTest, HtmlPipelineEndToEnd) {
       ".hero { background: blue; }"
       "</style></head>"
       "<body><h1>Hello</h1><div class=\"hero\">World</div></body></html>";
-  CacheOriginal(worker.cache(), cache_url, html);
+  CacheOriginal(worker.cache(), cache_url, html, "text/html; charset=utf-8");
 
   // Send notification via the notification sender API.
   CacheNotification notification;
@@ -623,7 +629,7 @@ TEST_F(PipelineTest, HtmlPipelineStoresHints) {
       "<style>.hero { color: red; }</style>"
       "</head>"
       "<body><div class=\"hero\">Hello</div></body></html>";
-  CacheOriginal(worker.cache(), cache_url, html);
+  CacheOriginal(worker.cache(), cache_url, html, "text/html; charset=utf-8");
 
   // Pre-populate external stylesheets so the worker can complete
   // CSS gathering (otherwise it returns early on empty combined CSS).
@@ -661,8 +667,9 @@ TEST_F(PipelineTest, HtmlPipelineStoresHints) {
   std::string variant = PollVariant(worker.cache(), cache_url, mask);
   EXPECT_FALSE(variant.empty()) << "HTML variant not written";
   if (!variant.empty()) {
-    EXPECT_NE(variant.find("data-pagespeed-critical"), std::string::npos);
-    // Refusing to defer must not cost the page its inline block.
+    // Refusing to defer leaves the sheets blocking, and no block is inlined
+    // next to them.
+    EXPECT_EQ(variant.find("data-pagespeed-critical"), std::string::npos);
     EXPECT_EQ(variant.find("data-pagespeed-async"), std::string::npos);
   }
 

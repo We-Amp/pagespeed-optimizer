@@ -3,7 +3,7 @@ title: 'Choose a cache mode: safe vs aggressive'
 description: 'Safe or aggressive Cache-Control for optimized responses in mod_pagespeed, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.'
 order: 23
 group: 'Configure'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-11-15
 ---
 
 mod_pagespeed transforms your origin's content — optimizing images, minifying
@@ -305,7 +305,7 @@ pagespeed CycloneRamCacheKb 8192
 
 ### Zero-copy serving
 
-Two related options reduce or skip the per-request copy of cached response bodies. As of v1.15.0+r19, zero-copy serving is **opt-in on all three platforms** while it accrues production soak; on-by-default is planned for a future revision.
+Two related options reduce or skip the per-request copy of cached response bodies. Zero-copy serving is **opt-in on all three platforms**.
 
 **`CycloneZeroCopy`** reads cached hits directly from the memory-mapped cache file without copying the payload. It is off by default on every platform and is the switch that opts a server in.
 
@@ -667,6 +667,7 @@ Considerations when using IPRO:
 
 - Resources keep their original URLs, so they do not benefit from content-hash-based cache extension. Browser caches and CDNs follow the original `Cache-Control` headers.
 - IPRO cannot combine resources (CSS combining, JS combining) because each resource retains its own URL.
+- An origin that answers differently by `Referer` must send `Vary: Referer`; with `RespectVary on`, such responses are then not recorded.
 
 ### Fetch and performance
 
@@ -674,7 +675,7 @@ These directives control how mod_pagespeed fetches resources from your origin an
 
 | Directive                   |        Default | Description                                                                                                                                                                                                                       |
 | --------------------------- | -------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FetcherTimeoutMs`          |           5000 | Maximum time to wait for a resource fetch from origin                                                                                                                                                                             |
+| `FetcherTimeOutMs`          |           5000 | Maximum time to wait for a resource fetch from origin                                                                                                                                                                             |
 | `RewriteDeadlinePerFlushMs` |             10 | Time budget per flush window for rewriting. If rewrites take longer, the original resource is served and the optimized variant is cached for subsequent requests                                                                  |
 | `ImplicitCacheTtlMs`        | 300000 (5 min) | Cache TTL applied to resources that do not have explicit `Cache-Control` headers                                                                                                                                                  |
 | `FetchWithGzip`             |            off | Fetch resources from origin using gzip `Accept-Encoding`. Turn this on if your origin supports gzip and the network between mod_pagespeed and the origin is a bottleneck                                                          |
@@ -685,7 +686,7 @@ These directives control how mod_pagespeed fetches resources from your origin an
 <div data-platform="nginx" data-platform-label="nginx">
 
 ```nginx
-pagespeed FetcherTimeoutMs 10000;
+pagespeed FetcherTimeOutMs 10000;
 pagespeed RewriteDeadlinePerFlushMs 20;
 pagespeed ImplicitCacheTtlMs 600000;
 pagespeed FetchWithGzip on;
@@ -699,7 +700,7 @@ pagespeed HttpCacheCompressionLevel 6;
 <div data-platform="apache" data-platform-label="Apache">
 
 ```apache
-ModPagespeedFetcherTimeoutMs 10000
+ModPagespeedFetcherTimeOutMs 10000
 ModPagespeedRewriteDeadlinePerFlushMs 20
 ModPagespeedImplicitCacheTtlMs 600000
 ModPagespeedFetchWithGzip on
@@ -713,7 +714,7 @@ ModPagespeedHttpCacheCompressionLevel 6
 <div data-platform="iis" data-platform-label="IIS">
 
 ```text
-pagespeed FetcherTimeoutMs 10000
+pagespeed FetcherTimeOutMs 10000
 pagespeed RewriteDeadlinePerFlushMs 20
 pagespeed ImplicitCacheTtlMs 600000
 pagespeed FetchWithGzip on

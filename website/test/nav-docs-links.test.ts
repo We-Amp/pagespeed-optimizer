@@ -2,21 +2,20 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // nav-docs-links.test.ts: every /docs/<slug>/ link in the header Docs menu
-// (BaseLayout.astro, `docsSections`) must resolve to a docs-collection page or
+// (src/data/nav.ts, `docsSections`) must resolve to a docs-collection page or
 // a hand-written docs route, so the menu can never point at a 404.
 
-import { readFileSync, existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { docsSections } from '../src/data/nav';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const layout = readFileSync(path.join(root, 'src/layouts/BaseLayout.astro'), 'utf8');
 
-const start = layout.indexOf('const docsSections');
-const end = layout.indexOf('\n];', start);
-const menuSource = layout.slice(start, end);
-const hrefs = [...menuSource.matchAll(/href: '(\/[^']+)'/g)].map((m) => m[1]);
+const hrefs = docsSections
+  .flatMap((section) => section.links.map((link) => link.href))
+  .filter((href) => href.startsWith('/'));
 
 function resolves(href: string): boolean {
   const segs = href.split('/').filter(Boolean);

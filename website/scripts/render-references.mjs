@@ -18,6 +18,14 @@
 // longer exists in the data is an error, so a removed flag cannot leave a
 // stale note behind.
 //
+// An entry that is merged but not in a release yet is listed in
+// src/data/reference/next-release.json (region -> name -> the last released
+// version when it was written). Its block below the heading is wrapped in a
+// `:::next-release{after="X.Y.Z"}` marker, the same marker docs pages use; the
+// generated JSON cannot carry it, because the drift gate regenerates that from
+// source. test/next-release-markers.test.ts fails once a newer version is
+// released, and on a name the data no longer has.
+//
 // The rendered regions are deterministic; test/reference/rendered-regions.test.ts
 // re-renders them and fails when a page's region differs (data or notes
 // changed without `npm run gen:references`, or a region was hand-edited).
@@ -86,9 +94,19 @@ export function prose(text) {
     .replace(/(?<![/\w.-])daemons(?![\w/-])/g, 'workers')
     .replace(/(?<![/\w.-])daemon(?![\w/-])/g, 'worker')
     .replace(/\s*See docs\/[\w./-]+\.md\.?/g, '')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\*/g, '\\*')
+    .split(/(`[^`]*`)/)
+    .map((part, i) =>
+      // Odd parts are code spans: markdown shows them verbatim, so an escape
+      // there would appear literally (`&lt;Directory&gt;`).
+      i % 2
+        ? part
+        : part
+            .replace(/\\/g, '\\\\')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\*/g, '\\*'),
+    )
+    .join('')
     .trim();
 }
 
@@ -121,6 +139,63 @@ function withNotes(block, notes, key) {
   return note ? `${block}\n\n${note}` : block;
 }
 
+/** src/data/reference/next-release.json: { region: { name: after } }. */
+export function loadNextRelease() {
+  const path = resolve(REFERENCE_DIR, 'next-release.json');
+  if (!existsSync(path)) return {};
+  const regions = JSON.parse(readFileSync(path, 'utf8'));
+  delete regions._comment;
+  return regions;
+}
+
+/**
+ * Wrap a block, its `####` heading included, in a next-release marker when the
+ * entry is in `marks` (one region of next-release.json).
+ */
+function withNextRelease(block, marks, key) {
+  const after = marks[key];
+  if (!after) return block;
+  return `:::next-release{after="${after}"}\n${block.trim()}\n:::`;
+}
+
+/**
+ * The comma-separated links that index a list of entries, and their count.
+ * Entries in `marks` are not released yet, so they stay out of both; their
+ * block is still rendered, inside its marker.
+ */
+const released = (list, marks) => list.filter((e) => !marks[e.name]);
+const indexLinks = (list, marks) =>
+  released(list, marks)
+    .map((e) => `[\`${e.name}\`](#${headingId(e.name)})`)
+    .join(', ');
+
+/**
+ * Regions whose entries cannot be marked. The module-directives region is
+ * flat on purpose: rehype-directive-blocks and the directive finder treat
+ * each `h4` and the siblings after it as one directive, and a marker would put
+ * the heading inside an aside, out of that run.
+ */
+const UNMARKABLE_REGIONS = new Set(['module-directives']);
+
+/**
+ * The next-release entries of one region; a name the data lacks, or an entry
+ * in a region that cannot be marked, is an error.
+ */
+export function nextReleaseMarks(region, names, regions = loadNextRelease()) {
+  const marks = regions[region] ?? {};
+  if (UNMARKABLE_REGIONS.has(region) && Object.keys(marks).length) {
+    throw new Error(
+      `next-release.json lists ${region} entries (${Object.keys(marks).join(', ')}), but that region cannot be marked: the directive finder needs its flat headings. Describe the unreleased directive in a marker on a docs page instead.`,
+    );
+  }
+  const known = new Set(names);
+  const orphans = Object.keys(marks).filter((k) => !known.has(k));
+  if (orphans.length) {
+    throw new Error(`next-release.json names unknown ${region} entries: ${orphans.join(', ')}`);
+  }
+  return marks;
+}
+
 function assertNoOrphanNotes(region, notes, names) {
   const known = new Set(names);
   const orphans = [...notes.keys()].filter((k) => !known.has(k));
@@ -141,6 +216,10 @@ export function renderModuleDirectives() {
     notes,
     data.directives.map((d) => d.name),
   );
+  const marks = nextReleaseMarks(
+    'module-directives',
+    data.directives.map((d) => d.name),
+  );
   const byArea = new Map(data.areas.map((a) => [a, []]));
   for (const d of data.directives) {
     if (!byArea.has(d.area)) byArea.set(d.area, []);
@@ -149,23 +228,25 @@ export function renderModuleDirectives() {
   const out = [];
   const nav = [...byArea.entries()]
     .filter(([, list]) => list.length)
-    .map(([area, list]) => `[${area}](#${areaId(area)}) (${list.length})`);
+    .map(([area, list]) => `[${area}](#${areaId(area)}) (${released(list, marks).length})`);
   const { repo, tag } = data.source;
   out.push(
-    `Generated from the mod_pagespeed source at tag [\`${tag}\`](${repo}/tree/${tag}): ${data.directives.length} directives.`,
+    `Generated from the mod_pagespeed source at tag [\`${tag}\`](${repo}/tree/${tag}): ${released(data.directives, marks).length} directives.`,
     '',
   );
   out.push(`Areas: ${nav.join(' · ')}.`, '');
   for (const [area, list] of byArea) {
     if (!list.length) continue;
     out.push(`### ${area} {#${areaId(area)}}`, '');
-    out.push(list.map((d) => `[\`${d.name}\`](#${headingId(d.name)})`).join(', '), '');
+    out.push(indexLinks(list, marks), '');
     for (const d of list) {
-      out.push(withNotes(directiveBlock(d), notes, d.name), '');
+      out.push(withNextRelease(withNotes(directiveBlock(d), notes, d.name), marks, d.name), '');
     }
   }
   return out.join('\n').trim();
 }
+
+const PLATFORM_ONLY = { apache: 'Apache only', nginx: 'nginx only', iis: 'IIS only' };
 
 function directiveBlock(d) {
   const lines = [];
@@ -174,15 +255,17 @@ function directiveBlock(d) {
   const syn = [];
   if (d.syntax.apache) syn.push(`\`${d.syntax.apache}\` (Apache)`);
   if (d.syntax.nginx) syn.push(`\`${d.syntax.nginx}\` (nginx)`);
+  if (d.syntax.iis) syn.push(`\`${d.syntax.iis}\` (IIS)`);
   lines.push(`- **Syntax:** ${syn.join(' · ')}`);
   lines.push(`- **Default:** ${fmtDefault(d.default)}`);
   const ctx = [];
   if (d.context.apache) ctx.push(`Apache: ${d.context.apache.join(', ')}`);
   if (d.context.nginx) ctx.push(`nginx: ${d.context.nginx.join(', ')}`);
+  if (d.context.iis) ctx.push(`IIS: ${d.context.iis.join(', ')}`);
   if (d.context.query) ctx.push('also per request (query parameter)');
   lines.push(`- **Context:** ${ctx.join(' · ')}`);
   if (d.platforms.length === 1) {
-    lines.push(`- **Platform:** ${d.platforms[0] === 'apache' ? 'Apache only' : 'nginx only'}`);
+    lines.push(`- **Platform:** ${PLATFORM_ONLY[d.platforms[0]]}`);
   }
   if (d.since) lines.push(`- **Since:** ${d.since}`);
   lines.push('');
@@ -204,6 +287,8 @@ const FLAG_SECTION_TITLES = {
   'SVG Auto-Vectorization': 'SVG auto-vectorization',
   'Agent Optimize (EXPERIMENTAL — off by default)': 'Agent optimize (experimental, off by default)',
   'Web Bot Auth (observe-only — off by default)': 'Web Bot Auth (observe-only, off by default)',
+  'RSL-CAP Enforcement (EXPERIMENTAL — off by default)':
+    'RSL-CAP enforcement (experimental, off by default)',
 };
 
 export function renderWorkerFlags() {
@@ -212,6 +297,10 @@ export function renderWorkerFlags() {
   assertNoOrphanNotes(
     'worker-flags',
     notes,
+    data.flags.map((f) => f.name),
+  );
+  const marks = nextReleaseMarks(
+    'worker-flags',
     data.flags.map((f) => f.name),
   );
   const sections = new Map();
@@ -227,14 +316,19 @@ export function renderWorkerFlags() {
       .replace(/-+$/, '')}`;
   out.push(
     `Sections: ${[...sections.entries()]
-      .map(([s, list]) => `[${FLAG_SECTION_TITLES[s] ?? s}](#${sectionId(s)}) (${list.length})`)
+      .map(
+        ([s, list]) =>
+          `[${FLAG_SECTION_TITLES[s] ?? s}](#${sectionId(s)}) (${released(list, marks).length})`,
+      )
       .join(' · ')}.`,
     '',
   );
   for (const [section, list] of sections) {
     out.push(`### ${FLAG_SECTION_TITLES[section] ?? section} {#${sectionId(section)}}`, '');
-    out.push(list.map((f) => `[\`${f.name}\`](#${headingId(f.name)})`).join(', '), '');
-    for (const f of list) out.push(withNotes(flagBlock(f), notes, f.name), '');
+    out.push(indexLinks(list, marks), '');
+    for (const f of list) {
+      out.push(withNextRelease(withNotes(flagBlock(f), notes, f.name), marks, f.name), '');
+    }
   }
   return out.join('\n').trim();
 }
@@ -253,6 +347,7 @@ const THIN_PLACEHOLDERS = {
   pagespeed_cache_path: 'path',
   pagespeed_disallow: 'pattern',
   pagespeed_hot_threshold: 'count',
+  pagespeed_agent_content_signal: 'value | off',
 };
 
 export function renderThinModuleDirectives() {
@@ -263,8 +358,12 @@ export function renderThinModuleDirectives() {
     notes,
     data.directives.map((d) => d.name),
   );
+  const marks = nextReleaseMarks(
+    'thin-module-directives',
+    data.directives.map((d) => d.name),
+  );
   const out = [];
-  out.push(data.directives.map((d) => `[\`${d.name}\`](#${headingId(d.name)})`).join(', '), '');
+  out.push(indexLinks(data.directives, marks), '');
   for (const d of data.directives) {
     const arg =
       THIN_PLACEHOLDERS[d.name] ??
@@ -282,7 +381,7 @@ export function renderThinModuleDirectives() {
       `- **Default:** ${fmtDefault(d.default)}${d.defaultNote ? ` (${d.defaultNote})` : ''}`,
     );
     lines.push(`- **Context:** ${d.context.join(', ')}`);
-    out.push(withNotes(lines.join('\n'), notes, d.name), '');
+    out.push(withNextRelease(withNotes(lines.join('\n'), notes, d.name), marks, d.name), '');
   }
   return out.join('\n').trim();
 }

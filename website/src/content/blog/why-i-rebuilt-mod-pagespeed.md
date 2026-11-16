@@ -68,4 +68,4 @@ This also means no per-request pricing, no bandwidth fees, no API rate limits, a
 
 mod_pagespeed is available now. Deploy with Docker Compose, point it at your origin, and it optimizes out of the box. Setup takes about five minutes regardless of which web server you run behind it. See [pricing](/pricing/) and [license terms](/license/).
 
-If you're running a site where performance matters and you want to keep your data on your own infrastructure, install it and run it — it's free under the Apache License 2.0, in development and in production. [Support plans](/pricing/) are available if you want them.
+If you're running a site where performance matters and you want to keep your data on your own infrastructure, install it and run it — it's free under the Apache License 2.0, in development and in production. Paid support is available if you want it: see [support pricing](/pricing/).

@@ -28,3 +28,13 @@ gtest_test(
         "//test/test_util:temp_dir",
     ],
 )
+
+gtest_test(
+    name = "abi_site_test",
+    size = "medium",
+    deps = [
+        "//lib/pagespeed:pagespeed_api",
+        "//src/proto:worker_ipc",
+        "//test/test_util:temp_dir",
+    ],
+)

@@ -60,7 +60,7 @@ public class HealthCheckTests
         Assert.NotNull(result.Exception);
     }
 
-    [Fact]
+    [NativeLibAbsentFact]
     public async Task CacheStatsSucceeds_ButVersionCheckFails_WhenNativeLibMissing()
     {
         // Arrange: cache returns valid stats, but PageSpeedVersion.Current

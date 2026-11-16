@@ -81,6 +81,57 @@ TEST(CurlFetcher, NoCredentialsOrBodyForwarded) {
   EXPECT_FALSE(ContainsSubstr(a, "Authorization:"));
 }
 
+TEST(CurlFetcher, HeadOptionSendsHeadOnly) {
+  CurlFetchOptions opts;
+  opts.head = true;
+  const Argv a = BuildPinnedGetArgv("https://example.com/a.css", "example.com",
+                                    443, "93.184.216.34", opts);
+  ASSERT_FALSE(a.empty());
+  EXPECT_TRUE(Contains(a, "--head"));
+  EXPECT_FALSE(Contains(a, "-X"));
+  EXPECT_FALSE(Contains(a, "GET"));
+  // The same pin, anonymity and redirect rules as a GET.
+  EXPECT_TRUE(HasFlagValue(a, "--resolve", "example.com:443:93.184.216.34"));
+  EXPECT_TRUE(HasFlagValue(a, "--max-redirs", "0"));
+  EXPECT_TRUE(HasFlagValue(a, "--url", "https://example.com/a.css"));
+  EXPECT_FALSE(ContainsSubstr(a, "Cookie:"));
+  EXPECT_FALSE(ContainsSubstr(a, "Authorization:"));
+  // The default stays GET.
+  EXPECT_FALSE(
+      Contains(BuildPinnedGetArgv("https://example.com/", "example.com", 443,
+                                  "93.184.216.34", Opts()),
+               "--head"));
+}
+
+// A HEAD asks whether a resource is served, not for its bytes. curl checks
+// --max-filesize against the advertised Content-Length even for a HEAD
+// ("Maximum file size exceeded", exit 63), so a cap on a HEAD refuses the
+// answer for every resource larger than the cap: a 230 KB stylesheet asked
+// about with a 64 KiB cap never got one.
+TEST(CurlFetcher, HeadCarriesNoFileSizeCap) {
+  CurlFetchOptions opts;
+  opts.head = true;
+  opts.max_response_bytes = 64u << 10;
+  const Argv a = BuildPinnedGetArgv("https://example.com/big.css",
+                                    "example.com", 443, "93.184.216.34", opts);
+  ASSERT_FALSE(a.empty());
+  EXPECT_TRUE(Contains(a, "--head"));
+  EXPECT_FALSE(Contains(a, "--max-filesize"));
+  // Still bounded in time.
+  EXPECT_TRUE(Contains(a, "--max-time"));
+}
+
+// Negative control: a GET with the same options keeps its transfer cap.
+TEST(CurlFetcher, GetKeepsFileSizeCap) {
+  CurlFetchOptions opts;
+  opts.max_response_bytes = 64u << 10;
+  const Argv a = BuildPinnedGetArgv("https://example.com/big.css",
+                                    "example.com", 443, "93.184.216.34", opts);
+  ASSERT_FALSE(a.empty());
+  EXPECT_FALSE(Contains(a, "--head"));
+  EXPECT_TRUE(HasFlagValue(a, "--max-filesize", "65536"));
+}
+
 TEST(CurlFetcher, IpLiteralHostNeedsNoResolve) {
   // host == pinned_ip → the URL already pins the target; --resolve is redundant.
   const Argv a = BuildPinnedGetArgv("http://127.0.0.1:3000/api", "127.0.0.1",
@@ -149,6 +200,17 @@ TEST(CurlFetcher, ProxyDisabledForAllHosts) {
   const Argv a = BuildPinnedGetArgv("https://example.com/", "example.com", 443,
                                     "93.184.216.34", Opts());
   EXPECT_TRUE(HasFlagValue(a, "--noproxy", "*"));
+}
+
+// Origin responses are fetched compressed and decoded by curl, so the caller's
+// output cap (applied to curl's stdout) bounds the decoded size.
+TEST(CurlFetcher, RequestsCompressedResponses) {
+  const Argv a = BuildPinnedGetArgv("https://example.com/", "example.com", 443,
+                                    "93.184.216.34", Opts());
+  EXPECT_TRUE(Contains(a, "--compressed"));
+  // Decoding is curl's job: no hand-written Accept-Encoding header that would
+  // leave the body undecoded.
+  EXPECT_FALSE(ContainsSubstr(a, "Accept-Encoding"));
 }
 
 // H1 — globbing off, and a {}/[] URL must ride verbatim (no glob fan-out past the pin).

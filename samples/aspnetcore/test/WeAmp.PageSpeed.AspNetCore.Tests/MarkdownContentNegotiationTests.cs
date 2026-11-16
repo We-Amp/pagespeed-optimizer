@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
+using System.IO.Compression;
 using System.Net.Http;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -82,6 +85,43 @@ public sealed class MarkdownContentNegotiationTests
         Assert.Equal("noindex", headers["X-Robots-Tag"].ToString());
     }
 
+    [Theory]
+    [InlineData("gzip")]
+    [InlineData("gzip, deflate, br")]
+    public async Task EntitledMarkdownHit_ContentEncodingMatchesTheBodySent(
+        string acceptEncoding)
+    {
+        if (!NativeMarkdownProbe.Available(_output)) return;
+
+        // The Markdown copy is stored uncompressed. Whatever the request
+        // accepts, a Content-Encoding on the response must describe the bytes
+        // actually sent: decoding the body by it yields the Markdown.
+        var cache = new MarkdownNegotiationCache(agentEntitled: 1);
+        var (status, ct, body, headers) = await Serve(
+            cache, enableAgentOptimize: true, accept: "text/markdown",
+            acceptEncoding: acceptEncoding);
+
+        Assert.Equal(200, status);
+        Assert.Equal("text/markdown; charset=utf-8", ct);
+        Assert.Equal("HIT", headers["X-PageSpeed"].ToString());
+        var encoding = headers.ContentEncoding.ToString();
+        byte[] decoded;
+        if (encoding.Length == 0)
+        {
+            decoded = body;
+        }
+        else
+        {
+            Assert.Equal("gzip", encoding);
+            using var gz = new GZipStream(
+                new MemoryStream(body), CompressionMode.Decompress);
+            using var plain = new MemoryStream();
+            gz.CopyTo(plain);
+            decoded = plain.ToArray();
+        }
+        Assert.Equal(MarkdownBody, decoded);
+    }
+
     [Fact]
     public async Task BrowserHtmlAccept_ServesHtml()
     {
@@ -130,10 +170,103 @@ public sealed class MarkdownContentNegotiationTests
         Assert.False(headers.ContainsKey("X-Robots-Tag"));
     }
 
+    [Fact]
+    public async Task EntitledMarkdownRequest_HostNotInAllowedHosts_ServesHtml()
+    {
+        if (!NativeMarkdownProbe.Available(_output)) return;
+
+        var cache = new MarkdownNegotiationCache(agentEntitled: 1);
+        var (status, ct, body, headers) = await Serve(
+            cache, enableAgentOptimize: true, accept: "text/markdown",
+            allowedHost: "*");
+
+        Assert.Equal(200, status);
+        Assert.Equal("text/html; charset=utf-8", ct);
+        Assert.Equal(HtmlBody, body);
+        Assert.False(headers.ContainsKey("X-Robots-Tag"));
+    }
+
+    // ── a request carrying a cookie ───────────────────────────────────
+
+    // The markdown copy has no Cache-Control of its own: for a request with a
+    // cookie, the recorded page's mark decides (public, or one s-maxage
+    // above zero), and without a recorded page it is not served.
+    [NativeLibTheory]
+    [InlineData(null, 0, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.MustRevalidate, 0, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent, 0, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent
+                | CacheControlCcFlags.SMaxageRepeated, 60, false)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.Public, 0, true)]
+    [InlineData(CacheControlCcFlags.HeaderPresent | CacheControlCcFlags.SMaxagePresent, 60, true)]
+    public async Task EntitledMarkdownRequestWithCookie_ServedOnlyWhenTheRecordedPageIsMarkedShared(
+        int? pageOriginCcFlags, int pageOriginSMaxage, bool expectMarkdown)
+    {
+        var cache = new MarkdownNegotiationCache(agentEntitled: 1)
+        {
+            RecordedPage = pageOriginCcFlags is int f
+                ? new NegotiationReadResult
+                {
+                    ContentMemory = HtmlBody,
+                    Mask = 0x08,
+                    ContentType = PageSpeedContentType.Html,
+                    OriginContentType = "text/html; charset=utf-8",
+                    OriginCcFlags = (ushort)f,
+                    OriginSMaxage = (uint)pageOriginSMaxage,
+                }
+                : null,
+        };
+        var (_, ct, body, headers) = await Serve(
+            cache, enableAgentOptimize: true, accept: "text/markdown",
+            cookie: "session=abc");
+
+        if (expectMarkdown)
+        {
+            Assert.Equal("text/markdown; charset=utf-8", ct);
+            Assert.Equal(MarkdownBody, body);
+        }
+        else
+        {
+            Assert.NotEqual("text/markdown; charset=utf-8", ct);
+            Assert.NotEqual(MarkdownBody, body);
+            Assert.NotEqual("HIT", headers["X-PageSpeed"].ToString());
+        }
+    }
+
+    // Control for the theory above: without a cookie the same request is
+    // served the markdown copy whatever the recorded page says.
+    [NativeLibTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EntitledMarkdownRequestWithoutCookie_ServedWhateverTheRecordedPageSays(
+        bool recordedPage)
+    {
+        var cache = new MarkdownNegotiationCache(agentEntitled: 1)
+        {
+            RecordedPage = recordedPage
+                ? new NegotiationReadResult
+                {
+                    ContentMemory = HtmlBody,
+                    Mask = 0x08,
+                    ContentType = PageSpeedContentType.Html,
+                    OriginContentType = "text/html; charset=utf-8",
+                    OriginCcFlags = CacheControlCcFlags.HeaderPresent,
+                }
+                : null,
+        };
+        var (_, ct, body, _) = await Serve(
+            cache, enableAgentOptimize: true, accept: "text/markdown");
+
+        Assert.Equal("text/markdown; charset=utf-8", ct);
+        Assert.Equal(MarkdownBody, body);
+    }
+
     // ── harness ──────────────────────────────────────────────────────
 
     private async Task<(int Status, string? ContentType, byte[] Body, IHeaderDictionary Headers)>
-        Serve(IPageSpeedCache cache, bool enableAgentOptimize, string accept)
+        Serve(IPageSpeedCache cache, bool enableAgentOptimize, string accept,
+              string allowedHost = "localhost", string? cookie = null,
+              string? acceptEncoding = null)
     {
         var options = new PageSpeedOptions
         {
@@ -150,10 +283,16 @@ public sealed class MarkdownContentNegotiationTests
             new WeAmp.PageSpeed.AspNetCore.Internal.InternalWorkerEndpoint(),
             Substitute.For<ILogger<WorkerNotificationService>>());
 
+        var hostFiltering = Substitute.For<IOptionsMonitor<HostFilteringOptions>>();
+        hostFiltering.CurrentValue.Returns(new HostFilteringOptions
+        {
+            AllowedHosts = new List<string> { allowedHost },
+        });
+
         var middleware = new PageSpeedMiddleware(
             _ => Task.CompletedTask, optionsMonitor,
             Substitute.For<IHtmlProcessor>(), cache, notifier,
-            Substitute.For<ILogger<PageSpeedMiddleware>>());
+            Substitute.For<ILogger<PageSpeedMiddleware>>(), hostFiltering);
 
         var context = new DefaultHttpContext();
         context.Request.Method = "GET";
@@ -161,6 +300,9 @@ public sealed class MarkdownContentNegotiationTests
         context.Request.Scheme = "http";
         context.Request.Host = new HostString("localhost");
         context.Request.Headers.Accept = accept;
+        if (cookie != null) context.Request.Headers.Cookie = cookie;
+        if (acceptEncoding != null)
+            context.Request.Headers.AcceptEncoding = acceptEncoding;
         var responseBody = new MemoryStream();
         context.Response.Body = responseBody;
 
@@ -201,8 +343,13 @@ public sealed class MarkdownContentNegotiationTests
 
         public int ReadSharedConfigAgentEntitled() => _agentEntitled;
 
+        // The page recorded for the URL (the default alternate, 0x08), or
+        // null for none.
+        public IReadResult? RecordedPage { get; init; }
+
         public IReadResult? ReadAlternate(
-            string url, string hostname, string scheme, byte alternateId) => null;
+            string url, string hostname, string scheme, byte alternateId) =>
+            alternateId == 0x08 ? RecordedPage : null;
         public IReadResult? ReadEarlyHints(string url, string hostname, string scheme) => null;
         public CacheWriter BeginWrite(
             string url, string hostname, string scheme, CacheWriteParams p) =>
@@ -223,9 +370,10 @@ public sealed class MarkdownContentNegotiationTests
         public uint Mask { get; init; }
         public PageSpeedContentType ContentType { get; init; }
         public string? OriginContentType { get; init; }
-        public byte Flags { get; init; } = CacheFlags.HeadersClassified;
+        public byte Flags { get; init; } = CacheFlags.HeadersClassified | CacheFlags.AnonymousRecorded;
         public bool NeedsRevalidation => false;
-        public ushort OriginCcFlags => 0;
+        public ushort OriginCcFlags { get; init; }
+        public uint OriginSMaxage { get; init; }
         public bool RevalidationRequired => false;
         public uint OriginContentLength { get; init; }
         public bool IsWorkerProcessed { get; init; }
@@ -268,10 +416,23 @@ internal static class NativeMarkdownProbe
         }
     }
 
-    private static bool TryEnable(ITestOutputHelper output)
+    private static string? _stageNote;
+
+    /// <summary>
+    /// Stages the env-pointed library into the test output's
+    /// runtimes/&lt;rid&gt;/native layout, where the product resolver (set once
+    /// per assembly by its own module initializer) looks. This runs when the
+    /// test assembly loads, before any test has mapped that file, so every
+    /// test in the process sees the same library. The file is never written
+    /// in place: it is copied to a unique name in the same directory and
+    /// renamed over the target, so a mapping of the old file (if there were
+    /// one) stays valid instead of being truncated underneath the process.
+    /// </summary>
+    [ModuleInitializer]
+    internal static void StageEnvNativeLib()
     {
         var src = Environment.GetEnvironmentVariable("PAGESPEED_AGENT_NATIVE_LIB");
-        if (string.IsNullOrWhiteSpace(src) || !File.Exists(src)) return false;
+        if (string.IsNullOrWhiteSpace(src) || !File.Exists(src)) return;
         try
         {
             var rid = RuntimeInformation.RuntimeIdentifier;
@@ -281,12 +442,28 @@ internal static class NativeMarkdownProbe
                 : "libpagespeed.so";
             var dest = Path.Combine(
                 AppContext.BaseDirectory, "runtimes", rid, "native", nativeName);
-            // Force-overwrite: the build may have already staged a RELEASED
-            // NativeAssets lib that predates ps_wants_agent_markdown; the
-            // env-pointed feature build is authoritative here.
             Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
-            File.Copy(src, dest, overwrite: true);
-            output.WriteLine($"staged native lib {src} -> {dest}");
+            // The build may have staged a RELEASED NativeAssets lib that
+            // predates ps_wants_agent_markdown; the env-pointed feature build
+            // is authoritative here.
+            var tmp = dest + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.Copy(src, tmp, overwrite: false);
+            File.Move(tmp, dest, overwrite: true);
+            _stageNote = $"staged native lib {src} -> {dest}";
+        }
+        catch (Exception ex)
+        {
+            _stageNote = $"staging native lib failed: {ex.GetType().Name}: {ex.Message}";
+        }
+    }
+
+    private static bool TryEnable(ITestOutputHelper output)
+    {
+        var src = Environment.GetEnvironmentVariable("PAGESPEED_AGENT_NATIVE_LIB");
+        if (string.IsNullOrWhiteSpace(src) || !File.Exists(src)) return false;
+        try
+        {
+            if (_stageNote is not null) output.WriteLine(_stageNote);
             // Probe the actual Accept parser the negotiation depends on
             // (catches EntryPointNotFound if a stale lib somehow loaded first).
             return NativePageSpeed.WantsAgentMarkdown("text/markdown") == 1;

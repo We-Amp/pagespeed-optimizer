@@ -169,6 +169,10 @@ internal static partial class NativePageSpeed
     [LibraryImport(Lib, EntryPoint = "ps_read_origin_cc_flags")]
     internal static partial ushort ReadOriginCcFlags(IntPtr result);
 
+    // Origin s-maxage in seconds as recorded with the entry; 0 if absent.
+    [LibraryImport(Lib, EntryPoint = "ps_read_origin_s_maxage")]
+    internal static partial uint ReadOriginSMaxage(IntPtr result);
+
     // Re-stamp the read lease pinning this result's mmap borrow
     //. 1 = renewed; 0 = nothing to renew (RAM hit,
     // leases disabled, NULL/invalid). Holders keeping a result alive past
@@ -249,6 +253,13 @@ internal static partial class NativePageSpeed
     internal static partial int ParseCacheControl(
         string headerValue, ref NativeCacheControl parsed);
 
+    // ---------- Vary store predicate ----------
+    // 1 if a response carrying this combined Vary value may not be stored,
+    // 0 if it may; a null value is a response with no Vary.
+    [LibraryImport(Lib, EntryPoint = "ps_vary_uncacheable",
+        StringMarshalling = StringMarshalling.Utf8)]
+    internal static partial int VaryUncacheable(string? vary);
+
     // ---------- response-header block ----------
     // names/values: arrays of `count` NUL-terminated strings (const char* const*).
     // out verdict: ps_sidecar_verdict_t as int; out stored: 0 or 1.
@@ -258,6 +269,12 @@ internal static partial class NativePageSpeed
         SafeCacheHandle cache, string url, string hostname, string scheme,
         IntPtr names, IntPtr values, nuint count,
         out int verdict, out int stored);
+
+    // Classifies a complete response header set without a cache (PS_API 1.4).
+    // Returns ps_sidecar_verdict_t as int, or -1 on a NULL table or element.
+    [LibraryImport(Lib, EntryPoint = "ps_headers_sidecar_classify")]
+    internal static partial int HeadersSidecarClassify(
+        IntPtr names, IntPtr values, nuint count);
 
     // ---------- cache management ----------
 

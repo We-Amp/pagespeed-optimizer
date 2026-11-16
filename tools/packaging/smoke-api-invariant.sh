@@ -359,21 +359,70 @@ check "PURGE over the unix socket needs no bearer" "200" \
 # that would present as "the console connects but never updates".
 ws_check() {
   python3 - "$API_SOCK" <<'PYWS'
-import socket, sys
+import socket, sys, time
+# One 8 s deadline for the whole exchange: the handshake AND the first frame.
+deadline = time.monotonic() + 8
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-s.settimeout(8)
+buf = b""
+
+class Eof(Exception):
+    pass
+
+def need(n):
+    # Read until buf holds at least n bytes; Eof if the peer closes first.
+    global buf
+    while len(buf) < n:
+        left = deadline - time.monotonic()
+        if left <= 0:
+            raise socket.timeout()
+        s.settimeout(left)
+        chunk = s.recv(65536)
+        if not chunk:
+            raise Eof()
+        buf += chunk
+
 try:
+    s.settimeout(8)
     s.connect(sys.argv[1])
     s.sendall(b"GET /v1/ws/stats HTTP/1.1\r\nHost: localhost\r\n"
               b"Upgrade: websocket\r\nConnection: Upgrade\r\n"
               b"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
               b"Sec-WebSocket-Version: 13\r\n\r\n")
-    head = s.recv(4096)
-    if b"101" not in head or b"Sec-WebSocket-Accept" not in head:
+    # The daemon writes the 101 and the stats snapshot back to back, so one
+    # recv can return the 101 alone, the 101 plus part of the snapshot frame,
+    # or the 101 plus all of it.  Read to the end of the headers, keep what
+    # follows as frame bytes, and parse frames off the byte stream rather
+    # than assuming one recv per frame.
+    try:
+        while b"\r\n\r\n" not in buf:
+            need(len(buf) + 1)
+    except Eof:
         print("no-101"); sys.exit(0)
-    # A stream that hands back a 101 but never frames is not a working stream.
-    frame = s.recv(4096)
-    print("ok" if frame and (frame[0] & 0x0F) in (1, 2) else "no-frame")
+    head, _, buf = buf.partition(b"\r\n\r\n")
+    if not head.startswith(b"HTTP/1.1 101") \
+            or b"sec-websocket-accept" not in head.lower():
+        print("no-101"); sys.exit(0)
+    # A stream that hands back a 101 but never frames is not a working
+    # stream.  Skip ping/pong until the first text or binary frame has fully
+    # arrived; a close frame, any other opcode, or EOF first is a failure.
+    while True:
+        need(2)
+        opcode, masked, plen = buf[0] & 0x0F, buf[1] & 0x80, buf[1] & 0x7F
+        ext = {126: 2, 127: 8}.get(plen, 0)
+        need(2 + ext)
+        if ext:
+            plen = int.from_bytes(buf[2:2 + ext], "big")
+        hdr = 2 + ext + (4 if masked else 0)
+        need(hdr + plen)
+        if opcode in (1, 2):
+            print("ok"); break
+        if opcode == 8:
+            print("no-frame:close"); break
+        if opcode not in (9, 10):
+            print("no-frame:opcode-%d" % opcode); break
+        buf = buf[hdr + plen:]
+except Eof:
+    print("no-frame:eof")
 except Exception as exc:  # noqa: BLE001
     print("error:%s" % type(exc).__name__)
 PYWS

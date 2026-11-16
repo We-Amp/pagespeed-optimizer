@@ -71,7 +71,7 @@ test.describe('search capture: titles', () => {
   test('the CLS and LCP pillars carry the server-fix box', async ({ page }) => {
     for (const path of ['/core-web-vitals/cls/', '/core-web-vitals/lcp/']) {
       await page.goto(path);
-      const box = page.locator('aside[aria-labelledby="fix-at-the-server"]');
+      const box = page.locator('section[aria-labelledby="fix-at-the-server"]');
       await expect(box).toBeVisible();
       expect(await box.locator('a[href^="/docs/"]').count()).toBeGreaterThanOrEqual(3);
     }

@@ -64,8 +64,35 @@ test.describe('Example detail page', () => {
     await expect(page.locator('text=Optimized').first()).toBeVisible();
   });
 
+  test('states the measured result in words', async ({ page }) => {
+    await expect(page.locator('[data-measured-text]')).toContainText('5 HTTP requests become 2');
+    await expect(page).toHaveTitle('Combine CSS live demo: before and after — mod_pagespeed');
+  });
+
   test('links to the relevant filter docs', async ({ page }) => {
     await expect(page.locator('a[href="/docs/css-filters/"]')).toBeVisible();
+  });
+});
+
+test.describe('An example page follows its capture status', () => {
+  test('a beacon capture shows a note and no figures, and is noindex', async ({ page }) => {
+    await page.goto('/examples/prioritize_critical_images/');
+    await expect(page.locator('[data-not-applied]')).toContainText('beacon script');
+    await expect(page.locator('[data-measured-text]')).toHaveCount(0);
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  });
+
+  test('a header capture quotes the hint header', async ({ page }) => {
+    await page.goto('/examples/hint_preload_subresources/');
+    await expect(page.locator('[data-hint-header]')).toContainText('rel=preload');
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  });
+
+  test('a capture settled as a browser is indexable and says so', async ({ page }) => {
+    await page.goto('/examples/defer_javascript/');
+    await expect(page.locator('[data-not-applied]')).toHaveCount(0);
+    await expect(page.locator('[data-browser-only]')).toContainText('as a browser');
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
   });
 });
 

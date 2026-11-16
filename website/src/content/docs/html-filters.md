@@ -10,6 +10,8 @@ lastUpdated: 2026-10-22
 
 mod_pagespeed includes filters that optimize HTML structure, cut unnecessary bytes, and add performance hints. Two of them (`add_head`, `convert_meta_tags`) are CoreFilters and run by default; the rest are opt-in — see [Filter selection](/docs/filter-selection/) to turn them on. For resources rather than markup, see the [CSS filters](/docs/css-filters/), [JavaScript filters](/docs/javascript-filters/), and [Image filters](/docs/image-filters/) pages.
 
+On pages mod_pagespeed recognizes as hydrated, some of these filters do not run. See [Hydrated pages](/docs/hydrated-pages/).
+
 ## Quick reference
 
 | Filter                                                    | Core | Description                          | Safe               |

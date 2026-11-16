@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
-// Single source of truth for the social share-intent targets, consumed by both
-// the inline ShareButtons panel (blog/docs) and the floating ShareFloat popup
-// (sitewide). Keeping the brand-icon path data + intent URLs in one place means
-// the two surfaces can never drift apart. No third-party tracking JS — every
-// target is a plain share-intent URL; Copy-link is handled separately.
+// Single source of truth for the social share-intent targets, consumed by the
+// inline ShareButtons panel (blog/docs). Keeping the brand-icon path data +
+// intent URLs in one place means share surfaces cannot drift apart. No
+// third-party tracking JS — every target is a plain share-intent URL;
+// Copy-link is handled separately.
 
 export interface ShareTarget {
   /** Display name, used in aria-label / title. */

@@ -19,10 +19,17 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <optional>
+#include <span>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
+#include "absl/strings/str_cat.h"
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
 #include "lib/cache/freshness.h"
@@ -32,7 +39,10 @@
 #include "lib/classify/option_context.h"
 #include "src/proto/worker_ipc.h"
 #include "src/worker/browser_analysis_manager.h"
+#include "src/worker/browser_analysis_manager_internal.h"
 #include "src/worker/critical_css_extractor.h"
+#include "src/worker/known_sites.h"
+#include "src/worker/url_registry.h"
 #include "src/worker/worker.h"
 #include "test/test_util/pipe_client.h"
 #include "test/test_util/tcp_client.h"
@@ -733,6 +743,134 @@ TEST_F(WorkerTest, NotifyWithValidNonDefaultOptionContextIsStoredUnderDefault) {
   }
 }
 
+// A notification that carries an options context starts no fetch from its
+// hostname: the /llms.txt build does not run for it.  The control, the same
+// request without a context, runs the build, which stamps its freshness
+// record even when the fetch fails.
+TEST_F(WorkerTest, NotifyWithOptionContextBuildsNoLlmsTxt) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.browser_analysis.agent_optimize = true;
+  config.browser_analysis.agent_optimize_llms_txt = true;
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  // Closed loopback ports: any fetch fails at once.
+  const std::string with_context_host = "127.0.0.1:1";
+  const std::string control_host = "127.0.0.2:1";
+  // Both vouched, so the options context is the only difference.
+  auto llms_notification = [](const std::string& host) {
+    CacheNotification n;
+    n.url = "/llms.txt";
+    n.hostname = host;
+    n.scheme = "http";
+    n.content_type = ContentType::kHtml;
+    n.capability_mask = kLlmsTxtSentinel;
+    n.host_vouched = true;
+    return n;
+  };
+
+  CacheNotification with_context = llms_notification(with_context_host);
+  const std::string payload = "psoc1\nf:hw\no:ImageInlineMaxBytes=3072\n";
+  with_context.option_context = payload;
+  with_context.option_signature = OptionContextSignature(payload);
+  ASSERT_EQ(OptionContextStatus::kOk,
+            ValidateOptionContext(with_context.option_context,
+                                  with_context.option_signature));
+  SendNotification(with_context);
+  SendNotification(llms_notification(control_host));
+
+  auto has_meta = [&worker](const std::string& host) {
+    return worker.cache()
+        ->ReadAlternate("/llms.txt", host, "http",
+                        static_cast<AlternateId>(SentinelId::kLlmsTxtMeta))
+        .has_value();
+  };
+  for (int i = 0; i < 100 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (has_meta(control_host) && worker.in_flight_work() == 0) break;
+  }
+  ASSERT_TRUE(has_meta(control_host))
+      << "the control build did not run, so this test proves nothing";
+  EXPECT_FALSE(has_meta(with_context_host))
+      << "a notification with an options context must not start the build";
+}
+
+// The same rule for browser analysis, which the agent render follows: an HTML
+// notification with an options context queues no analysis, while the same
+// notification without one does.
+TEST_F(WorkerTest, NotifyWithOptionContextQueuesNoBrowserAnalysis) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  // As in the critical-CSS tests: a manager without a live Chrome, sandbox
+  // opt-out for the build container.
+  config.browser_analysis.sandbox_mode = BrowserSandboxMode::kOff;
+  config.browser_analysis.enabled = true;
+  config.browser_analysis.chrome_binary = "/nonexistent/chrome";
+  config.browser_analysis.agent_optimize = true;
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  BrowserAnalysisManager* mgr = worker.TestBrowserManager();
+  ASSERT_NE(mgr, nullptr);
+
+  CacheOriginal(worker.cache(), "/with-context.html",
+                "<html><head><title>a</title></head><body><p>a</p>"
+                "<img src=\"/a1.png\"><img src=\"/a2.png\"></body></html>");
+  CacheOriginal(worker.cache(), "/control.html",
+                "<html><head><title>b</title></head><body><div><ul><li>b"
+                "</li></ul></div><img src=\"/b1.png\"><img src=\"/b2.png\">"
+                "</body></html>");
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  auto html_notification = [](const std::string& url) {
+    CacheNotification n;
+    n.url = url;
+    n.scheme = "https";
+    n.content_type = ContentType::kHtml;
+    n.capability_mask = CapabilityMask().Encode();
+    return n;
+  };
+  auto wait_html = [&worker](uint64_t count) {
+    for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      if (worker.stats().html_processed.load() >= count &&
+          worker.in_flight_work() == 0) {
+        return;
+      }
+    }
+  };
+
+  CacheNotification with_context =
+      html_notification("http://example.com/with-context.html");
+  const std::string payload = "psoc1\nf:hw\no:ImageInlineMaxBytes=3072\n";
+  with_context.option_context = payload;
+  with_context.option_signature = OptionContextSignature(payload);
+  SendNotification(with_context);
+  wait_html(1);
+  ASSERT_GE(worker.stats().html_processed.load(), 1u);
+  EXPECT_EQ(mgr->stats().queue_enqueued.load(), 0u)
+      << "a notification with an options context must not queue analysis";
+
+  SendNotification(html_notification("http://example.com/control.html"));
+  wait_html(2);
+  ASSERT_GE(worker.stats().html_processed.load(), 2u);
+  EXPECT_GE(mgr->stats().queue_enqueued.load(), 1u)
+      << "the control was not queued, so this test proves nothing";
+}
+
 // Two notifications for the SAME URL carrying DIFFERENT valid contexts produce
 // ONE OPTIMIZATION, not two: both are filed under the default context, so the
 // second is deduplicated exactly as a repeat of the first would be.
@@ -981,12 +1119,12 @@ TEST_F(WorkerTest, MalformedNotifyCountedSeparatelyFromVersionSkew) {
   //
   // The offset moved when the wire gained the v5 option-context tail: the
   // scheme byte is now followed by agent_request(1) + option_context_length(4)
-  // + option_signature_length(1), so it sits seven from the end rather than
-  // second. Left at the old offset this test still passed -- corrupting a
-  // length field also yields a malformed frame -- but it would have stopped
-  // testing what it says it tests, which is the quiet way a regression test
-  // turns into a tautology.
-  const size_t scheme_index = wire.size() - 7;
+  // + option_signature_length(1), and since v6 by site_length(1) + flags(1),
+  // so it sits nine from the end rather than second. Left at an old offset
+  // this test still passed -- corrupting a length field also yields a
+  // malformed frame -- but it would have stopped testing what it says it
+  // tests, which is the quiet way a regression test turns into a tautology.
+  const size_t scheme_index = wire.size() - 9;
   ASSERT_EQ(0x02u, static_cast<unsigned char>(wire[scheme_index]))
       << "scheme byte is not where this test thinks it is";
   wire[scheme_index] = static_cast<char>(0x7E);
@@ -1926,6 +2064,416 @@ TEST_F(WorkerTest, UnknownContentTypeNotification) {
 TEST(WorkerConfigTest, ExtractorSmallSheetThresholdMatchesTheWorkers) {
   EXPECT_EQ(CriticalCssConfig{}.inline_limit_min_sheet_bytes,
             WorkerConfig{}.async_css_min_deferred_bytes);
+}
+
+// ============================================================================
+// Site identity (wire v6): every keyspace is its own, and the module's
+// notifications never start page work.
+// ============================================================================
+
+namespace {
+
+const std::string kSiteOne(kSiteIdChars, 'a');
+const std::string kSiteTwo(kSiteIdChars, 'b');
+
+// Writes `content` as the identity entry of `path` in `site`'s keyspace.
+void CacheSitedOriginal(PageSpeedCache* cache, const std::string& path,
+                        const std::string& hostname, const std::string& site,
+                        const std::string& content,
+                        ContentType type = ContentType::kOther) {
+  CapabilityMask identity;
+  AlternateMetadata meta;
+  meta.full_mask = identity.Encode();
+  meta.content_type = type;
+  auto wh = cache->WriteAlternate(
+      path, hostname, "https",
+      MaskToAlternateId(static_cast<uint8_t>(identity.Encode() & 0xFF)),
+      content.size(), meta, site);
+  ASSERT_TRUE(wh.has_value());
+  ASSERT_TRUE(
+      wh->write_sync(std::as_bytes(std::span(content.data(), content.size())))
+          .has_value());
+  ASSERT_TRUE(wh->close_sync().has_value());
+}
+
+// The identity entry of `path` in `site`'s keyspace, with its flags.
+std::optional<std::pair<std::string, uint8_t>> ReadSitedIdentity(
+    PageSpeedCache* cache, const std::string& path, const std::string& hostname,
+    const std::string& site) {
+  CapabilityMask identity;
+  auto r = cache->ReadAlternate(
+      path, hostname, "https",
+      MaskToAlternateId(static_cast<uint8_t>(identity.Encode() & 0xFF)), site);
+  if (!r.has_value()) return std::nullopt;
+  auto c = r->content();
+  return std::make_pair(
+      std::string(reinterpret_cast<const char*>(c.data()), c.size()),
+      r->metadata.flags);
+}
+
+CacheNotification ModuleCss(const std::string& url, const std::string& site) {
+  CacheNotification n;
+  n.url = url;
+  n.hostname = "example.com";
+  n.scheme = "https";
+  n.content_type = ContentType::kCss;
+  n.capability_mask = CapabilityMask().Encode();
+  n.site = site;
+  n.from_module = true;
+  return n;
+}
+
+WorkerConfig SiteTestConfig(const std::string& socket_path,
+                            const std::string& cache_path) {
+  WorkerConfig config;
+  config.socket_path = socket_path;
+  config.cache_path = cache_path;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  return config;
+}
+
+WorkerConfig SiteAnalysisConfig(const std::string& socket_path,
+                                const std::string& cache_path) {
+  WorkerConfig config = SiteTestConfig(socket_path, cache_path);
+  // No Chrome runs: the manager exists so its queue can be inspected.
+  config.browser_analysis.sandbox_mode = BrowserSandboxMode::kOff;
+  config.browser_analysis.enabled = true;
+  config.browser_analysis.chrome_binary = "/nonexistent/chrome";
+  config.browser_analysis.agent_optimize = true;
+  return config;
+}
+
+}  // namespace
+
+TEST_F(WorkerTest, ModuleNotificationWithoutASiteIsRefused) {
+  Worker worker(SiteTestConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string css = "body  {  margin:  0;  }\n";
+  CacheSitedOriginal(worker.cache(), "/style.css", "example.com", "", css);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  SendNotification(ModuleCss("http://example.com/style.css", ""));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().notifications_rejected_empty_site.load(), 1u);
+  EXPECT_EQ(worker.stats().variants_written.load(), 0u);
+  auto unsited =
+      ReadSitedIdentity(worker.cache(), "/style.css", "example.com", "");
+  ASSERT_TRUE(unsited.has_value());
+  EXPECT_EQ(unsited->first, css) << "the unsited entry was not touched";
+}
+
+TEST_F(WorkerTest, ModuleNotificationAskingForPageWorkIsRefused) {
+  Worker worker(SiteAnalysisConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification html = ModuleCss("http://example.com/p.html", kSiteOne);
+  html.content_type = ContentType::kHtml;
+  CacheNotification llms = ModuleCss("http://example.com/llms.txt", kSiteOne);
+  llms.capability_mask = kLlmsTxtSentinel;
+  CacheNotification agent = ModuleCss("http://example.com/a.css", kSiteOne);
+  agent.agent_request = true;
+  CacheNotification vouched = ModuleCss("http://example.com/b.css", kSiteOne);
+  vouched.host_vouched = true;
+  for (const CacheNotification& n : {html, llms, agent, vouched}) {
+    SendNotification(n);
+  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 4,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().notifications_rejected_module_render.load(), 4u);
+  EXPECT_FALSE(worker.TestBrowserManager()->TestDequeue().has_value())
+      << "no analysis was queued";
+}
+
+TEST_F(WorkerTest, TwoSitesOnOneUrlGetIndependentVariants) {
+  Worker worker(SiteTestConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string css_one = "h1  {  color:  red;  }\n";
+  const std::string css_two = "h2  {  color:  blue;  }\n";
+  const std::string css_unsited = "h3  {  color:  green;  }\n";
+  CacheSitedOriginal(worker.cache(), "/style.css", "example.com", kSiteOne,
+                     css_one);
+  CacheSitedOriginal(worker.cache(), "/style.css", "example.com", kSiteTwo,
+                     css_two);
+  CacheSitedOriginal(worker.cache(), "/style.css", "example.com", "",
+                     css_unsited);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  SendNotification(ModuleCss("http://example.com/style.css", kSiteOne));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  auto one =
+      ReadSitedIdentity(worker.cache(), "/style.css", "example.com", kSiteOne);
+  auto two =
+      ReadSitedIdentity(worker.cache(), "/style.css", "example.com", kSiteTwo);
+  auto unsited =
+      ReadSitedIdentity(worker.cache(), "/style.css", "example.com", "");
+  ASSERT_TRUE(one && two && unsited);
+  EXPECT_NE(one->first.find("h1"), std::string::npos);
+  EXPECT_LT(one->first.size(), css_one.size()) << "site one was optimized";
+  EXPECT_EQ(two->first, css_two) << "site two was not touched";
+  EXPECT_EQ(unsited->first, css_unsited) << "the unsited entry was not touched";
+
+  // A repeat for site one is already processed; site two is not.
+  SendNotification(ModuleCss("http://example.com/style.css", kSiteOne));
+  SendNotification(ModuleCss("http://example.com/style.css", kSiteTwo));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 3,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().notifications_skipped_dedup.load(), 1u);
+  two =
+      ReadSitedIdentity(worker.cache(), "/style.css", "example.com", kSiteTwo);
+  ASSERT_TRUE(two.has_value());
+  EXPECT_NE(two->first.find("h2"), std::string::npos);
+  EXPECT_LT(two->first.size(), css_two.size()) << "site two was optimized";
+  unsited = ReadSitedIdentity(worker.cache(), "/style.css", "example.com", "");
+  ASSERT_TRUE(unsited.has_value());
+  EXPECT_EQ(unsited->first, css_unsited);
+
+  // Both sites are now known, and the registry lists each entry under its
+  // own site.
+  EXPECT_TRUE(worker.url_registry()->HasSite(kSiteOne));
+  EXPECT_TRUE(worker.url_registry()->HasSite(kSiteTwo));
+  EXPECT_EQ(worker.url_registry()->List(0, 10, {}, kSiteOne).total, 1u);
+}
+
+TEST_F(WorkerTest, PurgeGenerationAndCooldownStateArePerSite) {
+  Worker worker(SiteTestConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string url = "http://example.com/style.css";
+  CacheSitedOriginal(worker.cache(), "/style.css", "example.com", kSiteOne,
+                     "a{}");
+  CacheSitedOriginal(worker.cache(), "/style.css", "example.com", kSiteTwo,
+                     "b{}");
+
+  EXPECT_EQ(1, worker.InvalidateUrl(url, "example.com", "https", kSiteOne));
+  EXPECT_EQ(
+      worker.CapturePurgeGen(url, "example.com", "https", kSiteOne).url_gen,
+      1u);
+  EXPECT_EQ(
+      worker.CapturePurgeGen(url, "example.com", "https", kSiteTwo).url_gen,
+      0u);
+  EXPECT_EQ(worker.CapturePurgeGen(url, "example.com", "https").url_gen, 0u);
+  // One purge acts on one keyspace.
+  EXPECT_FALSE(
+      ReadSitedIdentity(worker.cache(), "/style.css", "example.com", kSiteOne)
+          .has_value());
+  EXPECT_TRUE(
+      ReadSitedIdentity(worker.cache(), "/style.css", "example.com", kSiteTwo)
+          .has_value());
+  EXPECT_FALSE(worker.GetCooldownForUrl(url, "example.com", "https", kSiteTwo)
+                   .has_value());
+}
+
+TEST_F(WorkerTest, RevalidationAndRetryKeepTheSiteAndBits) {
+  Worker worker(SiteAnalysisConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  BrowserAnalysisManager* mgr = worker.TestBrowserManager();
+  ASSERT_NE(mgr, nullptr);
+
+  ASSERT_TRUE(mgr->RequestRevalidation(
+      "http://example.com/p.html", "example.com", "https", kSiteOne,
+      /*host_vouched=*/true, /*from_module=*/false, 0x08, 42, "<html></html>"));
+  auto item = mgr->TestDequeue();
+  ASSERT_TRUE(item.has_value());
+  EXPECT_EQ(item->site, kSiteOne);
+  EXPECT_TRUE(item->host_vouched);
+  EXPECT_FALSE(item->from_module);
+
+  auto retry = browser_internal::BuildReanalysisItem(*item, 1);
+  EXPECT_EQ(retry.site, kSiteOne);
+  EXPECT_TRUE(retry.host_vouched);
+  EXPECT_FALSE(retry.from_module);
+  EXPECT_EQ(retry.retry_count, 1);
+}
+
+TEST_F(WorkerTest, TwoSitesOnOneUrlQueueSeparateAgentRenders) {
+  Worker worker(SiteAnalysisConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string url = "http://example.com/page.html";
+  const std::string html =
+      "<html><head><style>h1 { color: red; }</style></head>"
+      "<body><h1>Hello</h1></body></html>";
+  HtmlScanner scanner;
+  HtmlScanResult scan = scanner.Scan(url, html);
+  ASSERT_TRUE(scan.success);
+  const uint64_t template_hash = TemplateDetector::HashStructure(scan);
+  OptimizationProfile profile;
+  profile.template_hash_hex = "feed";
+  profile.analyzed_url = url;
+  profile.expires_at = 0;
+  for (const std::string& site : {kSiteOne, kSiteTwo}) {
+    CacheSitedOriginal(worker.cache(), "/page.html", "example.com", site, html,
+                       ContentType::kHtml);
+    worker.TestBrowserManager()->TestStoreProfile(template_hash, profile, site);
+  }
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  for (const std::string& site : {kSiteOne, kSiteTwo}) {
+    CacheNotification n;
+    n.url = url;
+    n.hostname = "example.com";
+    n.scheme = "https";
+    n.content_type = ContentType::kHtml;
+    n.capability_mask = CapabilityMask().Encode();
+    n.agent_request = true;
+    n.site = site;
+    n.host_vouched = true;
+    SendNotification(n);
+  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  std::vector<AnalysisQueue::Item> items;
+  while (auto item = worker.TestBrowserManager()->TestDequeue()) {
+    items.push_back(std::move(*item));
+  }
+  ASSERT_EQ(items.size(), 2u) << "one render per site, not one for both";
+  EXPECT_NE(items[0].site, items[1].site);
+  EXPECT_NE(items[0].template_hash, items[1].template_hash);
+  for (const auto& item : items) {
+    EXPECT_TRUE(item.force_agent_render);
+    EXPECT_TRUE(item.host_vouched);
+  }
+}
+
+TEST_F(WorkerTest, CombinedCssIsReadFromThePagesOwnSite) {
+  Worker worker(SiteAnalysisConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  CacheSitedOriginal(worker.cache(), "/s.css", "example.com", kSiteOne,
+                     ".one{color:red}", ContentType::kCss);
+  CacheSitedOriginal(worker.cache(), "/s.css", "example.com", kSiteTwo,
+                     ".two{color:blue}", ContentType::kCss);
+  const std::string html =
+      "<html><head><link rel=\"stylesheet\" href=\"/s.css\"></head>"
+      "<body><p class=one>x</p></body></html>";
+  HtmlScanner scanner;
+  HtmlScanResult scan = scanner.Scan("/page.html", html);
+  ASSERT_TRUE(scan.success);
+  const auto& builder = worker.TestBrowserManager()->TestCombinedCssBuilder();
+  ASSERT_TRUE(builder);
+  auto one = builder(scan, "/page.html", "example.com", "https", kSiteOne,
+                     /*host_vouched=*/false, /*from_module=*/false);
+  auto two = builder(scan, "/page.html", "example.com", "https", kSiteTwo,
+                     /*host_vouched=*/false, /*from_module=*/false);
+  EXPECT_NE(one.css.find(".one"), std::string::npos);
+  EXPECT_EQ(one.css.find(".two"), std::string::npos);
+  EXPECT_NE(two.css.find(".two"), std::string::npos);
+  EXPECT_EQ(two.css.find(".one"), std::string::npos);
+}
+
+TEST_F(WorkerTest, ReprocessCarriesItsSiteAndVouchesForNoHost) {
+  WorkerConfig config = SiteAnalysisConfig(socket_path_, cache_path_);
+  config.api_port = -1;
+  config.api_no_auth = true;
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string html = "<html><body><h1>Hi</h1></body></html>";
+  CacheSitedOriginal(worker.cache(), "/page.html", "example.com", kSiteOne,
+                     html, ContentType::kHtml);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  for (int i = 0; i < 40 && worker.api_port() <= 0; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+  ASSERT_GT(worker.api_port(), 0);
+
+  // The site and host must have been served before: record a notification.
+  SendNotification(ModuleCss("http://example.com/x.css", kSiteOne));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  const std::string body =
+      absl::StrCat(R"({"url":"/page.html","hostname":"example.com","site":")",
+                   kSiteOne, R"("})");
+  const std::string req = absl::StrCat(
+      "POST /v1/cache/reprocess HTTP/1.1\r\nHost: localhost\r\n"
+      "Content-Type: application/json\r\nConnection: close\r\n"
+      "Content-Length: ",
+      body.size(), "\r\n\r\n", body);
+  const std::string resp = pagespeed::test::SendRequest(
+      worker.api_port(), pagespeed::test::InjectCsrfHeaderForV1Mutations(req));
+  ASSERT_NE(resp.find("200 OK"), std::string::npos) << resp;
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+
+  auto item = worker.TestBrowserManager()->TestDequeue();
+  ASSERT_TRUE(item.has_value()) << "the reprocessed page was analysed";
+  EXPECT_EQ(item->site, kSiteOne);
+  EXPECT_FALSE(item->host_vouched);
+  EXPECT_FALSE(item->from_module);
+  EXPECT_FALSE(item->force_agent_render);
+}
+
+TEST_F(WorkerTest, KnownSitesSurviveARestartOfTheWorker) {
+  {
+    Worker worker(SiteTestConfig(socket_path_, cache_path_), nullptr);
+    ASSERT_TRUE(worker.Initialize());
+    CacheSitedOriginal(worker.cache(), "/style.css", "example.com", kSiteOne,
+                       "h1  {  color:  red;  }\n");
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    WorkerStopper stopper(worker, worker_thread);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    SendNotification(ModuleCss("http://example.com/style.css", kSiteOne));
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, 1, kWorkerStallBudget));
+  }
+  Worker restarted(SiteTestConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(restarted.Initialize());
+  EXPECT_TRUE(restarted.url_registry()->HasSite(kSiteOne));
+  EXPECT_FALSE(restarted.KnownSitesIncomplete());
+}
+
+TEST_F(WorkerTest, KnownSitesAreIncompleteAfterAnUnreadableFile) {
+  std::filesystem::create_directories(
+      std::filesystem::path(cache_path_).parent_path());
+  {
+    std::ofstream f(KnownSitesFilePath(cache_path_), std::ios::trunc);
+    f << "# pagespeed-sites v9\n" << kSiteOne << "\n";
+  }
+  Worker worker(SiteTestConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  EXPECT_TRUE(worker.KnownSitesIncomplete());
+  EXPECT_FALSE(worker.url_registry()->HasSite(kSiteOne));
+}
+
+TEST_F(WorkerTest, KnownSitesAreIncompleteAfterTheCap) {
+  std::filesystem::create_directories(
+      std::filesystem::path(cache_path_).parent_path());
+  std::vector<std::string> full;
+  full.reserve(kMaxKnownSites);
+  char buf[65];
+  for (size_t i = 0; i < kMaxKnownSites; ++i) {
+    std::snprintf(buf, sizeof(buf), "%064zx", i + 1);
+    full.emplace_back(buf);
+  }
+  ASSERT_TRUE(WriteKnownSitesFile(KnownSitesFilePath(cache_path_), full));
+  Worker worker(SiteTestConfig(socket_path_, cache_path_), nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  EXPECT_FALSE(worker.KnownSitesIncomplete());
+  CacheSitedOriginal(worker.cache(), "/style.css", "example.com", kSiteOne,
+                     "h1  {  color:  red;  }\n");
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  SendNotification(ModuleCss("http://example.com/style.css", kSiteOne));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_TRUE(worker.KnownSitesIncomplete());
+  EXPECT_GE(worker.stats().variants_written.load(), 1u)
+      << "the site past the cap still works";
 }
 
 }  // namespace

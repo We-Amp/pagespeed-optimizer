@@ -20,14 +20,22 @@ if [ ! -x "$SEED" ]; then
   exit 1
 fi
 
-# CSS alternate at default mask (Desktop/Identity = 0x08).  --scheme http:
+# Entries go to the keyspace of the Test::Nginx server block the test
+# requests reach: its listener and its server names.
+SITE=(--site_listen "0.0.0.0:${TEST_NGINX_SERVER_PORT:-${TEST_NGINX_PORT:-1984}}"
+  --site_names 'localhost')
+
+# CSS alternate at default mask (Desktop/Identity = 0x08).  The entry carries
+# a content-identity hash because a HIT with no identity signal emits no
+# ETag, and TEST 1 asserts the weak ETag.  --scheme http:
 # the cache key is scheme://host/url and Test::Nginx issues plain-http
 # requests — an https-seeded key is a permanent MISS.
-"$SEED" \
+"$SEED" "${SITE[@]}" \
   --cache /tmp/test-ps-300-1.vol \
   --url "/style.css" \
   --host "localhost" \
   --scheme http \
   --content "h1{color:red}" \
   --content_type css \
-  --mask 0x08
+  --mask 0x08 \
+  --origin_html_hash "$(printf 'aa%.0s' $(seq 32))"

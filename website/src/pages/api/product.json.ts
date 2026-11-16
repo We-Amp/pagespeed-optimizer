@@ -63,8 +63,8 @@ const productData = {
     status: SOURCE_PUBLICATION.status,
     license: SOURCE_PUBLICATION.licenseId,
   },
-  // What is for sale is support; Priority and Enterprise add a private package repository
-  // (being set up). Prices are in euro, per year, excl. VAT; Enterprise is a
+  // What is for sale is support; the software and its signed packages are the
+  // same for everyone. Prices are in euro, per year, excl. VAT; Enterprise is a
   // "from" price (annual_from).
 
   support: {
@@ -74,7 +74,7 @@ const productData = {
       id: t.id,
       name: t.name,
       kind: t.kind,
-      servers: t.servers,
+      scope: t.scope,
       hardened_builds: t.hardened,
       includes: t.includes,
       annual_eur: t.prices.annualEur,
@@ -87,8 +87,8 @@ const productData = {
     contact: COMMERCIAL_EMAIL,
   },
   // Artifact access, expressed additively (new key, existing keys unchanged):
-  // the standard signed packages are free for everyone; the private package
-  // repository for Priority and Enterprise is being set up (not yet live).
+  // the standard signed packages are free for everyone, and there is no private
+  // or subscriber package repository.
   artifacts: {
     standard_packages: ARTIFACT_ACCESS.standardPackages,
     hardened_builds: ARTIFACT_ACCESS.hardenedBuilds,
@@ -129,8 +129,9 @@ const productData = {
   related_products: [
     {
       product: `mod_pagespeed ${V1_LINE}`,
-      description: `The mod_pagespeed ${V1_LINE} line, continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. ${PRODUCT_NAME} 2 is its drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
+      description: `The mod_pagespeed ${V1_LINE} line, continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. The current ${PRODUCT_NAME} is its drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
       nuget_sidecar: {
+        description: `The current ${PRODUCT_NAME} module, run behind Kestrel.`,
         package: PKG_SIDECAR,
         native_assets_package: PKG_SIDECAR_NATIVE,
         install: `dotnet add package ${PKG_SIDECAR}`,
@@ -148,7 +149,7 @@ const productData = {
     },
     {
       product: `ModPageSpeed ${V2_LINE}`,
-      description: `The Docker/Helm stack from the ${V2_LINE} re-architecture, whose engine continues as the ${PRODUCT_NAME} 2 optimizer worker. Its ASP.NET Core middleware, ${PKG_ASPNETCORE}, continues as the ASP.NET Core form of ${PRODUCT_NAME} 2.`,
+      description: `The Docker/Helm stack from the ${V2_LINE} re-architecture, whose engine continues as the ${PRODUCT_NAME} optimizer worker. Its ASP.NET Core middleware, ${PKG_ASPNETCORE}, continues as the ASP.NET Core form of ${PRODUCT_NAME}.`,
       links: {
         migration_guide: 'https://modpagespeed.com/docs/migrating-to-2-1/',
       },

@@ -70,7 +70,7 @@ export const METRIC_DESCRIPTIONS: Record<string, string> = {
   'content_analysis.screenshot': 'Images classified as screenshots',
   'content_analysis.illustration': 'Images classified as illustrations',
   'content_analysis.noisy': 'Images classified as noisy',
-  'content_analysis.denoised': 'Images denoised before processing',
+  'content_analysis.denoised': 'Deprecated; always 0',
 
   // -- SSIMULACRA2 --
   'ssimulacra2.checks': 'Quality verification checks performed',

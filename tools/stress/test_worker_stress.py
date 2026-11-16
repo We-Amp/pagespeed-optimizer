@@ -332,7 +332,7 @@ class TestMalformedInput:
         payload += struct.pack(">I", DEFAULT_MASK)
         payload += struct.pack("B", 2)  # scheme
         payload += struct.pack("B", 0)  # agent_request (v4)
-        payload += EMPTY_OPTION_CONTEXT  # option context + signature (v5)
+        payload += EMPTY_OPTION_CONTEXT  # option context (v5), site + flags (v6)
         msg = struct.pack(">I", len(payload)) + payload
         hex_data = msg.hex()
 

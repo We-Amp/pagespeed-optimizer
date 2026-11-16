@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Web Bot Auth key directory probe, 19 October 2026</title>
-<style>body{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#1f2937}code{background:#f3f4f6;padding:0 .2em}</style>
+<style>body{font:16px/1.5 system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;color:#1f2937}code{background:#f3f4f6;padding:0 .2em}pre{overflow-x:auto}</style>
 </head>
 <body>
 <h1>Web Bot Auth key directory probe, 19 October 2026</h1>
@@ -24,7 +24,7 @@
 <li><a href="https://radar.cloudflare.com/bots">Cloudflare Radar bots directory</a>, categories AI crawler, AI assistant and AI search. The raw Radar dataset is not republished here; pull it from the Radar API (<code>GET /client/v4/radar/bots</code>) with your own token. Only the fields the builder reads (bot slug, operator, category, signature agent URL) feed the target list.</li>
 </ul>
 <h2>Rerun</h2>
-<pre>python3 build_targets.py robots.json radar-details.json targets.csv
+<pre tabindex="0">python3 build_targets.py robots.json radar-details.json targets.csv
 python3 probe.py targets.csv &gt; results.tsv</pre>
 <p>Counts move; rerun before relying on any row.</p>
 </body>

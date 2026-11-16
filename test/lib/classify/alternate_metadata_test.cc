@@ -409,6 +409,8 @@ TEST(AlternateMetadataTest, V3BackwardCompat) {
   // Build a v3 blob manually: 9-byte prefix + 14-byte suffix = 23 bytes.
   std::vector<std::byte> v3_data(23, std::byte{0});
   v3_data[0] = std::byte{3};  // version=3
+  // Not HTML: HTML below version 9 is refused.
+  v3_data[5] = static_cast<std::byte>(ContentType::kCss);
 
   auto result = AlternateMetadata::Deserialize(v3_data);
 
@@ -462,6 +464,8 @@ TEST(AlternateMetadataTest, V3WireSize) {
   // Build a v3 blob with ct_len=5.
   std::vector<std::byte> v3_data(9 + 5 + 14, std::byte{0});
   v3_data[0] = std::byte{3};
+  // Not HTML: HTML below version 9 is refused.
+  v3_data[5] = static_cast<std::byte>(ContentType::kCss);
   uint16_t ct_len = 5;
   std::memcpy(&v3_data[7], &ct_len, 2);
 
@@ -621,6 +625,8 @@ TEST(AlternateMetadataTest, V3BackwardCompatDefaults) {
   // Build a v3 blob manually: 9-byte prefix + 14-byte suffix = 23 bytes.
   std::vector<std::byte> v3_data(23, std::byte{0});
   v3_data[0] = std::byte{3};  // version=3
+  // Not HTML: HTML below version 9 is refused.
+  v3_data[5] = static_cast<std::byte>(ContentType::kCss);
   uint32_t mask = 0x08;
   std::memcpy(&v3_data[1], &mask, 4);
 
@@ -922,6 +928,8 @@ TEST(AlternateMetadataTest, ConsumedSizeMatchesWireSize) {
 TEST(AlternateMetadataTest, ConsumedSizeSetForV3) {
   std::vector<std::byte> v3_data(23, std::byte{0});
   v3_data[0] = std::byte{3};
+  // Not HTML: HTML below version 9 is refused.
+  v3_data[5] = static_cast<std::byte>(ContentType::kCss);
 
   auto result = AlternateMetadata::Deserialize(v3_data);
   ASSERT_TRUE(result.has_value());
@@ -932,6 +940,8 @@ TEST(AlternateMetadataTest, ConsumedSizeSetForV3) {
 TEST(AlternateMetadataTest, ConsumedSizeSetForV4) {
   std::vector<std::byte> v4_data(26, std::byte{0});
   v4_data[0] = std::byte{4};
+  // Not HTML: HTML below version 9 is refused.
+  v4_data[5] = static_cast<std::byte>(ContentType::kCss);
 
   auto result = AlternateMetadata::Deserialize(v4_data);
   ASSERT_TRUE(result.has_value());
@@ -944,6 +954,8 @@ TEST(AlternateMetadataTest, ConsumedSizeSetForV5) {
   // = 32 bytes.
   std::vector<std::byte> v5_data(32, std::byte{0});
   v5_data[0] = std::byte{5};
+  // Not HTML: HTML below version 9 is refused.
+  v5_data[5] = static_cast<std::byte>(ContentType::kCss);
 
   auto result = AlternateMetadata::Deserialize(v5_data);
   ASSERT_TRUE(result.has_value());
@@ -1083,7 +1095,8 @@ TEST(AlternateMetadataTest, V6BlobDeserializesToV7ReaderWithZeroHashes) {
                                      AlternateMetadata::kV6FixedSuffixSize,
                                  std::byte{0});
   v6_data[0] = std::byte{6};  // version=6
-  v6_data[5] = static_cast<std::byte>(ContentType::kHtml);
+  // Not HTML: HTML below version 9 is refused.
+  v6_data[5] = static_cast<std::byte>(ContentType::kCss);
   // origin_content_length (last 4 bytes) = 7 for good measure.
   uint32_t ocl = 7;
   std::memcpy(&v6_data[AlternateMetadata::kFixedPrefixSize + 23], &ocl, 4);

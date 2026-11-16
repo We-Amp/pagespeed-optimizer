@@ -7,7 +7,7 @@ lastUpdated: 2026-10-22
 ---
 
 :::tip[Live console]
-See it running: [the live console on our own sites](https://we-amp.com/pagespeed_global_admin/). It opens with a warning that it is reachable from the network; a console is normally private, ours is public on purpose.
+See it running: [the live console on our own sites](https://we-amp.com/pagespeed_global_admin/). A console is normally private; ours is public on purpose.
 :::
 
 ## Overview
@@ -126,19 +126,17 @@ Module versions before the one that made the handler lookup case-sensitive (see 
 
 ```apache
 <Location /pagespeed_admin>
-    Order allow,deny
-    Allow from localhost
-    Allow from 127.0.0.1
+    Require local
     SetHandler pagespeed_admin
 </Location>
 
 <Location /pagespeed_global_admin>
-    Order allow,deny
-    Allow from localhost
-    Allow from 127.0.0.1
+    Require local
     SetHandler pagespeed_global_admin
 </Location>
 ```
+
+The Debian/Ubuntu and RHEL-family packages already ship both blocks with `Require local`, so nothing needs editing after install. To allow another address as well, add a `Require ip <address>` line inside the block.
 
 </div>
 
@@ -208,7 +206,7 @@ pagespeed AdminDomains Allow localhost
 pagespeed AdminDomains Allow 10.0.0.*
 ```
 
-On IIS, the `InfoUrlsLocalOnly` directive provides an additional layer of access control. When set to `on` (the default), admin URLs are only accessible from the local machine regardless of the `AdminDomains` setting.
+On IIS, the `InfoUrlsLocalOnly` directive adds a local-only rule. When set to `on` (the default), the admin pages are served to local requests, and to requests whose host name (the `Host` header) is on a configured `AdminDomains` allowlist. With `off`, they are served to every request unless an allowlist is set; the host name must then match it.
 
 </div>
 
@@ -229,7 +227,7 @@ A one-line health summary sits at the top: "All systems healthy", or "N issue(s)
 
 Both cards link to their detail page (All statistics, Optimizer status).
 
-The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. The console does not yet report the optimizer's two parts separately.
+The optimizer's savings figures (on Overview, Savings and Optimizer status) are measured in transfer bytes and include compression: a byte that gzip or Brotli saved on the wire counts the same as one an optimization filter saved. The module's rewrite savings compare a resource's size before and after rewriting. For responses served from the optimizer's cache, the console splits the saving into "Saved by mod_pagespeed compression" and "Saved by optimization", both measured against the compressed original, and shows the part it could not attribute as "Not yet attributed"; the three add up to the total. The split appears once the optimizer records it and covers at least 90% of the served bytes; until then, and with an optimizer version that does not report it, the console shows the combined figure. See [Admin console savings total reads lower after updating](/docs/troubleshooting/#admin-console-savings-total-reads-lower-after-updating).
 
 ### Alerts
 
@@ -286,7 +284,7 @@ Statistics are enabled by default and required for features like image rewrite c
 
 ```nginx
 pagespeed Statistics on;
-pagespeed UsePerVhostStatistics on;
+pagespeed UsePerVHostStatistics on;
 ```
 
 </div>
@@ -297,7 +295,7 @@ pagespeed UsePerVhostStatistics on;
 
 ```apache
 ModPagespeedStatistics on
-ModPagespeedUsePerVhostStatistics on
+ModPagespeedUsePerVHostStatistics on
 ```
 
 </div>
@@ -308,24 +306,26 @@ ModPagespeedUsePerVhostStatistics on
 
 ```text
 pagespeed Statistics on
-pagespeed UsePerVhostStatistics on
+pagespeed UsePerVHostStatistics on
 ```
 
 Per-vhost statistics are enabled by default on IIS. Each website gets its own set of counters, accessible at `/pagespeed_admin/statistics` on that site; site-wide aggregates remain at `/pagespeed_global_admin/statistics`.
 
 </div>
 
-`UsePerVhostStatistics` enables per-virtual-host stats while still exposing aggregates at the global admin path.
+`UsePerVHostStatistics` enables per-virtual-host stats while still exposing aggregates at the global admin path.
 
 ## Cache telemetry
 
 The caches page (`/pagespeed_admin/cache`) reports cache observability counters for each Cyclone cache:
 
+- **Scope** — hit, read and eviction counts are for the server process that answered, since it started; entries, size and write buffer wraps are for the whole cache file. The statistics page shows totals for all processes.
 - **Current entries / Current size bytes** — how full the cache is.
 - **RAM cache bytes / RAM cache hits / RAM cache misses** — activity of the optional RAM tier (`CycloneRamCacheKb`).
-- **Disk cache hits / Disk cache misses** — hit rate of the memory-mapped volume.
-- **Evictions / Tag collision evictions** — entries displaced by capacity pressure or key collisions.
+- **Reads served (RAM + disk)** — every read the cache served, whether the RAM tier or the disk volume answered; the cache does not count misses, so no misses row is shown.
+- **Evictions / Tag collision evictions / Bucket full evictions** — entries displaced by capacity pressure, by a key colliding with another entry's, or by the directory bucket the entry maps to being full.
 - **Write buffer wraps / Wraps deferred by lease / Writes dropped by lease / Wraps forced past lease** — write-buffer turnover and how zero-copy serving interacts with it; sustained deferred or dropped counts indicate a cache that is too small for its write rate.
+- **Resets under degraded gate / Resets gate verified** — times the cache was reset, split by whether the cache could confirm that no other process still had it open.
 
 The statistics page also has counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](/docs/cache-modes/#zero-copy-serving) for the zero-copy options.
 

@@ -3,6 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import { expectErrorPage } from './helpers/server-mode';
 
 // Expected fallback values come from the committed capture file; the live
 // upgrade is tested with a fictitious header value (9.9.9-test), never a real
@@ -47,6 +48,14 @@ test.describe('Telemetry strip', () => {
     const strip = page.locator(STRIP);
     await expect(strip.locator('[data-t="state"]').first()).toHaveText('this view · live');
     await expect(strip.locator('[data-t="xmps"]')).toHaveText('9.9.9-test');
+    // The state link is named for its state and its destination; the visible
+    // text stays the state alone.
+    await expect(
+      strip.getByRole('link', {
+        name: 'this view · live How to read these response measurements',
+        exact: true,
+      }),
+    ).toHaveAttribute('href', '/pagespeed-markers/');
     await expect(strip.locator('[data-t="vary"]')).toHaveText('Save-Data,Accept-Encoding');
   });
 
@@ -279,6 +288,10 @@ test.describe('Telemetry strip', () => {
       (route) => route.abort(),
     );
     await page.route(/\/$/, async (route) => {
+      // Only the document is rewritten. The strip's own same-origin HEAD
+      // request also ends in "/" and can still be in flight when the test
+      // ends, so it must not wait on a fetch here.
+      if (!route.request().isNavigationRequest()) return route.continue();
       const response = await route.fetch();
       const body = (await response.text()).replace(
         /<style data-vite-dev-id=[^>]*>[\s\S]*?<\/style>/g,
@@ -306,6 +319,8 @@ test.describe('Telemetry strip', () => {
 
   test('the strip is not rendered on the 404 page', async ({ page }) => {
     await page.goto('/404/');
+    // Assert on the real page, so a stub without a strip cannot pass.
+    await expectErrorPage(page, '404');
     await expect(page.locator(STRIP)).toHaveCount(0);
   });
 });

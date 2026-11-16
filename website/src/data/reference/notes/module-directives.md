@@ -108,6 +108,13 @@ ModPagespeedAddResourceHeader "X-Custom" "value"
 pagespeed AddResourceHeader "X-Custom" "value";
 ```
 
+## CssFlattenMaxBytes
+
+Set it in the server or directory configuration. From 2.8.0 it can no longer
+be set on a single request: a `PageSpeedCssFlattenMaxBytes` query parameter,
+request or response header, or cookie has no effect. In 2.7.0 and earlier it
+could also be set per request.
+
 ## ListOutstandingUrlsOnError
 
 Enable it only while debugging fetch problems; it is noisy in production.
@@ -168,3 +175,24 @@ Repeatable: each line adds a pack file, up to eight per server or virtual host
 once). The packs run in the order of the lines. A virtual host that sets
 `RulePackFile` uses its own list instead of the server-wide one. See
 [Rule packs](/docs/rule-packs/#enable).
+
+## AutoCreateCachePath
+
+Creation applies only to a cache directory inside
+`C:\ProgramData\We-Amp\PageSpeed\cache\` or
+`C:\ProgramData\We-Amp\IISWebSpeed\cache\`; a cache directory anywhere else
+must already exist when the site serves its first request, whatever this is set
+to. With `off`, a missing directory is not created and the site does not start
+optimizing. See
+[IIS configuration](/docs/iis-configuration/#automatic-cache-directory-creation).
+
+## InfoUrlsLocalOnly
+
+A request is local when it comes from the server itself and carries no
+reverse-proxy forwarding headers; `TreatProxiedRequestsAsLocal` changes that
+for one site. See [Admin console access control](/docs/admin-console/#access-control).
+
+## TreatProxiedRequestsAsLocal
+
+Turning it on serves these pages to anyone who reaches the site through that
+proxy or tunnel; prefer the `*Domains` allowlists.

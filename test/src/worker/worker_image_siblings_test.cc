@@ -17,12 +17,16 @@
 #include "test/src/worker/worker_test_fixture.h"
 // clang-format on
 
+#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <mutex>
 #include <optional>
 #include <span>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "avif/avif.h"
 #include "gtest/gtest.h"
@@ -719,6 +723,8 @@ TEST_F(WorkerTest, HtmlTransformHappyPathNoWrapDiscards) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
   config.ram_cache_size = 0;  // exercise the disk-borrow + live-lease path
 
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, nullptr);
   ASSERT_TRUE(worker.Initialize());
 
@@ -1314,6 +1320,322 @@ TEST_F(WorkerTest, DISABLED_DeferredRetryEscalatesMultipleTimes) {
       << "Image should be processed after deferred retry succeeds";
   EXPECT_GE(worker.stats().cache_read_deferred_successes.load(), 1u)
       << "Should have at least one successful deferred retry";
+}
+
+// Collects worker log lines so a test can check why a slot is empty.
+class SlotLogHandler : public MessageHandler {
+ public:
+  void Message(MessageType type, const char* format, ...) override {
+    va_list args;
+    va_start(args, format);
+    MessageV(type, format, args);
+    va_end(args);
+  }
+  bool HasLine(const std::string& needle_a, const std::string& needle_b) {
+    std::lock_guard<std::mutex> lock(mu_);
+    for (const auto& l : lines_) {
+      if (l.find(needle_a) != std::string::npos &&
+          l.find(needle_b) != std::string::npos) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+ protected:
+  void MessageV(MessageType, const char* format, va_list args) override {
+    std::string s = FormatMessage(format, args);
+    std::lock_guard<std::mutex> lock(mu_);
+    lines_.push_back(std::move(s));
+  }
+
+ private:
+  std::mutex mu_;
+  std::vector<std::string> lines_;
+};
+
+std::string SlotNeedle(CapabilityMask::ImageFormat fmt,
+                       CapabilityMask::Viewport vp,
+                       CapabilityMask::SaveData sd) {
+  CapabilityMask m(fmt, vp, CapabilityMask::PixelDensity::k1x, sd,
+                   CapabilityMask::TransferEncoding::kIdentity);
+  char buf[32];
+  std::snprintf(buf, sizeof(buf), "(slot 0x%02X)",
+                static_cast<int>(m.Encode() & 0xFF));
+  return buf;
+}
+
+// The full proactive matrix writes every normal slot, and each Save-Data slot
+// is either strictly smaller than the normal slot of its format and viewport
+// or was left unwritten with a logged reason.  A normal client must never
+// depend on a Save-Data sibling to fill a missing normal slot.
+TEST_F(WorkerTest, ImageMatrixWritesNormalSlotsAndSaveDataIsSmallerOrRefused) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+  config.proactive_image_variants = true;
+  config.proactive_viewport_variants = true;
+  config.proactive_savedata_variants = true;
+  config.proactive_density_variants = false;
+
+  SlotLogHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/matrix.jpg";
+  std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CapabilityMask notif_mask(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kImage;
+  notification.capability_mask = notif_mask.Encode();
+  SendNotification(notification);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
+
+  const CapabilityMask::ImageFormat formats[] = {
+      CapabilityMask::ImageFormat::kOriginal,
+      CapabilityMask::ImageFormat::kWebP,
+      CapabilityMask::ImageFormat::kAvif,
+  };
+  const CapabilityMask::Viewport viewports[] = {
+      CapabilityMask::Viewport::kMobile,
+      CapabilityMask::Viewport::kTablet,
+      CapabilityMask::Viewport::kDesktop,
+  };
+  auto slot = [&](CapabilityMask::ImageFormat fmt, CapabilityMask::Viewport vp,
+                  CapabilityMask::SaveData sd) {
+    return ReadVariant(
+        worker.cache(), url,
+        CapabilityMask(fmt, vp, CapabilityMask::PixelDensity::k1x, sd,
+                       CapabilityMask::TransferEncoding::kIdentity));
+  };
+  uint64_t sd_empty = 0;
+  for (auto vp : viewports) {
+    for (auto fmt : formats) {
+      const std::string normal = slot(fmt, vp, CapabilityMask::SaveData::kOff);
+      const std::string saved = slot(fmt, vp, CapabilityMask::SaveData::kOn);
+      // An empty slot must have a logged "not written" line for exactly that
+      // slot, giving a size-gate reason; the original-format normal slot is
+      // never empty.
+      if (normal.empty()) {
+        EXPECT_NE(fmt, CapabilityMask::ImageFormat::kOriginal)
+            << "original-format normal slot missing at viewport "
+            << static_cast<int>(vp);
+        EXPECT_TRUE(
+            handler.HasLine(SlotNeedle(fmt, vp, CapabilityMask::SaveData::kOff),
+                            "not smaller than the"))
+            << "no logged reason for the empty normal slot, format "
+            << static_cast<int>(fmt) << " viewport " << static_cast<int>(vp);
+        continue;
+      }
+      if (saved.empty()) {
+        ++sd_empty;
+        EXPECT_TRUE(
+            handler.HasLine(SlotNeedle(fmt, vp, CapabilityMask::SaveData::kOn),
+                            "not smaller than the"))
+            << "no logged reason for the empty Save-Data slot, format "
+            << static_cast<int>(fmt) << " viewport " << static_cast<int>(vp);
+      } else {
+        EXPECT_LT(saved.size(), normal.size())
+            << "format " << static_cast<int>(fmt) << " viewport "
+            << static_cast<int>(vp);
+      }
+    }
+  }
+  // The Save-Data counter never exceeds the Save-Data slots left empty.
+  EXPECT_LE(worker.stats().image_savedata_refused.load(), sd_empty);
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
+// On a source resized at mobile and tablet, the full normal matrix is
+// written, or each empty normal slot was refused with a logged reason and
+// counted.  The full-size desktop JPEG does not depend on the
+// smaller viewports processed before it in the same pass: it is byte for byte
+// the JPEG a desktop-only pass writes (#482).
+TEST_F(WorkerTest, ResizedImageMatrixWritesNormalSlotsOrderIndependent) {
+  const std::string url = "http://example.com/resized.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg3.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const CapabilityMask::ImageFormat formats[] = {
+      CapabilityMask::ImageFormat::kOriginal,
+      CapabilityMask::ImageFormat::kWebP,
+      CapabilityMask::ImageFormat::kAvif,
+  };
+  const CapabilityMask::Viewport viewports[] = {
+      CapabilityMask::Viewport::kMobile,
+      CapabilityMask::Viewport::kTablet,
+      CapabilityMask::Viewport::kDesktop,
+  };
+  auto mask_of = [](CapabilityMask::ImageFormat fmt,
+                    CapabilityMask::Viewport vp) {
+    return CapabilityMask(fmt, vp, CapabilityMask::PixelDensity::k1x,
+                          CapabilityMask::SaveData::kOff,
+                          CapabilityMask::TransferEncoding::kIdentity);
+  };
+  const CapabilityMask desktop_jpeg =
+      mask_of(CapabilityMask::ImageFormat::kOriginal,
+              CapabilityMask::Viewport::kDesktop);
+
+  // One worker pass over the image; returns the normal desktop JPEG.
+  auto run_pass = [&](bool full_matrix, const std::string& dir) {
+    cache_path_ = temp_dir_ + "/" + dir;
+#ifndef _WIN32
+    socket_path_ = temp_dir_ + "/" + dir + ".sock";
+#else
+    socket_path_ += dir;
+#endif
+    WorkerConfig config;
+    config.socket_path = socket_path_;
+    config.cache_path = cache_path_;
+    config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+    config.proactive_image_variants = true;
+    config.proactive_viewport_variants = full_matrix;
+    config.proactive_savedata_variants = false;
+    config.proactive_density_variants = false;
+    // Narrow widths keep mobile and tablet resized and the test fast.
+    config.mobile_width = 128;
+    config.tablet_width = 256;
+
+    SlotLogHandler handler;
+    Worker worker(config, &handler);
+    EXPECT_TRUE(worker.Initialize());
+    CacheOriginal(worker.cache(), url, jpeg);
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kImage;
+    notification.capability_mask = desktop_jpeg.Encode();
+    SendNotification(notification);
+    WaitForNotificationRetiredWithVariant(worker);
+
+    std::string desktop;
+    if (full_matrix) {
+      uint64_t empty_converted = 0;
+      for (auto vp : viewports) {
+        for (auto fmt : formats) {
+          const std::string normal =
+              ReadVariant(worker.cache(), url, mask_of(fmt, vp));
+          if (!normal.empty()) continue;
+          EXPECT_NE(fmt, CapabilityMask::ImageFormat::kOriginal)
+              << "original-format normal slot missing at viewport "
+              << static_cast<int>(vp);
+          ++empty_converted;
+          EXPECT_TRUE(handler.HasLine(
+              SlotNeedle(fmt, vp, CapabilityMask::SaveData::kOff),
+              "not written"))
+              << "no logged reason for the empty normal slot, format "
+              << static_cast<int>(fmt) << " viewport " << static_cast<int>(vp);
+        }
+      }
+      // Every empty normal WebP/AVIF slot was counted: as a size refusal, a
+      // quality decline, or an unconverted fall-through.
+      EXPECT_GE(worker.stats().image_size_refused_webp.load() +
+                    worker.stats().image_size_refused_avif.load() +
+                    worker.stats().ssimulacra2_declines.load() +
+                    worker.stats().image_unconverted_fallthrough.load(),
+                empty_converted);
+    }
+    desktop = ReadVariant(worker.cache(), url, desktop_jpeg);
+    worker.Shutdown();
+    worker_thread.join();
+    return desktop;
+  };
+
+  const std::string from_matrix = run_pass(/*full_matrix=*/true, "matrix");
+  const std::string desktop_only = run_pass(/*full_matrix=*/false, "desktop");
+  ASSERT_FALSE(desktop_only.empty());
+  ASSERT_FALSE(from_matrix.empty());
+  EXPECT_EQ(from_matrix.size(), desktop_only.size());
+  EXPECT_TRUE(from_matrix == desktop_only)
+      << "the desktop JPEG depends on the viewports processed before it";
+}
+
+// A Save-Data variant that is not smaller than the stored normal variant of
+// its slot is refused, counted exactly once, and not stored.
+TEST_F(WorkerTest, SaveDataVariantNotSmallerThanNormalIsRefusedAndCounted) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+  config.proactive_image_variants = true;
+  config.proactive_viewport_variants = false;
+  config.proactive_savedata_variants = true;
+  config.proactive_density_variants = false;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/gate.jpg";
+  std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg);
+
+  // A tiny stored normal desktop WebP: no Save-Data encode can be smaller.
+  CapabilityMask normal_webp(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  const std::string tiny = "tiny-normal-webp";
+  AlternateMetadata meta;
+  meta.full_mask = normal_webp.Encode();
+  meta.content_type = ContentType::kImage;
+  meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+  auto wh = worker.cache()->WriteAlternate(
+      StripSchemeAuthority(url), "", "https",
+      MaskToAlternateId(static_cast<uint8_t>(normal_webp.Encode() & 0xFF)),
+      tiny.size(), meta);
+  ASSERT_TRUE(wh.has_value());
+  ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span(tiny))).has_value());
+  ASSERT_TRUE(wh->close_sync().has_value());
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kImage;
+  notification.capability_mask = normal_webp.Encode();
+  SendNotification(notification);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
+
+  EXPECT_EQ(worker.stats().image_savedata_refused.load(), 1u);
+  CapabilityMask sd_webp(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOn,
+      CapabilityMask::TransferEncoding::kIdentity);
+  EXPECT_TRUE(ReadVariant(worker.cache(), url, sd_webp).empty())
+      << "the refused Save-Data WebP was stored";
+  // The Save-Data AVIF and original-format slots, smaller than the normal
+  // variants built in the same pass, are stored.
+  EXPECT_FALSE(
+      ReadVariant(worker.cache(), url,
+                  CapabilityMask(CapabilityMask::ImageFormat::kAvif,
+                                 CapabilityMask::Viewport::kDesktop,
+                                 CapabilityMask::PixelDensity::k1x,
+                                 CapabilityMask::SaveData::kOn,
+                                 CapabilityMask::TransferEncoding::kIdentity))
+          .empty());
+
+  worker.Shutdown();
+  worker_thread.join();
 }
 
 }  // namespace

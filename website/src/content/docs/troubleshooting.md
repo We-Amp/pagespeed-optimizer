@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-11-14
 ---
 
 Most mod_pagespeed problems surface in one place: the `X-PageSpeed`
@@ -73,8 +73,9 @@ been requested before.
    and the nginx module use different cache formats (typically one was rolled
    back, or the packages were upgraded separately). The module then serves
    with its cache off, so every response is a `MISS`. The line names both
-   generations and which side is older. Install the same release of both, or
-   run both containers from the same image tag; the module turns its cache
+   generations and which side is older. Install the optimizer the repository
+   offers and upgrade or roll back both together, or run both containers from
+   the same image tag; the module turns its cache
    back on by itself once they match. Check the current state:
 
    ```bash
@@ -202,6 +203,25 @@ curl -sI http://localhost:5050/hero.jpg -H 'Accept: image/webp'
 
 A full walkthrough is in the
 [getting-started guide](/docs/aspnet-getting-started/#verify-the-install).
+
+## Admin console savings total reads lower after updating
+
+**Symptom:** After updating, the [admin console](/docs/admin-console/)'s
+savings total reads lower than before, or the console shows only a total with
+no split.
+
+**Cause:** Expected, not a regression. The console now shows how much of the
+saving on responses served from the optimizer's cache came from compression
+applied by mod_pagespeed and how much from its optimization; your web server's
+own compression on other responses is not counted. The two parts, plus a share
+not yet attributed, add up to the total saving. The total now counts HTML that
+the optimizer makes larger, for example by inlining above-the-fold CSS or
+adding preload hints; earlier versions counted that as zero, so the total can
+read lower than before without anything optimizing less.
+
+**Fix:** Nothing to fix. After the update the caches start cold, so the split
+fills in as pages are re-optimized; until then the console shows the total
+only.
 
 ## Images not converting to WebP/AVIF
 
@@ -637,17 +657,77 @@ rather than the Docker / nginx reverse-proxy worker.
 - If repeated requests still serve the original resources, check cache directory permissions and disk space.
 - Verify the cache path exists and is writable by the web server process.
 
-### Optimized resources return 404
+### Stylesheets and scripts respond slowly while images are being optimized {#slow-ce-while-optimizing-images}
 
-**Cause:** The `.pagespeed.` URL pattern is not being routed to mod_pagespeed.
+**Symptom:** On the first visit to an image-heavy page, for example after a deploy or a cache clear, the page stays blank for several seconds. Once image optimization has finished, the same page loads normally. In one lab test on a 2-CPU server, Largest Contentful Paint rose from about 0.35 s to 9.4 s on such a first view.
 
-**Fix:**
+**How to confirm:** Request a stylesheet or script that the module serves with an extended cache lifetime (its URL contains `.pagespeed.ce.`) while images on the page are still being optimized, and look at the response time:
+
+```bash
+curl -s -o /dev/null -w '%{time_total}s\n' 'https://example.com/css/site.css.pagespeed.ce.HASH.css'
+```
+
+If those responses take seconds during that window and are fast afterwards, and other optimized resources are not affected, this is the cause. The URL to test is the `.pagespeed.ce.` one in the page's HTML.
+
+**Workaround:** The heavy image work and these responses share the expensive rewrite pool, whose size [`NumExpensiveRewriteThreads`](/docs/configuration/#numexpensiverewritethreads) controls. With `auto` it is sized from the CPUs the process may use, half of them divided by the number of server processes, never fewer than one. On nginx the divisor is `worker_processes`: with `worker_processes auto` (one worker per core), or with workers pinned by `worker_cpu_affinity`, `auto` resolves to one expensive thread per worker. Setting a larger explicit value, at the `http` level, relieves the stall; in the lab test above, 4 removed it entirely.
 
 <!-- platform: nginx -->
 
 <div data-platform="nginx" data-platform-label="nginx">
 
-Ensure the `.pagespeed.` location block is present and appears before other location blocks that might match.
+```nginx
+http {
+    pagespeed NumExpensiveRewriteThreads 4;
+}
+```
+
+</div>
+
+<!-- platform: apache -->
+
+<div data-platform="apache" data-platform-label="Apache">
+
+```apache
+ModPagespeedNumExpensiveRewriteThreads 4
+```
+
+Put it in the server configuration, outside any virtual host.
+
+</div>
+
+Restart the web server to apply it. The directive is global and cannot be set per virtual host or location. The cost is more image work at the same time, so higher CPU use and more memory at peak while a page's images are being optimized; raise it in steps and watch request latency, as described in [Optimization threads](/docs/configuration/#optimization-threads). Reducing the number of images optimized per page also helps.
+
+This is tracked as [mod_pagespeed#781](https://github.com/We-Amp/mod_pagespeed/issues/781) and is being fixed in an upcoming release.
+
+### Why does a `.pagespeed.` URL return 404? {#optimized-resources-return-404}
+
+A rewritten URL such as `/css/a.css+b.css.pagespeed.cc.HASH.css` carries what the module needs to rebuild the file: the original URL (or URLs, for a combined file), the filter id and a content hash. A flushed cache or a page cached by a CDN does not by itself break it: when the module gets a request for a `.pagespeed.` URL it does not have, it fetches the original and rewrites it again. A request whose hash is stale (the original changed after the page was cached) is still answered, with a shortened cache lifetime, rather than with a 404; the exception is a JavaScript source map, which is refused when its hash does not match. A 404 therefore means one of the causes below. The log line each one leaves tells them apart (the ones marked "info" need the log level raised to info; the admin console's [message history](/docs/admin-console/#message-history) shows the same messages):
+
+| Log text | Cause |
+| --- | --- |
+| nothing from the module; the web server answers 404 itself | The request never reached the module ([routing](#pagespeed-404-routing)) |
+| `Decoding of resource name … failed because … no filter with id` or `… cannot decode the URL` (info) | The URL names a filter id this module does not know, or the filter cannot decode the name |
+| `Decoding of resource name … failed because … filter_id … is forbidden` (info) | The filter is disabled for the request by [`ForbidFilters`](/docs/configuration/#forbidfilters) (or `ForbidAllDisabledFilters`) |
+| `Invalid resource signature for … provided. Received …` (info) | [URL signing](#pagespeed-404-signing) is on and the signature does not match |
+| `Resource based on … but cannot access the original` (warning) | [The original cannot be fetched](#pagespeed-404-original) |
+
+<a id="pagespeed-404-original"></a>
+
+**The original cannot be fetched.** The module rebuilds a file from its original, so a 404 from the origin (the file was removed or renamed), a fetch that fails (the origin refuses the module's request, a TLS or DNS problem, a timeout) or a domain the module is not [authorized](/docs/domain-configuration/#domain-authorization) to fetch from all end as a 404 on the `.pagespeed.` URL. For a file with a single original (an image, a stylesheet, a script), a rewrite that fails while the original is fetchable is answered with the original instead. A _combined_ file has several originals and no such fallback: if one of them cannot be fetched at that moment, the whole combined URL answers 404. A fetch that timed out, could not connect or got a 5xx answer is remembered for ten seconds, then retried; a 404 or 410 that the origin itself sent is remembered for five minutes by default. To see which input failed, look in the log for the `Resource based on …` warning above and for `Fetch failed for resource url`, then request that original URL yourself, from the machine that runs the module. Pages in a CDN or a browser cache that still name a removed original stay broken until the page is refreshed; purge those pages rather than the `.pagespeed.` URLs.
+
+<a id="pagespeed-404-signing"></a>
+
+**URL signing.** With `UrlSigningKey` set, every `.pagespeed.` URL carries a signature, and the module treats a URL with a wrong or missing one as not its own, so the web server answers 404 for the file it does not have. Changing the key invalidates every signed URL in HTML that is already cached downstream. `pagespeed AcceptInvalidSignatures on;` (nginx) or `ModPagespeedAcceptInvalidSignatures on` (Apache) accepts them while you rotate the key. On nginx the signature also makes the hash segment longer (ten more characters by default), so the `[^.]{10}` in the `.pagespeed.` location block of the sample configuration no longer matches; use `[^.]{20}`.
+
+<a id="pagespeed-404-routing"></a>
+
+**The request never reaches the module.** Fix this per web server:
+
+<!-- platform: nginx -->
+
+<div data-platform="nginx" data-platform-label="nginx">
+
+Keep the three `location` blocks of the [sample configuration](/docs/configuration/#minimal-working-configuration) in the server that serves the page: the `.pagespeed.` pattern, `^/pagespeed_static/` and `^/ngx_pagespeed_beacon$`. A regular-expression `location` earlier in the file that matches `.js`, `.css` or image extensions (a static-file or cache rule) takes the request first, and the module never sees it.
 
 </div>
 
@@ -676,7 +756,11 @@ Also verify that the IIS app pool has not been recycled mid-optimization. The mo
 
 </div>
 
-Verify that the configuration options match between the HTML-serving VHost and the resource-serving VHost.
+Verify that the configuration options match between the HTML-serving VHost and the resource-serving VHost. A `.pagespeed.` URL is decoded with the options of the host and path it is requested on, so a filter enabled for the page but forbidden, or not configured, where the resource is served cannot be decoded there.
+
+**A CDN or load balancer in front.** The CDN must send `.pagespeed.` requests to the server that runs the module, not to a separate storage origin, and it must forward the request path unchanged. If the CDN caches error responses, one early failure (a request that arrived while the original was unreachable) is replayed until its cache lifetime ends; give 404 responses a short TTL at the CDN. See [Behind a TLS terminator, load balancer or CDN](/docs/cdn-integration/#behind-a-tls-terminator-load-balancer-or-cdn).
+
+**The beacon returns 404.** The beacon endpoint (`/mod_pagespeed_beacon` on Apache, `/ngx_pagespeed_beacon` on nginx, or the path set by `BeaconUrl`) is answered by the module, so the request has to reach it: on nginx that means the `^/ngx_pagespeed_beacon$` location block above, and on Apache the module answers the path itself, so a 404 there usually comes from a rule that sends the path elsewhere first, such as a `ProxyPass` or a redirect. The module matches the beacon path without its query string; check that the `BeaconUrl` in the page source is the path your server actually routes to the module. A beacon 404 costs the beacon-driven filters their data but does not affect the page. Without those filters, set `pagespeed CriticalImagesBeaconEnabled false;` (nginx) or `ModPagespeedCriticalImagesBeaconEnabled false` (Apache).
 
 ### mod_pagespeed broke my page layout or JavaScript
 
@@ -791,3 +875,5 @@ Verify that the configuration options match between the HTML-serving VHost and t
 - [Web Console](/docs/workbench/) — Visual cache inspector, debug console, and
   real-time metrics
 - [Deployment Guide](/docs/deployment/) — Production setup and monitoring
+- [Hydrated pages](/docs/hydrated-pages/) — What is left unchanged on hydrated
+  React, Next.js, Vue, Nuxt and Svelte pages, and what to do when one is missed

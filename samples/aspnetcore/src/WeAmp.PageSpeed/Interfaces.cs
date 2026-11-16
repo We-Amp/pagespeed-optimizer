@@ -24,6 +24,12 @@ public interface IReadResult : IDisposable
     ushort OriginCcFlags { get; }
 
     /// <summary>
+    /// The origin's <c>s-maxage</c> in seconds as recorded with the entry
+    /// (ps_read_origin_s_maxage); 0 when absent or not recorded.
+    /// </summary>
+    uint OriginSMaxage => 0;
+
+    /// <summary>
     /// Whether the origin response requires revalidation before serving.
     /// Derived from OriginCcFlags (PS_CC_ORIGIN_* bitfield) via
     /// ps_read_origin_cc_flags. For a private cache (ASP.NET in-process),
@@ -128,5 +134,19 @@ public interface IPageSpeedCache : IDisposable
 /// <summary>HTML processing abstraction for testability.</summary>
 public interface IHtmlProcessor
 {
+    /// <summary>
+    /// Processes one HTML document, reading its cached stylesheets under the
+    /// "https" scheme.
+    /// </summary>
     HtmlResult Process(ReadOnlySpan<byte> html, string url, string hostname);
+
+    /// <summary>
+    /// Processes one HTML document, reading its cached stylesheets under
+    /// <paramref name="scheme"/> ("http" or "https"), the scheme they were
+    /// recorded under. An implementation that does not override this calls
+    /// the three-argument form, which reads under "https".
+    /// </summary>
+    HtmlResult Process(
+        ReadOnlySpan<byte> html, string url, string hostname, string scheme) =>
+        Process(html, url, hostname);
 }

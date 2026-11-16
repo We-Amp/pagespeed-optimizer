@@ -181,13 +181,13 @@ std::optional<ParsedHttpResponse> ParseCurlResponse(std::string_view raw) {
 std::vector<HttpHeader> SanitizeResponseHeaders(
     const std::vector<HttpHeader>& headers) {
   // Hop-by-hop, framing, integrity/encoding, and stateful headers that must NOT be
-  // forwarded verbatim into Fetch.fulfillRequest. The fetcher serves the literal
-  // bytes curl returned and applied NO transform, so any header describing a
-  // transform/length/integrity it did not perform — transfer-encoding,
-  // content-encoding, content-length, content-md5, content-range — must be dropped,
-  // or Chrome would re-decode/re-frame attacker-chosen bytes (compression bomb /
-  // framing desync). Set-Cookie is dropped for the anonymous view. (P1.4 review SF-1
-  // + the existing hop-by-hop set.)
+  // forwarded verbatim into Fetch.fulfillRequest. curl decodes Content-Encoding
+  // itself (--compressed), so the body we hold is already decoded and any header
+  // describing the wire form (transfer-encoding, content-encoding, content-length)
+  // or an integrity/range claim (content-md5, content-range) no longer matches
+  // it. They must be dropped, or Chrome would re-decode/re-frame the bytes
+  // (compression bomb / framing desync). Set-Cookie is dropped for the
+  // anonymous view.
   static constexpr std::string_view kStrip[] = {
       "connection",
       "keep-alive",

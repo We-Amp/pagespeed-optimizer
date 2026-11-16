@@ -11,6 +11,14 @@ gtest_test(
 )
 
 gtest_test(
+    name = "subresource_gate_test",
+    deps = [
+        "//lib/classify:alternate_metadata",
+        "//src/worker:subresource_gate",
+    ],
+)
+
+gtest_test(
     name = "serve_stats_test",
     # Production code already has Windows mmap support; test uses std::atomic_ref (C++20).
     deps = [
@@ -175,6 +183,7 @@ gtest_test(
         "//lib/html:html_writer_filter",
         "//src/worker:cascade_layer_order",
         "//src/worker:html_transform_filter",
+        "//src/worker:subresource_gate",
     ],
 )
 
@@ -183,8 +192,11 @@ gtest_test(
     size = "large",
     data = ["//test/lib/image:testdata"],
     # ~850 s single-process on the Windows lane against a 900 s ceiling; the
-    # cases are independent codec round-trips, so shard them.
-    shard_count = 4,
+    # cases are independent codec round-trips, so shard them.  A handful of
+    # cases take minutes each (the size-gate matrices), and gtest deals tests
+    # to shards round-robin by index, so the count is sized to keep them on
+    # separate shards: at 4 shards the slowest held 720 s of a 416 s mean.
+    shard_count = 8,
     tags = ["no_tsan"],
     deps = [
         "//lib/base:message_handler",
@@ -192,6 +204,7 @@ gtest_test(
         "//lib/image:exif_orientation",
         "//lib/image:image_util",
         "//lib/image:jpeg",
+        "//lib/image:quality_verifier",
         "//lib/image:read_image",
         "//src/worker:image_transcoder",
         "@libavif",
@@ -286,6 +299,7 @@ gtest_test(
         "//lib/classify:capability_mask",
         "//lib/classify:content_type",
         "//src/worker:cache_handlers",
+        "//src/worker:known_sites",
         "//src/worker:url_registry",
         "//test/test_util:tcp_client",
         "//test/test_util:temp_dir",
@@ -427,7 +441,16 @@ gtest_test(
 gtest_test(
     name = "url_registry_test",
     deps = [
+        "//src/worker:known_sites",
         "//src/worker:url_registry",
+    ],
+)
+
+gtest_test(
+    name = "known_sites_file_test",
+    deps = [
+        "//src/worker:known_sites",
+        "//test/test_util:temp_dir",
     ],
 )
 
@@ -435,8 +458,8 @@ gtest_test(
     name = "worker_test",
     size = "large",
     # One target, many topic files: the single 21k-line translation unit this
-    # replaced dominated both compile and lint time. The target name, shard
-    # count and test ids are unchanged, so exclusions by name keep working.
+    # replaced dominated both compile and lint time. The target name is
+    # unchanged, so exclusions by name keep working.
     srcs = [
         "worker_agent_markdown_test.cc",
         "worker_cooldown_purge_test.cc",
@@ -452,6 +475,7 @@ gtest_test(
         "worker_notify_test.cc",
         "worker_origin_refresh_test.cc",
         "worker_peer_rewrite_test.cc",
+        "worker_subresource_gate_test.cc",
         "worker_test_fixture.cc",
         "worker_test_fixture.h",
     ],
@@ -463,8 +487,11 @@ gtest_test(
     # config_setting (repo has none yet), so this widening applies to ALL
     # lanes: a genuinely hung worker reports at 3600s instead of 900s.
     timeout = "eternal",
+    # A few replays of the full variant matrix take 4-8 minutes each; at 8
+    # shards two of them shared a shard (slowest 581 s against a 316 s
+    # mean).  16 keeps them apart; the bound is now the longest single case.
     data = ["//test/lib/image:testdata"],
-    shard_count = 8,
+    shard_count = 16,
     deps = [
         "//lib/base:message_handler",
         "//lib/cache:freshness",
@@ -487,10 +514,14 @@ gtest_test(
         "//src/worker:html_scanner",
         "//src/worker:layer_order_sources",
         "//src/worker:shared_config",
+        "//src/worker:known_sites",
+        "//src/worker:subresource_gate",
         "//src/worker:text_compressor",
         "//src/worker:url_registry",
         "//src/worker:worker_lib",
+        "@com_google_absl//absl/strings",
         "@libavif",
+        "//test/test_util:cache_test_peer",
         "//test/test_util:pipe_client",
         "//test/test_util:tcp_client",
         "//test/test_util:temp_dir",

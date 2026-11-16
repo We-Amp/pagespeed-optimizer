@@ -3,7 +3,7 @@ title: 'Install ASP.NET Core middleware'
 description: 'Install the mod_pagespeed ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.'
 order: 9
 group: 'Install'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-15
 ---
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
@@ -258,16 +258,18 @@ Check, in order:
 Then re-run the [content-negotiation check](#3-content-negotiation-serves-smaller-images) — a `webp` request should return materially fewer
 bytes with `Content-Type: image/webp`.
 
-## The 1.15 sidecar: WeAmp.PageSpeed.Sidecar
+<a id="the-115-sidecar-weamppagespeedsidecar"></a>
 
-`WeAmp.PageSpeed.Sidecar` adds **mod_pagespeed 1.15** to your ASP.NET Core app with two lines of
-middleware. Your Kestrel app stays the public front door; a bundled, matched (nginx + ngx_pagespeed)
-optimizer runs on loopback behind it, recompressing images (jpeg/png/webp), minifying CSS and JS,
+## The sidecar: WeAmp.PageSpeed.Sidecar
+
+`WeAmp.PageSpeed.Sidecar` adds **the current mod_pagespeed module, run behind Kestrel**, to your
+ASP.NET Core app with two lines of middleware. Your Kestrel app stays the public front door; a
+bundled, matched (nginx + ngx_pagespeed) optimizer runs on loopback behind it, recompressing images (jpeg/png/webp), minifying CSS and JS,
 inlining and extracting critical CSS, and rewriting HTML for Core Web Vitals on the way out.
 Requests that can't be optimized — and any request while the optimizer isn't running — pass straight
 through your app un-optimized.
 
-The current package is 1.17.0; the next sidecar release moves to the product version (2.5.x).
+From 2.6.0 on, the package carries the release version, like the other release artifacts.
 
 ```csharp
 builder.Services.AddPageSpeed(builder.Configuration);
@@ -279,7 +281,7 @@ That's the whole setup. No domain list, no separate front-proxy to configure. Th
 **Inverse** topology; a classic front-proxy mode (bundled nginx as the public front door) is also
 available — see [Sidecar configuration options](#sidecar-configuration-options).
 
-This is the **1.15 (1.x engine) ASP.NET Core option** and is **Linux-only** (`linux-x64`,
+This is the **bundled-nginx ASP.NET Core option** and is **Linux-only** (`linux-x64`,
 `linux-arm64`). The middleware documented above on this page — `WeAmp.PageSpeed.AspNetCore` — is
 cross-platform, in-process, and carries the newest image pipeline (SVG auto-vectorization, Jpegli,
 and ML-predicted quality); use it if you don't specifically need the sidecar's bundled nginx engine.
@@ -394,25 +396,21 @@ Source `AdminAuth.Token` from a secret store or environment variable — do not 
 
 ### Sidecar container & runtime requirements
 
-The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. The bundled
-nginx links `libpcre.so.3`, the Debian/Ubuntu name of the PCRE library from the `libpcre3`
-package, so it runs on the Debian and Ubuntu releases that still ship that package: Debian 11 and
-12, Ubuntu 20.04 to 24.04. Debian 13 and Ubuntu 26.04 no longer ship `libpcre3` and are not
-supported. Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported either:
-they ship PCRE as `libpcre.so.1`. (`libcrypt.so.1`, which the nginx also links, is available
-there from `libxcrypt-compat`; PCRE is the blocker.) `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
+The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. From 2.8.1 on,
+the bundled nginx carries PCRE2 statically linked and needs no PCRE library on the host, so it runs
+on Debian 11 to 13 and Ubuntu 20.04 to 26.04. Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon
+Linux are not supported. `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
 no libstdc++ or libssl/libcrypto host requirement. The binaries link a small set of host shared
 libraries:
 
-| Host library    | Provided by | Notes                                                      |
-| --------------- | ----------- | ---------------------------------------------------------- |
-| `libpcre.so.3`  | `libpcre3`  | nginx PCRE — missing from `-chiseled`/`-distroless` images |
-| `libz.so.1`     | `zlib1g`    | present on standard .NET images                            |
-| `libcrypt.so.1` | `libcrypt1` | present on standard .NET images                            |
+| Host library    | Provided by | Notes                           |
+| --------------- | ----------- | ------------------------------- |
+| `libz.so.1`     | `zlib1g`    | present on standard .NET images |
+| `libcrypt.so.1` | `libcrypt1` | present on standard .NET images |
 
-- **Recommended base image:** `mcr.microsoft.com/dotnet/aspnet:8.0` (Debian); add the one missing
-  lib with `apt-get install -y libpcre3`.
-- **Not supported:** `-chiseled` / `-distroless` .NET images (no `libpcre3`) and Alpine/musl images
+- **Recommended base image:** `mcr.microsoft.com/dotnet/aspnet:8.0` (Debian); it needs no extra
+  packages.
+- **Not supported:** `-chiseled` / `-distroless` .NET images and Alpine/musl images
   (the binaries are glibc-linked). Use a Debian/Ubuntu glibc base. nginx still runs in Inverse mode
   — on loopback — so the same base-image requirements apply.
 

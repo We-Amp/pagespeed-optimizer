@@ -31,6 +31,7 @@ gtest_test(
     name = "compat_string_util_test",
     deps = [
         "//lib/html:compat",
+        "@com_google_absl//absl/hash",
     ],
 )
 
@@ -80,6 +81,27 @@ gtest_test(
         "//lib/base:writer",
         "//lib/html:compat",
         "//lib/html:content_type",
+        "//lib/html:empty_html_filter",
+        "//lib/html:html_keywords",
+        "//lib/html:html_name",
+        "//lib/html:html_node",
+        "//lib/html:html_parse",
+        "//lib/html:html_writer_filter",
+    ],
+)
+
+# Inline SVG and MathML parsing by the vendored kernel (mirrors the
+# canonical kernel's foreign content tests).
+gtest_test(
+    name = "html_foreign_content_test",
+    # Vendored lib/html headers name unused parameters (canonical idiom).
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    deps = [
+        "//lib/base:string_writer",
+        "//lib/html:compat",
         "//lib/html:empty_html_filter",
         "//lib/html:html_keywords",
         "//lib/html:html_name",

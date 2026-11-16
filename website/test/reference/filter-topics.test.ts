@@ -20,6 +20,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { parse } from 'parse5';
 import { describe, it, expect } from 'vitest';
 import {
   loadFilterTopics,
@@ -31,11 +32,39 @@ import {
   topicFacts,
   GOOGLE_PRODUCTS_LINE,
   relatedTopics,
+  topicHref,
   renderTopicMarkdown,
   renderFiltersHubMarkdown,
 } from '../../src/lib/filter-topics.mjs';
 import { EXAMPLES } from '../../src/data/examples';
+import { alsoAppliedIn } from '../../src/lib/filter-demos';
 import { topicForExample } from '../../src/data/filters';
+import { ORGANIZATION_ID } from '../../src/data/organization';
+
+type HtmlNode = {
+  nodeName: string;
+  value?: string;
+  attrs?: { name: string; value: string }[];
+  childNodes?: HtmlNode[];
+};
+
+// The JSON-LD blocks of a built page, read with an HTML parser.
+function jsonLdBlocks(html: string): any[] {
+  const out: any[] = [];
+  const walk = (node: HtmlNode) => {
+    for (const child of node.childNodes ?? []) {
+      if (
+        child.nodeName === 'script' &&
+        child.attrs?.some((a) => a.name === 'type' && a.value === 'application/ld+json')
+      ) {
+        out.push(JSON.parse((child.childNodes ?? []).map((c) => c.value ?? '').join('')));
+      }
+      walk(child);
+    }
+  };
+  walk(parse(html) as HtmlNode);
+  return out.flat();
+}
 
 const WEBSITE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const data = JSON.parse(
@@ -47,6 +76,7 @@ const allNames: string[] = [
 ];
 const topics = loadFilterTopics(WEBSITE_ROOT);
 const byName = new Map(topics.map((t) => [t.name, t]));
+const demosOf = (t: (typeof topics)[number]) => alsoAppliedIn(t.name, t.example);
 
 describe('filter topics (source)', () => {
   it('cover every filter and compound name in filters.json, once', () => {
@@ -67,6 +97,17 @@ describe('filter topics (source)', () => {
       expect(t.indexable).toBe(!t.alternateSpellingOf && t.section.words >= THIN_WORDS);
     });
   }
+
+  it('an alternate spelling names its indexable primary as canonical; every other page itself', () => {
+    const alternates = topics.filter((t) => t.alternateSpellingOf);
+    expect(alternates.length).toBeGreaterThan(0);
+    for (const t of topics) {
+      const primary = t.alternateSpellingOf ? byName.get(t.alternateSpellingOf) : undefined;
+      expect(t.canonicalPath, t.name).toBe(primary?.indexable ? primary.path : t.path);
+      // A canonical never points at a page that is itself kept out of search.
+      if (t.canonicalPath !== t.path) expect(byName.get(primary!.name)!.indexable).toBe(true);
+    }
+  });
 
   it('use one consistent title form per length tier', () => {
     for (const t of topics) {
@@ -193,14 +234,29 @@ describe.skipIf(!BUILT)('filter topics (built html)', () => {
         expect(ld).toEqual(t.faq.map((f) => ({ q: f.q, a: plainText(f.a) })));
       });
 
+      const canonicalElsewhere = t.canonicalPath !== t.path;
       it(
-        t.indexable ? 'is indexable and in the sitemap' : 'is noindex and not in the sitemap',
+        t.indexable
+          ? 'is indexable and in the sitemap'
+          : canonicalElsewhere
+            ? 'names its primary spelling as canonical, without noindex, and is not in the sitemap'
+            : 'is noindex and not in the sitemap',
         () => {
           const noindex = /<meta name="robots" content="noindex,follow"/.test(html);
-          expect(noindex).toBe(!t.indexable);
+          expect(noindex).toBe(!t.indexable && !canonicalElsewhere);
           expect(sitemap.includes(`https://modpagespeed.com${t.path}<`)).toBe(t.indexable);
+          expect(attr(html, /<link rel="canonical" href="([^"]*)"/)).toBe(
+            `https://modpagespeed.com${t.canonicalPath}`,
+          );
         },
       );
+
+      it('names the site-wide organization as author and publisher', () => {
+        const article = jsonLdBlocks(html).find((b) => b['@type'] === 'TechArticle');
+        expect(article.author['@id']).toBe(ORGANIZATION_ID);
+        expect(article.publisher['@id']).toBe(ORGANIZATION_ID);
+        expect(article.publisher.logo?.url).toBeTruthy();
+      });
     });
   }
 
@@ -245,7 +301,10 @@ describe.skipIf(!BUILT)('filter topics (built html)', () => {
 });
 
 describe('filter topic Markdown twins (source)', () => {
-  const md = (name: string) => renderTopicMarkdown(byName.get(name)!, topics);
+  const md = (name: string) => {
+    const t = byName.get(name)!;
+    return renderTopicMarkdown(t, topics, demosOf(t));
+  };
 
   it('follows the page order', () => {
     const body = md('rewrite_images');
@@ -274,7 +333,7 @@ describe('filter topic Markdown twins (source)', () => {
 
   it('shares its facts and its related list with the page', () => {
     for (const t of topics.filter((x) => x.indexable)) {
-      const body = renderTopicMarkdown(t, topics);
+      const body = renderTopicMarkdown(t, topics, demosOf(t));
       for (const fact of topicFacts(t)) {
         const absolute = fact.replace(/\]\((\/[^)\s]*)\)/g, '](https://modpagespeed.com$1)');
         expect(body, t.name).toContain(`- ${absolute}`);
@@ -286,9 +345,63 @@ describe('filter topic Markdown twins (source)', () => {
         t.name,
       ).not.toContain(t.name);
       for (const r of related) {
-        expect(body, t.name).toContain(`(https://modpagespeed.com${r.path})`);
+        expect(body, t.name).toContain(`(https://modpagespeed.com${topicHref(r)})`);
       }
     }
+  });
+
+  it('links a related filter to a page search engines index', () => {
+    let toGroup = 0;
+    for (const t of topics) {
+      for (const r of relatedTopics(t, topics)) {
+        const href = topicHref(r);
+        if (r.indexable) expect(href, `${t.name} -> ${r.name}`).toBe(r.path);
+        else {
+          expect(href, `${t.name} -> ${r.name}`).toBe(r.groupPath);
+          expect(href, `${t.name} -> ${r.name}`).toMatch(/^\/docs\/[^/]+\/#/);
+          toGroup++;
+        }
+      }
+      if (!t.indexable) continue;
+      const related = renderTopicMarkdown(t, topics, demosOf(t)).match(
+        /\n## Related filters\n([\s\S]*?)\nThis page is drawn/,
+      )?.[1];
+      for (const r of relatedTopics(t, topics).filter((x) => !x.indexable)) {
+        expect(related, `${t.name} twin -> ${r.name}`).not.toContain(
+          `(https://modpagespeed.com${r.path})`,
+        );
+      }
+    }
+    // Some related filters are thin today; the check must exercise that path.
+    expect(toGroup).toBeGreaterThan(0);
+  });
+
+  it('lists the same gallery demos as the topic page', () => {
+    // The example links in the twin's live example section, in order: the demo
+    // that isolates the filter (if any), then the others that apply it.
+    const linked = (body: string) =>
+      [
+        ...(body.match(/\n## Live examples?\n[\s\S]*?(?=\n## )/)?.[0] ?? '').matchAll(
+          /\]\(https:\/\/modpagespeed\.com\/examples\/([^/)]+)\/\)/g,
+        ),
+      ].map((m) => m[1]);
+    let withList = 0;
+    for (const t of topics.filter((x) => x.indexable)) {
+      const demos = demosOf(t);
+      if (demos.length) withList++;
+      const isolating = t.example ? [t.example.split('/')[2]] : [];
+      expect(linked(renderTopicMarkdown(t, topics, demos)), t.name).toEqual([
+        ...isolating,
+        ...demos.map((d) => d.slug),
+      ]);
+    }
+    expect(withList).toBeGreaterThan(0);
+  });
+
+  it('refuses to render without the demo list', () => {
+    const t = byName.get('rewrite_images')!;
+    // @ts-expect-error the list is required
+    expect(() => renderTopicMarkdown(t, topics)).toThrow(/no demo list/);
   });
 
   it('every live example link points at a gallery page', () => {
@@ -317,7 +430,7 @@ describe('filter topic Markdown twins (source)', () => {
       ...byName.get('rewrite_images')!,
       faq: [{ q: 'Where next?', a: 'See [the docs](/docs/filters/) and [below](#risks).' }],
     };
-    const body = renderTopicMarkdown(t, topics);
+    const body = renderTopicMarkdown(t, topics, demosOf(t));
     expect(body).toContain('See [the docs](https://modpagespeed.com/docs/filters/) and [below](');
     expect(body).not.toMatch(/\]\((\/|#)/);
   });
@@ -326,6 +439,6 @@ describe('filter topic Markdown twins (source)', () => {
     const page = readFileSync(resolve(WEBSITE_ROOT, 'src/pages/docs/filters/[name].astro'), 'utf8');
     expect(page.replace(/\s+/g, ' ')).toContain(GOOGLE_PRODUCTS_LINE);
     const t = byName.get('insert_ga')!;
-    expect(renderTopicMarkdown(t, topics)).toContain(`\n${GOOGLE_PRODUCTS_LINE}\n`);
+    expect(renderTopicMarkdown(t, topics, demosOf(t))).toContain(`\n${GOOGLE_PRODUCTS_LINE}\n`);
   });
 });

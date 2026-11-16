@@ -4,10 +4,13 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IO;
+using WeAmp.PageSpeed.AspNetCore.Internal;
 using WeAmp.PageSpeed.Native;
 
 namespace WeAmp.PageSpeed.AspNetCore;
@@ -87,6 +90,8 @@ public sealed class PageSpeedMiddleware
     private readonly IPageSpeedCache _cache;
     private readonly WorkerNotificationService _notifier;
     private readonly ILogger<PageSpeedMiddleware> _logger;
+    private readonly IOptionsMonitor<HostFilteringOptions>? _hostFiltering;
+    private readonly RefusalMemo _refusals = new();
 
     /// <summary>
     /// Creates a new PageSpeed middleware instance.
@@ -97,9 +102,11 @@ public sealed class PageSpeedMiddleware
         IHtmlProcessor htmlProcessor,
         IPageSpeedCache cache,
         WorkerNotificationService notifier,
-        ILogger<PageSpeedMiddleware> logger)
+        ILogger<PageSpeedMiddleware> logger,
+        IOptionsMonitor<HostFilteringOptions>? hostFiltering = null)
     {
         _next = next;
+        _hostFiltering = hostFiltering;
         _options = options;
         _htmlProcessor = htmlProcessor;
         _cache = cache;
@@ -180,6 +187,9 @@ public sealed class PageSpeedMiddleware
                 "Request classification failed, using default mask");
         }
 
+        // Read on the HIT, early-hints and record paths below.
+        bool requestHasCookie = CookieRequestCacheRule.RequestHasCookie(context.Request);
+
         // ── CACHE HIT fast path ──────────────────────────────────
         // Skip cache on force-refresh (Ctrl+F5: Cache-Control: no-cache
         // or Pragma: no-cache).
@@ -196,8 +206,11 @@ public sealed class PageSpeedMiddleware
                 // eligible), so non-markdown / non-entitled requests are
                 // unaffected. The native gate also enforces the content-hash
                 // binding — a stale/unbound markdown is refused (null → HTML).
+                // Rendered markdown is fetched from the host name, so it is
+                // served only under a host AllowedHosts names.
                 int agentEntitled = 0;
                 if (opts.EnableAgentOptimize
+                    && HostVouched(hostname)
                     && RequestClassifier.WantsAgentMarkdown(context.Request))
                 {
                     try
@@ -228,8 +241,16 @@ public sealed class PageSpeedMiddleware
                     // The response headers the application set when the entry was
                     // stored ride along with it. An entry that cannot be served
                     // with them is treated as a miss and refetched.
-                    var stored = ResolveStoredHeaders(
-                        cached, url, hostname, scheme, servedAgentMarkdown);
+                    // A request carrying a cookie is served only an entry the
+                    // origin marked public or gave one s-maxage above zero
+                    // (CookieRequestCacheRule); otherwise it goes to the
+                    // application.
+                    var stored = requestHasCookie &&
+                                 !StoredEntrySharedWithCookieRequest(
+                                     cached, url, hostname, scheme, servedAgentMarkdown)
+                        ? new StoredHeaders(false, null)
+                        : ResolveStoredHeaders(
+                            cached, url, hostname, scheme, servedAgentMarkdown);
                     if (stored.Usable)
                     {
                         if (ServeCacheHit(context, cached, url, hostname, scheme, mask,
@@ -259,7 +280,7 @@ public sealed class PageSpeedMiddleware
         // are not stored with the entry.
         var capture = new MissCapture(context.Response);
         var hintLinksBefore = context.Response.Headers.Link.ToArray();
-        AddEarlyHintLinkHeaders(context, url, hostname, scheme);
+        AddEarlyHintLinkHeaders(context, url, hostname, scheme, requestHasCookie);
         capture.OwnLinks.AddRange(SubtractLines(
             context.Response.Headers.Link.ToArray(), hintLinksBefore));
 
@@ -272,6 +293,9 @@ public sealed class PageSpeedMiddleware
             capture);
 
         // ── CACHE MISS — proxy to origin ─────────────────────────
+        // Endpoint and route values set ahead of this middleware, for the
+        // anonymous request a stored response comes from.
+        var seed = AnonymousFetchCheck.Seed.Capture(context);
         var originalBody = context.Response.Body;
         using var buffer = MsPool.GetStream("PageSpeed.Buffer");
         context.Response.Body = buffer;
@@ -310,28 +334,48 @@ public sealed class PageSpeedMiddleware
             return;
         }
 
+        // Only the response to an anonymous request leads to a store. Evaluated
+        // now, after the application ran, so authentication and endpoint
+        // selection placed after this middleware are visible. What is stored is
+        // the answer to a second, anonymous request (StoreAnonymousAnswerAsync).
+        var record = opts.RecordResponses && IsAnonymousRequest(context) &&
+                     !_refusals.IsRefused(RefusalMemo.Key(scheme, hostname, url));
+
         // Classify response content type (managed, no P/Invoke needed).
         var responseContentType = context.Response.ContentType;
         var psContentType = ClassifyResponseContentType(responseContentType);
         var cacheControl = context.Response.Headers.CacheControl.ToString();
+
+        // A response to a request carrying a cookie is stored only when the
+        // origin opted in (CookieRequestCacheRule): a page needs public or
+        // one s-maxage above zero; a stylesheet, script or image needs a
+        // freshness lifetime the origin stated.
+        if (record && requestHasCookie)
+            record = CookieRequestMayStore(context.Response, cacheControl);
 
         switch (psContentType)
         {
             case PageSpeedContentType.Html:
                 await HandleHtmlMiss(
                     context, originalBody, buffer, opts,
-                    url, hostname, scheme, mask, cacheability,
-                    cacheControl, capture);
+                    url, hostname, scheme, mask, capture, record, seed);
                 break;
 
             case PageSpeedContentType.Image:
             case PageSpeedContentType.Css:
             case PageSpeedContentType.Js:
+                if (!record)
+                {
+                    // Served as the application served it; not stored.
+                    buffer.Seek(0, SeekOrigin.Begin);
+                    await buffer.CopyToAsync(
+                        originalBody, context.RequestAborted);
+                    break;
+                }
                 await HandleAssetMiss(
                     context, originalBody, buffer, opts,
                     url, hostname, scheme, mask,
-                    psContentType, responseContentType,
-                    cacheability, cacheControl, capture);
+                    psContentType, capture, seed);
                 break;
 
             default:
@@ -508,8 +552,13 @@ public sealed class PageSpeedMiddleware
                 lastModified.ToString("R");
         }
 
-        // Content-Encoding for compressed variants.
-        var encoding = cachedMask & EncodingMask;
+        // Content-Encoding for compressed variants. The Markdown copy's mask is
+        // a sentinel id, not a capability mask: its bits would read as gzip,
+        // but its bytes are stored and sent uncompressed. Mirrors nginx
+        // (ngx_http_pagespeed_set_variant_content_encoding).
+        var encoding = (cachedMask & 0xFF) == SentinelId.AgentMarkdown
+            ? EncodingIdentity
+            : cachedMask & EncodingMask;
         if (encoding == EncodingGzip)
             context.Response.Headers.ContentEncoding = "gzip";
         else if (encoding == EncodingBrotli)
@@ -535,9 +584,11 @@ public sealed class PageSpeedMiddleware
             AddLinkHeadersFromCache(context, url, hostname, scheme);
 
         // Re-notify worker if cached entry needs revalidation.
-        if (cached.NeedsRevalidation)
+        if (cached.NeedsRevalidation &&
+            !WithholdHtmlNotify(cachedType, hostname))
             if (!_notifier.TryNotify(url, hostname, scheme, cachedType, mask,
-                                     ShouldRequestAgentRender(context, opts)))
+                                     ShouldRequestAgentRender(context, opts),
+                                     hostVouched: HostVouched(hostname)))
                 _logger.LogDebug("TryNotify failed for revalidation: {Url}", url);
 
         // ETag derived from the served bytes, so two different payloads
@@ -719,6 +770,57 @@ public sealed class PageSpeedMiddleware
         bool Usable, IReadOnlyList<KeyValuePair<string, string>>? Fields);
 
     /// <summary>
+    /// May <paramref name="cached"/> be served to a request carrying a cookie
+    /// (CookieRequestCacheRule.CookieRequestMayServe)? Stylesheets, scripts
+    /// and images: yes. Anything else: only when the stored entry carries the
+    /// origin's public mark or one s-maxage above zero. The markdown copy
+    /// carries no Cache-Control of its own; the recorded page decides for it,
+    /// and without a recorded page it is not served.
+    /// </summary>
+    private bool StoredEntrySharedWithCookieRequest(
+        IReadResult cached, string url, string hostname, string scheme,
+        bool servedAgentMarkdown)
+    {
+        bool shared = servedAgentMarkdown
+            ? StoredPageSharedWithCookieRequest(url, hostname, scheme)
+            : CookieRequestCacheRule.CookieRequestMayServe(
+                requestHasCookie: true,
+                CookieRequestCacheRule.StoredEntryIsStaticAsset(
+                    cached.OriginContentType, cached.ContentType),
+                CookieRequestCacheRule.HtmlExplicitlyShared(
+                    cached.OriginCcFlags, cached.OriginSMaxage));
+        if (!shared)
+            _logger.LogDebug(
+                "Request for {Url} carries a cookie and the stored entry is not marked public or s-maxage; refetching",
+                url);
+        return shared;
+    }
+
+    /// <summary>
+    /// Does the page recorded for this URL carry the origin's public or
+    /// s-maxage mark? False when there is no recorded page or it cannot be
+    /// read.
+    /// </summary>
+    private bool StoredPageSharedWithCookieRequest(
+        string url, string hostname, string scheme)
+    {
+        try
+        {
+            using var page = _cache.ReadAlternate(url, hostname, scheme, (byte)DefaultMask);
+            return page != null &&
+                   CookieRequestCacheRule.CookieRequestMayServe(
+                       requestHasCookie: true, staticAsset: false,
+                       CookieRequestCacheRule.HtmlExplicitlyShared(
+                           page.OriginCcFlags, page.OriginSMaxage));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Reading the recorded page for {Url} failed", url);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Decides how a cache entry is served with respect to the origin's
     /// response headers: with a stored block to replay, with nothing to
     /// replay, or not at all (treated as a miss).
@@ -737,6 +839,14 @@ public sealed class PageSpeedMiddleware
             // Recorded before the origin's headers were kept with the entry.
             _logger.LogDebug(
                 "Cache entry for {Url} has no stored response headers; refetching",
+                url);
+            return new(false, null);
+        }
+        if ((flags & CacheFlags.AnonymousRecorded) == 0)
+        {
+            // Not recorded under the anonymous-request rule.
+            _logger.LogDebug(
+                "Cache entry for {Url} was not recorded from an anonymous request; refetching",
                 url);
             return new(false, null);
         }
@@ -852,7 +962,8 @@ public sealed class PageSpeedMiddleware
         /// middleware ahead of this one, has run.
         /// </summary>
         public bool UncacheableNow =>
-            ClassifyCacheability(_response) == ResponseCacheability.Uncacheable;
+            ClassifyCacheability(_response) == ResponseCacheability.Uncacheable ||
+            VaryStoreRule.Refuses(_response, OwnVaryTokens);
 
         public void Capture()
         {
@@ -896,22 +1007,15 @@ public sealed class PageSpeedMiddleware
             }
             if (varyTokens.Count > 0)
                 captured.Add(new("Vary", string.Join(", ", varyTokens)));
-            _uncacheable = ClassifyCacheability(_response) == ResponseCacheability.Uncacheable;
+            // Every Vary token counts for whether the response may be stored,
+            // the ones present at entry included; only this middleware's own
+            // are left out. (Entry tokens are not stored with the entry, but a
+            // response that varies on them still may not be shared.)
+            _uncacheable =
+                ClassifyCacheability(_response) == ResponseCacheability.Uncacheable ||
+                VaryStoreRule.Refuses(_response, OwnVaryTokens);
             _captured = captured;
         }
-    }
-
-    /// <summary>True when the response's own Vary names Accept.</summary>
-    private static bool VariesOnAccept(IReadOnlyList<KeyValuePair<string, string>> headers)
-    {
-        foreach (var h in headers)
-        {
-            if (!h.Key.Equals("Vary", StringComparison.OrdinalIgnoreCase)) continue;
-            foreach (var token in h.Value.Split(','))
-                if (token.Trim().Equals("Accept", StringComparison.OrdinalIgnoreCase))
-                    return true;
-        }
-        return false;
     }
 
     /// <summary>Lines in <paramref name="after"/> that are not in <paramref name="before"/> (multiset difference).</summary>
@@ -930,16 +1034,57 @@ public sealed class PageSpeedMiddleware
     }
 
     /// <summary>
-    /// Handles an HTML cache MISS: transforms the HTML, caches it,
-    /// writes early hints, and notifies the worker.
+    /// Whether the request was anonymous as far as the application can tell:
+    /// no <c>Authorization</c> or <c>Proxy-Authorization</c> header, no
+    /// authenticated user, and an endpoint without an authorization
+    /// requirement (<see cref="IAuthorizeData"/>, an
+    /// <see cref="AuthorizationPolicy"/> or
+    /// <see cref="IAuthorizationRequirementData"/> metadata), or one that
+    /// allows anonymous access. Only the response
+    /// to such a request is stored in the cache. Called after the rest of
+    /// the pipeline has run.
+    /// </summary>
+    internal static bool IsAnonymousRequest(HttpContext context)
+    {
+        var headers = context.Request.Headers;
+        if (headers.ContainsKey("Authorization") ||
+            headers.ContainsKey("Proxy-Authorization"))
+            return false;
+
+        var user = context.User;
+        if (user != null)
+        {
+            foreach (var identity in user.Identities)
+            {
+                if (identity.IsAuthenticated) return false;
+            }
+        }
+
+        var metadata = context.GetEndpoint()?.Metadata;
+        if (metadata != null &&
+            (metadata.GetMetadata<IAuthorizeData>() != null ||
+             metadata.GetMetadata<AuthorizationPolicy>() != null ||
+             metadata.GetMetadata<IAuthorizationRequirementData>() != null) &&
+            metadata.GetMetadata<IAllowAnonymous>() == null)
+            return false;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Handles an HTML cache MISS: transforms the HTML for this client and,
+    /// when <paramref name="record"/> is set, caches the anonymous request's
+    /// page (<see cref="FetchAnonymousAnswerAsync"/>), transformed, writes its
+    /// early hints, and notifies the worker. Otherwise the transformed page is
+    /// served to this client only.
     /// </summary>
     private async Task HandleHtmlMiss(
         HttpContext context, Stream originalBody,
         RecyclableMemoryStream buffer, PageSpeedOptions opts,
         string url, string hostname, string scheme, uint mask,
-        ResponseCacheability cacheability,
-        string? cacheControl,
-        MissCapture capture)
+        MissCapture capture,
+        bool record,
+        AnonymousFetchCheck.Seed seed)
     {
         // Size gate for HTML processing.
         if (buffer.Length > opts.MaxResponseBufferBytes ||
@@ -958,7 +1103,7 @@ public sealed class PageSpeedMiddleware
 
             context.RequestAborted.ThrowIfCancellationRequested();
             using var result = _htmlProcessor.Process(
-                htmlSpan, url, hostname);
+                htmlSpan, url, hostname, scheme);
             context.RequestAborted.ThrowIfCancellationRequested();
 
             if (result.Modified)
@@ -975,24 +1120,42 @@ public sealed class PageSpeedMiddleware
                 await originalBody.WriteAsync(
                     output, context.RequestAborted);
 
+                if (!record) return;
+
+                // Stores the anonymous request's page, optimized, instead.
+                using var answer = await FetchAnonymousAnswerAsync(
+                    context, seed, url, hostname, scheme, capture);
+                if (answer == null) return;
+                if (answer.Body.Length > opts.MaxResponseBufferBytes ||
+                    !RequestClassifier.IsHtmlResponse(answer.Response))
+                {
+                    RememberRefusal(context, scheme, hostname, url);
+                    return;
+                }
+                using var stored = _htmlProcessor.Process(
+                    answer.Span, url, hostname, scheme);
+                if (!stored.Modified) return;
+
                 var cacheable = TryWriteToCache(
-                    url, hostname, scheme, output,
+                    url, hostname, scheme, stored.OutputMemory,
                     PageSpeedContentType.Html,
-                    context.Response.ContentType,
-                    result.NeedsRevalidation,
-                    capture,
-                    cacheControl);
+                    answer.Response.ContentType,
+                    stored.NeedsRevalidation,
+                    answer.Capture,
+                    answer.CacheControl);
 
                 if (cacheable)
                     TryWriteEarlyHints(
-                        url, hostname, scheme, result.EarlyHintsMemory);
+                        url, hostname, scheme, stored.EarlyHintsMemory);
 
                 // [Critical #2] Skip worker notification if no-transform.
-                if (cacheable && cacheability != ResponseCacheability.NoTransform)
+                if (cacheable && answer.Cacheability != ResponseCacheability.NoTransform &&
+                    !WithholdHtmlNotify(PageSpeedContentType.Html, hostname))
                 {
                     if (!_notifier.TryNotify(
                         url, hostname, scheme, PageSpeedContentType.Html, mask,
-                        ShouldRequestAgentRender(context, opts)))
+                        ShouldRequestAgentRender(context, opts),
+                        hostVouched: HostVouched(hostname)))
                         _logger.LogDebug("TryNotify failed for HTML: {Url}", url);
                 }
             }
@@ -1025,19 +1188,44 @@ public sealed class PageSpeedMiddleware
     }
 
     /// <summary>
-    /// Handles a cache MISS for images, CSS, and JS: caches the
-    /// original response and notifies the worker for optimization
-    /// (image transcoding, CSS/JS minification, compression).
+    /// Whether AllowedHosts names <paramref name="hostname"/>; see
+    /// <see cref="AgentHostVouch"/>.
+    /// </summary>
+    private bool HostVouched(string hostname) =>
+        AgentHostVouch.Vouches(_hostFiltering?.CurrentValue.AllowedHosts, hostname);
+
+    /// <summary>
+    /// While the worker's agent optimization is on, an HTML notification can
+    /// make it render the page and fetch from the host name. Withheld for a
+    /// host AllowedHosts does not name; the response itself is served as
+    /// usual. An unreadable worker setting counts as on.
+    /// </summary>
+    private bool WithholdHtmlNotify(PageSpeedContentType type, string hostname)
+    {
+        if (type != PageSpeedContentType.Html || HostVouched(hostname)) return false;
+        try
+        {
+            return _cache.ReadSharedConfigAgentEntitled() != 0;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Handles a cache MISS for images, CSS, and JS: serves this client's
+    /// response, caches the anonymous request's response for the same URL
+    /// (<see cref="FetchAnonymousAnswerAsync"/>), and notifies the worker for
+    /// optimization (image transcoding, CSS/JS minification, compression).
     /// </summary>
     private async Task HandleAssetMiss(
         HttpContext context, Stream originalBody,
         RecyclableMemoryStream buffer, PageSpeedOptions opts,
         string url, string hostname, string scheme, uint mask,
         PageSpeedContentType psContentType,
-        string? responseContentType,
-        ResponseCacheability cacheability,
-        string? cacheControl,
-        MissCapture capture)
+        MissCapture capture,
+        AnonymousFetchCheck.Seed seed)
     {
         // Pass through the original response to the client.
         buffer.Seek(0, SeekOrigin.Begin);
@@ -1055,23 +1243,150 @@ public sealed class PageSpeedMiddleware
             return;
         }
 
-        // Cache the original (identity) content.
-        var underlying = buffer.GetBuffer();
-        var data = new ReadOnlyMemory<byte>(
-            underlying, 0, (int)buffer.Length);
+        // Cache the anonymous request's original (identity) content.
+        using var answer = await FetchAnonymousAnswerAsync(
+            context, seed, url, hostname, scheme, capture);
+        if (answer == null) return;
+        if (answer.Body.Length == 0 || answer.Body.Length > opts.MaxAssetCacheBytes)
+        {
+            RememberRefusal(context, scheme, hostname, url);
+            return;
+        }
 
         var cacheable = TryWriteToCache(
-            url, hostname, scheme, data,
-            psContentType, responseContentType,
+            url, hostname, scheme, answer.Memory,
+            psContentType, answer.Response.ContentType,
             needsRevalidation: false,
-            capture: capture,
-            cacheControl: context.Response.Headers.CacheControl.ToString());
+            capture: answer.Capture,
+            cacheControl: answer.CacheControl);
 
         // [Critical #2] Skip worker notification if no-transform.
-        if (cacheable && cacheability != ResponseCacheability.NoTransform)
+        if (cacheable && answer.Cacheability != ResponseCacheability.NoTransform)
         {
-            if (!_notifier.TryNotify(url, hostname, scheme, psContentType, mask))
+            if (!_notifier.TryNotify(url, hostname, scheme, psContentType, mask,
+                                     hostVouched: HostVouched(hostname)))
                 _logger.LogDebug("TryNotify failed for {Type}: {Url}", psContentType, url);
+        }
+    }
+
+    /// <summary>
+    /// The answer to the anonymous request for this URL, whose response is
+    /// what gets stored (see <see cref="AnonymousFetchCheck"/>).
+    /// </summary>
+    private sealed class AnonymousAnswer : IDisposable
+    {
+        public AnonymousAnswer(DefaultHttpContext check, RecyclableMemoryStream body)
+        {
+            Check = check;
+            Body = body;
+            Capture = new MissCapture(check.Response);
+        }
+
+        public DefaultHttpContext Check { get; }
+        public HttpResponse Response => Check.Response;
+        public RecyclableMemoryStream Body { get; }
+        public MissCapture Capture { get; }
+        public string CacheControl => Response.Headers.CacheControl.ToString();
+        public ResponseCacheability Cacheability => ClassifyCacheability(Response);
+        public ReadOnlyMemory<byte> Memory => new(Body.GetBuffer(), 0, (int)Body.Length);
+        public ReadOnlySpan<byte> Span => Memory.Span;
+
+        public void Dispose() => Body.Dispose();
+    }
+
+    /// <summary>
+    /// On a miss whose response would be stored, asks the rest of the
+    /// pipeline for the same URL as an anonymous client and returns that
+    /// answer when it has the visitor's status and media type and may itself
+    /// be stored (no cookie, not private or no-store, headers a hit can
+    /// replay). Returns null otherwise, and remembers the URL as refused for
+    /// a short time unless the request was cancelled. The anonymous request
+    /// is not made when the visitor's own response could not be stored.
+    /// </summary>
+    private async Task<AnonymousAnswer?> FetchAnonymousAnswerAsync(
+        HttpContext context, AnonymousFetchCheck.Seed seed,
+        string url, string hostname, string scheme, MissCapture visitorCapture)
+    {
+        if (!HttpMethods.IsGet(context.Request.Method) &&
+            !HttpMethods.IsHead(context.Request.Method))
+            return null;
+        // Nothing would be stored for the visitor's response either.
+        if (visitorCapture.Uncacheable || visitorCapture.UncacheableNow ||
+            !HeadersMayBeStored(visitorCapture.Headers))
+            return null;
+
+        // An endpoint selected ahead of this middleware in a way that may
+        // depend on the client would answer the anonymous request as it
+        // answered the visitor.
+        if (AnonymousFetchCheck.EndpointDependsOnClient(seed.Endpoint, context.RequestServices))
+        {
+            RememberRefusal(context, scheme, hostname, url);
+            _logger.LogDebug(
+                "Endpoint for {Url} was selected before UsePageSpeed() in a way that may depend on the client; not caching",
+                url);
+            return null;
+        }
+
+        var body = MsPool.GetStream("PageSpeed.Anonymous");
+        var answer = new AnonymousAnswer(
+            AnonymousFetchCheck.Create(context, seed, body), body);
+        bool keep = false;
+        try
+        {
+            if (!await AnonymousFetchCheck.RunAsync(context, answer.Check, _next, _logger))
+            {
+                RememberRefusal(context, scheme, hostname, url);
+                _logger.LogDebug(
+                    "Anonymous request for {Url} was answered differently; not caching", url);
+                return null;
+            }
+            if (answer.Cacheability == ResponseCacheability.Uncacheable ||
+                answer.Capture.Uncacheable)
+            {
+                RememberRefusal(context, scheme, hostname, url);
+                _logger.LogDebug(
+                    "Anonymous response for {Url} is not cacheable; not caching", url);
+                return null;
+            }
+            keep = true;
+            return answer;
+        }
+        finally
+        {
+            if (!keep) answer.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Remembers the URL as refused (<see cref="RefusalMemo"/>), except for a
+    /// cancelled request or a HEAD request, whose answer says nothing about
+    /// the GET that would be stored.
+    /// </summary>
+    private void RememberRefusal(
+        HttpContext context, string scheme, string hostname, string url)
+    {
+        if (context.RequestAborted.IsCancellationRequested ||
+            HttpMethods.IsHead(context.Request.Method))
+            return;
+        _refusals.Refuse(RefusalMemo.Key(scheme, hostname, url));
+    }
+
+    /// <summary>
+    /// The response-header gate's verdict on the visitor's headers, asked
+    /// before the anonymous request so that a response a hit cannot replay
+    /// costs no second run. Without the native library (unit tests with a
+    /// substitute cache) the answer is left to the store itself.
+    /// </summary>
+    private static bool HeadersMayBeStored(IReadOnlyList<KeyValuePair<string, string>> headers)
+    {
+        try
+        {
+            return PageSpeedCache.ClassifyHeadersSidecar(headers) ==
+                   HeadersSidecarVerdict.SwapEligible;
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return true;
         }
     }
 
@@ -1114,9 +1429,14 @@ public sealed class PageSpeedMiddleware
                     url);
                 return false;
             }
-            flags |= CacheFlags.HeadersClassified;
+            // Callers record only responses to anonymous requests.
+            flags |= CacheFlags.HeadersClassified | CacheFlags.AnonymousRecorded;
             if (sidecar.Stored) flags |= CacheFlags.HeadersSidecarRequired;
-            if (VariesOnAccept(originHeaders)) flags |= CacheFlags.OriginVariesAccept;
+        }
+        catch (CacheNotOpenException)
+        {
+            ReportCacheNotOpen();
+            return false;
         }
         catch (Exception ex)
         {
@@ -1130,27 +1450,7 @@ public sealed class PageSpeedMiddleware
             if (needsRevalidation) flags |= CacheFlags.NeedsRevalidation;
 
             // Parse origin Cache-Control to derive origin_cc_flags.
-            ushort originCcFlags = 0;
-            if (!string.IsNullOrEmpty(cacheControl))
-            {
-                var cc = new Native.NativeCacheControl
-                {
-                    StructSize = (nuint)Marshal.SizeOf<Native.NativeCacheControl>()
-                };
-
-                // cacheControl is the response's joined Cache-Control value
-                // (StringValues.ToString() -- multiple header lines join with
-                // ", ", which is exactly the RFC 9111 single-list form the
-                // parser walks, quoting included), so ONE call parses the list.
-                int err = Native.NativePageSpeed.ParseCacheControl(cacheControl, ref cc);
-                if (err != 0) // PS_OK
-                {
-                    _logger.LogDebug(
-                        "ParseCacheControl failed for '{Value}': {Err}",
-                        cacheControl, err);
-                }
-                originCcFlags = cc.CcFlags;
-            }
+            var origin = ParseOriginCacheControl(cacheControl);
 
             var writeParams = new CacheWriteParams
             {
@@ -1160,12 +1460,17 @@ public sealed class PageSpeedMiddleware
                 ContentType = contentType,
                 Flags = flags,
                 OriginContentType = responseContentType,
-                OriginCcFlags = originCcFlags,
+                OriginCcFlags = origin.Flags,
+                OriginSMaxage = origin.SMaxage,
             };
             using var writer = _cache.BeginWrite(
                 url, hostname, scheme, writeParams);
             writer.Write(output.Span);
             writer.Commit();
+        }
+        catch (CacheNotOpenException)
+        {
+            ReportCacheNotOpen();
         }
         catch (Exception ex)
         {
@@ -1173,6 +1478,20 @@ public sealed class PageSpeedMiddleware
                 "Cache write failed for {Url}", url);
         }
         return true;
+    }
+
+    /// <summary>
+    /// A write skipped because the cache is not open (PageSpeed was enabled
+    /// but the volume could not be opened; the open failure itself is logged
+    /// as an error). Logged once per failure state, not per response.
+    /// </summary>
+    private void ReportCacheNotOpen()
+    {
+        if (_cache is DeferredPageSpeedCache deferred && !deferred.TryClaimNotOpenReport())
+            return;
+        _logger.LogWarning(
+            "The PageSpeed cache is not open; responses are optimized but not "
+            + "cached until it opens (see the earlier error)");
     }
 
     private void TryWriteEarlyHints(
@@ -1192,6 +1511,10 @@ public sealed class PageSpeedMiddleware
                 (ulong)earlyHints.Length);
             writer.Write(earlyHints.Span);
             writer.Commit();
+        }
+        catch (CacheNotOpenException)
+        {
+            ReportCacheNotOpen();
         }
         catch (Exception ex)
         {
@@ -1223,12 +1546,19 @@ public sealed class PageSpeedMiddleware
     /// current response is fully generated.
     /// </summary>
     private void AddEarlyHintLinkHeaders(
-        HttpContext context, string url, string hostname, string scheme)
+        HttpContext context, string url, string hostname, string scheme,
+        bool requestHasCookie)
     {
         try
         {
             using var hints = _cache.ReadEarlyHints(url, hostname, scheme);
             if (hints == null) return;
+            // The hints were taken from the stored page, so a request
+            // carrying a cookie gets them only when that page would be
+            // served to it.
+            if (requestHasCookie && !StoredPageSharedWithCookieRequest(
+                    url, hostname, scheme))
+                return;
             AddLinkHeadersFromHints(context, hints.ContentMemory);
         }
         catch (Exception ex)
@@ -1258,6 +1588,52 @@ public sealed class PageSpeedMiddleware
         if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
             return PageSpeedContentType.Image;
         return PageSpeedContentType.Other;
+    }
+
+    /// <summary>
+    /// The origin's Cache-Control as ps_parse_cache_control reports it: the
+    /// PS_CC_ORIGIN_* flags, max-age and s-maxage. All zero without a value.
+    /// </summary>
+    private (ushort Flags, uint MaxAge, uint SMaxage) ParseOriginCacheControl(
+        string? cacheControl)
+    {
+        if (string.IsNullOrEmpty(cacheControl)) return (0, 0, 0);
+        var cc = new Native.NativeCacheControl
+        {
+            StructSize = (nuint)Marshal.SizeOf<Native.NativeCacheControl>()
+        };
+
+        // cacheControl is the response's joined Cache-Control value
+        // (StringValues.ToString() -- multiple header lines join with
+        // ", ", which is exactly the RFC 9111 single-list form the
+        // parser walks, quoting included), so ONE call parses the list.
+        int err = Native.NativePageSpeed.ParseCacheControl(cacheControl, ref cc);
+        if (err != 0) // PS_OK
+        {
+            _logger.LogDebug(
+                "ParseCacheControl failed for '{Value}': {Err}",
+                cacheControl, err);
+        }
+        return (cc.CcFlags, cc.MaxAge, cc.SMaxage);
+    }
+
+    /// <summary>
+    /// The cookie rule's record-side answer for this response
+    /// (CookieRequestCacheRule.CookieRequestMayStore), from its Content-Type,
+    /// Cache-Control and, without a Cache-Control line, Expires.
+    /// </summary>
+    private bool CookieRequestMayStore(HttpResponse response, string? cacheControl)
+    {
+        var (flags, maxAge, sMaxage) = ParseOriginCacheControl(cacheControl);
+        CookieRequestCacheRule.FoldExpires(
+            ref flags, ref maxAge,
+            response.Headers.Expires.ToString(), response.Headers.Date.ToString(),
+            DateTimeOffset.UtcNow);
+        return CookieRequestCacheRule.CookieRequestMayStore(
+            requestHasCookie: true,
+            CookieRequestCacheRule.IsStaticAsset(response.ContentType),
+            CookieRequestCacheRule.HtmlExplicitlyShared(flags, sMaxage),
+            CookieRequestCacheRule.OriginStatesLifetime(flags, maxAge, sMaxage));
     }
 
     /// <summary>

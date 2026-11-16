@@ -1,10 +1,16 @@
 ---
 import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { productJsonLd } from '../../data/software-jsonld';
-import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import {
+  editionClause,
+  FREE_TO_RUN_LINE,
+  NGINX_APT_SHORT_NBSP,
+  NGINX_RPM_SHORT,
+} from '../../data/product-facts.mjs';
 
 const rows = [
   {
@@ -61,7 +67,7 @@ const rows = [
   },
   {
     label: 'License',
-    mps: 'Licensed under the Apache License&nbsp;2.0. The software is free. We sell support; Priority and Enterprise add a private package repository (being set up). See the <a href="/license/" class="text-interactive hover:text-interactive-hover underline">software license</a>.',
+    mps: 'Licensed under the Apache License&nbsp;2.0. The software is free. We sell support; the software and its signed packages are the same for everyone. See the <a href="/license/" class="text-interactive hover:text-interactive-hover underline">software license</a>.',
     other: 'Proprietary',
   },
   {
@@ -91,8 +97,8 @@ const jsonLd = [
   description="A WP Rocket alternative: WP Rocket optimizes inside WordPress; mod_pagespeed optimizes at the nginx server layer on any CMS. Plugin vs server, in numbers."
   jsonLd={jsonLd}
 >
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+  <PageHero id="wp-rocket-title" width="prose" class="max-w-3xl" title="mod_pagespeed vs WP Rocket">
+    <nav slot="before" class="mb-6 text-small text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">
         Home
       </a>
@@ -103,10 +109,10 @@ const jsonLd = [
       <span class="mx-1">/</span>
       <span>vs WP Rocket</span>
     </nav>
+  </PageHero>
 
-    <h1 class="mt-6 h1-hero text-text-body">mod_pagespeed vs WP Rocket</h1>
-
-    <section class="mt-8">
+  <article class="container-prose max-w-3xl pb-16">
+    <section>
       <h2 class="h2-section text-text-body">TL;DR</h2>
       <p class="mt-4 text-text-body">
         WP Rocket is the long-running WordPress performance plugin. It runs as a PHP plugin inside
@@ -199,10 +205,7 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2
-        id="migrating-from-wp-rocket-to-modpagespeed"
-        class="h2-section scroll-mt-24 text-text-body"
-      >
+      <h2 id="migrating-from-wp-rocket-to-modpagespeed" class="h2-section text-text-body">
         Migrating from WP Rocket to mod_pagespeed
       </h2>
       <p class="mt-4 text-text-body">
@@ -251,7 +254,7 @@ const jsonLd = [
         in <code>wp-admin &rarr; WP Rocket &rarr; File Optimization / Media</code>. No server
         config.
       </p>
-      <p class="mt-4 text-text-body">
+      <p id="config-1" class="mt-4 text-text-body">
         <strong>
           Equivalent in{' '}
           <a href="/" class="text-interactive hover:text-interactive-hover underline">
@@ -259,16 +262,26 @@ const jsonLd = [
           </a>
           .
         </strong>{' '}
-        Install the nginx module on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64),
-        or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        Install the nginx module on {NGINX_APT_SHORT_NBSP} (amd64 + arm64), or
+        AlmaLinux/RHEL/Rocky&nbsp;{NGINX_RPM_SHORT}:
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre
+        tabindex="0"
+        role="region"
+        aria-labelledby="config-1"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
-      <p class="mt-4 text-text-body">
+      <p id="config-2" class="mt-4 text-text-body">
         Then enable the filters (nginx config; applies to all WordPress responses and anything else
         nginx serves):
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre
+        tabindex="0"
+        role="region"
+        aria-labelledby="config-2"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>pagespeed on;
 pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters lazyload_images,rewrite_css,rewrite_javascript,prioritize_critical_css;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
@@ -279,7 +292,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
+      <div class="rounded-card border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Switching from WP Rocket</h2>
         <p class="mt-3 text-text-body">
           Server-layer optimization that works on WordPress and everything else nginx serves. On our

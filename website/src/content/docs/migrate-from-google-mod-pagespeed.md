@@ -1,25 +1,52 @@
 ---
 title: 'Migrate from the archived Google module'
-description: 'Move from the archived mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2: package swap, what maps to what, cache, rollback.'
+description: 'Move from the archived mod_pagespeed or ngx_pagespeed binaries to the current mod_pagespeed: package swap, what maps to what, cache, rollback.'
 order: 15
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-11-15
 datePublished: 2026-10-08
 faq:
-  - q: 'Is mod_pagespeed 2 a drop-in replacement for the archived module?'
-    a: 'Yes. It continues the same codebase, keeps the `pagespeed` and `ModPagespeed` directive surface and the classic filter names, and loads in process on Apache and nginx. Your configuration, `.htaccess` directives included, carries over.'
+  - q: 'Is the current mod_pagespeed a drop-in replacement for the archived module?'
+    a: 'Yes. It continues the same codebase, keeps the `pagespeed` and `ModPagespeed` directive surface and the classic filter names, and loads in process on Apache and nginx. Your configuration, `.htaccess` directives included, carries over, with seven removed option names to delete on nginx (see the next answer).'
   - q: 'What do I lose?'
-    a: 'Nothing you configured. A handful of long-inert filters and experimental options are accepted and ignored with a warning, and the old file cache is left in place while the new Cyclone cache warms up.'
+    a: 'No working feature. A handful of long-inert filters and experimental options are accepted and ignored with a warning, and the old file cache is left in place while the new Cyclone cache warms up. One exception: on nginx, seven removed option names (`FileCacheInodeLimit`, `FileCacheCleanIntervalMs`, `MaxPrefetchJsElements`, `DistributeFetches` and the three `DistributedRewrite*` names) stop nginx from starting until you delete them; Apache only warns.'
 ---
 
 mod_pagespeed is an open-source project originally developed at Google. It was
 donated to the Apache Software Foundation in 2017, the Incubator podling
 retired in 2023, and the repositories became read-only in 2025; the 1.13.35.2
-binaries still install but have had no security fixes since. mod_pagespeed 2,
+binaries still install but have had no security fixes since. The current mod_pagespeed,
 developed by We-Amp B.V. and not affiliated with or endorsed by Google,
 continues that codebase: same
 directives, same filter names, built against current Apache and nginx, with
 ongoing security fixes. The move is a package swap and a restart.
+
+## If apt or rpm already reports an error {#package-errors}
+
+These messages come from the archived Google repository, which is no longer maintained; its signatures no longer verify on current systems. Its packages end at 1.13.35.2, which has had no security fixes since. On Debian and Ubuntu, apt prints "is no longer signed" when the source was trusted before, and "is not signed" otherwise:
+
+```text
+E: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is no longer signed.
+N: Updating from such a repository can't be done securely, and is therefore disabled by default.
+```
+
+```text
+W: The repository 'http://dl.google.com/linux/mod-pagespeed/deb stable Release' is not signed.
+```
+
+```text
+W: GPG error: http://dl.google.com/linux/mod-pagespeed/deb stable Release: The following signatures were invalid: EXPKEYSIG 78BD65473CB3BD13 Google Inc. (Linux Packages Signing Authority) <linux-packages-keymaster@google.com>
+```
+
+On Enterprise Linux, installing the archived rpm directly prints:
+
+```text
+warning: mod-pagespeed-stable_current_x86_64.rpm: Header V4 DSA/SHA1 Signature, key ID 7fac5991: NOKEY
+```
+
+Do not re-import Google's key and do not mark the repository as trusted: that keeps the archived package installable. Move to the maintained package instead. On Debian and Ubuntu, step 1 of [the block below](#apache-on-debian-and-ubuntu) disables the source file the archived package created, `/etc/apt/sources.list.d/mod-pagespeed.list`, and the `apt-get update` error stops once that file is out of the way. The signed repository that the `install.sh` script from packages.modpagespeed.com adds replaces it, for both Debian-family and Enterprise Linux systems.
+
+**Is it still maintained?** The Google and Apache releases are archived. mod_pagespeed continues the codebase; the [release notes](/docs/release-notes/) list each release and its security fixes.
 
 ## Before you start
 
@@ -127,10 +154,10 @@ sudo apachectl configtest && sudo systemctl restart httpd
 transaction. If you edited `/etc/httpd/conf.d/pagespeed.conf`, rpm keeps your
 file and writes the new one beside it as `pagespeed.conf.rpmnew`. On
 Enterprise Linux the `LoadModule` line lives in that file, and yours names
-`mod_pagespeed_ap24.so`, which packages up to 1.19.0 do not ship: the `sed`
-line points it at `mod_pagespeed.so`, without which `configtest` fails. From
-the release that ships `mod_pagespeed_ap24.so` as a link to the module, the
-`sed` line is unnecessary and stays harmless. The `sed` runs only after the
+`mod_pagespeed_ap24.so`, which packages before 2.5.0 do not ship: there the
+`sed` line points it at `mod_pagespeed.so`, without which `configtest` fails.
+From 2.5.0 the package ships `mod_pagespeed_ap24.so` as a link to the module,
+so on current packages the `sed` line is unnecessary and stays harmless. The `sed` runs only after the
 swap succeeded: on the archived package's own configuration it would point
 Apache at that package's `mod_pagespeed.so`, its Apache 2.2 build, which
 Apache 2.4 cannot load. Compare your file with the new defaults:
@@ -163,6 +190,8 @@ sudo sed -i '/^[[:space:]]*load_module[[:space:]].*ngx_pagespeed_module\.so;/d' 
 sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules &&
 sudo nginx -t && sudo systemctl restart nginx
 ```
+
+If `nginx -t` stops with `directive "..." not recognized` for one of `DistributeFetches`, `DistributedRewriteKey`, `DistributedRewriteServers`, `DistributedRewriteTimeoutMs`, `FileCacheCleanIntervalMs`, `FileCacheInodeLimit` and `MaxPrefetchJsElements`, delete that line: Apache warns about these names and carries on, but nginx refuses to start. None has a replacement.
 
 The package loads `ngx_pagespeed_module.so` itself, so the `sed` line removes
 the `load_module` line you added to `/etc/nginx/nginx.conf` for the old
@@ -208,7 +237,7 @@ For cache sizing and storage options, see
 curl -sI http://localhost/ | grep -E 'X-Mod-Pagespeed|X-Page-Speed'
 ```
 
-The header now shows the version of the new package (1.19.0 or later), no
+The header now reads `on` (releases before 2.7.0 print their version), no
 longer `1.13.35.2-0`: `X-Mod-Pagespeed` on Apache, `X-Page-Speed` on nginx. Open
 `/pagespeed_global_admin` on the server to see the configuration and
 statistics; [Is it working?](/docs/is-it-working/) has the rest.

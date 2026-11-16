@@ -41,6 +41,14 @@ test.describe('Support page', () => {
     );
   });
 
+  test('the hero price button jumps to the tiers on the same page', async ({ page }) => {
+    const button = page.locator('a[data-umami-event-position="hero_pricing"]');
+    await expect(button).toHaveAttribute('href', '#tiers');
+    await button.click();
+    await expect(page).toHaveURL(/\/support\/#tiers$/);
+    await expect(page.locator('#tiers h2')).toBeInViewport();
+  });
+
   test('what a subscription buys names channel, response, updates and scope', async ({ page }) => {
     const readout = page.locator('#what-you-get dl');
     for (const key of ['channel:', 'response:', 'security updates:', 'scope:']) {
@@ -76,9 +84,15 @@ test.describe('Support page', () => {
     await expect(section).toContainText('SPDX');
     await expect(section).toContainText('cosign');
     await expect(section).toContainText('SBOM and VEX');
+    await expect(section).toContainText(
+      'Every release from 2.6.0 on carries its SPDX SBOM and VEX',
+    );
+    await expect(page.locator('main')).not.toContainText('can ask us to send the copy');
     await expect(section).not.toContainText('custom build targets');
-    // The private repository is stated as being set up, never as existing.
-    await expect(section).toContainText('is being set up');
+    // Security fixes reach everyone at once; no private repository is offered.
+    await expect(section).toContainText('reach everyone at the same time');
+    await expect(section).not.toContainText('private package repository');
+    await expect(section).not.toContainText('before the public release');
     await expect(section).not.toContainText('ahead of the public release');
     await expect(section).not.toContainText('hardened build pipeline');
     // The packages carry no per-build signed SBOM or provenance claim.
@@ -118,11 +132,11 @@ test.describe('Support page', () => {
     ).toBeVisible();
   });
 
-  test('FAQ has nine questions and the FAQPage JSON-LD mirrors them', async ({ page }) => {
+  test('FAQ has eight questions and the FAQPage JSON-LD mirrors them', async ({ page }) => {
     const visible = (await page.locator('#faq details > summary').allInnerTexts()).map((t) =>
       t.trim(),
     );
-    expect(visible).toHaveLength(9);
+    expect(visible).toHaveLength(8);
     const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
     const faq = blocks.map((b) => JSON.parse(b)).find((d) => d['@type'] === 'FAQPage');
     expect(faq).toBeTruthy();
@@ -161,7 +175,6 @@ test.describe('Support page', () => {
       'buy-standard',
       'consulting',
       'enterprise',
-      'hardened',
       'hosting',
       'support',
     ]);

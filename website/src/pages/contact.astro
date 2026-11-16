@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHero from '../components/PageHero.astro';
 import { COMMERCIAL_EMAIL } from '../data/product-facts.mjs';
 
 // Topics: one per offer, each with a one-line hint shown under the select.
@@ -16,19 +17,13 @@ const TOPICS: Array<{ value: string; label: string; hint: string; commercial: bo
   {
     value: 'support',
     label: 'Support subscription',
-    hint: 'Tell us roughly how many production servers and which platforms.',
+    hint: 'Tell us which platforms you run and what you want help with.',
     commercial: true,
   },
   {
     value: 'enterprise',
     label: 'Enterprise support',
-    hint: 'Production servers, platforms and any custom build targets or backports you need.',
-    commercial: true,
-  },
-  {
-    value: 'hardened',
-    label: 'Private package repository (being set up)',
-    hint: 'Which distributions and versions you run.',
+    hint: 'Platforms and any custom build targets or backports you need.',
     commercial: true,
   },
   {
@@ -74,6 +69,7 @@ const TOPIC_ALIASES: Record<string, string> = {
   iispeed: 'iispeed-transfer',
   transfer: 'iispeed-transfer',
   partner: 'hosting',
+  hardened: 'support',
 };
 const COMMERCIAL_TOPICS = TOPICS.filter((t) => t.commercial).map((t) => t.value);
 const topicConfig = {
@@ -102,26 +98,25 @@ const nextSteps = [
   title="Contact mod_pagespeed: setup, support and partners"
   description="Setup help, support, Enterprise, audits, hosting partners, consulting and IISpeed transfers. One form; we reply within one business day (CET)."
 >
-  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
-    <div class="text-center">
-      <h1 class="h1-hero text-text-body">One form for setup, support and partnerships.</h1>
-      <p class="mt-4 text-lg text-text-muted max-w-2xl mx-auto">
-        Setup help, support subscriptions, partnerships and consulting all go through this form. We
-        reply within one business day (CET). Security reports have their own channel.
-      </p>
-      <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
-        Setup steps live in the
-        <a href="/docs/" class="text-interactive hover:text-interactive-hover underline">
-          documentation
-        </a>
-        ; what a subscription covers is on the
-        <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
-          support page
-        </a>
-        .
-      </p>
-    </div>
+  <PageHero id="contact-title" title="One form for setup, support and partnerships.">
+    <Fragment slot="lede">
+      Setup help, support subscriptions, partnerships and consulting all go through this form. We
+      reply within one business day (CET). Security reports have their own channel.
+    </Fragment>
+    <p class="mt-3 text-small text-text-annotation max-w-2xl">
+      Setup steps live in the
+      <a href="/docs/" class="text-interactive hover:text-interactive-hover underline">
+        documentation
+      </a>
+      ; what a subscription covers is on the
+      <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
+        support page
+      </a>
+      .
+    </p>
+  </PageHero>
 
+  <section class="container-prose max-w-3xl pb-20">
     <ol class="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="What happens next">
       {nextSteps.map((step) => (
         <li class="readout-plate px-4 py-3">
@@ -138,6 +133,7 @@ const nextSteps = [
          redirect to the thanks page. -->
     <form
       id="contact-form"
+      aria-labelledby="contact-title"
       action="/ai-readability/api/contact"
       method="post"
       data-fallback-email={COMMERCIAL_EMAIL}
@@ -172,7 +168,7 @@ const nextSteps = [
           required
           aria-required="true"
           autocomplete="name"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent"
         />
       </div>
 
@@ -215,13 +211,11 @@ const nextSteps = [
       </div>
 
       <fieldset id="contact-qualifiers" class="space-y-4" data-qualifiers hidden disabled>
-        <legend class="eyebrow">
-          About your organization <span class="font-normal text-text-annotation">(optional)</span>
-        </legend>
+        <legend class="eyebrow">About your organization</legend>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label for="contact-org" class="eyebrow">
-              Company
+              Company <span class="font-normal text-text-annotation">(optional)</span>
             </label>
             <input
               id="contact-org"
@@ -233,7 +227,7 @@ const nextSteps = [
           </div>
           <div>
             <label for="contact-role" class="eyebrow">
-              Role
+              Role <span class="font-normal text-text-annotation">(optional)</span>
             </label>
             <input
               id="contact-role"
@@ -245,15 +239,11 @@ const nextSteps = [
           </div>
         </div>
         <div>
-          <label for="contact-servers" class="eyebrow">
-            Production servers
+          <label for="contact-size" class="eyebrow">
+            Deployment size{' '}
+            <span class="font-normal text-text-annotation">(optional, helps us answer)</span>
           </label>
-          <select id="contact-servers" name="servers" class={inputClass}>
-            <option value="">Choose one</option>
-            <option value="Up to 5">Up to 5</option>
-            <option value="Up to 25">Up to 25</option>
-            <option value="More than 25">More than 25</option>
-          </select>
+          <input id="contact-size" name="size" type="text" maxlength="200" class={inputClass} />
         </div>
       </fieldset>
 
@@ -269,7 +259,7 @@ const nextSteps = [
           required
           aria-required="true"
           aria-describedby="contact-message-hint"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent"
         ></textarea>
         <p id="contact-message-hint" class="mt-1 text-sm text-text-annotation">
           Plain text is fine. Logs and config snippets help.
@@ -308,7 +298,7 @@ const nextSteps = [
             type="button"
             id="contact-copy-email"
             data-copy={COMMERCIAL_EMAIL}
-            class="ml-1 text-interactive hover:text-interactive-hover underline"
+            class="tap-area ml-1 text-interactive hover:text-interactive-hover underline"
             aria-label="Copy email address"
           >
             (copy)
@@ -320,6 +310,13 @@ const nextSteps = [
     </form>
 
     <script>
+      // Spoken through the layout's one status writer (window.siteAnnounce),
+      // like the code-block buttons; the button's own name never changes.
+      const announceCopy = (ok: boolean) =>
+        (window as { siteAnnounce?: (_message: string) => void }).siteAnnounce?.(
+          ok ? 'Copied to clipboard' : 'Copy failed, select the text to copy',
+        );
+
       // Topic routing. The form carries its topic table (hints, which topics
       // are commercial, and the aliases older links still use) as JSON in
       // data-topic-config, rendered from the frontmatter, so this script holds
@@ -330,6 +327,10 @@ const nextSteps = [
         aliases: Record<string, string>;
       };
       const form = document.getElementById('contact-form') as HTMLFormElement | null;
+      // With JavaScript the script validates and speaks its own message (below),
+      // so the browser's bubble is switched off; without it the browser's
+      // validation still guards the native post.
+      if (form) form.noValidate = true;
       const loadedAt = Date.now();
       const loadTimeEl = form?.querySelector<HTMLInputElement>('input[data-load-time]');
       if (loadTimeEl) loadTimeEl.value = String(loadedAt);
@@ -338,9 +339,8 @@ const nextSteps = [
       const hintEl = form?.querySelector<HTMLElement>('[data-topic-hint]') ?? null;
       const qualifiers = form?.querySelector<HTMLFieldSetElement>('[data-qualifiers]') ?? null;
       const messageEl = document.getElementById('contact-message') as HTMLTextAreaElement | null;
-      const serversEl = document.getElementById('contact-servers') as HTMLSelectElement | null;
 
-      // Show the optional company / role / server-band fields only for the
+      // Show the optional company / role / deployment-size fields only for the
       // commercial topics. Hidden fields are disabled so they never post.
       function syncTopic() {
         if (!topicEl) return;
@@ -380,11 +380,6 @@ const nextSteps = [
       if (messageEl && prefill.length && !messageEl.value) {
         messageEl.value = `${prefill.join('\n')}\n\n`;
       }
-      const serversParam = (params.get('servers') ?? '').trim();
-      if (serversEl && serversParam) {
-        const match = Array.from(serversEl.options).find((o) => o.value === serversParam);
-        if (match) serversEl.value = match.value;
-      }
       topicEl?.addEventListener('change', syncTopic);
       syncTopic();
 
@@ -396,16 +391,18 @@ const nextSteps = [
           const addr = copyBtn.dataset.copy ?? '';
           try {
             await navigator.clipboard.writeText(addr);
+            announceCopy(true);
+            // Visible feedback only: the button's aria-label stays "Copy email
+            // address", so its accessible name does not change.
             const prev = copyBtn.textContent;
             copyBtn.textContent = '(copied)';
-            copyBtn.setAttribute('aria-label', 'Email address copied');
             window.setTimeout(() => {
               copyBtn.textContent = prev;
-              copyBtn.setAttribute('aria-label', 'Copy email address');
             }, 1500);
           } catch {
             // Clipboard API unavailable (e.g. non-secure context) — the address
-            // stays visible and selectable next to this button, so this is a no-op.
+            // stays visible and selectable next to this button; say so.
+            announceCopy(false);
           }
         });
       }
@@ -439,15 +436,28 @@ const nextSteps = [
         const topic = String(data.get('topic') ?? 'setup');
         const body = String(data.get('message') ?? '').trim();
 
-        // Client-side validation. Lean on the browser first, then add our own
-        // checks so the failure is a clear message rather than a silent no-op.
-        if (!form.checkValidity()) {
-          form.reportValidity();
-          setStatus('error', 'Please fill in name, email and message before sending.');
-          return;
+        // Client-side validation. Each empty required field is flagged invalid
+        // and points at the status message, which says what is missing; focus
+        // moves to the first of them.
+        const required: Array<[HTMLInputElement | HTMLTextAreaElement | null, string]> = [
+          [document.getElementById('contact-name') as HTMLInputElement | null, name],
+          [emailInput, email],
+          [messageEl, body],
+        ];
+        const empty = required.filter(([, value]) => !value).map(([el]) => el);
+        for (const [el] of required) {
+          if (!el) continue;
+          if (empty.includes(el)) {
+            el.setAttribute('aria-invalid', 'true');
+            el.setAttribute('aria-errormessage', 'contact-status');
+          } else {
+            el.setAttribute('aria-invalid', 'false');
+            el.removeAttribute('aria-errormessage');
+          }
         }
-        if (!name || !email || !body) {
+        if (empty.length) {
           setStatus('error', 'Please fill in name, email and message before sending.');
+          empty[0]?.focus();
           return;
         }
         const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -475,7 +485,7 @@ const nextSteps = [
         const qualifierLines = [
           ['org', 'Company'],
           ['role', 'Role'],
-          ['servers', 'Production servers'],
+          ['size', 'Deployment size'],
         ]
           .map(([key, label]) => {
             const v = String(data.get(key) ?? '').trim();
@@ -579,7 +589,6 @@ const nextSteps = [
         Invoices stay in the
         <a
           href="https://mpspro.onfastspring.com/account"
-          target="_blank"
           rel="noopener noreferrer"
           data-umami-event="outbound_fastspring_portal"
           class="text-interactive hover:text-interactive-hover underline transition-colors"
@@ -594,7 +603,6 @@ const nextSteps = [
       <p class="text-sm text-text-annotation">
         <a
           href="https://we-amp.com/"
-          target="_blank"
           rel="noopener noreferrer"
           class="hover:text-text-muted transition-colors"
         >

@@ -23,10 +23,15 @@ are never echoed to the job log, and no value appears in this repository.
 | `CI_WIN_VENDOR_DIR` | Windows | the same, for Windows runners: a directory that may hold the vendor tarball the Linux jobs of the same machine published; the Windows jobs read it and never prune it | no local fast path (a hub fetch goes to a per-profile download directory) |
 | `CI_WIN_TOOLS_DIR` | Windows | `;`-separated list of directories added to `PATH` ahead of everything else (for example one for `bazelisk`, one for the CMake `bin`, one for the MSYS2 `usr/bin`); together they may provide `bazelisk` (or `bazel`), `bash.exe`, `cmake`, `ninja` and `zstd`. Visual Studio is found with `vswhere` | tools come from `PATH`, and bash from MSYS2 or Git for Windows in their usual locations |
 | `BAZEL_CACHE_HOST` | Linux | address of the remote Bazel cache; jobs add `--add-host=bazel-remote-cache:<value>` to their build containers and build with `--config=ci` | builds use `--config=docker` with no remote cache |
+| `BAZEL_CACHE_AUTH_RC` | Linux | path to a bazelrc fragment with optional cache credentials; jobs that map the cache (`BAZEL_CACHE_HOST`) mount it read-only at `/etc/bazel.bazelrc` in their build containers, where Bazel reads it as the system rc (`tools/ci/remote-cache-docker-args.sh`). Ignored unless it names a readable file | the cache is used without credentials |
 | `BAZEL_REMOTE_CACHE_URL` | Windows, macOS | full remote cache URL, passed as `--remote_cache` | no remote cache |
 | `BAZEL_SH` | Windows | the bash Bazel runs genrules with (release lane Windows jobs) | MSYS2's bash, else Git for Windows' bash |
 | `CI_WIN_BAZEL_OUTPUT_ROOT` | Windows | Bazel `--output_user_root` for every Windows job (a short path on a volume with room) | `C:/b` |
 | `CI_DEV_IMAGE_LOCK_DIR` | Linux | directory for the per-host lock files `tools/ci/ensure-dev-image.sh` takes around image builds (useful when several runner instances share one Docker daemon) | locks go to the temporary directory |
+
+Windows jobs build natively and need no variable for cache credentials: Bazel
+on Windows honours the machine-wide system bazelrc, so a runner can supply
+optional cache credentials there.
 
 ## Host ports per runner slot
 

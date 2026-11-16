@@ -44,7 +44,8 @@ jobs:
     permissions:
       contents: read
     name: Build daemon & unit-test slice (ubuntu)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -64,9 +65,20 @@ jobs:
       # nasm (x86 SIMD).
       - name: Install clang-20 + libc++-20 toolchain
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-            | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+          bash tools/ci/fetch_retry.sh https://apt.llvm.org/llvm-snapshot.gpg.key "${RUNNER_TEMP}/llvm-snapshot.gpg.key"
+          # Trust only the pinned key (the one https://apt.llvm.org/ publishes),
+          # scoped to this source with signed-by.
+          LLVM_APT_KEY_FPR=6084F3CF814B57C1CF12EFD515CF4D18AF4F7421
+          gnupg_home="$(mktemp -d)"
+          GNUPGHOME="${gnupg_home}" gpg --batch --quiet --import "${RUNNER_TEMP}/llvm-snapshot.gpg.key"
+          GNUPGHOME="${gnupg_home}" gpg --batch --with-colons --list-keys "${LLVM_APT_KEY_FPR}" 2>/dev/null \
+            | awk -F: -v fpr="${LLVM_APT_KEY_FPR}" '$1=="fpr" && $10==fpr { ok=1 } END { exit !ok }' \
+            || { echo "ERROR: the apt.llvm.org key file does not hold the pinned key ${LLVM_APT_KEY_FPR}" >&2; exit 1; }
+          GNUPGHOME="${gnupg_home}" gpg --batch --export "${LLVM_APT_KEY_FPR}" \
+            | sudo tee /usr/share/keyrings/llvm-snapshot.gpg >/dev/null
+          [ -s /usr/share/keyrings/llvm-snapshot.gpg ] || exit 1
+          rm -rf "${gnupg_home}"
+          echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
             | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -155,7 +167,8 @@ jobs:
     permissions:
       contents: read
     name: License audit (Apache RAT)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -192,7 +205,8 @@ jobs:
 
   license-and-sbom:
     name: License Headers + SBOM Drift
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     # grype downloads its vulnerability database on a cold runner.
     timeout-minutes: 15
     # pull-requests: read lets the release-note gate list the pull request's
@@ -221,6 +235,25 @@ jobs:
       - name: Release-note gate - self-test
         run: bash tools/ci/check_release_note.sh --self-test
 
+      # Changelog fragment tools (changelog.d/README.md). A branch that
+      # predates them has nothing to self-test; the lint below takes main's
+      # copy for such a branch.
+      - name: Changelog fragment tools - self-tests
+        if: ${{ hashFiles('tools/changelog/assemble.py') != '' }}
+        run: |
+          python3 -I tools/changelog/assemble.py --self-test
+          python3 -I tools/changelog/to_fragment.py --self-test
+
+      - name: Changelog fragments are well formed
+        run: |
+          tool=tools/changelog/assemble.py
+          if [ ! -f "$tool" ]; then
+            git fetch --quiet --depth=1 origin main
+            tool="${RUNNER_TEMP}/assemble.py"
+            git show FETCH_HEAD:tools/changelog/assemble.py > "$tool"
+          fi
+          python3 -I "$tool" --lint --repo-root "$PWD"
+
       # Inputs come from the API rather than git, so the gate works on the
       # depth-1 checkout above. The pull request body is read live, not from
       # the event payload: the payload is frozen at event time, so after a
@@ -240,14 +273,34 @@ jobs:
           gh api --paginate "${api}/commits" \
             --jq '.[].commit.message' > "${RUNNER_TEMP}/release-note-haystack.txt"
           gh api "${api}" --jq '.body // ""' >> "${RUNNER_TEMP}/release-note-haystack.txt"
+          # Fragments the change adds or modifies (a deleted one is not a note).
+          gh api --paginate "${api}/files" --jq '.[] | select((.status=="added" or .status=="modified") and (.filename|test("^changelog\\.d/[^/]+\\.md$")) and .filename!="changelog.d/README.md") | .filename' \
+            > "${RUNNER_TEMP}/release-note-fragments.txt"
+          # Lines the change adds to CHANGELOG.md and to those fragments, so a
+          # security entry hidden in any of them is seen (a missing patch fails closed).
+          gh api --paginate "${api}/files" --jq '.[] | select(.filename=="CHANGELOG.md" or ((.status=="added" or .status=="modified") and (.filename|test("^changelog\\.d/[^/]+\\.md$")) and .filename!="changelog.d/README.md")) | (.patch // error("no patch for " + .filename))' \
+            | { grep -E '^\+' || true; } | { grep -vE '^\+\+\+' || true; } | sed 's/^+//' \
+            > "${RUNNER_TEMP}/release-note-changelog-added.txt"
           echo "collected $(wc -l < "${RUNNER_TEMP}/release-note-files.txt" | tr -d ' ') changed file name(s)"
 
       - name: Release-note gate - check
         if: github.event_name == 'pull_request'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          bash tools/ci/check_release_note.sh \
+          # A branch that predates --fragments-from takes the gate from main.
+          gate=tools/ci/check_release_note.sh
+          if ! grep -q -e '--fragments-from' "$gate"; then
+            git fetch --quiet --depth=1 origin main
+            gate="${RUNNER_TEMP}/check_release_note.sh"
+            git show FETCH_HEAD:tools/ci/check_release_note.sh > "$gate"
+          fi
+          bash "$gate" \
+            --fragments-from "${RUNNER_TEMP}/release-note-fragments.txt" \
             --files-from "${RUNNER_TEMP}/release-note-files.txt" \
-            --haystack-from "${RUNNER_TEMP}/release-note-haystack.txt"
+            --haystack-from "${RUNNER_TEMP}/release-note-haystack.txt" \
+            --changelog-added-from "${RUNNER_TEMP}/release-note-changelog-added.txt" \
+            --head-ref "$HEAD_REF"
 
       # Doc-drift guard: fails if CLAUDE.md's clang-format/clang-tidy version
       # literals disagree with the pinned pre-commit rev.
@@ -272,9 +325,9 @@ jobs:
           set -euo pipefail
           tmp="$(mktemp -d)"
           trap 'rm -rf "$tmp"' EXIT
-          curl -fsSL -o "$tmp/helm.tgz" \
-            "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          echo "${HELM_SHA256}  $tmp/helm.tgz" | sha256sum -c -
+          bash tools/ci/fetch_retry.sh \
+            "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+            "$tmp/helm.tgz" "${HELM_SHA256}"
           tar -xzf "$tmp/helm.tgz" -C "$tmp" linux-amd64/helm
           PATH="$tmp/linux-amd64:$PATH" bash tools/ci/check_helm.sh
           bash tools/ci/test_check_helm.sh
@@ -304,6 +357,12 @@ jobs:
       - name: Vendor-tarball extractor - self-test
         run: bash tools/ci/test_extract_vendor_tarball.sh
 
+      - name: Download retry helper - self-test
+        run: bash tools/ci/test_fetch_retry.sh
+
+      - name: Pinned-tool installer aborts on checksum mismatch - self-test
+        run: bash tools/ci/test_install_pinned_tool.sh
+
       # Self-test for tools/ci/validate-local-bundle.sh, the completeness and
       # producer check stage-artifacts.sh applies to a runner-local bundle,
       # plus the reject-then-refetch path of stage-artifacts.sh itself
@@ -329,8 +388,14 @@ jobs:
       - name: Bazel disk cache prune - self-test
         run: bash tools/ci/test_prune_bazel_disk_cache.sh
 
+      - name: Container identity helper - self-test
+        run: bash tools/ci/test_container_identity.sh
+
       - name: Slot-budget helper - self-test
         run: bash tools/ci/test_slot_budget.sh
+
+      - name: Remote-cache container flags helper - self-test
+        run: bash tools/ci/test_remote_cache_docker_args.sh
 
       - name: Windows vendor unlink step - self-test
         run: bash tools/ci/test_windows_unlink_step.sh
@@ -340,6 +405,8 @@ jobs:
 
       - name: PR tier fleet scope - self-test
         run: bash tools/ci/test_pr_tier_scope.sh
+      - name: Docs lane classifier - self-test
+        run: bash tools/ci/test_docs_only.sh
 
       - name: Lint scope expander - self-test
         run: bash tools/ci/test_lint_scope_expand.sh
@@ -396,7 +463,8 @@ jobs:
     permissions:
       contents: read
     name: Public-tree hygiene gate
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -417,18 +485,25 @@ jobs:
         run: python3 tools/ci/check_ci_rot.py
       - name: CI rot gate fixtures
         run: tools/ci/test_check_ci_rot.sh
+      - name: Kernel byte check self-test
+        run: tools/ci/test_check_kernel_bytes.sh
       - name: Release ref guard self-test
         run: tools/ci/test_ref_guard.sh
       - name: Bisect driver
         run: tools/ci/test_bisect_job.sh
       - name: Release checksum signature self-test
         run: tools/ci/test_release_checksums_sig.sh
+      # To remove these four NuGet tests: in one PR drop these entries and add
+      # the scripts to ALLOW_UNREGISTERED in tools/ci/check_ci_rot.py, since a
+      # pull request runs this list from main; delete the scripts in the next.
       - name: NuGet package checks self-test
         run: tools/ci/test_nupkg_checks.sh
       - name: NuGet rehearsal is keyless
         run: tools/ci/test_nuget_rehearsal_keyless.sh
       - name: NuGet prerelease tags are dry-run only
         run: tools/ci/test_nuget_prerelease_refusal.sh
+      - name: NuGet lane takes its package checks from main
+        run: tools/ci/test_nuget_lane_trusted_scripts.sh
       - name: Sidecar inputs fetch and verify self-test
         run: tools/ci/test_sidecar_fetch.sh
       - name: Release tag version guard self-test
@@ -452,12 +527,14 @@ jobs:
   #
   # The job also decides the fleet scope (docs/ci/pipelines.md, "CI_SCOPE"):
   # `fleet` gates `vendor`, and with it every fleet leg. A push whose commit
-  # the merge queue already proved may skip them; merge_group and
-  # workflow_dispatch always run them. checks: read lets the decision read the
+  # the merge queue already proved may skip them, and so may a
+  # docs-only pull request or merge group ("DOCS_LANE"); workflow_dispatch
+  # always runs them. checks: read lets the decision read the
   # commit's check suites; the calling job must grant it too.
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       checks: read
@@ -470,6 +547,9 @@ jobs:
       css: ${{ steps.diff.outputs.css }}
       js: ${{ steps.diff.outputs.js }}
       etag: ${{ steps.diff.outputs.etag }}
+      tnginx: ${{ steps.diff.outputs.tnginx }}
+      dotnet: ${{ steps.diff.outputs.dotnet }}
+      website: ${{ steps.diff.outputs.website }}
     steps:
       # fetch-depth: 0 so the diff can reach the pull request's base commit.
       - name: Unlock a previous run's vendored toolchain files
@@ -530,18 +610,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CI_SCOPE: ${{ vars.CI_SCOPE }}
+          DOCS_LANE: ${{ vars.DOCS_LANE }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           SHA: ${{ github.sha }}
           BEFORE_SHA: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
           FORK_OR_BOT: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]') }}
           PR_FULL: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:pr-full') }}
-        # merge_group and workflow_dispatch always run the full PR tier; the
-        # decision script is read from the default branch, never the tree.
+        # workflow_dispatch always runs the full PR tier; a pull request and a
+        # merge group go through the decision script (and its docs lane), read
+        # from the default branch, never the tree.
         run: |
           set -euo pipefail
           out="${RUNNER_TEMP}/fleet-scope.txt"
           case "${GITHUB_EVENT_NAME}" in
-            merge_group|workflow_dispatch) printf 'fleet=true\nheavy=true\n' > "${out}" ;;
+            workflow_dispatch) printf 'fleet=true\nheavy=true\n' > "${out}" ;;
             *)
               if git show "origin/${DEFAULT_BRANCH}:tools/ci/pr_tier_scope.sh" > "${RUNNER_TEMP}/pr_tier_scope.sh" 2>/dev/null &&
                 bash "${RUNNER_TEMP}/pr_tier_scope.sh" > "${out}" &&
@@ -586,6 +669,9 @@ jobs:
           css=false
           js=false
           etag=false
+          tnginx=false
+          dotnet=false
+          website=false
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ] || [ "${GITHUB_EVENT_NAME}" = "merge_group" ]; then
             changed="${RUNNER_TEMP}/changed-files.txt"
             git diff --no-renames --name-only "${BASE}...HEAD" > "${changed}"
@@ -601,17 +687,64 @@ jobs:
             if grep -qE '^(src/nginx/etag_util\.|src/nginx/ngx_pagespeed_module\.cc$|src/nginx/header_key_util\.|src/worker/worker\.cc$|src/worker/api_handlers\.|src/worker/http_server\.|src/worker/worker\.h$|src/nginx/headers_sidecar_replay\.h$|src/nginx/revalidation_storability\.h$|lib/cache/headers_sidecar\.|lib/classify/alternate_metadata\.|tools/e2e/Dockerfile\.prebuilt$|tools/common/|tools/production-tests/)' "${changed}"; then
               etag=true
             fi
+            # The Test::Nginx suite (t/): the nginx module and its direct
+            # dependencies (cache, classification, base, protos, the
+            # webbotauth code, the worker headers it shares), the seed tool,
+            # the suite, its runner script, the image it runs in and this
+            # workflow.
+            if grep -qE '^(src/nginx/|lib/cache/|lib/classify/|lib/base/|src/proto/|src/crypto/webbotauth/|src/worker/shared_config\.|src/worker/serve_stats\.|src/worker/async_css_loader\.|tools/seed-test-cache\.cc$|t/|tools/docker-test-nginx\.sh$|docker/Dockerfile$|docker/nginx-version\.txt$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
+              tnginx=true
+            fi
+            # The .NET test projects: the managed packages and their tests,
+            # the native library and worker they load (lib/, src/), the
+            # console SPA the AspNetCore package embeds (tools/workbench/),
+            # the job's script and this workflow.
+            if grep -qE '^(samples/aspnetcore/|lib/|src/|tools/workbench/|tools/ci/dotnet-tests\.sh$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
+              dotnet=true
+            fi
+            # The website gate (website.yml, the `website` job below): the
+            # site, the facts it shares with the product, its own workflow and
+            # the product sources its generated references come from.
+            if grep -qE '^(website/|shared/product-facts\.mjs$|\.github/workflows/website\.yml$|src/worker/main\.cc$|src/nginx/ngx_pagespeed_module\.cc$|docker/nginx-version\.txt$)' "${changed}"; then
+              website=true
+            fi
           elif [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
-            # A dispatch runs the whole PR tier, so the ETag subset runs too
-            # (the CSS and JS smokes stay pull request only).
+            # A dispatch runs the whole PR tier, so the ETag subset, the
+            # Test::Nginx suite and the .NET tests run too (the CSS and JS
+            # smokes stay pull request only).
             etag=true
+            tnginx=true
+            dotnet=true
           fi
           {
             echo "css=${css}"
             echo "js=${js}"
             echo "etag=${etag}"
+            echo "tnginx=${tnginx}"
+            echo "dotnet=${dotnet}"
+            echo "website=${website}"
           } >> "$GITHUB_OUTPUT"
-          echo "path filters: css=${css} js=${js} etag=${etag}"
+          echo "path filters: css=${css} js=${js} etag=${etag} tnginx=${tnginx} dotnet=${dotnet} website=${website}"
+
+  # The website gate (website.yml) for a pull request or merge group that
+  # changes the site or the sources it is generated from: build, unit tests,
+  # content lint and reference drift on both events, the Playwright suite and
+  # the Lighthouse budgets on the pull request only (the queue re-checks the
+  # rebased build, not the browser suite). A failure fails `pr` and with it
+  # `CI gate`; a run without website changes skips the job, which counts as
+  # success. Hosted only. On unless the repository variable WEBSITE_GATE is
+  # `off` (docs/ci/pipelines.md, "WEBSITE_GATE"), the rollback: then
+  # website.yml runs from its own pull_request trigger and does not feed
+  # `CI gate`.
+  website:
+    name: Website
+    needs: changes
+    if: ${{ needs.changes.outputs.website == 'true' && vars.WEBSITE_GATE != 'off' }}
+    permissions:
+      contents: read
+      # Passed to website.yml's build job (merge queue release-window lookup).
+      pull-requests: read
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/website.yml@main
 
   # Ground-truth scan of the committed npm and cargo lockfiles. tools/sbom/
   # dep-scan.sh runs in --fail-on medium mode over ONLY those surfaces, which
@@ -629,11 +762,12 @@ jobs:
     permissions:
       contents: read
     name: Blocking Dep Scan (npm + cargo)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       SYFT_VERSION: v1.44.0
-      GRYPE_VERSION: v0.112.0
+      GRYPE_VERSION: v0.121.2
       # Isolated, job-local grype database cache so the pinned import cannot
       # be clobbered by a live-database auto-update.
       GRYPE_DB_CACHE_DIR: ${{ github.workspace }}/.grype-db-pinned
@@ -673,13 +807,14 @@ jobs:
   # write permission. The scheduled image scan belongs to the nightly tier.
   dep-scan:
     name: Dependency Scan (report-only)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
     env:
       SYFT_VERSION: v1.44.0
-      GRYPE_VERSION: v0.112.0
+      GRYPE_VERSION: v0.121.2
     steps:
       - name: Unlock a previous run's vendored toolchain files
         # bazel vendor leaves read-only toolchain directories under vendor/;
@@ -763,7 +898,8 @@ jobs:
     permissions:
       contents: read
     name: ABI Compatibility (lib/pagespeed C API)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -816,7 +952,8 @@ jobs:
     permissions:
       contents: read
     name: JS/TS Unit Tests
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -854,7 +991,8 @@ jobs:
     permissions:
       contents: read
     name: Release Packaging Container
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -898,7 +1036,8 @@ jobs:
     name: Vendor Dependencies
     needs: changes
     if: ${{ needs.changes.outputs.fleet == 'true' }}
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 45
     outputs:
       short_sha: ${{ steps.stamp.outputs.short_sha }}
@@ -1085,7 +1224,8 @@ jobs:
       contents: read
     name: Linux Build
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1134,6 +1274,9 @@ jobs:
 
       - name: Build all targets
         run: |
+          # A step with no `shell:` runs `bash -e {0}` (no pipefail), so turn it
+          # on or the `| tee` below hides a failing docker run.
+          set -o pipefail
           # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
           source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
           slot_budget 55g || exit 1
@@ -1143,8 +1286,8 @@ jobs:
           rm -rf "${OUT}"
           mkdir -p "${OUT}"
           # Capture combined build output to a log so the follow-on "Surface
-          # compiler warnings" step can scan it. pipefail (the default step
-          # shell) still propagates the docker exit code through the tee.
+          # compiler warnings" step can scan it. pipefail (set above) propagates
+          # the docker exit code through the tee.
           BUILD_LOG="${OUT}/build-all.log"
           # Remote cache only when the runner environment names a cache
           # host: --config=ci pulls build:remote-cache (.bazelrc) and would
@@ -1154,7 +1297,8 @@ jobs:
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           BUILD_CONFIG_NAME=docker
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
             BUILD_CONFIG_NAME=ci
           else
@@ -1196,6 +1340,7 @@ jobs:
               FW=$(find "$ROOT" -path "*/bin/src/worker/factory_worker" -not -path "*.runfiles*" -type f | head -1)
               NGX=$(find "$ROOT" -path "*/bin/src/nginx/ngx_pagespeed_module.so" -type f | head -1)
               STC=$(find "$ROOT" -path "*/bin/tools/seed_test_cache" -not -path "*.runfiles*" -type f | head -1)
+              WST=$(find "$ROOT" -path "*/bin/src/crypto/webbotauth/webbotauth_sign_tool" -not -path "*.runfiles*" -type f | head -1)
               OUT=/workspace/.ci-artifacts
               cp "$SO" "$OUT/libpagespeed.so"
               cp "$FW" "$OUT/factory_worker"
@@ -1203,6 +1348,9 @@ jobs:
               # Already built by //... above; the prebuilt test image carries
               # it (tools/ci/stage-artifacts.sh requires it).
               cp "$STC" "$OUT/seed_test_cache"
+              # Also built by //...; the Test::Nginx job mints signatures with
+              # it (t/103, t/104).
+              cp "$WST" "$OUT/webbotauth_sign_tool"
               # Record the nginx version this module was built against (the
               # build image sources nginx into /nginx-src) so
               # Dockerfile.prebuilt can pin its runtime nginx + brotli to
@@ -1317,7 +1465,8 @@ jobs:
       contents: read
     name: Linux Unit Tests
     needs: [changes, vendor, linux-build]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 120
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1372,7 +1521,8 @@ jobs:
           EXTRA_DOCKER=()
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: testing without the remote cache (docs/ci/runner-environment.md)"
@@ -1410,7 +1560,8 @@ jobs:
       contents: read
     name: Production readiness (ETag subset)
     needs: [changes, linux-build]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.etag == 'true' }}
     timeout-minutes: 30
     steps:
@@ -1442,6 +1593,14 @@ jobs:
 
       - name: Stage CI artifacts
         run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
+
+      # Leaked ci-net-* networks from killed jobs exhaust the host's docker
+      # address pools; reap only the stale, empty ones before compose
+      # creates this job's network, and prove the filters on scratch networks.
+      - name: Reap stale CI networks
+        run: |
+          bash tools/ci/docker-net.sh reap-stale
+          bash tools/ci/docker-net.sh selftest
 
       - name: Build Docker images (prebuilt)
         run: |
@@ -1505,12 +1664,172 @@ jobs:
             -f tools/production-tests/docker-compose.prebuilt.yml \
             down --remove-orphans -v --rmi local 2>/dev/null || true
 
+  # The Test::Nginx integration suite (t/, tools/docker-test-nginx.sh): the
+  # nginx module's directive, cookie, Vary, ordering and cache-path
+  # guarantees asserted against a real nginx. It reuses the Linux Build
+  # bundle (module, seed tool, sign tool) and builds nothing: the script runs
+  # in its prebuilt mode inside the dev image, whose nginx is the one the
+  # module was built against. Skipped, not failed, when none of the paths of
+  # the `tnginx` output changed (src/nginx/ and its direct dependencies, the
+  # seed tool, t/, the script, the dev image and this file; see the `diff`
+  # step of `changes`), and skipped on a push to main,
+  # where the diff is not computed; a dispatch runs it. The nightly runs the
+  # same suite on every night's build.
+  test-nginx:
+    permissions:
+      contents: read
+    name: nginx integration (Test::Nginx t/)
+    needs: [changes, linux-build]
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
+    if: ${{ needs.changes.outputs.tnginx == 'true' }}
+    timeout-minutes: 30
+    steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Docker preflight
+        run: tools/ci/docker-preflight.sh
+
+      - name: Ensure the dev image
+        run: |
+          CONTENT_IMAGE=$(bash tools/ci/ensure-dev-image.sh --tag-latest x64 docker)
+          echo "DOCKER_IMAGE=${CONTENT_IMAGE}" >> "$GITHUB_ENV"
+
+      # A per-job directory, never a shared runner path.
+      - name: Download the build bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-artifacts-linux-x64
+          path: ${{ runner.temp }}/tnginx-bundle
+
+      - name: Verify the build bundle
+        run: |
+          cd "${RUNNER_TEMP}/tnginx-bundle"
+          sha256sum -c --quiet checksums.sha256
+          # The artifact transport drops the executable bits.
+          chmod +x ngx_pagespeed_module.so seed_test_cache webbotauth_sign_tool
+
+      # The script runs as root (it installs Test::Nginx with apt and cpanm),
+      # so the checkout is mounted read-only and copied into the container:
+      # nothing root-owned lands in the runner's workspace. The suite's
+      # ports and cache files stay inside the container's own network and
+      # /tmp, so runner slots on one host do not collide. prove runs without
+      # -v: one line per test file, diagnostics only for a failure.
+      - name: Run the Test::Nginx suite
+        # shell: bash runs the step with -eo pipefail, so the docker exit
+        # code survives the pipe into tee (the default shell has no pipefail).
+        shell: bash
+        run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget 8g || exit 1
+          LOG="${RUNNER_TEMP}/test-nginx.log"
+          docker run --rm --init \
+            ${SLOT_CPUS:+--cpus="${SLOT_CPUS}"} \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
+            --user 0:0 \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e PREBUILT_DIR=/bundle \
+            -e PROVE_OPTS=-r \
+            -v "${GITHUB_WORKSPACE}:/src:ro" \
+            -v "${RUNNER_TEMP}/tnginx-bundle:/bundle:ro" \
+            -w /workspace \
+            "${DOCKER_IMAGE}" \
+            bash -c '
+              set -eo pipefail
+              tar --exclude=./.git --exclude=./vendor --exclude=./website -C /src -cf - . | tar -C /workspace -xf -
+              rc=0
+              bash tools/docker-test-nginx.sh || rc=$?
+              if [ "$rc" -ne 0 ] && [ -f t/servroot/logs/error.log ]; then
+                echo "=== nginx error.log (last 100 lines) ==="
+                tail -n 100 t/servroot/logs/error.log
+              fi
+              exit "$rc"
+            ' 2>&1 | tee "${LOG}"
+          {
+            echo "## Test::Nginx suite"
+            echo ""
+            echo '```'
+            grep -E '^t/[^ ]+\.t \.+|^Files=|^Result:' "${LOG}" || true
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  # The two .NET test projects under samples/aspnetcore/test
+  # (WeAmp.PageSpeed.Tests and WeAmp.PageSpeed.AspNetCore.Tests) on net8.0
+  # and net10.0, against the Linux Build bundle's libpagespeed.so and
+  # factory_worker: nothing native is built here. tools/ci/dotnet-tests.sh
+  # builds the embedded console SPA and runs the tests in containers with
+  # CI=true, so a native-dependent test fails instead of skipping when the
+  # library does not load. Skipped, not failed, when none of the paths of the
+  # `dotnet` output changed (samples/aspnetcore/, lib/, src/,
+  # tools/workbench/, the script and this file), and skipped on a push to
+  # main, where the diff is not computed; a dispatch runs it. The nightly
+  # runs it on every night's build.
+  dotnet-tests:
+    permissions:
+      contents: read
+    name: .NET tests (WeAmp.PageSpeed, AspNetCore)
+    needs: [changes, linux-build]
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-light' }}
+    if: ${{ needs.changes.outputs.dotnet == 'true' }}
+    timeout-minutes: 30
+    steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Docker preflight
+        run: tools/ci/docker-preflight.sh
+
+      # A per-job directory, never a shared runner path.
+      - name: Download the build bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ci-artifacts-linux-x64
+          path: ${{ runner.temp }}/dotnet-bundle
+
+      - name: Verify the build bundle
+        run: |
+          cd "${RUNNER_TEMP}/dotnet-bundle"
+          sha256sum -c --quiet checksums.sha256
+
+      - name: Run the .NET tests
+        run: |
+          set -o pipefail
+          rc=0
+          tools/ci/dotnet-tests.sh "${RUNNER_TEMP}/dotnet-bundle" "${RUNNER_TEMP}/dotnet-results" || rc=$?
+          {
+            echo "## .NET tests"
+            echo ""
+            cat "${RUNNER_TEMP}/dotnet-results/summary.md" 2>/dev/null || echo "No summary: the run stopped before the results."
+          } >> "${GITHUB_STEP_SUMMARY}"
+          exit "${rc}"
+
+      - name: Upload the test results
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: dotnet-test-results-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dotnet-results/*.trx
+          retention-days: 7
+
   lint:
     permissions:
       contents: read
     name: Lint (clang-tidy + clang-format)
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     # A scoped lint finishes in a minute or two; a FULL-tree lint (every .cc
     # touched, e.g. a header sweep) takes tens of minutes, longer on a cold
     # lint cache or a hosted runner (which also builds the image first).
@@ -1802,6 +2121,7 @@ jobs:
             -w /workspace \
             "${LINT_IMAGE}" \
             bash -c '
+              set -o pipefail
               # Toolchain guard: same rationale as the clang-tidy step -- a
               # stale image formatting with the wrong major gives a
               # misleading whole-tree --Werror verdict.
@@ -1848,7 +2168,8 @@ jobs:
     # public repository instead of by commit id, so a floor move can resolve.
     name: JS Kernel Differential (vendored goldens)
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -1916,6 +2237,22 @@ jobs:
             --mode required \
             --canonical-url "https://github.com/We-Amp/mod_pagespeed.git"
 
+      # Vendored bytes against the pinned commit: the ratchet above proves the
+      # pin's lineage and the membership gate proves file names, neither reads
+      # the vendored bytes. This runs the sync tool's --check against the
+      # canonical repository. It fails on any byte difference and whenever the
+      # canonical is unreachable on a pin bump or a non-pull_request event; it
+      # only warns when the canonical is unreachable on a pull request that
+      # leaves the pin alone (tools/ci/check-kernel-bytes.sh).
+      - name: Vendored JS kernel bytes match the pinned commit
+        run: |
+          bash tools/ci/check-kernel-bytes.sh \
+            --sync-tool tools/sync-js-kernel.sh \
+            --pin-file lib/js/JS_KERNEL_PIN \
+            --base-repo "${GITHUB_WORKSPACE}" \
+            --event "${GITHUB_EVENT_NAME}" \
+            --canonical-url "https://github.com/We-Amp/mod_pagespeed.git"
+
       - name: Build vendored probe + verify shared goldens manifest
         run: |
           # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
@@ -1924,7 +2261,8 @@ jobs:
           EXTRA_DOCKER=()
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: building without the remote cache (docs/ci/runner-environment.md)"
@@ -1962,7 +2300,8 @@ jobs:
     # public repository instead of by commit id, so a floor move can resolve.
     name: HTML Parse Differential (vendored goldens)
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 30
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -2027,6 +2366,22 @@ jobs:
             --mode required \
             --canonical-url "https://github.com/We-Amp/mod_pagespeed.git"
 
+      # Vendored bytes against the pinned commit: the ratchet above proves the
+      # pin's lineage and the membership gate proves file names, neither reads
+      # the vendored bytes. This runs the sync tool's --check against the
+      # canonical repository. It fails on any byte difference and whenever the
+      # canonical is unreachable on a pin bump or a non-pull_request event; it
+      # only warns when the canonical is unreachable on a pull request that
+      # leaves the pin alone (tools/ci/check-kernel-bytes.sh).
+      - name: Vendored HTML kernel bytes match the pinned commit
+        run: |
+          bash tools/ci/check-kernel-bytes.sh \
+            --sync-tool tools/sync-html-kernel.sh \
+            --pin-file lib/html/HTML_KERNEL_PIN \
+            --base-repo "${GITHUB_WORKSPACE}" \
+            --event "${GITHUB_EVENT_NAME}" \
+            --canonical-url "https://github.com/We-Amp/mod_pagespeed.git"
+
       # The HTML parse corpus under tools/html-parse-corpus/ is vendored
       # byte-identical from the 1.15 line: the shared goldens manifest is the
       # same bytes that gate that repository. This step gates BEHAVIOR: it
@@ -2042,7 +2397,8 @@ jobs:
           EXTRA_DOCKER=()
           BAZEL_CONFIG="--config=docker --jobs=${SLOT_JOBS} --nostamp"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=ci"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: building without the remote cache (docs/ci/runner-environment.md)"
@@ -2081,7 +2437,8 @@ jobs:
       contents: read
     name: Release-config test compile
     needs: [changes, vendor]
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     timeout-minutes: 90
     steps:
       - name: Unlock a previous run's vendored toolchain files
@@ -2134,7 +2491,8 @@ jobs:
           # hardening, CET and stamping.
           BAZEL_CONFIG="--config=docker --config=opt --config=hardening --config=hardening-cet --stamp --jobs=${SLOT_JOBS}"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
-            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            source "${GITHUB_WORKSPACE}/tools/ci/remote-cache-docker-args.sh"
+            remote_cache_docker_args EXTRA_DOCKER
             BAZEL_CONFIG="--config=release"
           else
             echo "::notice::BAZEL_CACHE_HOST not set: compiling without the remote cache (docs/ci/runner-environment.md)"
@@ -2167,7 +2525,8 @@ jobs:
       contents: read
     name: CSS fuzz smoke (deterministic oracle replay)
     needs: changes
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.css == 'true' }}
     timeout-minutes: 20
     steps:
@@ -2253,7 +2612,8 @@ jobs:
       contents: read
     name: JS fuzz smoke (deterministic oracle replay)
     needs: changes
-    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ${{ (vars.FLEET_ENABLED == 'false' || needs.changes.outputs.route != 'fleet' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-24.04' || 'fleet-heavy' }}
     if: ${{ needs.changes.outputs.js == 'true' }}
     timeout-minutes: 20
     steps:
@@ -2820,7 +3180,8 @@ jobs:
     permissions: {}
     name: Shared build runners are switched off
     if: ${{ vars.FLEET_ENABLED == 'false' }}
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Say what the switch changed

@@ -15,7 +15,7 @@
   font-style: normal;
   font-weight: 400 900;
   font-display: swap;
-  src: url('/fonts/inter-variable-subset.woff2') format('woff2');
+  src: url('../assets/fonts/inter-variable-subset.woff2') format('woff2');
 }
 
 /* Metric-matched fallbacks: the local font that renders before the web font
@@ -67,27 +67,20 @@
 
 /* IBM Plex Mono (SIL OFL 1.1) — self-hosted, no Google Fonts call. Carries all
    numerics, labels, code, status, logo & buttons.
-   Latin subset, weights 400/500/600. License: /fonts/IBM-Plex-Mono-OFL.txt */
+   Latin subset, weights 400 and 600 (no 500: one font file fewer per page). License: /fonts/IBM-Plex-Mono-OFL.txt */
 @font-face {
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/plex-mono-400.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'IBM Plex Mono';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/plex-mono-500.woff2') format('woff2');
+  src: url('../assets/fonts/plex-mono-400.woff2') format('woff2');
 }
 @font-face {
   font-family: 'IBM Plex Mono';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('/fonts/plex-mono-600.woff2') format('woff2');
+  src: url('../assets/fonts/plex-mono-600.woff2') format('woff2');
 }
 
 .prose pre {
@@ -169,15 +162,77 @@
    no soft wrap opportunity before it, so a heading whose text fills the line
    overflows by the anchor's width; paragraphs because plain text can carry
    the same tokens without a <code> span. Normal prose never breaks mid-word:
-   a word only breaks when it cannot fit on a line of its own. */
+   a word only breaks when it cannot fit on a line of its own. Page titles
+   sit outside .prose and can carry the same names, so every h1 gets the
+   rule too. */
+h1,
 .prose :is(h2, h3, h4),
 .prose p {
   overflow-wrap: anywhere;
 }
 
+/* Heading permalinks, rendered at build time by
+   src/lib/rehype-heading-anchors.mjs as a text-less link at the end of each
+   docs and how-it-works heading. The "#" is generated content, so it never
+   becomes part of the heading's text: textContent, innerText, a copy, reader
+   mode and a Markdown copy of the page all read the heading alone. The
+   alternative text after the slash keeps it out of the link's name too (the
+   first declaration is the fallback where that syntax is unsupported).
+   Hidden until the heading is hovered or the link is focused; touch screens,
+   which cannot hover, keep it faint. Not scoped to .prose, so a permalink
+   anywhere stays hidden until hover. */
+:is(h1, h2, h3, h4, h5, h6) > a.heading-anchor {
+  /* The "#" alone is narrower than the 24px minimum target size (WCAG
+     2.5.8). Padding widens the target; the negative margins take the same
+     amount back, so the heading text does not move or wrap differently. */
+  padding: 0.25rem 0.5rem;
+  margin: 0 -0.5rem 0 -0.1rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+:is(h1, h2, h3, h4, h5, h6) > a.heading-anchor::after {
+  content: '#';
+  content: '#' / '';
+}
+:is(h1, h2, h3, h4, h5, h6):hover > a.heading-anchor,
+:is(h1, h2, h3, h4, h5, h6) > a.heading-anchor:focus-visible {
+  opacity: 1;
+}
+:is(h1, h2, h3, h4, h5, h6) > a.heading-anchor:hover {
+  color: var(--color-interactive);
+}
+@media (hover: none) {
+  :is(h1, h2, h3, h4, h5, h6) > a.heading-anchor {
+    opacity: 0.4;
+  }
+}
+
 .prose :not(pre) > code {
+  /* A name such as a package or a directive moves to the next line whole and
+     breaks inside the word only when it cannot fit a line of its own. */
   overflow-wrap: anywhere;
-  word-break: break-all;
+}
+/* In a table `anywhere` lets a column shrink to a few characters, which
+   splits a short name over three lines while other columns have room. From
+   tablet width up, the first column (the name a reference table is looked up
+   by) uses `break-word`: it wraps the same way but keeps the whole name as
+   the column's minimum width. The other columns still shrink, so the table
+   keeps fitting its box; on a phone every column does. A phone has no room
+   for a long name as a minimum width, so there a two-column table (a name and
+   its description) gives the name column a 7rem floor instead: a short name
+   such as a state or a field stays whole, a longer one still breaks inside
+   the word rather than pushing the table wider than its box. */
+@media (width >= 48rem) {
+  .prose :is(td, th):first-child code {
+    overflow-wrap: break-word;
+  }
+}
+@media (width < 48rem) {
+  .prose table:not(:has(:is(td, th):nth-child(3))) :is(td, th):first-child {
+    min-width: 7rem;
+  }
 }
 
 /* The filter topic pages (/docs/filters/<name>/) carry the same filter names
@@ -336,6 +391,20 @@
   --color-focus-ring: #5eb1c9;
 }
 
+/* Page rhythm: the vertical space of a page hero and of a content section.
+   Phone values first; from tablet width up the larger pair. Used through
+   .page-hero and .section (component layer) rather than per-page padding. */
+:root {
+  --space-section: 3rem;
+  --space-hero: 3.5rem;
+}
+@media (width >= 48rem) {
+  :root {
+    --space-section: 4.5rem;
+    --space-hero: 5rem;
+  }
+}
+
 /* Honor the OS "reduce motion" setting (WCAG 2.3.3 / brand §4.8). Neutralizes
    scroll-smooth and caps any animation/transition to a single frame so motion-
    sensitive users get instant state changes, not movement. !important is the
@@ -364,14 +433,25 @@
     outline-offset: 2px;
   }
 
-  /* The header is sticky (h-16 = 64px) and <html> uses scroll-smooth, so any
-     in-page anchor (#faq, feature section IDs, ToC links, the skip link's
-     #main-content) would otherwise land behind the header. One global rule
-     replaces the scattered per-element scroll-mt-* / -mt pt hacks. */
-  :is(h1, h2, h3, h4, h5, h6)[id],
-  [id]:target,
-  #main-content {
-    scroll-margin-top: 5rem;
+  /* The header is sticky (h-16 = 64px). Scroll padding on the page scroller
+     keeps everything that scrolls into view clear of it: in-page anchors
+     (#faq, section ids, ToC links, the skip link's #main-content) and keyboard
+     focus moving back up the page (WCAG 2.4.11 Focus Not Obscured). This is
+     the only offset: a scroll margin on a target would add to it, so no
+     element sets one (test/scroll-offset-gate.test.ts). */
+  html {
+    scroll-padding-top: 5rem;
+  }
+  /* Docs pages with the platform selector pin it right under the header
+     (top: 4rem; 3.75rem tall: a 2.75rem tab plus 0.5rem padding each side),
+     so the clear area starts lower there: 4rem + 3.75rem + 0.75rem of air. */
+  html:has(#platform-selector) {
+    scroll-padding-top: 8.5rem;
+  }
+  /* The message launcher is pinned to the bottom right corner; keep focused
+     elements clear of it as well. */
+  html {
+    scroll-padding-bottom: 5rem;
   }
 
   /* <summary> in <details> ships with outline:none in some UA stylesheets;
@@ -386,6 +466,9 @@
      text-text-muted. .prose overrides below handle typography-plugin content. */
   :not(pre) > code {
     color: var(--color-text-body);
+    /* A code chip that wraps keeps its padding and corners on each line. */
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
 
   /* Terminal chrome — applies to any <pre> containing a <code> child.
@@ -394,8 +477,7 @@
      The chrome is additive: it only adds an inner ring, rounding, position
      relative (for the copy button overlay) and a subtle top-edge highlight.
      It deliberately does NOT set background or text color, so per-page
-     bg utilities on existing markup (e.g. demo.astro's bg-stone-900,
-     bg-emerald-50, bg-stone-50) still win. */
+     bg utilities on existing markup still win. */
   pre:has(code) {
     position: relative;
     border-radius: var(--radius-card);
@@ -504,39 +586,61 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   color: var(--color-on-accent);
 }
 .product-tab[aria-pressed='false'] {
-  background-color: var(--color-stone-100);
-  color: var(--color-stone-700);
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-muted);
 }
 .product-tab[aria-pressed='false']:hover {
-  background-color: var(--color-stone-200);
-}
-.dark .product-tab[aria-pressed='false'] {
-  background-color: var(--color-stone-800);
-  color: var(--color-stone-300);
-}
-.dark .product-tab[aria-pressed='false']:hover {
-  background-color: var(--color-stone-700);
+  background-color: var(--color-border-strong);
+  color: var(--color-text-body);
 }
 .product-tab:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
 
-.qs-tab[aria-pressed='true'] {
-  background-color: var(--color-interactive-wash);
-  color: var(--color-interactive);
+/* Short viewports (a phone in landscape, or a desktop window at 400% zoom):
+   a pinned header would take a quarter of the screen (WCAG 1.4.10 Reflow), so
+   it scrolls away with the page, as does the docs platform selector pinned
+   under it, and the scroll padding that kept content clear of them goes too.
+   Outside the layers so it beats the `sticky` utility on both. */
+@media (max-height: 480px) {
+  body > header,
+  #platform-selector {
+    position: static;
+  }
+  html,
+  html:has(#platform-selector) {
+    scroll-padding-top: 0;
+    scroll-padding-bottom: 1rem;
+  }
 }
-.qs-tab[aria-pressed='false'] {
-  background-color: transparent;
-  color: var(--color-text-muted);
-}
-.qs-tab[aria-pressed='false']:hover {
-  background-color: var(--color-interactive-wash);
-  color: var(--color-interactive);
-}
-.qs-tab:focus-visible {
-  outline: 2px solid var(--color-focus-ring);
-  outline-offset: 2px;
+
+/* Forced colors (Windows contrast themes) drop author backgrounds and
+   shadows, so every state that is carried by a fill alone gets a system-colour
+   equivalent here. Nothing in this block applies outside that mode. */
+@media (forced-colors: active) {
+  /* The primary and inverse buttons are fills with no border: give them a
+     button outline. */
+  .btn-primary,
+  .btn-inverse {
+    border: 1px solid ButtonText;
+  }
+  /* The pressed tab keeps a fill, in the system's selection colours. */
+  .product-tab[aria-pressed='true'] {
+    forced-color-adjust: none;
+    background: SelectedItem;
+    color: SelectedItemText;
+  }
+  /* Opting out of the forced palette also opts the focus ring out of it. */
+  .product-tab[aria-pressed='true']:focus-visible {
+    outline-color: CanvasText;
+  }
+  /* The current page in the header navigation and the docs sidebar is marked
+     by colour, a wash and an inset shadow. A real border survives; an outline
+     would read as the focus ring. */
+  nav a[aria-current='page'] {
+    border-inline-start: 3px solid Highlight;
+  }
 }
 
 @layer components {
@@ -558,6 +662,27 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   .card:hover {
     border-color: var(--color-border-strong);
     box-shadow: inset 0 1px 0 0 var(--color-interactive);
+  }
+  /* Stretched link: a card that is clickable as a whole while only its title
+     is the link, so the link's accessible name is the title and not every
+     word on the card. The link's ::after covers the card; the focus ring is
+     drawn around the card, where a link wrapped around it drew it. */
+  .card-stretch {
+    position: relative;
+  }
+  .card-stretch-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+  @supports selector(:has(*)) {
+    .card-stretch-link:focus-visible {
+      outline: none;
+    }
+    .card-stretch:has(.card-stretch-link:focus-visible) {
+      outline: 2px solid var(--color-focus-ring);
+      outline-offset: 2px;
+    }
   }
 
   .card-product {
@@ -591,11 +716,99 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   }
 
   /* Typography tokens */
+  /* Display headings: weight 700 and -0.02em on every page (Inter's optical
+     size axis already tightens at these sizes, so tighter tracking makes
+     glyphs touch), and balanced lines so a heading never ends on a lone word. */
   .h1-hero {
-    @apply text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1];
+    @apply text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1];
+    letter-spacing: -0.02em;
+    text-wrap: balance;
   }
   .h2-section {
-    @apply text-3xl sm:text-4xl font-bold tracking-tight;
+    @apply text-3xl sm:text-4xl font-bold;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  /* Page hero (components/PageHero.astro): left-aligned, on the same left
+     edge as the header logo. Two title sizes: `marketing` (36px phone, 48px
+     from tablet) for the product and buying pages, `utility` (30px phone,
+     36px from small screens) for listings and tools. The home page keeps its
+     own, larger hero. */
+  .page-hero {
+    padding-top: var(--space-hero);
+    padding-bottom: calc(var(--space-hero) / 2);
+  }
+  .page-hero-title {
+    @apply font-bold leading-[1.1];
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .page-hero--marketing .page-hero-title {
+    @apply text-4xl md:text-5xl;
+  }
+  .page-hero--utility .page-hero-title {
+    @apply text-3xl sm:text-4xl;
+  }
+  .page-hero-lede {
+    @apply mt-6 max-w-2xl;
+  }
+  .page-hero--utility .page-hero-lede {
+    @apply mt-4;
+  }
+  /* A content section: the shared vertical rhythm between sections. */
+  .section {
+    padding-block: var(--space-section);
+  }
+  /* A reading-width column (56rem) that starts on the page's left edge (the
+     edge of the 72rem page container and of the header logo) instead of
+     being centred on its own. */
+  .container-prose {
+    @apply px-4 sm:px-6 lg:px-8;
+    max-width: 56rem;
+    margin-left: max(0px, calc((100% - 72rem) / 2));
+    margin-right: auto;
+  }
+  /* Text roles for marketing copy: size and leading only, colour comes from
+     the usual text utilities.
+     .text-body   card descriptions, answers, list items
+     .text-small  captions, requirement lines, table cells
+     .text-micro  mono only: eyebrows, chips, code captions; nothing smaller */
+  .text-body {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+  .text-small {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .text-micro {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  /* Standalone "go here" link (a card's destination, a link under a hero):
+     cyan, medium weight, a trailing arrow that stays with the last word, and
+     an underline on hover and keyboard focus. Links inside running text stay
+     underlined prose links and do not use this class. */
+  .link-arrow {
+    color: var(--color-interactive);
+    font-weight: 500;
+    text-decoration: none;
+    text-underline-offset: 4px;
+    transition: color 150ms ease;
+  }
+  .link-arrow::after {
+    /* The arrow is decoration: the second form gives it empty alternative
+       text where supported, so it is not read out. */
+    content: '\00a0\2192';
+    content: '\00a0\2192' / '';
+  }
+  .link-arrow:hover,
+  .link-arrow:focus-visible,
+  a:hover .link-arrow,
+  a:focus-visible .link-arrow {
+    color: var(--color-interactive-hover);
+    text-decoration: underline;
   }
   .lede {
     /* font-weight 400 (not 300) — light weight loses contrast on the dark ground. */
@@ -815,6 +1028,41 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     text-decoration: underline;
     text-underline-offset: 4px;
   }
+  /* Inverse: the one button that sits ON a cyan band (closing sections), so
+     the fill is the dark elevated surface and the label is cyan. The focus
+     ring uses the on-accent ink, which is the colour that contrasts with the
+     band around it. */
+  .btn-inverse {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-colors;
+    min-height: 2.75rem;
+    border-radius: var(--radius-control);
+    background-color: var(--color-bg-elevated);
+    color: var(--color-interactive);
+  }
+  .btn-inverse:hover {
+    background-color: var(--color-bg-primary);
+  }
+  .btn-inverse:focus-visible {
+    outline: 2px solid var(--color-on-accent);
+    outline-offset: 2px;
+  }
+  /* Compact size for a button inside the header bar, added to .btn-primary or
+     .btn-secondary: 36px tall, so the full-size button in the page stays the
+     clear primary. Still above the 24px minimum target (WCAG 2.5.8). The
+     vertical padding leaves room for the secondary button's 1px border. */
+  .btn-sm {
+    min-height: 2.25rem;
+    padding: 0.4375rem 1rem;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+  }
+  /* Touch input (a tablet in landscape shows the desktop header): the compact
+     button keeps the 44px target of the other buttons. */
+  @media (pointer: coarse) {
+    .btn-sm {
+      min-height: 2.75rem;
+    }
+  }
   .btn-primary:disabled,
   .btn-primary[aria-disabled='true'],
   .btn-secondary:disabled,
@@ -870,10 +1118,10 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     min-width: 2.75rem;
     min-height: 2.75rem;
     padding: 0.5rem;
-    border: 0;
+    border: 1px solid var(--color-control-border);
     border-radius: var(--radius-chip);
-    background-color: rgba(41, 37, 36, 0.85); /* stone-800/85 */
-    color: var(--color-stone-300);
+    background-color: var(--color-bg-elevated);
+    color: var(--color-text-muted);
     cursor: pointer;
     opacity: 0;
     visibility: hidden;
@@ -902,40 +1150,21 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     opacity: 1;
   }
   .code-copy-btn:hover {
-    background-color: rgba(68, 64, 60, 0.95); /* stone-700/95 */
-    color: var(--color-stone-100);
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-body);
   }
   .code-copy-btn:active {
-    background-color: rgba(28, 25, 23, 0.95); /* stone-900/95 */
+    background-color: var(--color-bg-recessed);
   }
   .code-copy-btn[data-copied='true'] {
-    background-color: rgba(6, 95, 70, 0.9); /* emerald-800/90 */
-    color: var(--color-stone-50);
-  }
-  /* Light-mode pre (no explicit dark bg utility) — use a light chip so the
-     button reads against pale backgrounds. */
-  pre:not([class*='bg-stone-9']):not([class*='bg-stone-8']):not([class*='bg-emerald-9'])
-    > .code-copy-btn {
-    background-color: rgba(245, 245, 244, 0.9); /* stone-100/90 */
-    color: var(--color-stone-700);
-  }
-  pre:not([class*='bg-stone-9']):not([class*='bg-stone-8']):not([class*='bg-emerald-9'])
-    > .code-copy-btn:hover {
-    background-color: rgba(231, 229, 228, 0.95); /* stone-200/95 */
-    color: var(--color-stone-900);
-  }
-  /* Dark mode flips the light variant back to the dark chip. */
-  .dark
-    pre:not([class*='bg-stone-9']):not([class*='bg-stone-8']):not([class*='bg-emerald-9'])
-    > .code-copy-btn {
-    background-color: rgba(41, 37, 36, 0.85);
-    color: var(--color-stone-300);
+    background-color: var(--color-success-wash);
+    color: var(--color-success);
+    border-color: var(--color-success);
   }
 
   /* Inside a term panel the button docks in the head row (it is appended
-     there by the layout script), in flow and right-aligned, on surface tokens
-     instead of the overlay chip. The [data-copied] carve-outs keep the shared
-     success state winning over these. */
+     there by the layout script), in flow and right-aligned. The [data-copied]
+     carve-outs keep the shared success state winning over these. */
   .term-head > .code-copy-btn {
     position: static;
     flex: none;
@@ -952,29 +1181,53 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     border-color: var(--color-border-strong);
   }
 
-  /* Floating widgets (QuickMessage, ShareFloat) vs overlays and the hero.
+  /* Small text links on phones (breadcrumbs, "back to" links, the inline
+     copy button on the contact page): the tappable area reaches 10px above
+     and below the text without moving anything. The extension is an
+     invisible box on the link itself, so a tap on it is a tap on the link. */
+  @media (max-width: 639px) {
+    nav[aria-label='Breadcrumb'] a,
+    .tap-area {
+      position: relative;
+    }
+    nav[aria-label='Breadcrumb'] a::after,
+    .tap-area::after {
+      content: '';
+      position: absolute;
+      inset: -0.625rem -0.25rem;
+    }
+  }
+
+  /* The floating message launcher (QuickMessage) vs overlays and the hero.
      While a modal dialog is open — the search dialog or the blog chart
-     lightbox, both setting data-dialog-open on <html> — the launchers hide.
-     At handset widths they also stay out of the first viewport (a fixed
+     lightbox, both setting data-dialog-open on <html> — the launcher hides.
+     At handset widths it also stays out of the first viewport (a fixed
      launcher would sit on top of the hero) until it has been scrolled past,
      signalled by data-fab-reveal on <html>; an already-open panel stays. */
-  html[data-dialog-open] .qm-root,
-  html[data-dialog-open] .share-fab-root {
+  html[data-dialog-open] .qm-root {
     display: none;
   }
-  /* While the site footer is on screen the launchers step aside at every width,
-     so they never sit on top of the footer text. */
-  html[data-footer-in-view] .qm-root:not([data-state='open']),
-  html[data-footer-in-view] .share-fab-root:not([data-state='open']) {
-    display: none;
+  /* While the site footer is on screen the launcher steps aside at every width,
+     so it never sits on top of the footer text. Not on a very short viewport:
+     there the launcher is not pinned (QuickMessage.astro), it sits in the page
+     flow after the footer and covers nothing. */
+  @media not (max-height: 480px) {
+    html[data-footer-in-view] .qm-root:not([data-state='open']) {
+      display: none;
+    }
   }
   /* The open mobile menu is modal: the page behind it does not scroll. */
   html[data-menu-open] {
     overflow: hidden;
   }
-  @media (max-width: 639px) {
-    html:not([data-fab-reveal]) .qm-root:not([data-state='open']),
-    html:not([data-fab-reveal]) .share-fab-root:not([data-state='open']) {
+  @media (max-width: 639px) and (not (max-height: 480px)) {
+    html:not([data-fab-reveal]) .qm-root:not([data-state='open']) {
+      display: none;
+    }
+    /* A copy button is passing through the launcher's corner (set by the
+       script in QuickMessage.astro): step aside so the tap reaches the copy
+       button. A focused launcher stays where it is. */
+    html[data-fab-corner-busy] .qm-root:not([data-state='open']):not(:focus-within) {
       display: none;
     }
   }
@@ -989,7 +1242,7 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
      is a Lucide glyph masked with the title color, so color is never the only
      signal (WCAG 1.4.1). */
   .callout {
-    @apply my-6 rounded-xl border p-4 sm:p-5;
+    @apply my-6 rounded-card border p-4 sm:p-5;
   }
   /* The callout lives inside `.prose`; neutralize the typography plugin's
      first/last margins so the box padding stays even. */
@@ -1048,6 +1301,19 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   }
   .callout-tip .callout-title {
     color: var(--color-success);
+  }
+
+  /* next-release — merged but not released yet. Quieter than the advisory
+     tones: the recessed band with a dashed rule (the dash, not the hue, sets it
+     apart) and a muted title with a clock glyph. */
+  .callout-next-release {
+    border-style: dashed;
+    border-color: var(--color-border-strong);
+    background-color: var(--color-bg-secondary);
+    --callout-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l4 2'/%3E%3C/svg%3E");
+  }
+  .callout-next-release .callout-title {
+    color: var(--color-text-muted);
   }
 
   /* Release notes — collapsible entry chrome. Scoped entirely to .rn-* so
@@ -1207,14 +1473,12 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
 
   /* Chrome that does not belong on paper. Only the site header (the one
      wrapping the main nav) goes; section and page headers carry content and
-     must print. The strip, overlays, the sticky mobile CTA, the search
+     must print. The strip, the message launcher, the search
      dialog, the docs menu disclosure and the inline "On this page" details
      are interactive-only; so is the code copy button. */
   [data-ui='telemetry-strip'],
   header:has(> nav[aria-label='Main navigation']),
   .qm-root,
-  .share-fab-root,
-  #sticky-cta,
   #site-search,
   #docs-menu,
   details:has(> nav[aria-label='On this page']),

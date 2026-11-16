@@ -50,20 +50,23 @@ struct CacheApiContext {
   // URL registry for paginated URL listing.
   UrlRegistry& url_registry;
 
-  // Invalidate all cached variants for a URL.  Returns count deleted.
+  // Invalidate all cached variants for a URL in one site's keyspace (empty
+  // site: the unsited one).  Returns count deleted.
   std::function<int(const std::string& url, const std::string& hostname,
-                    const std::string& scheme)>
+                    const std::string& scheme, const std::string& site)>
       invalidate_url;
 
-  // Clear dedup set and cooldown for a URL so the next notification
-  // triggers re-processing, without removing cached content.
+  // Clear dedup set and cooldown for a URL in one site's keyspace so the next
+  // notification triggers re-processing, without removing cached content.
   std::function<void(const std::string& url, const std::string& hostname,
-                     const std::string& scheme)>
+                     const std::string& scheme, const std::string& site)>
       clear_dedup;
 
-  // Enqueue a reprocessing notification for a URL.
+  // Enqueue a reprocessing notification for a URL in one site's keyspace.
+  // The notification vouches for no host.
   std::function<void(const std::string& url, const std::string& hostname,
-                     const std::string& scheme, ContentType content_type)>
+                     const std::string& scheme, const std::string& site,
+                     ContentType content_type)>
       enqueue_reprocess;
 
   // Reset the entire cache (stop, delete volume, recreate).
@@ -90,13 +93,18 @@ struct CacheApiContext {
 
   // Query cooldown for a specific URL.  Returns (reason, remaining, duration)
   // or nullopt if no active cooldown.
-  std::function<std::optional<CooldownEntry>(const std::string& url,
-                                             const std::string& hostname,
-                                             const std::string& scheme)>
+  std::function<std::optional<CooldownEntry>(
+      const std::string& url, const std::string& hostname,
+      const std::string& scheme, const std::string& site)>
       get_cooldown = nullptr;
 
   // List all active cooldowns.
   std::function<std::vector<CooldownEntry>()> list_cooldowns = nullptr;
+
+  // True when the known sites may not name every site with entries in the
+  // volume: sites were seen past the cap since start, or the known-sites
+  // file could not be read at start.  nullptr reads as false.
+  std::function<bool()> known_sites_incomplete = nullptr;
 };
 
 // Register all cache routes on the server.

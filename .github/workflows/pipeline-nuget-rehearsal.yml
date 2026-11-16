@@ -51,7 +51,8 @@ permissions:
 jobs:
   rehearsal:
     name: Rehearse the nuget.org publish (no key, no push)
-    runs-on: ubuntu-latest
+    # pinned to 24.04: ubuntu-latest is 26.04 since 2026-11-07; migrate via https://github.com/We-Amp/pagespeed-optimizer/issues/687
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       # The checks come from main, never from the tree being released.

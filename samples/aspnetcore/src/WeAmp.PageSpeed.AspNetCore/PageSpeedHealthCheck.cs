@@ -3,11 +3,14 @@
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using WeAmp.PageSpeed.AspNetCore.Internal;
 
 namespace WeAmp.PageSpeed.AspNetCore;
 
 /// <summary>
-/// Health check that verifies the PageSpeed cache is operational.
+/// Health check that verifies the PageSpeed cache is operational. While
+/// PageSpeed has not been enabled yet (no cache volume is open), it reports
+/// Healthy with the description "PageSpeed is disabled".
 /// </summary>
 public sealed class PageSpeedHealthCheck : IHealthCheck
 {
@@ -30,6 +33,19 @@ public sealed class PageSpeedHealthCheck : IHealthCheck
         try
         {
             var cache = _sp.GetRequiredService<IPageSpeedCache>();
+            if (cache is DeferredPageSpeedCache deferred && !deferred.TryEnsureActive())
+            {
+                // PageSpeed was enabled, but the volume could not be opened.
+                if (deferred.OpenFailure is { } failure)
+                {
+                    return Task.FromResult(HealthCheckResult.Unhealthy(
+                        "PageSpeed cache could not be opened", failure));
+                }
+                // A configured state, not a fault: nothing to probe yet.
+                return Task.FromResult(HealthCheckResult.Healthy(
+                    "PageSpeed is disabled",
+                    new Dictionary<string, object> { ["enabled"] = false }));
+            }
             var stats = cache.GetStats();
             // Expose only operational status, not detailed metrics,
             // to avoid information disclosure on unauthenticated endpoints.

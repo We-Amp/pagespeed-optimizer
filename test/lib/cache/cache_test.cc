@@ -1095,6 +1095,229 @@ TEST_F(PageSpeedCacheTest, FutureMetadataVersionReadsAsMiss) {
   EXPECT_EQ(result.error(), cyclone::CacheError::NotFound);
 }
 
+// Stored HTML written by the worker under metadata version 8 is refused: both
+// the selector read and the exact-id read report a miss. Everything else
+// stored under version 8 stays readable.
+class StoredVersionEightTest : public PageSpeedCacheTest {
+ protected:
+  // Stores an entry the way metadata version 8 wrote it, header copy
+  // included.  `full_mask` 0 means the default mask.
+  void StoreAtVersionEight(const std::string& path, ContentType type,
+                           uint8_t flags, const std::string& body,
+                           uint32_t full_mask = 0) {
+    if (full_mask == 0) full_mask = CapabilityMask().Encode();
+    AlternateId id = MaskToAlternateId(static_cast<uint8_t>(full_mask & 0xFF));
+    AlternateMetadata meta;
+    meta.full_mask = full_mask;
+    meta.content_type = type;
+    meta.flags = flags;
+    meta.origin_content_type = "text/html";
+    meta.origin_cache_control = "max-age=60";
+    auto prefix = meta.Serialize();
+    prefix[0] = std::byte{8};
+    std::vector<std::byte> blob = prefix;
+    for (char c : body) blob.push_back(static_cast<std::byte>(c));
+    auto key =
+        PageSpeedCache::ComposeKeyPreNormalized(path, "example.com", "https");
+    auto wh = PageSpeedCacheTestPeer::Cyclone(*cache_).write_alternate_sync(
+        key, static_cast<cyclone::AlternateId>(id), blob.size());
+    ASSERT_TRUE(wh.has_value());
+    wh->set_header(prefix);
+    ASSERT_TRUE(wh->write_sync(std::span(blob)).has_value());
+    ASSERT_TRUE(wh->close_sync().has_value());
+  }
+
+  AlternateId DefaultId() {
+    CapabilityMask mask;
+    return MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
+  }
+};
+
+TEST_F(StoredVersionEightTest, WorkerWrittenHtmlReadsAsMiss) {
+  CreateCache();
+  StoreAtVersionEight("/page.html", ContentType::kHtml,
+                      AlternateMetadata::kFlagWorkerProcessed, "<p>old</p>");
+
+  auto best = cache_->ReadBestAlternate("/page.html", "example.com", "https",
+                                        CapabilityMask());
+  EXPECT_FALSE(best.has_value());
+  auto exact =
+      cache_->ReadAlternate("/page.html", "example.com", "https", DefaultId());
+  EXPECT_FALSE(exact.has_value())
+      << "an exact-id read must not hand out the refused bytes with default "
+         "metadata, flags clear";
+  if (!exact.has_value()) {
+    EXPECT_EQ(exact.error(), cyclone::CacheError::NotFound);
+  }
+}
+
+TEST_F(StoredVersionEightTest, RawHtmlReadsAsMiss) {
+  CreateCache();
+  StoreAtVersionEight("/raw.html", ContentType::kHtml, 0, "<p>raw</p>");
+
+  EXPECT_FALSE(cache_
+                   ->ReadBestAlternate("/raw.html", "example.com", "https",
+                                       CapabilityMask())
+                   .has_value());
+  EXPECT_FALSE(
+      cache_->ReadAlternate("/raw.html", "example.com", "https", DefaultId())
+          .has_value());
+}
+
+TEST_F(StoredVersionEightTest, HtmlWithoutTheWorkerBitReadsAsMiss) {
+  // HTML another writer stored with its response headers classified and the
+  // worker bit clear.
+  CreateCache();
+  StoreAtVersionEight("/stored.html", ContentType::kHtml,
+                      AlternateMetadata::kFlagHeadersClassified,
+                      "<p>stored</p>");
+
+  EXPECT_FALSE(cache_
+                   ->ReadBestAlternate("/stored.html", "example.com", "https",
+                                       CapabilityMask())
+                   .has_value());
+  auto exact = cache_->ReadAlternate("/stored.html", "example.com", "https",
+                                     DefaultId());
+  ASSERT_FALSE(exact.has_value());
+  EXPECT_EQ(exact.error(), cyclone::CacheError::NotFound);
+}
+
+TEST_F(StoredVersionEightTest, WorkerWrittenCssStaysReadable) {
+  CreateCache();
+  StoreAtVersionEight("/a.css", ContentType::kCss,
+                      AlternateMetadata::kFlagWorkerProcessed, "a{b:c}");
+
+  auto best = cache_->ReadBestAlternate("/a.css", "example.com", "https",
+                                        CapabilityMask());
+  ASSERT_TRUE(best.has_value());
+  EXPECT_EQ(best->metadata.version, 8);
+  EXPECT_TRUE(
+      cache_->ReadAlternate("/a.css", "example.com", "https", DefaultId())
+          .has_value());
+}
+
+TEST_F(StoredVersionEightTest, WorkerWrittenMarkdownReadsAsMiss) {
+  CreateCache();
+  const uint32_t markdown = static_cast<uint32_t>(SentinelId::kAgentMarkdown);
+  StoreAtVersionEight("/page.html", ContentType::kOther,
+                      AlternateMetadata::kFlagWorkerProcessed, "# old",
+                      markdown);
+
+  auto exact = cache_->ReadAlternate("/page.html", "example.com", "https",
+                                     static_cast<AlternateId>(markdown));
+  EXPECT_FALSE(exact.has_value())
+      << "an exact-id read must not hand out the refused bytes with default "
+         "metadata";
+  EXPECT_FALSE(cache_
+                   ->ReadBestAlternate("/page.html", "example.com", "https",
+                                       CapabilityMask(),
+                                       /*agent_request_entitled=*/true)
+                   .has_value());
+}
+
+TEST_F(StoredVersionEightTest, RemoveRetiredDropsOnlyRetiredEntries) {
+  CreateCache();
+  CapabilityMask gzip;
+  gzip.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  const uint32_t markdown = static_cast<uint32_t>(SentinelId::kAgentMarkdown);
+  StoreAtVersionEight("/page.html", ContentType::kHtml, 0, "<p>raw</p>");
+  StoreAtVersionEight("/page.html", ContentType::kHtml,
+                      AlternateMetadata::kFlagWorkerProcessed, "gz",
+                      gzip.Encode());
+  StoreAtVersionEight("/page.html", ContentType::kOther,
+                      AlternateMetadata::kFlagWorkerProcessed, "# old",
+                      markdown);
+  StoreAtVersionEight("/a.css", ContentType::kCss,
+                      AlternateMetadata::kFlagWorkerProcessed, "a{b:c}");
+
+  auto removed =
+      cache_->RemoveRetiredAlternates("/page.html", "example.com", "https");
+  ASSERT_TRUE(removed.has_value());
+  EXPECT_EQ(*removed, 3u);
+  auto css = cache_->RemoveRetiredAlternates("/a.css", "example.com", "https");
+  ASSERT_TRUE(css.has_value());
+  EXPECT_EQ(*css, 0u);
+  auto none =
+      cache_->RemoveRetiredAlternates("/absent.html", "example.com", "https");
+  ASSERT_TRUE(none.has_value());
+  EXPECT_EQ(*none, 0u);
+
+  auto listed = cache_->ListAlternates("/page.html", "example.com", "https");
+  EXPECT_TRUE(!listed.has_value() || listed->empty())
+      << "no node of the page is left";
+
+  auto served =
+      cache_->ReadBestAlternate("/page.html", "example.com", "https", gzip);
+  ASSERT_FALSE(served.has_value());
+  EXPECT_EQ(served.error(), cyclone::CacheError::NotFound);
+  EXPECT_TRUE(
+      cache_->ReadAlternate("/a.css", "example.com", "https", DefaultId())
+          .has_value());
+}
+
+TEST_F(StoredVersionEightTest, RemoveRetiredKeepsANewerEntryAtTheSameId) {
+  // A page rebuilt at the same id is judged by its newest entry, which is
+  // the one a removal would take.
+  CreateCache();
+  StoreAtVersionEight("/page.html", ContentType::kHtml,
+                      AlternateMetadata::kFlagWorkerProcessed, "<p>old</p>");
+  AlternateMetadata meta;
+  meta.full_mask = CapabilityMask().Encode();
+  meta.content_type = ContentType::kHtml;
+  const std::string fresh = "<p>new</p>";
+  auto wh = cache_->WriteAlternate("/page.html", "example.com", "https",
+                                   DefaultId(), fresh.size(), meta);
+  ASSERT_TRUE(wh.has_value());
+  ASSERT_TRUE(
+      wh->write_sync(std::as_bytes(std::span(fresh.data(), fresh.size())))
+          .has_value());
+  ASSERT_TRUE(wh->close_sync().has_value());
+
+  auto removed =
+      cache_->RemoveRetiredAlternates("/page.html", "example.com", "https");
+  ASSERT_TRUE(removed.has_value());
+  EXPECT_EQ(*removed, 0u);
+  auto read =
+      cache_->ReadAlternate("/page.html", "example.com", "https", DefaultId());
+  ASSERT_TRUE(read.has_value());
+  auto content = read->content();
+  EXPECT_EQ(std::string(reinterpret_cast<const char*>(content.data()),
+                        content.size()),
+            fresh);
+}
+
+TEST_F(StoredVersionEightTest, ARewriteReadsBackAtTheCurrentVersion) {
+  CreateCache();
+  StoreAtVersionEight("/again.html", ContentType::kHtml,
+                      AlternateMetadata::kFlagWorkerProcessed, "<p>old</p>");
+  ASSERT_FALSE(
+      cache_->ReadAlternate("/again.html", "example.com", "https", DefaultId())
+          .has_value());
+
+  CapabilityMask mask;
+  AlternateMetadata meta;
+  meta.full_mask = mask.Encode();
+  meta.content_type = ContentType::kHtml;
+  meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+  const std::string fresh = "<p>new</p>";
+  auto wh = cache_->WriteAlternate("/again.html", "example.com", "https",
+                                   DefaultId(), fresh.size(), meta);
+  ASSERT_TRUE(wh.has_value());
+  ASSERT_TRUE(
+      wh->write_sync(std::as_bytes(std::span(fresh.data(), fresh.size())))
+          .has_value());
+  ASSERT_TRUE(wh->close_sync().has_value());
+
+  auto read =
+      cache_->ReadAlternate("/again.html", "example.com", "https", DefaultId());
+  ASSERT_TRUE(read.has_value());
+  EXPECT_EQ(read->metadata.version, AlternateMetadata::kCurrentVersion);
+  auto content = read->content();
+  EXPECT_EQ(std::string(reinterpret_cast<const char*>(content.data()),
+                        content.size()),
+            fresh);
+}
+
 TEST_F(PageSpeedCacheTest, WriteAroundCrossProcess) {
   // Verify that write-around caching allows cross-process overwrites
   // to become visible on the next read.  This is the key scenario:
@@ -2098,13 +2321,13 @@ TEST_F(PageSpeedCacheTest, ReadBestAlternateReturnsNotFoundOnInvalidVersion) {
 
 TEST_F(PageSpeedCacheTest, ReadAlternateWithCorruptMetadataStillReturns) {
   // ReadAlternate (unlike ReadBestAlternate) does NOT reject on metadata
-  // parse failure — it's used for sentinels too.  Verify it returns
-  // success with metadata_prefix_size_ == 0.
+  // parse failure for a sentinel, which carries no metadata prefix.  Verify
+  // it returns success with metadata_prefix_size_ == 0.
   CreateCache();
 
   auto key = PageSpeedCache::ComposeKeyPreNormalized("/img/sentinel-like.jpg",
                                                      "example.com", "https");
-  AlternateId id = 0x08;
+  AlternateId id = static_cast<AlternateId>(SentinelId::kEarlyHints);
 
   // Write raw bytes shorter than kFixedPrefixSize.
   std::array<std::byte, 4> raw = {std::byte{0xAA}, std::byte{0xBB},
@@ -2121,6 +2344,28 @@ TEST_F(PageSpeedCacheTest, ReadAlternateWithCorruptMetadataStillReturns) {
       << "ReadAlternate should succeed even with corrupt metadata";
   // content() returns the full blob when metadata_prefix_size_ == 0.
   EXPECT_EQ(result->content_length(), raw.size());
+}
+
+TEST_F(PageSpeedCacheTest, ReadAlternateWithCorruptMetadataOnContentIsMiss) {
+  // A content alternate always carries metadata; one that does not parse is
+  // a miss, as for ReadBestAlternate.
+  CreateCache();
+
+  auto key = PageSpeedCache::ComposeKeyPreNormalized("/img/content.jpg",
+                                                     "example.com", "https");
+  AlternateId id = 0x08;
+  std::array<std::byte, 4> raw = {std::byte{0xAA}, std::byte{0xBB},
+                                  std::byte{0xCC}, std::byte{0xDD}};
+  auto wh = PageSpeedCacheTestPeer::Cyclone(*cache_).write_alternate_sync(
+      key, static_cast<cyclone::AlternateId>(id), raw.size());
+  ASSERT_TRUE(wh.has_value());
+  wh->write_sync(std::span(raw));
+  wh->close_sync();
+
+  auto result =
+      cache_->ReadAlternate("/img/content.jpg", "example.com", "https", id);
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error(), cyclone::CacheError::NotFound);
 }
 
 // --- Block 4: chmod warning in Create() (lines 100-102) ---
@@ -5850,11 +6095,9 @@ TEST_F(PageSpeedCacheTest,
   EXPECT_EQ(result.error(), cyclone::CacheError::NotFound);
 }
 
-TEST_F(PageSpeedCacheTest,
-       ReadAlternateReturnsEmptyContentOnInflatedWireCtLen) {
-  // Similar to above, but via ReadAlternate which does not reject on parse
-  // failure.  When ParseMetadataPrefix returns 0 (metadata_prefix_size_=0),
-  // content() returns the full raw blob instead of stripping a prefix.
+TEST_F(PageSpeedCacheTest, ReadAlternateReturnsNotFoundOnInflatedWireCtLen) {
+  // Similar to above, but via ReadAlternate: a content alternate whose
+  // metadata does not parse is a miss here too, never the raw blob.
   CreateCache();
 
   AlternateMetadata meta;
@@ -5885,14 +6128,11 @@ TEST_F(PageSpeedCacheTest,
   auto closed = wh->close_sync();
   ASSERT_TRUE(closed.has_value());
 
-  // ReadAlternate does not reject on parse failure — returns success with
-  // metadata_prefix_size_ == 0.  content() then returns the full raw blob.
   auto result = cache_->ReadAlternate("/img/inflated-ct2.jpg", "example.com",
                                       "https", id);
-  ASSERT_TRUE(result.has_value())
-      << "ReadAlternate should succeed even with corrupt metadata";
-  // metadata_prefix_size_ == 0 → content() returns full blob.
-  EXPECT_EQ(result->content_length(), blob.size());
+  EXPECT_FALSE(result.has_value())
+      << "ReadAlternate should return NotFound for inflated wire_ct_len";
+  EXPECT_EQ(result.error(), cyclone::CacheError::NotFound);
 }
 
 TEST_F(PageSpeedCacheTest, ReadBestAlternateReturnsNotFoundOnInflatedEtagLen) {

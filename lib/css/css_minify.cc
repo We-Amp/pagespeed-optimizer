@@ -1687,11 +1687,20 @@ bool MinifyCss(std::string_view input, std::string* output) {
     output->clear();
     return true;
   }
-  std::string r = Phase1(input);
+  PreservedComments preserved;
+  std::string r = Phase1(input, &preserved);
   r = Phase2(r);
   r = Phase3(r);
   r = Phase4(r);
   r = Phase5(r);
+  // Put the preserved comments' exact bytes back (#582): the phases
+  // saw only their one-byte sentinel.  If a phase lost or duplicated a
+  // sentinel the pairing cannot be trusted: fail safe (the documented
+  // internal-error path, output untouched) rather than emit comments in
+  // the wrong places.
+  std::string restored;
+  if (!RestorePreservedComments(r, preserved, &restored)) return false;
+  r = std::move(restored);
   size_t s = 0;
   while (s < r.size() && IsCssWhitespace(r[s])) ++s;
   *output = r.substr(s);

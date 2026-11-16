@@ -47,11 +47,25 @@ std::vector<std::string> BuildPinnedGetArgv(std::string_view url,
       "--proto", "=http,https",        // scheme allowlist
       "--proto-redir", "=http,https",  // and on any redirect
       "--max-redirs", "0",  // never auto-follow; the fetcher re-adjudicates
-      "--max-time", std::to_string(opts.max_time_sec), "--max-filesize",
-      std::to_string(opts.max_response_bytes), "-A",
+      "--max-time", std::to_string(opts.max_time_sec), "-A",
       opts.user_agent,  // fixed, anonymous UA (no page UA forwarded)
-      "-H", "Accept: " + opts.accept,  // the ONLY content header we send
+      "-H", "Accept: " + opts.accept,  // the only content header we send
+                                       // besides the encoding negotiation
+      "--compressed",  // ask for gzip/br and let curl decode it. The size cap
+                       // that matters is the one on curl's stdout, which the
+                       // spawner enforces on the DECODED bytes (--max-filesize
+                       // only bounds the encoded transfer).
   };
+
+  // A GET's encoded transfer is capped. A HEAD has no body to cap, and curl
+  // checks --max-filesize against the advertised Content-Length even for a
+  // HEAD, so a cap would refuse the answer for any resource larger than it.
+  // A HEAD's output (status line and headers) stays bounded by the spawner's
+  // limit on curl's stdout.
+  if (!opts.head) {
+    argv.emplace_back("--max-filesize");
+    argv.emplace_back(std::to_string(opts.max_response_bytes));
+  }
 
   // Pin the connection to the validated IP. When the host is already an IP literal
   // (host == pinned_ip) the URL itself pins the target and --resolve is redundant.
@@ -66,8 +80,12 @@ std::vector<std::string> BuildPinnedGetArgv(std::string_view url,
   }
 
   argv.emplace_back("-i");  // include response headers (status/Location/CT)
-  argv.emplace_back("-X");
-  argv.emplace_back("GET");    // GET only — no body, no other method
+  if (opts.head) {
+    argv.emplace_back("--head");  // HEAD: status and headers, no body
+  } else {
+    argv.emplace_back("-X");
+    argv.emplace_back("GET");  // GET only — no body, no other method
+  }
   argv.emplace_back("--url");  // explicit URL value — a '-'-leading URL can
   argv.emplace_back(std::string(url));  // never be parsed as a curl flag
   return argv;

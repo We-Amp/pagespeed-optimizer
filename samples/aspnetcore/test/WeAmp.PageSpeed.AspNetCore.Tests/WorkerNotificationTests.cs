@@ -4,6 +4,7 @@
 using System.Buffers.Binary;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -109,9 +110,9 @@ public class WorkerNotificationTests
     }
 
     /// <summary>
-    /// The load-bearing regression proof: the .NET writer must emit a v5 frame
-    /// (worker_ipc.h kIpcVersion=5) carrying the agent_request byte and the
-    /// empty option-context tail — the worker rejects any other version
+    /// The load-bearing regression proof: the .NET writer must emit a v6 frame
+    /// (worker_ipc.h kIpcVersion=6) carrying the agent_request byte, the
+    /// empty option-context tail, no site and a zero flags byte — the worker rejects any other version
     /// outright, so a frame one version behind is dropped and cache-fill
     /// silently stops. Drives the real socket writer against a loopback
     /// Unix-domain listener and inspects the bytes. Also proves the dedup key
@@ -119,7 +120,7 @@ public class WorkerNotificationTests
     /// Unix-socket only (Windows uses named pipes).
     /// </summary>
     [Fact]
-    public async Task SendsV5Frame_WithAgentRequestByte_AndDedupSeparatesAgent()
+    public async Task SendsV6Frame_WithAgentRequestByte_AndDedupSeparatesAgent()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return; // named pipes
 
@@ -152,15 +153,48 @@ public class WorkerNotificationTests
             Assert.True(service.TryNotify(
                 "http://example.com/page", "example.com", "https",
                 PageSpeedContentType.Html, 0x08, agentRequest: false));
+            // A checked host: the same frame shape, with HOST_VOUCHED set.
+            Assert.True(service.TryNotify(
+                "http://example.com/vouched", "example.com", "https",
+                PageSpeedContentType.Html, 0x08, agentRequest: true,
+                hostVouched: true));
 
             using var conn = await acceptTask;
             var frame1 = await ReadFrameAsync(conn, cts.Token);
             var frame2 = await ReadFrameAsync(conn, cts.Token);
+            var frame3 = await ReadFrameAsync(conn, cts.Token);
 
             // [4 total_len][1 version]...[1 scheme][1 agent_request]
             //   [4 option_context_len][1 option_signature_len]
-            Assert.Equal(5, frame1[4]);          // version == kIpcVersion (v5)
-            Assert.Equal(5, frame2[4]);
+            //   [1 site_len][1 flags]
+            Assert.Equal(6, frame1[4]);          // version == kIpcVersion (v6)
+            Assert.Equal(6, frame2[4]);
+
+            // Golden bytes of the whole first frame: url "http://example.com/page"
+            // (23 bytes), host "example.com" (11), HTML, mask 0x08, https,
+            // agent_request 1, then the empty v5 tail and the empty v6 tail.
+            var golden = new List<byte> { 0, 0, 0, 57, 6, 0, 0, 0, 23 };
+            golden.AddRange(Encoding.UTF8.GetBytes("http://example.com/page"));
+            golden.AddRange(new byte[] { 0, 0, 0, 11 });
+            golden.AddRange(Encoding.UTF8.GetBytes("example.com"));
+            golden.AddRange(new byte[] { 0, 0, 0, 0, 8, 2, 1, 0, 0, 0, 0, 0, 0, 0 });
+            Assert.Equal(golden.ToArray(), frame1);
+
+            // The vouched frame: url "http://example.com/vouched" (26 bytes)
+            // makes it 3 bytes longer (total_length 60); the flags byte, the
+            // last one, is 0x01 (HOST_VOUCHED) and nothing else changes.
+            var vouched = new List<byte> { 0, 0, 0, 60, 6, 0, 0, 0, 26 };
+            vouched.AddRange(Encoding.UTF8.GetBytes("http://example.com/vouched"));
+            vouched.AddRange(new byte[] { 0, 0, 0, 11 });
+            vouched.AddRange(Encoding.UTF8.GetBytes("example.com"));
+            vouched.AddRange(new byte[] { 0, 0, 0, 0, 8, 2, 1, 0, 0, 0, 0, 0, 0, 1 });
+            Assert.Equal(vouched.ToArray(), frame3);
+
+            // No site and no flags: the frame ends in two zero bytes.
+            Assert.Equal(0, frame1[^2]);         // site_length
+            Assert.Equal(0, frame1[^1]);         // flags
+            frame1 = frame1[..^2];
+            frame2 = frame2[..^2];
 
             // The option context is empty, so the frame ends in four zero
             // length bytes and one zero length byte. Asserted explicitly:
@@ -183,6 +217,83 @@ public class WorkerNotificationTests
         {
             try { System.IO.File.Delete(sockPath); } catch { /* best effort */ }
         }
+    }
+
+    /// <summary>
+    /// A worker run as a separate process: <c>AutoStart</c> off and a concrete
+    /// <c>SocketPath</c>. The worker host publishes that path, and a
+    /// notification reaches a listener on it.
+    /// </summary>
+    [Fact]
+    public async Task AutoStartOff_WithSocketPath_NotifiesTheWorkerAtThatPath()
+    {
+        var sockPath = $"/tmp/psx-{Guid.NewGuid():N}".Substring(0, 24) + ".sock";
+        var options = new PageSpeedOptions();
+        options.Worker.AutoStart = false;
+        options.Worker.SocketPath = sockPath;
+        var endpoint = new InternalWorkerEndpoint();
+        using var host = new WorkerProcessHost(
+            Options.Create(options), endpoint,
+            Substitute.For<ILogger<WorkerProcessHost>>());
+
+        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await host.StartAsync(cts.Token);
+        Assert.Equal(sockPath, await endpoint.SocketPathReady.WaitAsync(cts.Token));
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return; // named pipes
+
+        using var listener = new Socket(
+            AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        try
+        {
+            listener.Bind(new UnixDomainSocketEndPoint(sockPath));
+            listener.Listen(1);
+
+            var optionsMonitor = Substitute.For<IOptionsMonitor<PageSpeedOptions>>();
+            optionsMonitor.CurrentValue.Returns(options);
+            var service = new WorkerNotificationService(
+                optionsMonitor, endpoint,
+                Substitute.For<ILogger<WorkerNotificationService>>());
+            await service.StartAsync(cts.Token);
+
+            var acceptTask = listener.AcceptAsync(cts.Token).AsTask();
+            Assert.True(service.TryNotify(
+                "http://example.com/image.jpg", "example.com", "https",
+                PageSpeedContentType.Image, 0x08));
+
+            using var conn = await acceptTask;
+            var frame = await ReadFrameAsync(conn, cts.Token);
+            Assert.Equal(6, frame[4]);
+            Assert.Equal("http://example.com/image.jpg",
+                Encoding.UTF8.GetString(frame, 9, BinaryPrimitives.ReadInt32BigEndian(frame.AsSpan(5))));
+
+            await service.StopAsync(cts.Token);
+        }
+        finally
+        {
+            await host.StopAsync(CancellationToken.None);
+            try { System.IO.File.Delete(sockPath); } catch { /* best effort */ }
+        }
+    }
+
+    /// <summary>
+    /// <c>AutoStart</c> off and no <c>SocketPath</c>: no worker to reach, so
+    /// the worker host publishes no endpoint and coordination stays off.
+    /// </summary>
+    [Fact]
+    public async Task AutoStartOff_WithoutSocketPath_PublishesNoEndpoint()
+    {
+        var options = new PageSpeedOptions();
+        options.Worker.AutoStart = false;
+        var endpoint = new InternalWorkerEndpoint();
+        using var host = new WorkerProcessHost(
+            Options.Create(options), endpoint,
+            Substitute.For<ILogger<WorkerProcessHost>>());
+
+        using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await host.StartAsync(cts.Token);
+        Assert.Null(await endpoint.SocketPathReady.WaitAsync(cts.Token));
+        await host.StopAsync(CancellationToken.None);
     }
 
     private static async Task<byte[]> ReadFrameAsync(

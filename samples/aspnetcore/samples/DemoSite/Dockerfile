@@ -20,17 +20,36 @@
 
 # ── Stage 1: Build native binaries ───────────────────────────────────────────
 
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS build-native
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS build-native
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # clang-20 + libc++-20 (GCC has constexpr bugs with abseil;
 # libc++-18 lacks std::atomic_ref required by Cyclone;
 # clang-20 requires LLVM apt repo — not in Ubuntu 24.04 standard repos)
-RUN apt-get update && apt-get install -y wget gnupg \
-    && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-       | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
-    && echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+# apt retries transient fetch failures; the apt.llvm.org key is fetched with
+# retries and only the key with the pinned fingerprint (the one
+# https://apt.llvm.org/ publishes) is trusted, so a failed fetch stops the
+# build instead of leaving an empty key behind.
+ARG LLVM_APT_KEY_FPR=6084F3CF814B57C1CF12EFD515CF4D18AF4F7421
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
+    && apt-get update && apt-get install -y wget gnupg \
+    && keytmp="$(mktemp -d)" \
+    && for i in 1 2 3 4 5; do \
+         wget -qO "${keytmp}/key.asc" --timeout=20 --tries=1 https://apt.llvm.org/llvm-snapshot.gpg.key \
+           && [ -s "${keytmp}/key.asc" ] && break; \
+         echo "apt.llvm.org key fetch attempt ${i} failed" >&2; if [ "$i" -lt 5 ]; then sleep $((i * 5)); fi; \
+       done \
+    && { [ -s "${keytmp}/key.asc" ] \
+         || { echo "ERROR: could not fetch https://apt.llvm.org/llvm-snapshot.gpg.key" >&2; exit 1; }; } \
+    && { GNUPGHOME="${keytmp}" gpg --batch --quiet --import "${keytmp}/key.asc"; \
+         GNUPGHOME="${keytmp}" gpg --batch --with-colons --list-keys "${LLVM_APT_KEY_FPR}" 2>/dev/null \
+           | awk -F: -v fpr="${LLVM_APT_KEY_FPR}" '$1=="fpr" && $10==fpr { ok=1 } END { exit !ok }' \
+         || { echo "ERROR: the apt.llvm.org key file does not hold the pinned key ${LLVM_APT_KEY_FPR}" >&2; exit 1; }; } \
+    && GNUPGHOME="${keytmp}" gpg --batch --export "${LLVM_APT_KEY_FPR}" > /usr/share/keyrings/llvm-snapshot.gpg \
+    && rm -rf "${keytmp}" \
+    && [ -s /usr/share/keyrings/llvm-snapshot.gpg ] \
+    && echo "deb [signed-by=/usr/share/keyrings/llvm-snapshot.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
        | tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list \
     && apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -120,7 +139,7 @@ ENTRYPOINT ["dotnet", "DemoSite.dll"]
 
 # ── Stage 2b: Build web console (SvelteKit static) ──────────────────────────
 
-FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS build-console
+FROM node:22-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS build-console
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -132,7 +151,7 @@ RUN pnpm -C packages/web-shell build
 
 # ── Stage 3b: Worker runtime ────────────────────────────────────────────────
 
-FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac AS worker-runtime
+FROM ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS worker-runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \

@@ -31,6 +31,11 @@ std::string_view StripParameters(std::string_view header) {
 
 }  // namespace
 
+bool IsTextHtmlMediaType(std::string_view content_type_header) {
+  return net_instaweb::StringCaseEqual(StripParameters(content_type_header),
+                                       "text/html");
+}
+
 ContentType ClassifyContentType(std::string_view content_type_header) {
   std::string_view mime = StripParameters(content_type_header);
 

@@ -39,7 +39,21 @@ operates as a multi-phase streaming character scanner with a state machine that
 tracks strings, comments, and `url()` contexts. Five sequential phases:
 
 1. **Phase 1** -- Strip comments, collapse runs of whitespace to single spaces,
-   preserve string literals and unquoted `url()` content verbatim.
+   preserve string literals and unquoted `url()` content verbatim. Licence comments
+   survive (#582): a comment starting `/*!`, or containing `@license` or
+   `@preserve` anywhere (ASCII case-insensitive), is replaced by a one-byte
+   sentinel (the first of `\x01`..`\x07` absent from the input; when none is free,
+   preservation is off and such comments are stripped like any other) and its exact
+   bytes are recorded in a `PreservedComments`. Phases 2-5 must copy the sentinel
+   through unchanged: never drop, duplicate or reorder it.
+   `RestorePreservedComments` puts the bytes back after Phase 5 in `MinifyCss`, and
+   after Phase 2 in the token-stream oracle's `Normalize`, pairing by occurrence
+   order. A preserved comment that runs to end of input is closed with `*/`. When
+   the sentinel count differs from the recorded count, `RestorePreservedComments`
+   returns false, and `MinifyCss` returns false with its output unchanged. Ordinary
+   comments are still removed. The module's CSS filter must keep the same trigger
+   set. The token-stream oracle accepts exactly the appended `*/` that closes such
+   a comment.
 2. **Phase 2** -- Remove whitespace around operators (`{`, `}`, `;`, `,`, combinators).
    Preserves spaces around `+` and `-` inside CSS math functions (the full
    CSS Values 4 set: `calc`/`min`/`max`/`clamp`/`round`/`mod`/`rem`/`abs`/

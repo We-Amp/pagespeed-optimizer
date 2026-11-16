@@ -414,7 +414,7 @@ test.describe('next steps and share', () => {
       'data-umami-event',
       'airead-cta-optimize',
     );
-    await expect(next.getByRole('link', { name: /Support plans/ })).toHaveAttribute(
+    await expect(next.getByRole('link', { name: /Support pricing/ })).toHaveAttribute(
       'data-umami-event',
       'airead-cta-buy',
     );
@@ -457,7 +457,7 @@ test.describe('next steps and share', () => {
       'data-umami-event',
       'psi-result-install-cta',
     );
-    const support = next.getByRole('link', { name: /Support plans/ });
+    const support = next.getByRole('link', { name: /Support pricing/ });
     await expect(support).toHaveAttribute('data-umami-event', 'cta_commercial');
     await expect(support).toHaveAttribute('data-umami-event-surface', 'analyze');
     const auditLink = page.locator('[data-scan-audit]').getByRole('link', {

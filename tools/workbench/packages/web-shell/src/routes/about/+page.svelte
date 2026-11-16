@@ -42,7 +42,7 @@
 <div class="about-page">
   <!-- Section A: Version & System Info -->
   <section class="about-section">
-    <h2 class="section-title">mod_pagespeed 2.1</h2>
+    <h2 class="section-title">mod_pagespeed</h2>
     <div class="info-grid">
       <div class="info-item">
         <span class="info-label">Version</span>
@@ -59,7 +59,7 @@
   <section class="about-section">
     <h2 class="section-title">Support</h2>
     <p class="support-text">
-      mod_pagespeed 2.1 is licensed under the Apache License 2.0.
+      mod_pagespeed is licensed under the Apache License 2.0.
       Support subscriptions:
       <a href={SUPPORT_URL} target="_blank" rel="noopener" class="support-link">{SUPPORT_URL}</a>
     </p>

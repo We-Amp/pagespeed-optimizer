@@ -21,7 +21,7 @@ const webApp = {
   applicationCategory: 'DeveloperApplication',
   operatingSystem: 'Any',
   url: 'https://modpagespeed.com/ai-readability/',
-  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
   description,
 };
 
@@ -371,9 +371,6 @@ const jsonLd = [webApp, faqPage];
        --color-text-*, --color-interactive, --color-success, --color-accent) so it
        follows the light/dark theme and reads as a first-class property. -->
   <style is:global>
-    #ar-form {
-      scroll-margin-top: 5rem;
-    }
     /* Reserve the result area while a scan runs: a real scan takes 5–10 s,
        so the loading → result swap falls outside the CLS input-exclusion
        window. Pushing the content below out of view at click time is
@@ -400,7 +397,6 @@ const jsonLd = [webApp, faqPage];
       padding: 1.4rem;
       margin-top: 1.4rem;
       color: var(--color-text-body);
-      scroll-margin-top: 5rem;
     }
     .ar-card:focus {
       outline: none;
@@ -2064,10 +2060,10 @@ const jsonLd = [webApp, faqPage];
         const bothWedges = firedWedges.length >= 2;
         const product =
           '<p class="ar-v">mod_pagespeed optimizes your pages and cuts page weight on your own servers, off any CDN — lighter markup is faster for people and easier for machines to parse.</p>' +
-          '<a class="ar-cta-primary" href="/download/" data-umami-event="airead-cta-optimize">Download &amp; run — optimize your HTML on your own servers →</a>' +
+          '<a class="ar-cta-primary" href="/download/#install" data-umami-event="airead-cta-optimize">Download &amp; run — optimize your HTML on your own servers →</a>' +
           '<p class="ar-v">Free to install and run, in development and in production.</p>' +
           '<div class="ar-cta-row">' +
-          '<a class="ar-cta-link" href="/pricing/" data-umami-event="airead-cta-buy">Support plans →</a>' +
+          '<a class="ar-cta-link" href="/pricing/" data-umami-event="airead-cta-buy">Support pricing →</a>' +
           '<a class="ar-cta-link" href="/contact/?topic=agent-optimize" data-umami-event="airead-cta-agentoptimize">Questions about how AI agents read your site? Tell us →</a>' +
           '<a class="ar-cta-link" href="/blog/can-ai-read-your-website/" data-umami-event="airead-cta-blog">See how the top 1,000 sites scored &rarr;</a>' +
           '<a class="ar-cta-link" href="/ai-crawler-cost/" data-umami-event="airead-cta-crawler-cost">Estimate what AI crawlers cost your server and how many visits AI assistants send back. Drop an access log; nothing from it leaves your browser. &rarr;</a>' +

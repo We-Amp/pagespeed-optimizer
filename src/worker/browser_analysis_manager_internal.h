@@ -143,6 +143,12 @@ bool ShouldInlineCriticalCss(float coverage_ratio);
 // (has_origin_html_hash/origin_html_hash), whose omission silently amputates the
 // agent markdown for 0%-critical-CSS pages.  `frequency`/`is_warmup`/
 // `original_html` are intentionally reset (a retry is not a warmup).
+// Whether the agent render may follow this item's analysis.  The render
+// fetches from the item's hostname, so it needs a notification that vouched
+// for that host, besides agent_optimize and a running Chrome.
+bool MayRunAgentRender(const AnalysisQueue::Item& item, bool agent_optimize,
+                       bool chrome_running);
+
 AnalysisQueue::Item BuildReanalysisItem(const AnalysisQueue::Item& src,
                                         int next_retry_count);
 
@@ -255,9 +261,13 @@ struct CombinedCssBytes {
 // invalidate every record this manager produces.  The worker binds this to
 // Worker::BuildCombinedCss, whose seven-point contract is written out beside
 // that hash function in src/browser/optimization_profile.h.
+//
+// `site`, `host_vouched` and `from_module` are the analysed item's (wire v6),
+// so the sheet is read from the page's own keyspace.
 using CombinedCssBuilder = std::function<CombinedCssBytes(
     const HtmlScanResult& scan_result, const std::string& url,
-    const std::string& hostname, const std::string& scheme)>;
+    const std::string& hostname, const std::string& scheme,
+    const std::string& site, bool host_vouched, bool from_module)>;
 
 // Why an analysis item cannot produce validation records at all.
 enum class ValidationInputSkip : std::uint8_t {
@@ -297,11 +307,11 @@ struct ValidationInputs {
 // the injected builder.  Pure apart from the builder call, so the wiring that
 // decides WHICH markup and WHICH stylesheet bytes a record is made against can
 // be asserted without a browser.
-ValidationInputs BuildValidationInputs(const CombinedCssBuilder& builder,
-                                       const std::string& url,
-                                       const std::string& hostname,
-                                       const std::string& scheme,
-                                       std::string_view pre_inline_html);
+ValidationInputs BuildValidationInputs(
+    const CombinedCssBuilder& builder, const std::string& url,
+    const std::string& hostname, const std::string& scheme,
+    std::string_view pre_inline_html, const std::string& site = {},
+    bool host_vouched = false, bool from_module = false);
 
 // Human-readable reason an item produces no records, for the analysis log.
 const char* ValidationInputSkipMessage(ValidationInputSkip skip);

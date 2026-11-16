@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 import { PRODUCT_SAME_AS, productJsonLd } from '../../data/software-jsonld';
@@ -15,14 +16,14 @@ const faq = [
   },
   {
     q: 'What replaces mod_pagespeed?',
-    a: 'mod_pagespeed 2, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus an optimizer worker, paired with the Apache or nginx module or in the reverse-proxy deployment, for variant-aware caching and zero-copy serving, and for SVG auto-vectorization in the reverse-proxy deployment. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
+    a: 'The current mod_pagespeed, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus an optimizer worker, paired with the Apache or nginx module or in the reverse-proxy deployment, for variant-aware caching and zero-copy serving, and for SVG auto-vectorization in the reverse-proxy deployment. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
   {
     q: 'Can I still use mod_pagespeed 1.13.35.2?',
     a: "Yes, and it still installs. It also hasn't taken a security patch in years, won't build against current Apache, has no AVIF, and ships a build toolchain that wants Bazel 0.x and Python 2. If your threat model accepts unpatched dependencies, you can keep running it.",
   },
   {
-    q: 'Which platform do I run mod_pagespeed 2 on?',
+    q: 'Which platform do I run the current mod_pagespeed on?',
     a: 'Apache and nginx: the native in-process module with the familiar config surface, the classic filter set, and the built-in admin console, plus the optimizer worker for variant-aware caching and zero-copy serving (and, in the reverse-proxy deployment, SVG auto-vectorization). The Apache packages install the configuration that points the module at the worker; the native nginx module uses it once two directives point it there. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
 ];
@@ -47,39 +48,45 @@ const jsonLd = [
 ---
 
 <BaseLayout
-  title="mod_pagespeed alternative in 2026 — mod_pagespeed 2"
-  description="mod_pagespeed is deprecated. mod_pagespeed 2 — the native module plus the optimizer worker — is the maintained, patched continuation."
+  title="mod_pagespeed alternative: the maintained, patched module"
+  description="The archived Google module gets no more fixes. mod_pagespeed, the native module plus the optimizer worker, is its maintained, patched continuation."
   jsonLd={jsonLd}
 >
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
-    <header>
-      <h1 class="h1-hero text-text-body">mod_pagespeed alternative</h1>
-      <p class="lede mt-6">
+  <PageHero
+    id="mod-pagespeed-title"
+    width="prose"
+    class="max-w-3xl"
+    title="mod_pagespeed alternative"
+  >
+    <Fragment slot="lede">
+      <p>
         <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code>, the
         open-source web optimization module originally developed at Google, is no longer actively
-        developed. If you're replacing it, mod_pagespeed 2 from We-Amp carries the work forward
-        &mdash; the native module plus the optimizer worker.
+        developed. If you're replacing it, the current mod_pagespeed from We-Amp carries the work
+        forward &mdash; the native module plus the optimizer worker.
       </p>
-      <div class="mt-6 flex flex-wrap gap-3">
-        <a
-          href="/download/"
-          class="btn-primary"
-          data-umami-event="cta_alternatives_modpagespeed_install"
-        >
-          Download &amp; run
-        </a>
-        <a
-          href="/pricing/"
-          data-umami-event="cta_alternatives_modpagespeed_buy"
-          class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-        >
-          Support plans
-        </a>
-      </div>
-      <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
-    </header>
+    </Fragment>
+    <div class="mt-6 flex flex-wrap gap-3">
+      <a
+        href="/download/"
+        class="btn-primary"
+        data-umami-event="cta_alternatives_modpagespeed_install"
+      >
+        Download &amp; run
+      </a>
+      <a
+        href="/pricing/"
+        data-umami-event="cta_alternatives_modpagespeed_buy"
+        class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
+      >
+        Support pricing
+      </a>
+    </div>
+    <p class="mt-3 text-small text-text-annotation">{FREE_TO_RUN_LINE}</p>
+  </PageHero>
 
-    <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
+  <article class="container-prose max-w-3xl pb-16">
+    <div class="prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <p>
         The repository still exists, read-only, at{' '}
         <a
@@ -161,7 +168,7 @@ const jsonLd = [
         Public development going quiet did not mean the work stopped. We-Amp kept PageSpeed
         maintained privately through those years, supporting its commercial IISpeed customers
         without a gap and tracking new compilers, OS releases, and image codecs as they landed. That
-        continuously maintained line is what ships today as mod_pagespeed 2, back in the public
+        continuously maintained line is what ships today as mod_pagespeed, back in the public
         package repositories.
       </p>
 
@@ -192,13 +199,14 @@ const jsonLd = [
         </li>
       </ul>
 
-      <h2>mod_pagespeed 2 &mdash; the native module and the optimizer worker</h2>
+      <h2>The current mod_pagespeed &mdash; the native module and the optimizer worker</h2>
       <p>
-        mod_pagespeed 2 is one product with two moving parts. The native module loads in-process and
-        handles the request; the <code>pagespeed-optimizer</code> worker does the heavy work outside
-        it. The worker reads originals from a shared Cyclone cache, generates up to 37 variants per
-        asset (WebP, AVIF, viewport sizes, pixel densities, save-data, plus SVG for eligible
-        images), and writes them back. The serving side returns cache hits via zero-copy
+        The current mod_pagespeed is one product with two moving parts. The native module loads
+        in-process and handles the request; the <code>pagespeed-optimizer</code> worker does the
+        heavy work outside it. The worker reads originals from a shared Cyclone cache, generates up
+        to 37 variants per asset (WebP, AVIF, viewport sizes, pixel densities, save-data, plus SVG
+        for eligible images), and writes them back. The serving side returns cache hits via
+        zero-copy
         <code>mmap</code>. On the deb and rpm channels the two install and upgrade together as a
         matching pair, and the Apache packages install the configuration that points the module at
         the worker. The nginx module package does not pull the worker in: install
@@ -215,7 +223,7 @@ const jsonLd = [
         <a href="/docs/">Read the docs</a> &middot; <a href="/features/">the full feature set</a>
         &middot;{' '}
         <a href="/pricing/" data-umami-event="cta_alternatives_modpagespeed_buy_docs">
-          Support plans
+          Support pricing
         </a>
       </p>
 
@@ -262,7 +270,7 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
         <thead>
           <tr>
             <th>Your stack</th>
-            <th>How mod_pagespeed 2 installs</th>
+            <th>How mod_pagespeed installs</th>
           </tr>
         </thead>
         <tbody>
@@ -307,11 +315,11 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
 
       <h2>Migration</h2>
       <p>
-        The mod_pagespeed 2 directive surface is the same as 1.13.35.2 &mdash; most installs are a
-        package swap, and the module reports a version mismatch with its worker loudly instead of
-        absorbing it. Container deployments configure the reverse proxy instead, which is a smaller
-        surface than an inline module. See <a href="/docs/getting-started/">getting started</a> for
-        both install paths, and the{' '}
+        The current mod_pagespeed directive surface is the same as 1.13.35.2 &mdash; most installs
+        are a package swap, and the module reports a version mismatch with its worker loudly instead
+        of absorbing it. Container deployments configure the reverse proxy instead, which is a
+        smaller surface than an inline module. See{' '}
+        <a href="/docs/getting-started/">getting started</a> for both install paths, and the{' '}
         <a href="/blog/mod-pagespeed-alternatives/">deeper comparison</a>
         for how it lines up against other tools.
       </p>
@@ -342,7 +350,7 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
           <strong>ASP.NET Core</strong> &mdash;
           <code>dotnet add package WeAmp.PageSpeed.AspNetCore</code> &middot;
           <a href="/docs/aspnet-getting-started/">.NET quickstart</a> &middot;
-          <a href="/pricing/">Support plans</a>
+          <a href="/pricing/">Support pricing</a>
         </li>
       </ul>
 

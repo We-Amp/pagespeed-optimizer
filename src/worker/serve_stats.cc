@@ -120,6 +120,15 @@ static void ZeroCounters(ServeStats* s) {
         &s->serve_hosts_other_optimized_bytes}) {
     std::atomic_ref<uint64_t>(*field).store(0, std::memory_order_relaxed);
   }
+  // Split block: counters, zeroed with the rest.
+  for (ServeStats::SplitCounters* split :
+       {&s->split_html, &s->split_css, &s->split_js, &s->split_image}) {
+    for (uint64_t* field :
+         {&split->original_bytes, &split->compressed_original_bytes,
+          &split->optimized_bytes}) {
+      std::atomic_ref<uint64_t>(*field).store(0, std::memory_order_relaxed);
+    }
+  }
 }
 
 // Read the version word of an existing serve-stats file without mapping it.
@@ -566,6 +575,51 @@ void RecordServeHit(ServeStats* stats, ContentType content_type,
                         mask)) {
     RecordServeHostHit(stats, host, original_bytes, optimized_bytes);
   }
+}
+
+namespace {
+ServeStats::SplitCounters* SplitFor(ServeStats* stats, ContentType type) {
+  switch (type) {
+    case ContentType::kHtml:
+      return &stats->split_html;
+    case ContentType::kCss:
+      return &stats->split_css;
+    case ContentType::kJs:
+      return &stats->split_js;
+    case ContentType::kImage:
+      return &stats->split_image;
+    default:
+      return nullptr;
+  }
+}
+}  // namespace
+
+void RecordServeHitSplit(ServeStats* stats, ContentType content_type,
+                         uint64_t original_bytes,
+                         uint64_t compressed_original_bytes,
+                         uint64_t optimized_bytes, uint32_t mask,
+                         std::string_view host) {
+  if (stats == nullptr) return;
+  ServeStats::SplitCounters* split = SplitFor(stats, content_type);
+  if (split == nullptr) return;
+  RecordServeHit(stats, content_type, original_bytes, optimized_bytes, mask,
+                 host);
+  RelaxedAdd(split->original_bytes, original_bytes);
+  RelaxedAdd(split->compressed_original_bytes, compressed_original_bytes);
+  RelaxedAdd(split->optimized_bytes, optimized_bytes);
+}
+
+ServeStats::SplitCounters ReadServeSplit(const ServeStats* stats,
+                                         ContentType content_type) {
+  ServeStats::SplitCounters out{};
+  if (stats == nullptr) return out;
+  const ServeStats::SplitCounters* split =
+      SplitFor(const_cast<ServeStats*>(stats), content_type);
+  if (split == nullptr) return out;
+  out.original_bytes = LoadRelaxed(split->original_bytes);
+  out.compressed_original_bytes = LoadRelaxed(split->compressed_original_bytes);
+  out.optimized_bytes = LoadRelaxed(split->optimized_bytes);
+  return out;
 }
 
 ServeSavingsByHost ReadServeSavingsByHost(const ServeStats* stats,

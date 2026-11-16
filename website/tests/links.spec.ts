@@ -4,6 +4,7 @@
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from '@playwright/test';
+import { expectErrorPage, isBuiltServer } from './helpers/server-mode';
 
 // Auto-discover first-class Astro routes from src/pages/**/*.astro so that
 // adding a new top-level page immediately gets link-integrity coverage.
@@ -124,14 +125,34 @@ test.describe('Link integrity', () => {
 
   // The real error routes (top-level /404, /500) are excluded from the
   // link-integrity crawl above because they only render on error, but their
-  // HTTP status IS a contract the dev/preview server must honor by basename.
-  // This is the signal the old /error/ assertion was reaching for; assert it
-  // directly against the routes that actually carry it. (Prod maps these via
-  // nginx error_page → the prerendered /error/* pages; that path is smoked at
-  // deploy time, not here.)
+  // HTTP status IS a contract the dev server must honor by basename. This is
+  // the signal the old /error/ assertion was reaching for; assert it directly
+  // against the routes that actually carry it. A built server serves the
+  // prerendered 404 page for every miss, /404 included, with a 404 status.
+  // It has no route that fails, so nothing there answers 500: /500 is a miss
+  // like any other. There the test checks the 500 page production serves
+  // instead (the web server maps 5xx to the prerendered /error/500/ page,
+  // which the built server returns as a plain 200 page).
   test('real error routes return their real status', async ({ page }) => {
+    if (await isBuiltServer(page.request)) {
+      expect((await page.goto('/no-such-page-here/'))?.status()).toBe(404);
+      await expectErrorPage(page, '404');
+      expect((await page.goto('/404'))?.status()).toBe(404);
+      await expectErrorPage(page, '404');
+      expect((await page.goto('/error/500/'))?.status()).toBe(200);
+      await expectErrorPage(page, '500');
+      return;
+    }
     expect((await page.goto('/404'))?.status()).toBe(404);
+    await expectErrorPage(page, '404');
     expect((await page.goto('/500'))?.status()).toBe(500);
+    await expectErrorPage(page, '500');
+    // The trailing-slash variants redirect to the routes above.
+    for (const path of ['/404', '/500']) {
+      const res = await page.request.get(`${path}/`, { maxRedirects: 0 });
+      expect(res.status(), `${path}/`).toBe(301);
+      expect(new URL(res.headers()['location'] ?? '', 'http://x').pathname).toBe(path);
+    }
   });
 
   test('no form actions pointing to missing endpoints', async ({ page }) => {

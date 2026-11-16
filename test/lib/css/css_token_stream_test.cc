@@ -452,4 +452,34 @@ TEST(CssTokenStreamTest, CustomLookalikeInsidePreludeBracketIsNotCustom) {
   ExpectFlags("a{b:fn(x);--y:{;}}", "a{b:fn(x);--y:{}}");
 }
 
+TEST(CssPreservedCommentsTest, ClosedUnterminatedPreservedCommentIsEquivalent) {
+  // The minifier closes a preserved comment that ran to the end of the
+  // input; that exact "*/" tail is not content gain.
+  ExpectEquivalent("/*!", "/*!*/");
+  ExpectEquivalent("a{b:c}/*! open", "a{b:c}/*! open*/");
+  // The exemption is only those two bytes, and only in that case.
+  ExpectFlags("/*!", "/*!x*/");
+  ExpectFlags("a{b:c}/*! open", "a{b:c}/*! open*/ p{q:r}");
+  ExpectFlags("a{b:c}/*! open */", "a{b:c}/*! open */*/");
+  ExpectFlags("a{b:c}", "a{b:c}*/");
+  ExpectFlags("/* plain", "/* plain*/");
+}
+
+TEST(CssPreservedCommentsTest, RestorePreservedCommentsSentinelCountMismatch) {
+  // The pairing is by occurrence order, so a count mismatch (a phase
+  // lost or duplicated a sentinel) must be refused, not guessed at.
+  pagespeed::css::PreservedComments preserved;
+  preserved.sentinel = '\x01';
+  preserved.texts = {"/*! A */", "/*! B */"};
+  std::string out = "stale";
+  EXPECT_FALSE(
+      pagespeed::css::RestorePreservedComments("a\x01{}", preserved, &out));
+  EXPECT_TRUE(out.empty());
+  EXPECT_FALSE(pagespeed::css::RestorePreservedComments("\x01\x01\x01",
+                                                        preserved, &out));
+  EXPECT_TRUE(
+      pagespeed::css::RestorePreservedComments("\x01 \x01", preserved, &out));
+  EXPECT_EQ(out, "/*! A */ /*! B */");
+}
+
 }  // namespace

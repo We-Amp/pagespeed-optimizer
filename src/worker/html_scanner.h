@@ -44,7 +44,25 @@ struct CollectedElement {
 struct StylesheetLink {
   std::string href;
   std::string media;  // media attribute if present
+  // True when the browser may reach first paint without waiting for this
+  // sheet: it is applied by script (an author preload with an onload handler,
+  // or `media=print` with an onload handler) or it stands inside <body>, after
+  // content. Inlined critical CSS may then be the only styling of the fold.
+  bool may_not_block_paint = false;
+  // `media=print` with an onload handler that sets the media: the print-media
+  // trick a page uses to load a screen sheet without blocking render (the
+  // handler sets the media to `all` once the sheet loads), so its rules are
+  // screen rules. A different handler does not make it a screen sheet.
+  bool print_media_swapped_on_load = false;
 };
+
+// The media a <link>'s rules apply under, as the combined stylesheet the
+// critical block is derived from scopes them (CombinedSheetMediaScope in
+// lib/css/css_import_flattener.h): the media attribute, or none for the
+// print-media trick, whose handler applies the sheet to every medium.
+inline std::string_view CombinedSheetMediaOf(const StylesheetLink& link) {
+  return link.print_media_swapped_on_load ? std::string_view() : link.media;
+}
 
 // A stylesheet source as the browser's cascade-layer order sees it, in
 // document order. The sources are exactly the elements the combined-CSS

@@ -13,6 +13,10 @@ with the single combined container below.
 
 Machine-readable recipe for coding agents: [modpagespeed.com/recipes/docker.md](https://modpagespeed.com/recipes/docker.md) (see [Install with a coding agent](/docs/agent-install/)).
 
+Already running the official `nginx` image? The native module installs into it
+from the signed repository: see
+[nginx.org's nginx and the nginx Docker image](/docs/installation-module/#nginxorgs-nginx-and-the-nginx-docker-image).
+
 ## Quick try (one container)
 
 The fastest way to see mod_pagespeed against your own site is the combined
@@ -34,7 +38,7 @@ evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
 independently — see [Run in production](/docs/deployment/) for the hardened
 setup. `:latest` is published only on the combined image — the worker
-and nginx images ship immutable version tags (for example `:2.2.0`).
+and nginx images ship immutable version tags (for example `:X.Y.Z`).
 
 `ACCEPT_EULA=Y` acknowledges the
 [Terms of Service](https://modpagespeed.com/terms/), which govern your use of the
@@ -84,7 +88,7 @@ services:
 
   # Factory Worker — optimizes cached content
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.7.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.8.1
     pid: 'service:pidns'
     environment:
       # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
@@ -100,7 +104,7 @@ services:
 
   # Nginx with PageSpeed module
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.7.0
+    image: ghcr.io/we-amp/pagespeed-nginx:2.8.1
     pid: 'service:pidns'
     ports:
       - '8080:8080'

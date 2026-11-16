@@ -3,7 +3,7 @@
 
 """Python IPC client for the PageSpeed worker Unix socket protocol.
 
-Implements the v5 wire format from src/proto/worker_ipc.h:
+Implements the v6 wire format from src/proto/worker_ipc.h:
   [4B: total_length (big-endian, not including this field)]
   [1B: version = IPC_VERSION]
   [4B: url_length]
@@ -16,6 +16,8 @@ Implements the v5 wire format from src/proto/worker_ipc.h:
   [1B: agent_request (0/1)]
   [4B: option_context_length][option_context]
   [1B: option_signature_length][option_signature]
+  [1B: site_length (0 or 64)][site, lowercase hex]
+  [1B: flags (bit0 host vouched, bit1 from module, bit2 legacy caller)]
 
 The version is checked before any field is read and the daemon accepts
 exactly one value, so a harness left behind on an older version does not
@@ -47,16 +49,21 @@ DEFAULT_MASK = 0xC8
 
 # Notify wire version this harness speaks. Must equal kIpcVersion in
 # src/proto/worker_ipc.h.
-IPC_VERSION = 5
+IPC_VERSION = 6
 
-# The v5 tail: an option context (4-byte length prefix) and its signature
-# (1-byte length prefix), both empty here. The receiver refuses a frame
-# carrying one without the other, so they are emitted together.
-EMPTY_OPTION_CONTEXT = struct.pack(">I", 0) + struct.pack("B", 0)
+# The tail after agent_request: an option context (4-byte length prefix) and
+# its signature (1-byte length prefix), both empty here (v5), then no site
+# (1-byte length 0) and no flags (v6). The receiver refuses a frame carrying
+# a context without its signature, so they are emitted together.
+EMPTY_OPTION_CONTEXT = (
+    struct.pack(">I", 0) + struct.pack("B", 0) + struct.pack("B", 0) + struct.pack("B", 0)
+)
 
 # The same tail as source text, for the notification scripts that are
 # exec'd inside the worker container and cannot import this module.
-EMPTY_OPTION_CONTEXT_EXPR = "struct.pack('>I', 0) + struct.pack('B', 0)"
+EMPTY_OPTION_CONTEXT_EXPR = (
+    "struct.pack('>I', 0) + struct.pack('B', 0) + struct.pack('B', 0) + struct.pack('B', 0)"
+)
 
 # Sentinel values
 WARMUP_SENTINEL = 0xFFFFFFFE
@@ -101,7 +108,7 @@ class IpcClient:
         scheme=2,
         agent_request=False,
     ):
-        """Serialize a CacheNotification to v5 wire format bytes."""
+        """Serialize a CacheNotification to v6 wire format bytes."""
         url_bytes = url.encode("utf-8")
         hostname_bytes = hostname.encode("utf-8")
         # Payload: [1B version][4B url_len][url][4B host_len][hostname][1B ct]
@@ -113,7 +120,7 @@ class IpcClient:
         payload += struct.pack(">I", mask)
         payload += struct.pack("B", int(scheme))
         payload += struct.pack("B", 1 if agent_request else 0)  # agent_request (v4)
-        payload += EMPTY_OPTION_CONTEXT  # option context + signature (v5)
+        payload += EMPTY_OPTION_CONTEXT  # option context + signature (v5), site + flags (v6)
         # Prefix with total length (not including the 4B length field itself)
         return struct.pack(">I", len(payload)) + payload
 

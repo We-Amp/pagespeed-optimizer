@@ -361,6 +361,8 @@ namespace {
 // deeply nested or diamond import patterns.
 constexpr size_t kMaxFlattenedSize = static_cast<size_t>(1024 * 1024);
 
+}  // namespace
+
 // Returns true if a media query string is safe for embedding in
 // @media <value> { ... }.  Rejects characters that enable CSS injection
 // (braces, semicolons, backslash, @), HTML injection (angle brackets),
@@ -390,6 +392,44 @@ bool IsSafeMediaValue(std::string_view media) {
   }
   return paren_depth == 0;
 }
+
+std::optional<std::string_view> CombinedSheetMediaScope(
+    std::string_view media) {
+  const auto is_space = [](char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
+  };
+  while (!media.empty() && is_space(media.front())) media.remove_prefix(1);
+  while (!media.empty() && is_space(media.back())) media.remove_suffix(1);
+  if (media.empty() || net_instaweb::StringCaseEqual(media, "all") ||
+      net_instaweb::StringCaseEqual(media, "screen")) {
+    return std::string_view();
+  }
+  if (!IsSafeMediaValue(media)) return std::nullopt;
+  return media;
+}
+
+size_t MediaScopedCssSize(std::string_view scope, size_t css_size) {
+  // "@media " + scope + "{" + css + "}"
+  return scope.empty() ? css_size : css_size + scope.size() + 9;
+}
+
+bool AppendMediaScopedCss(std::string_view scope, std::string_view css,
+                          std::string* out) {
+  if (scope.empty()) {
+    out->append(css);
+    return true;
+  }
+  if (!IsStructurallyBalanced(css)) return false;
+  out->reserve(out->size() + MediaScopedCssSize(scope, css.size()));
+  out->append("@media ");
+  out->append(scope);
+  out->append("{");
+  out->append(css);
+  out->append("}");
+  return true;
+}
+
+namespace {
 
 // Returns true if an @import condition is not a media query: cascade
 // layers (bare "layer" or "layer(...)") and feature queries
@@ -461,6 +501,58 @@ bool RemainderStartsWithImport(std::string_view css) {
   return false;
 }
 
+// True when the identifier containing the escape at `esc` decodes to
+// "url" and is followed by '(': CSS reads that as a url token, whose
+// body is raw content, while the balance scan would count its braces.
+bool EscapedIdentIsUrlFunction(std::string_view css, size_t esc) {
+  // The longest spelling of "url" is three escapes of nine bytes each
+  // (backslash, six hex digits, CR LF), so an identifier with more bytes
+  // than that before this escape cannot be "url".  The bound also keeps
+  // a long run of escapes linear.
+  constexpr size_t kMaxUrlSpelling = 27;
+  size_t i = esc;
+  while (i > 0 && IsIdentContinue(css[i - 1])) {
+    if (esc - i >= kMaxUrlSpelling) return false;
+    --i;
+  }
+  std::string name;
+  while (i < css.size() && IsIdentContinue(css[i]) && name.size() < 8) {
+    if (css[i] != '\\') {
+      name.push_back(net_instaweb::LowerChar(css[i]));
+      ++i;
+      continue;
+    }
+    ++i;
+    if (i >= css.size()) break;
+    if (std::isxdigit(static_cast<unsigned char>(css[i])) != 0) {
+      unsigned code = 0;
+      int digits = 0;
+      while (i < css.size() && digits < 6 &&
+             std::isxdigit(static_cast<unsigned char>(css[i])) != 0) {
+        char h = css[i];
+        code = code * 16 + static_cast<unsigned>(
+                               h <= '9' ? h - '0' : (h | 0x20) - 'a' + 10);
+        ++i;
+        ++digits;
+      }
+      // One whitespace after a hex escape belongs to the escape.
+      if (i < css.size() &&
+          std::isspace(static_cast<unsigned char>(css[i])) != 0) {
+        if (css[i] == '\r' && i + 1 < css.size() && css[i + 1] == '\n') ++i;
+        ++i;
+      }
+      name.push_back(
+          code < 0x80 ? net_instaweb::LowerChar(static_cast<char>(code)) : '?');
+    } else {
+      name.push_back(net_instaweb::LowerChar(css[i]));
+      ++i;
+    }
+  }
+  return name == "url" && i < css.size() && css[i] == '(';
+}
+
+}  // namespace
+
 // Returns true if `css` can be embedded in another sheet without
 // changing how the surrounding rules parse: every /* comment and every
 // string is terminated, and braces are balanced (depth never negative,
@@ -511,7 +603,19 @@ bool IsStructurallyBalanced(std::string_view css) {
     if (c == '"' || c == '\'') {
       ++pos;
       while (pos < css.size() && css[pos] != c) {
-        if (css[pos] == '\\' && pos + 1 < css.size()) ++pos;
+        // An unescaped newline ends a string early (a bad string), so
+        // the quote this scan is looking for is not the one CSS sees.
+        if (css[pos] == '\n' || css[pos] == '\r' || css[pos] == '\f') {
+          return false;
+        }
+        if (css[pos] == '\\' && pos + 1 < css.size()) {
+          // An escaped newline continues the string; CRLF is one newline.
+          if (css[pos + 1] == '\r' && pos + 2 < css.size() &&
+              css[pos + 2] == '\n') {
+            ++pos;
+          }
+          ++pos;
+        }
         ++pos;
       }
       if (pos >= css.size()) return false;  // Unterminated string.
@@ -519,6 +623,8 @@ bool IsStructurallyBalanced(std::string_view css) {
       continue;
     }
     if (c == '\\') {
+      if (pos + 1 >= css.size()) return false;  // Nothing left to escape.
+      if (EscapedIdentIsUrlFunction(css, pos)) return false;
       pos += 2;  // Escaped code point outside a string.
       continue;
     }
@@ -531,6 +637,8 @@ bool IsStructurallyBalanced(std::string_view css) {
   }
   return depth == 0;
 }
+
+namespace {
 
 // Internal recursive flattener.  All-or-nothing per sheet: any @import
 // that cannot be inlined would land mid-sheet after inlined rules — a

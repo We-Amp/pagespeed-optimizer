@@ -14,7 +14,8 @@ are generated from it:
   every file the sync produced). Sources carry a `GENERATED — DO NOT EDIT
   BY HAND` banner. Any fix belongs in the canonical 1.15 tree first; it
   reaches this repo by re-pinning + re-syncing. Hand edits are never
-  sanctioned — the drift workflow rejects them.
+  sanctioned — the required byte check (`tools/ci/check-kernel-bytes.sh`)
+  rejects them.
 - **2.0-owned (editable):** `compat/` (adaptation headers: StringPiece /
   GoogleString aliases, DCHECK/LOG(DFATAL), RE2 glue), `BUILD`,
   `corpus/BUILD`, `JS_KERNEL_PIN`, `LICENSE.apache-2.0`, this file, and
@@ -62,44 +63,53 @@ are generated from it:
     vs origin/main; equality needs no canonical access, an actual floor
     MOVE verifies ancestry in the canonical repo and fails closed if it is
     unreachable;
-  - the drift workflow's RATCHET step runs the same script as the
-    advisory, path-filtered full diagnosis.
-  Availability dependency (#1117): a floor MOVE fails closed when the
-  canonical 1.15 repo is unreachable from the runner, so a pin bump adds
-  a hard availability dependency — with a broken deploy key or an
-  upstream outage, pin-bump PRs are unmergeable until reachability is
-  restored. Equality (no-bump PRs) needs no canonical access and is
-  unaffected. Scope: the required layer verifies floor/pin LINEAGE only,
-  never the vendored bytes; byte-vs-canonical verification lives in the
-  advisory drift workflow.
+  - the REQUIRED job then runs the byte check, which compares the vendored
+    files with the pinned commit (see "Byte gate" below).
+  Availability dependency (#1117): when the canonical 1.15 repo is
+  unreachable from the runner, the byte check fails closed on every merge
+  queue run and on any pin change, and the floor ratchet fails closed on
+  any floor move. No pull request can land through the queue until
+  reachability is restored. On the pull request run itself, a PR that
+  leaves the pin alone only gets a warning. Scope: the floor ratchet itself
+  verifies floor/pin LINEAGE only; the vendored bytes are verified by the
+  byte check in the same job.
   This holds for changes that arrive via PR under the required check. It
   does NOT constrain an actor who edits the workflows themselves or
-  `tools/ci/check-floor-ratchet.sh` itself (the required job executes the
-  PR's own copy of that script via the `_ci-tools` checkout, so it sits in
-  the same trust class as the workflow files), or an admin pushing directly
-  to main; repo-settings hardening (CODEOWNERS on `.github/` +
-  `lib/js/JS_KERNEL_PIN` + `tools/ci/check-floor-ratchet.sh`, strict
-  required checks including admins) is a separate operator decision,
-  deliberately out of scope here.
-  Convention: routine pin bump → floor moves to the new pin in the same
-  commit; hotfix-valve pin (unmerged 1.15 branch) → floor STAYS at the
-  last merged pin (the unmerged SHA gets orphaned by the 1.15
-  squash-merge and must never become the floor) and moves at
-  reconciliation.
-- **Drift gate:** CI's JS-kernel drift check re-runs the
-  sync on PRs touching `lib/js/**`, pushes to main, weekly, and on
-  dispatch. Any byte difference is RED.
+  `tools/ci/check-floor-ratchet.sh` itself (the job runs the copy in the
+  tree under test, while the job list comes from main), or an admin pushing
+  directly to main. `.github/CODEOWNERS` names
+  `tools/ci/check-kernel-bytes.sh`, the sync and membership scripts and the
+  pin files, so a change to them requests the owner's review; whether
+  that review must complete before a merge is a repository setting, not
+  something this job enforces. A diff
+  touching these files is a stop for reviewers.
+  `tools/ci/check-floor-ratchet.sh` and the workflow files are not listed.
+  Convention: a pin bump moves the floor to the new pin in the same commit.
+- **Byte gate:** the REQUIRED `js-kernel-differential` job runs
+  `tools/ci/check-kernel-bytes.sh`, i.e. `tools/sync-js-kernel.sh --check`
+  against a full clone of the canonical repository, on every pull request,
+  merge queue run and dispatch, and on a push to main unless the merge
+  queue already proved that commit (`CI_SCOPE`, `docs/ci/pipelines.md`).
+  There is no path filter. It compares with the PINNED commit, not the
+  canonical head. Any byte difference, planted file or pin/floor/ancestry
+  problem is RED, and the error repeats up to six of the sync tool's
+  `DRIFT`, `RED` and `ERROR` lines. The clone is retried a bounded number
+  of times, with a per-attempt timeout where `timeout` is available, and
+  its log is kept in the job output; after a successful clone the compare
+  makes no network call, so a git fatal error there (exit 128) fails like
+  any other tool failure. Clone failed after the retries: WARN only on a
+  pull request that leaves the pin unchanged; FAIL on a pin bump, on any
+  other event, or when a pin cannot be read.
 - **Behavior gate:** the `js-kernel-differential` job in
   `.github/workflows/pipeline-pr.yml` (required check `pr / JS Kernel
   Differential (vendored goldens)`, called from `ci.yml`) runs on every pull
   request, with no path filter. It builds `corpus/js_minify_probe` and
   verifies `corpus/goldens/manifest.json` (`gen_goldens.py --check`). The manifest is byte-shared with the 1.15
   repo — one expectation gates both.
-- **Hotfix valve:** a pin on a pushed-but-unmerged 1.15 branch is allowed
-  only via `SYNC_ALLOW_UNMERGED_PIN` (drift workflow honors it on
-  pull_request events when `JS_KERNEL_PIN` carries an `# allow-unmerged`
-  marker line). 1.15 squash-merges orphan such SHAs: reconciliation is
-  ALWAYS re-pin to the squashed master commit + an expected no-op re-sync.
+- **Pin rule:** the pin must be a MERGED commit of the canonical 1.15
+  master. The sync tool refuses a commit on an unmerged branch (exit 4) and
+  one the canonical does not have (exit 3). There is no override. To take
+  a canonical fix, merge it in 1.15 first, then re-pin.
 
 ## Carve-outs (and their limits)
 

@@ -14,7 +14,15 @@
 // novel filter set returns pass-through HTML and the rewritten variant only
 // appears once the worker has processed it. We therefore poll the "after" URL
 // until the body both differs from the "before" body and is stable across two
-// consecutive fetches. This run also serves as a cache warm-up for those URLs.
+// consecutive fetches, backing off between polls so a slow rewrite gets a longer
+// window for the same number of requests. This run also serves as a cache
+// warm-up for those URLs.
+//
+// When the body does not settle with the default user agent, the after page is
+// polled once more as a desktop browser: several filters (lazyload_images,
+// defer_javascript, the beacon filters) only act for a browser user agent.
+// settle-status.mjs then records why an example has or lacks a diff as its
+// `status` (settled | header | beacon | not-applied | unsettled); see README.md.
 //
 // Usage (Node >= 22, run after the demo backend is deployed):
 //   node tools/examples-gallery/generate.mjs
@@ -24,6 +32,13 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { writeFileSync } from "node:fs";
+import { extractResources } from "./extract-resources.mjs";
+import { resourceFetchUrl } from "./resource-fetch-url.mjs";
+import {
+  classifySettle,
+  legacyStatus,
+  materialSignature,
+} from "./settle-status.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WEBSITE = resolve(__dirname, "../../website");
@@ -35,8 +50,15 @@ const { EXAMPLES, DEMO_ORIGIN, beforeUrl, afterUrl } = await import(
 const OUT = resolve(WEBSITE, "src/data/examples-data.json");
 
 // ---- tunables --------------------------------------------------------------
-const POLL_ATTEMPTS = 20; // max polls waiting for async rewrite to settle
-const POLL_INTERVAL = 1500; // ms between polls
+const POLL_ATTEMPTS = 12; // max polls waiting for async rewrite to settle
+const BROWSER_POLL_ATTEMPTS = 6; // max polls of the browser-UA retry
+const POLL_INTERVAL = 1000; // ms before the second poll ...
+const POLL_BACKOFF = 1.5; // ... growing by this factor ...
+const POLL_INTERVAL_MAX = 8000; // ... up to this (12 polls span about 60 s)
+// A current desktop browser, for filters that act only for one.
+const BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 const MAX_DIFF_LINES = 120; // cap source-diff length stored per example
 const MAX_BODY_CHARS = 8000; // cap raw HTML stored per side
 const MAX_RESOURCE_BYTES = 8 * 1024 * 1024; // skip absurdly large subresources
@@ -48,11 +70,10 @@ const ONLY =
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function fetchText(url) {
-  const res = await fetch(url, {
-    headers: { "Accept-Encoding": "identity", "Accept": "image/avif,image/webp,*/*" },
-    redirect: "follow",
-  });
+async function fetchText(url, userAgent) {
+  const headers = { "Accept-Encoding": "identity", "Accept": "image/avif,image/webp,*/*" };
+  if (userAgent) headers["User-Agent"] = userAgent;
+  const res = await fetch(url, { headers, redirect: "follow" });
   const body = await res.text();
   return { status: res.status, headers: res.headers, body };
 }
@@ -72,31 +93,14 @@ async function fetchBytes(url) {
   }
 }
 
-// Extract subresource URLs (stylesheets, scripts, images) as absolute URLs.
-function extractResources(html, pageUrl) {
-  const urls = new Set();
-  const add = (raw) => {
-    if (!raw || raw.startsWith("data:") || raw.startsWith("javascript:"))
-      return;
-    try {
-      urls.add(new URL(raw, pageUrl).href);
-    } catch {
-      /* ignore unparseable */
-    }
-  };
-  const re =
-    /<(?:link[^>]+href|script[^>]+src|img[^>]+src)\s*=\s*["']([^"']+)["']/gi;
-  let m;
-  while ((m = re.exec(html)) !== null) add(m[1]);
-  return [...urls];
-}
-
 async function measure(html, pageUrl) {
   const resources = extractResources(html, pageUrl);
   let resourceBytes = 0;
   let counted = 0;
   for (const u of resources) {
-    const b = await fetchBytes(u);
+    // Unchanged URLs are fetched with optimization off on both sides; see
+    // resource-fetch-url.mjs.
+    const b = await fetchBytes(resourceFetchUrl(u, ORIGIN));
     if (b != null) {
       resourceBytes += b;
       counted++;
@@ -245,15 +249,25 @@ function canonicalizeForDiff(html) {
   return out;
 }
 
-async function pollAfter(beforeBody, url) {
+async function pollAfter(beforeBody, url, { userAgent = "default", attempts = POLL_ATTEMPTS } = {}) {
+  const ua = userAgent === "browser" ? BROWSER_UA : undefined;
+  const started = Date.now();
   let last = null;
+  let lastHeaders = {};
+  let lastStatus = 200;
   let lastDiffered = false;
-  for (let attempt = 1; attempt <= POLL_ATTEMPTS; attempt++) {
-    const { status, headers, body } = await fetchText(url);
-    const psHeader =
-      headers.get("x-mod-pagespeed") || headers.get("x-page-speed") || "";
+  let everDiffered = false;
+  let changedBody = null;
+  let interval = POLL_INTERVAL;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const { status, headers, body } = await fetchText(url, ua);
     const differs = body !== beforeBody;
     const stable = last !== null && body === last;
+    everDiffered ||= differs;
+    if (differs) changedBody = body;
+    last = body;
+    lastHeaders = Object.fromEntries(headers);
+    lastStatus = status;
     // Settle once the optimized body has differed from the original for two
     // consecutive polls. `stable` (byte-identical) catches resource-rewriting
     // filters once the async cache warms; `lastDiffered` catches HTML-injection
@@ -261,20 +275,31 @@ async function pollAfter(beforeBody, url) {
     // whose injected markup carries a per-request nonce/beacon, so it never
     // byte-stabilizes but is unambiguously applied after the first differing poll.
     if (differs && (stable || lastDiffered)) {
-      return { status, body, psHeader, attempts: attempt, settled: true };
+      return pollResult(true, attempt);
     }
-    last = body;
     lastDiffered = differs;
-    if (attempt < POLL_ATTEMPTS) await sleep(POLL_INTERVAL);
+    if (attempt < attempts) {
+      await sleep(interval);
+      interval = Math.min(interval * POLL_BACKOFF, POLL_INTERVAL_MAX);
+    }
   }
   // Did not settle into a stable, different state; return the last we saw.
-  return {
-    status: 200,
-    body: last ?? beforeBody,
-    psHeader: "",
-    attempts: POLL_ATTEMPTS,
-    settled: false,
-  };
+  return pollResult(false, attempts);
+
+  function pollResult(settled, n) {
+    return {
+      userAgent,
+      settled,
+      everDiffered,
+      status: lastStatus,
+      body: last ?? beforeBody,
+      changedBody,
+      headers: lastHeaders,
+      psHeader: lastHeaders["x-mod-pagespeed"] || lastHeaders["x-page-speed"] || "",
+      attempts: n,
+      windowMs: Date.now() - started,
+    };
+  }
 }
 
 function trim(s) {
@@ -309,7 +334,19 @@ async function run() {
         out.examples[ex.slug] = { error: `before HTTP ${before.status}` };
         continue;
       }
-      const after = await pollAfter(before.body, aUrl);
+      const beforeSide = { body: before.body, headers: Object.fromEntries(before.headers) };
+      const polls = [await pollAfter(before.body, aUrl)];
+      let verdict = classifySettle(beforeSide, polls);
+      if (verdict.status === "not-applied" || verdict.status === "unsettled") {
+        polls.push(
+          await pollAfter(before.body, aUrl, {
+            userAgent: "browser",
+            attempts: BROWSER_POLL_ATTEMPTS,
+          }),
+        );
+        verdict = classifySettle(beforeSide, polls);
+      }
+      const after = { ...polls[verdict.poll], body: verdict.body };
 
       const beforeMetrics = await measure(before.body, bUrl);
       const afterMetrics = await measure(after.body, aUrl);
@@ -324,12 +361,17 @@ async function run() {
       );
 
       out.examples[ex.slug] = {
-        settled: after.settled,
+        status: verdict.status,
+        settled: verdict.settled,
+        statusEvidence: verdict.evidence,
         attempts: after.attempts,
         psHeader: after.psHeader,
         before: { html: trim(before.body), ...beforeMetrics },
         after: { html: trim(after.body), ...afterMetrics },
-        savings: {
+        // Figures only for a settled capture: for any other status the after
+        // page is not the filter's effect (an instrumented first visit, or
+        // the original), so its numbers would mislead.
+        savings: !verdict.settled ? null : {
           htmlBytesPct: pct(beforeMetrics.htmlBytes, afterMetrics.htmlBytes),
           requests: beforeMetrics.requestCount - afterMetrics.requestCount,
           resourceBytesPct: pct(
@@ -345,8 +387,10 @@ async function run() {
       };
       const s = out.examples[ex.slug].savings;
       console.log(
-        `${after.settled ? "ok" : "UNSETTLED"} (${after.attempts}x)  ` +
-          `reqs ${s.requests >= 0 ? "-" : "+"}${Math.abs(s.requests)}  bytes -${s.totalBytesPct}%`,
+        `${verdict.status} (${verdict.evidence.requests}x, ${verdict.evidence.userAgent} UA)` +
+          (s
+            ? `  reqs ${s.requests >= 0 ? "-" : "+"}${Math.abs(s.requests)}  bytes -${s.totalBytesPct}%`
+            : ""),
       );
     } catch (err) {
       console.log(`ERROR ${err.message}`);
@@ -368,6 +412,14 @@ async function run() {
   if (ONLY && prev) {
     out.examples = { ...prev.examples, ...out.examples };
   }
+  // Entries from before `status` existed get one derived from their stored
+  // capture, so every entry carries it.
+  for (const entry of Object.values(out.examples)) {
+    if (entry.error || entry.status) continue;
+    entry.status = legacyStatus(entry);
+    entry.settled = entry.status === "settled";
+    if (!entry.settled) entry.savings = null;
+  }
 
   // Measuring a live, async, cache-stateful backend is jittery: poll `attempts`
   // and the summed subresource byte counts vary run-to-run even when nothing
@@ -376,23 +428,8 @@ async function run() {
   // none of those changed, leave the file byte-identical so the scheduled refresh
   // (refresh-examples-gallery.yml) only opens a PR on a real change — not on
   // measurement noise. (cf. the dep-scan daily cron, fixed to stop timestamp churn.)
-  const materialSig = (examples) =>
-    JSON.stringify(
-      Object.fromEntries(
-        Object.entries(examples)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([k, v]) => [
-            k,
-            v.error
-              ? { error: v.error }
-              : {
-                  settled: v.settled,
-                  requests: v.savings?.requests,
-                  diff: v.diff,
-                },
-          ]),
-      ),
-    );
+  // See materialSignature in settle-status.mjs.
+  const materialSig = materialSignature;
   if (
     prev &&
     prev.origin === out.origin &&
@@ -405,16 +442,16 @@ async function run() {
   }
 
   writeFileSync(OUT, JSON.stringify(out, null, 2) + "\n");
-  const ok = Object.values(out.examples).filter(
-    (e) => !e.error && e.settled,
-  ).length;
-  const unsettled = Object.values(out.examples).filter(
-    (e) => !e.error && !e.settled,
-  ).length;
-  const errs = Object.values(out.examples).filter((e) => e.error).length;
+  const counts = {};
+  for (const e of Object.values(out.examples)) {
+    const k = e.error ? "error" : e.status;
+    counts[k] = (counts[k] || 0) + 1;
+  }
   console.log(`\nWrote ${OUT}`);
-  console.log(`  settled: ${ok}  unsettled: ${unsettled}  errors: ${errs}`);
-  if (unsettled || errs) {
+  console.log(
+    "  " + Object.entries(counts).map(([k, n]) => `${k}: ${n}`).join("  "),
+  );
+  if (counts.unsettled || counts.error) {
     console.log(
       "  (unsettled/errored entries still render from whatever was captured)",
     );

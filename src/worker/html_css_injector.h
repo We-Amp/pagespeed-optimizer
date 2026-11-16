@@ -53,6 +53,39 @@ size_t FindOutsideCommentsAndRawText(std::string_view html,
 
 }  // namespace html_scan
 
+// Text that goes between <style> and </style> in an HTML document is raw text
+// to a browser: only `</style` ends it. The critical block is held to more
+// than that, because a browser can read the inserted element in a tokenizer
+// state the serve path's parser does not model (a short comment, a CDATA
+// section in HTML content, raw text in <noscript>): the block's text must not
+// hold a `<` that could open markup, which is a `<` then an ASCII letter, `/`,
+// `!` or `?`. These two functions keep it so.
+//
+// CSS writes such a `<` mostly inside strings (Tailwind CSS v4's `@property`
+// rules carry `syntax: "<color>"`) and comments, where it can be written
+// another way: EscapeLessThanForStyleElement rewrites every `<` in a string,
+// in a comment, and every `\<` escape, as the CSS escape `\3c ` (the space
+// ends the escape and is not part of the value). The string's value and the
+// rule's meaning are unchanged. Outside strings and comments a `<` is left as
+// it is: a bare one is a delimiter (range media queries, `width<600px`), and
+// one that opens markup is not valid CSS there, which
+// CssOpensMarkupOutsideStrings reports so the caller can refuse the block.
+//
+// The tokenizing follows CSS Syntax Level 3: a string ends at its quote or at
+// an unescaped newline, a backslash escapes the next character (a newline
+// after one, in a string, continues it), and `/*` opens a comment that ends
+// at `*/`. Should it ever read a string boundary differently from a browser,
+// the output still holds no `<` that opens markup: every `<` it keeps was
+// checked by CssOpensMarkupOutsideStrings, and the rewrite only removes `<`.
+
+// True when `css` holds, outside its strings and comments, a `<` then an
+// ASCII letter, `/`, `!` or `?`. Such a block is refused.
+bool CssOpensMarkupOutsideStrings(std::string_view css);
+
+// `css` with every `<` inside a string or a comment, and every `\<`, written
+// as `\3c `. Every other byte is copied as it is.
+std::string EscapeLessThanForStyleElement(std::string_view css);
+
 // Result of CSS injection into HTML.
 struct CssInjectionResult {
   bool success = false;
@@ -111,8 +144,12 @@ size_t CriticalCssFallbackOffset(std::string_view html);
 bool CriticalCssNamesCascadeLayer(std::string_view css);
 
 // As InjectCriticalCss, but at byte offset `pos` of `html` (0 <= pos <=
-// html.size()), with the same sanitization and the same `</style` refusal
-// (success=true, injected=false, empty html). Fails when `pos` is past the
+// html.size()), with the same sanitization (NUL bytes dropped, then
+// EscapeLessThanForStyleElement, as the serve path writes the block) and the
+// same `</style` refusal outside strings and comments (inside them it is
+// rewritten as `\3c /style`): success=true, injected=false, empty html. It
+// does not apply CssOpensMarkupOutsideStrings; the validator checks the
+// candidate block with it before calling this. Fails when `pos` is past the
 // end. The caller owns the choice of position: this does no scanning.
 CssInjectionResult InjectCriticalCssAt(std::string_view html, size_t pos,
                                        std::string_view critical_css);

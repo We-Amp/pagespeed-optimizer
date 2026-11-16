@@ -2,7 +2,7 @@
 import { ORGANIZATION_PUBLISHER } from '../data/organization';
 import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import SectionHeader from '../components/instrument/SectionHeader.astro';
+import PageHero from '../components/PageHero.astro';
 import { PSI_MPS_MAPPING, type AuditMapping, type Coverage } from '../data/psi-mps-mapping';
 import { MAX_VARIANTS, FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
 
@@ -161,21 +161,20 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
   jsonLd={[articleJsonLd, faqJsonLd]}
   breadcrumbLeafName="PageSpeed Insights"
 >
-  <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+  <PageHero
+    id="psi"
+    width="prose"
+    eyebrow="Lighthouse audit reference"
+    title="Improve your PageSpeed Insights score at the server layer"
+  >
+    <nav slot="before" class="mb-6 text-small text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">
         Home
       </a>
       <span class="mx-1">/</span>
       <span>PageSpeed Insights</span>
     </nav>
-
-    <SectionHeader
-      id="psi"
-      as="h1"
-      eyebrow="Lighthouse audit reference"
-      title="Improve your PageSpeed Insights score at the server layer"
-    >
+    <Fragment slot="lede">
       <p>
         PageSpeed Insights runs the Lighthouse audits and reports which ones a page fails. Some of
         those failures are delivery problems that live below your application &mdash;
@@ -186,8 +185,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         <span class="text-text-muted">client-side</span>, and links a real before/after for the ones
         it fixes.
       </p>
-    </SectionHeader>
-
+    </Fragment>
     <div class="mt-8 flex flex-wrap gap-3">
       <a href="/analyze/" class="btn-primary" data-umami-event="cta_psi_analyze_hero">
         Analyze a page
@@ -204,9 +202,11 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       </a>{' '}
       calls Google's public PageSpeed Insights API and reports its results.
     </p>
+  </PageHero>
 
+  <article class="container-prose pb-16">
     <!-- Lab vs field framing -->
-    <section class="mt-14">
+    <section>
       <h2 class="h2-section text-text-body">Lab score versus field data</h2>
       <p class="mt-4 text-text-body">
         A PageSpeed Insights report has two halves, and it matters which one you optimize toward.
@@ -307,7 +307,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
                   </th>
                   <td class="px-3 py-4">
                     <span
-                      class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${badge.cls}`}
+                      class={`inline-flex items-center rounded-md px-2 py-0.5 text-micro font-semibold uppercase tracking-wide ${badge.cls}`}
                     >
                       {badge.label}
                     </span>
@@ -364,11 +364,11 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
           .map((m) => {
             const ex = auditExamples[m.auditId];
             return (
-              <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+              <div class="rounded-card border border-border bg-bg-elevated p-6">
                 <div class="flex flex-wrap items-center gap-3">
                   <h3 class="font-semibold text-text-body">{m.auditTitle}</h3>
                   <span
-                    class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${coverageBadge.full.cls}`}
+                    class={`inline-flex items-center rounded-md px-2 py-0.5 text-micro font-semibold uppercase tracking-wide ${coverageBadge.full.cls}`}
                   >
                     Auto-fix
                   </span>
@@ -436,7 +436,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         your application logic, so the audits below are out of scope. No server-layer module can fix
         INP for you; the fix is in your event handlers and framework code.
       </p>
-      <div class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6">
+      <div class="mt-8 rounded-card border border-accent/40 bg-accent-wash p-6">
         <dl class="space-y-5">
           {clientSide.map((m) => (
             <div>
@@ -464,7 +464,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
 
     <!-- CTA -->
     <section>
-      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
+      <div class="rounded-card border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Score your own page first</h2>
         <p class="mt-3 text-text-body">
           Run a URL through our analyzer &mdash; it scores the page via Google's PageSpeed Insights

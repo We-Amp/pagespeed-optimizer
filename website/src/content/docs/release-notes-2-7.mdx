@@ -3,19 +3,19 @@ title: 'Release notes: 2.7'
 description: 'mod_pagespeed 2.7.0 release notes: security fixes, including issues found by Anthropic''s OSS Scanner, and no version in response headers by default.'
 order: 75
 group: 'Release notes by line'
-lastUpdated: 2026-11-01
+lastUpdated: 2026-11-05
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 
 <ReleaseNotesDeepLink />
 
-mod_pagespeed 2.7.0 is the current release: the module and the optimizer worker, released together on 2026-11-01 and installed as a matching pair. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+mod_pagespeed 2.7 was released as 2.7.0 on 2026-11-01: the module and the optimizer worker together, installed as a matching pair. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
 
-<span id="v2-7-0" class="rn-alias" aria-hidden="true"></span>
-<div class="rn-entry rn-entry-current">
+## Releases
 
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.7.0</span> <span class="rn-date">2026-11-01</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<details id="v2-7-0" class="rn-entry">
+<summary><span class="rn-ver">2.7.0</span> <span class="rn-date">2026-11-01</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Security update, released together with the optimizer worker: fixes in the rewriter, the optimization cache, the nginx port, the IIS module, the admin console, response caching, zero-copy serving on nginx and the ASP.NET Core package, including issues found by Anthropic's OSS Scanner. Response headers no longer include the product version by default. Update recommended.</span></summary>
 
 **Release date:** 2026-11-01
 
@@ -521,4 +521,4 @@ _ASP.NET Core package_
 - **Statistics:** `zerocopy_serve_stall_timeouts` (nginx) and
   `ipro_daemon_served_original_only`.
 
-</div>
+</details>

@@ -63,16 +63,26 @@ public sealed class WorkerNotificationService : BackgroundService
 
     /// <summary>
     /// Enqueue a notification (non-blocking, drops oldest on overflow).
+    /// <paramref name="hostVouched"/> says that the caller checked
+    /// <paramref name="hostname"/> against the names the site serves; only
+    /// then does the worker run the work that fetches from that host (the
+    /// agent render and the llms.txt build). It defaults to unvouched.
     /// </summary>
     public bool TryNotify(
         string url, string hostname, string scheme,
-        PageSpeedContentType contentType, uint mask, bool agentRequest = false)
+        PageSpeedContentType contentType, uint mask, bool agentRequest = false,
+        bool hostVouched = false)
     {
         if (scheme != "http" && scheme != "https") return false;
 
         return _channel.Writer.TryWrite(
-            new WorkerNotification(url, hostname, scheme, contentType, mask, agentRequest));
+            new WorkerNotification(
+                url, hostname, scheme, contentType, mask, agentRequest,
+                hostVouched));
     }
+
+    /// <summary>Notifications queued and not yet sent (tests).</summary>
+    internal int PendingCount => _channel.Reader.Count;
 
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(
@@ -136,12 +146,15 @@ public sealed class WorkerNotificationService : BackgroundService
     // Wire protocol version — MUST match the worker's src/proto/worker_ipc.h
     // kIpcVersion. The reader rejects any other version outright (no
     // cross-version tolerance), so this is bumped in lockstep with the C++ side.
-    private const byte IpcVersion = 5;
+    private const byte IpcVersion = 6;
+
+    // v6 flags bit 0, PS_NOTIFY_FLAG_HOST_VOUCHED in pagespeed.h.
+    private const byte FlagHostVouched = 0x01;
 
     /// <summary>
     /// Serializes and sends a notification over the persistent socket.
-    /// Wire format (big-endian, v5 — matches worker_ipc.h):
-    ///   [4: total_length][1: version=5][4: url_length][url][4: host_length][host][1: ct][4: mask][1: scheme_byte][1: agent_request][4: option_context_length][option_context][1: option_signature_length][option_signature]
+    /// Wire format (big-endian, v6 — matches worker_ipc.h):
+    ///   [4: total_length][1: version=6][4: url_length][url][4: host_length][host][1: ct][4: mask][1: scheme_byte][1: agent_request][4: option_context_length][option_context][1: option_signature_length][option_signature][1: site_length][site][1: flags]
     /// total_length covers everything after itself (version + fields).
     /// scheme_byte: 0x01 = http, 0x02 = https (matches C++ IpcScheme).
     /// agent_request: 0/1 (the markdown-render demand bit).
@@ -157,6 +170,13 @@ public sealed class WorkerNotificationService : BackgroundService
     /// together; a payload without a signature is refused by the reader,
     /// because the signature can only be checked against the payload it came
     /// with, and that check is the point of carrying it.
+    ///
+    /// The v6 site is emitted EMPTY: this middleware has no site id, so its
+    /// entries stay in the unsited keyspace. The flags byte carries only
+    /// HOST_VOUCHED (0x01), set when the middleware checked the host name
+    /// against AllowedHosts; the worker runs the agent render and the
+    /// llms.txt build only for such a notification. FROM_MODULE and the
+    /// library-only bit are never set here.
     /// </summary>
     private async ValueTask SendNotificationAsync(
         string socketPath, WorkerNotification n,
@@ -166,12 +186,13 @@ public sealed class WorkerNotificationService : BackgroundService
 
         var urlByteCount = Encoding.UTF8.GetByteCount(n.Url);
         var hostByteCount = Encoding.UTF8.GetByteCount(n.Hostname);
-        // v5 payload after total_length: version(1) + url_len(4) + url +
+        // v6 payload after total_length: version(1) + url_len(4) + url +
         // host_len(4) + host + ct(1) + mask(4) + scheme(1) + agent_request(1)
         // + option_context_len(4) + option_context(0) + option_sig_len(1)
-        // + option_signature(0)
+        // + option_signature(0) + site_len(1) + site(0) + flags(1)
         var payloadLen =
-            1 + 4 + urlByteCount + 4 + hostByteCount + 1 + 4 + 1 + 1 + 4 + 1;
+            1 + 4 + urlByteCount + 4 + hostByteCount + 1 + 4 + 1 + 1 + 4 + 1
+            + 1 + 1;
         // total on wire: total_length(4) + payload
         var totalLen = 4 + payloadLen;
         var buffer = new byte[totalLen];
@@ -203,6 +224,10 @@ public sealed class WorkerNotificationService : BackgroundService
         // context has an obvious place to go.
         BinaryPrimitives.WriteInt32BigEndian(span[(offset + 7)..], 0);
         span[offset + 11] = 0;
+        // site_length (v6) = 0: no site. flags (v6): HOST_VOUCHED (bit 0)
+        // when the host was checked, nothing else (not the module).
+        span[offset + 12] = 0;
+        span[offset + 13] = n.HostVouched ? FlagHostVouched : (byte)0;
 
         try
         {
@@ -432,5 +457,6 @@ public sealed class WorkerNotificationService : BackgroundService
     // Value type: stored inline in Channel segments, avoids heap allocation.
     private readonly record struct WorkerNotification(
         string Url, string Hostname, string Scheme,
-        PageSpeedContentType ContentType, uint Mask, bool AgentRequest);
+        PageSpeedContentType ContentType, uint Mask, bool AgentRequest,
+        bool HostVouched);
 }

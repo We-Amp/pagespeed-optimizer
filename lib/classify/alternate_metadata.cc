@@ -8,6 +8,9 @@
 #include <string>
 #include <string_view>
 
+#include "lib/classify/alternate_id.h"
+#include "lib/classify/capability_mask.h"
+
 namespace pagespeed {
 namespace {
 
@@ -40,9 +43,12 @@ void ParseCacheControlFields(AlternateMetadata& meta,
 void ParseV4Fields(AlternateMetadata& meta, std::span<const std::byte> data,
                    size_t suffix_offset) {
   std::memcpy(&meta.ssimulacra2_score_x100, &data[suffix_offset + 14], 2);
-  // Clamp out-of-range scores to N/A (valid: 0-10000 or kScoreNA).
-  if (meta.ssimulacra2_score_x100 > 10000 &&
-      meta.ssimulacra2_score_x100 != AlternateMetadata::kScoreNA) {
+  // Clamp out-of-range scores to N/A (valid: 0-10000 or kScoreNA).  A gzip/brotli
+  // coded entry keeps its raw value: there it is an encoded-size code, not a score
+  // (see AlternateMetadata::kEncodedRatioBase).
+  if (meta.ssimulacra2_score_x100 > AlternateMetadata::kMaxScoreX100 &&
+      meta.ssimulacra2_score_x100 != AlternateMetadata::kScoreNA &&
+      !meta.IsEncodedVariant()) {
     meta.ssimulacra2_score_x100 = AlternateMetadata::kScoreNA;
   }
   meta.content_class = static_cast<uint8_t>(data[suffix_offset + 16]);
@@ -231,6 +237,57 @@ std::vector<std::byte> AlternateMetadata::Serialize() const {
   return result;
 }
 
+bool AlternateMetadata::IsEncodedVariant() const {
+  const auto enc = CapabilityMask::Decode(full_mask).transfer_encoding();
+  return enc == CapabilityMask::TransferEncoding::kGzip ||
+         enc == CapabilityMask::TransferEncoding::kBrotli;
+}
+
+std::optional<uint32_t> AlternateMetadata::EncodedOriginLength() const {
+  if (origin_content_length == 0) return std::nullopt;
+  if (!IsEncodedVariant()) return origin_content_length;
+  if (ssimulacra2_score_x100 < kEncodedRatioBase ||
+      ssimulacra2_score_x100 == kScoreNA) {
+    return std::nullopt;
+  }
+  const uint64_t code = ssimulacra2_score_x100 - kEncodedRatioBase;
+  const uint64_t encoded =
+      (code * origin_content_length + kEncodedRatioScale / 2) /
+      kEncodedRatioScale;
+  if (encoded > UINT32_MAX) return std::nullopt;
+  return static_cast<uint32_t>(encoded);
+}
+
+void AlternateMetadata::ClearEncodedOriginLength() {
+  if (IsEncodedVariant()) ssimulacra2_score_x100 = kScoreNA;
+}
+
+void AlternateMetadata::SetEncodedOriginLength(uint64_t encoded_bytes) {
+  if (!IsEncodedVariant()) return;
+  ssimulacra2_score_x100 = kScoreNA;
+  if (origin_content_length == 0) return;
+  const uint64_t code =
+      (encoded_bytes * kEncodedRatioScale + origin_content_length / 2) /
+      origin_content_length;
+  if (code <= static_cast<uint64_t>(kScoreNA - 1 - kEncodedRatioBase)) {
+    ssimulacra2_score_x100 = static_cast<uint16_t>(kEncodedRatioBase + code);
+  }
+}
+
+bool AlternateMetadata::IsRetired(std::span<const std::byte> data) {
+  // version, full_mask (4 bytes LE), content_type, flags.
+  if (data.size() < 7) return false;
+  const auto version = static_cast<uint8_t>(data[0]);
+  if (version < 3 || version >= 9) return false;
+  // Every HTML entry, whoever wrote it.
+  const auto content_type = static_cast<uint8_t>(data[5]);
+  if (content_type == static_cast<uint8_t>(ContentType::kHtml)) return true;
+  // The Markdown version of a page, written by the worker.
+  const auto mask_low_byte = static_cast<uint8_t>(data[1]);
+  return (static_cast<uint8_t>(data[6]) & kFlagWorkerProcessed) != 0 &&
+         mask_low_byte == static_cast<uint8_t>(SentinelId::kAgentMarkdown);
+}
+
 std::optional<AlternateMetadata> AlternateMetadata::Deserialize(
     std::span<const std::byte> data) {
   // Require at least the fixed prefix.
@@ -262,6 +319,12 @@ std::optional<AlternateMetadata> AlternateMetadata::Deserialize(
 
   // Flags byte.
   meta.flags = static_cast<uint8_t>(data[6]);
+
+  // HTML pages and Markdown versions of pages below version 9 read as a MISS,
+  // so every reader rebuilds them; CSS, images and the rest stay readable.
+  if (IsRetired(data)) {
+    return std::nullopt;
+  }
 
   // Origin content-type length (little-endian).
   uint16_t ct_len = 0;

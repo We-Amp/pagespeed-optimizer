@@ -32,6 +32,7 @@ gtest_test(
         "testdata/alternate_metadata_fixtures.h",
     ],
     deps = [
+        "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",
     ],
 )

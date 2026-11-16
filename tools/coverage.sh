@@ -15,15 +15,15 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-TARGETS="${@:-//...}"
+TARGETS=("${@:-//...}")
 OUTPUT_DIR="$PROJECT_ROOT/coverage-html"
 
-echo "=== Running coverage: $TARGETS ==="
+echo "=== Running coverage: ${TARGETS[*]} ==="
 cd "$PROJECT_ROOT"
 
 # Some tests may fail (e.g. browser tests needing Chrome); we still
 # generate the report from whatever coverage data was collected.
-bazel coverage "$TARGETS" || true
+bazel coverage "${TARGETS[@]}" || true
 
 LCOV_REPORT="$(bazel info output_path)/_coverage/_coverage_report.dat"
 
@@ -39,18 +39,30 @@ if command -v genhtml &>/dev/null; then
     # Strip ML-generated predictor code (287K lines, not meaningful to cover).
     # lcov v2 returns non-zero on inconsistency warnings even with --ignore-errors,
     # so we ignore exit code and fall back only if the output file is empty/missing.
+    #
+    # The 'inconsistent' and 'unmapped' error names exist only in lcov 2.x and
+    # later; on lcov 1.x genhtml exits with "unknown argument for
+    # --ignore-errors" when it sees them. Detect the major version once and
+    # pass these options only when supported.
+    LCOV_MAJOR="$(lcov --version 2>/dev/null | head -1 | awk '{print $NF}' | cut -d. -f1)"
+    LCOV_IGNORE=()
+    GENHTML_IGNORE=()
+    if [ "${LCOV_MAJOR:-0}" -ge 2 ] 2>/dev/null; then
+        LCOV_IGNORE=(--ignore-errors 'inconsistent,inconsistent')
+        GENHTML_IGNORE=(--ignore-errors 'inconsistent,inconsistent'
+                        --ignore-errors 'unmapped,unmapped')
+    fi
     FILTERED_REPORT="$(mktemp)"
     lcov --remove "$LCOV_REPORT" '*/lib/image/generated/*' 'lib/image/generated/*' \
         --output-file "$FILTERED_REPORT" --quiet \
-        --ignore-errors inconsistent,inconsistent 2>/dev/null || true
+        "${LCOV_IGNORE[@]}" 2>/dev/null || true
     if [ ! -s "$FILTERED_REPORT" ]; then
         cp "$LCOV_REPORT" "$FILTERED_REPORT"
     fi
     echo "Generating HTML report in $OUTPUT_DIR ..."
     rm -rf "$OUTPUT_DIR"
     genhtml "$FILTERED_REPORT" --output-directory "$OUTPUT_DIR" --quiet \
-        --ignore-errors inconsistent,inconsistent \
-        --ignore-errors unmapped,unmapped
+        "${GENHTML_IGNORE[@]}"
     rm -f "$FILTERED_REPORT"
     echo ""
     echo "Coverage report: $OUTPUT_DIR/index.html"

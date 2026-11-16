@@ -48,11 +48,12 @@ test.describe('Calculator page', () => {
   });
 
   test('net savings uses positive-emphasis color for positive ROI', async ({ page }) => {
-    // Post-audit: sign encoding is monochromatic (stone-900 for positive,
-    // stone-500 for negative). Leading Unicode minus (U+2212) from formatMoney
+    // Sign encoding is monochromatic (body text colour for positive, muted
+    // for negative). The leading Unicode minus (U+2212) from formatMoney
     // carries sign information; chromatic green/red was removed for WCAG contrast.
     const netSavings = page.locator('#net-savings');
-    await expect(netSavings).toHaveClass(/text-stone-900/);
+    await expect(netSavings).toHaveClass(/\btext-text-body\b/);
+    await expect(netSavings).not.toHaveClass(/\btext-text-muted\b/);
   });
 
   test('zero pageviews shows zero savings', async ({ page }) => {

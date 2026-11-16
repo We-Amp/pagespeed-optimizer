@@ -14,10 +14,21 @@ namespace WeAmp.PageSpeed.AspNetCore;
 /// BackgroundService that auto-starts and manages the factory_worker
 /// process as a child process. Resolves the worker binary from the
 /// NuGet native assets layout (runtimes/{rid}/native/).
+/// The process is launched only when <see cref="WorkerOptions.AutoStart"/>
+/// is true and <see cref="PageSpeedOptions.Enabled"/> is true. Built with an
+/// <see cref="IOptionsMonitor{TOptions}"/> (the DI registration), a host that
+/// starts while <c>Enabled</c> is false launches the worker once a hot reload
+/// sets it to true (the activation that also opens the cache, see
+/// <see cref="PageSpeedActivation"/>); switching <c>Enabled</c> back to false
+/// never stops a running worker.
 /// </summary>
 public sealed class WorkerProcessHost : BackgroundService
 {
-    private readonly IOptions<PageSpeedOptions> _options;
+    private readonly Func<PageSpeedOptions> _current;
+    // Null on fixed options. Owned (and disposed) by this host only when it
+    // created the activation itself.
+    private readonly PageSpeedActivation? _activation;
+    private readonly bool _ownsActivation;
     private readonly InternalWorkerEndpoint _endpoint;
     private readonly ILogger<WorkerProcessHost> _logger;
     private Process? _process;
@@ -32,14 +43,47 @@ public sealed class WorkerProcessHost : BackgroundService
     internal string? WorkerPathOverride { get; set; }
 
     /// <summary>
-    /// Creates a new worker process host.
+    /// Creates a worker process host on fixed options. The options are read
+    /// when the host starts; with <see cref="PageSpeedOptions.Enabled"/> false
+    /// at that point, no worker is launched for the life of the host.
     /// </summary>
     public WorkerProcessHost(
         IOptions<PageSpeedOptions> options,
         InternalWorkerEndpoint endpoint,
         ILogger<WorkerProcessHost> logger)
     {
-        _options = options;
+        _current = () => options.Value;
+        _endpoint = endpoint;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Creates a worker process host that follows hot reload of
+    /// <see cref="PageSpeedOptions.Enabled"/>: when the host starts while it
+    /// is false, the worker is launched once it becomes true.
+    /// </summary>
+    public WorkerProcessHost(
+        IOptionsMonitor<PageSpeedOptions> options,
+        InternalWorkerEndpoint endpoint,
+        ILogger<WorkerProcessHost> logger)
+        : this(new PageSpeedActivation(options, openCache: null), options, endpoint, logger)
+    {
+        _ownsActivation = true;
+    }
+
+    /// <summary>
+    /// Creates a worker process host that launches the worker on the shared
+    /// <paramref name="activation"/> (the DI registration), the same one that
+    /// opens the cache.
+    /// </summary>
+    internal WorkerProcessHost(
+        PageSpeedActivation activation,
+        IOptionsMonitor<PageSpeedOptions> options,
+        InternalWorkerEndpoint endpoint,
+        ILogger<WorkerProcessHost> logger)
+    {
+        _activation = activation;
+        _current = () => options.CurrentValue;
         _endpoint = endpoint;
         _logger = logger;
     }
@@ -47,14 +91,28 @@ public sealed class WorkerProcessHost : BackgroundService
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var workerOpts = _options.Value.Worker;
+        var workerOpts = _current().Worker;
         if (!workerOpts.AutoStart)
         {
-            _logger.LogInformation("Worker auto-start is disabled");
-            // No worker means no IPC endpoint. Publish null so the
-            // notification service stops waiting and disables itself instead
-            // of blocking forever on SocketPathReady.
-            _endpoint.SetSocketPath(null);
+            // Decided before PageSpeed:Enabled on purpose: this host launches
+            // nothing here, so the switch has nothing to skip, and an external
+            // worker's socket path is published whatever the switch says.
+            PublishExternalWorker(workerOpts);
+            return;
+        }
+
+        // AutoStart is on: launch our own worker, but only while PageSpeed is
+        // enabled. Nothing is published until then, so the notification
+        // service keeps waiting for the socket path of the worker we launch.
+        var options = await WaitUntilEnabledAsync(stoppingToken);
+        if (options == null)
+            return;
+        workerOpts = options.Worker;
+        if (!workerOpts.AutoStart)
+        {
+            // The reload that enabled PageSpeed also turned AutoStart off:
+            // honour it as at startup, never launch.
+            PublishExternalWorker(workerOpts);
             return;
         }
 
@@ -62,9 +120,9 @@ public sealed class WorkerProcessHost : BackgroundService
         // for the rest of this method. We then publish it through the shared
         // InternalWorkerEndpoint so the concurrently-starting
         // WorkerNotificationService connects to the SAME endpoint we launch the
-        // worker with (it can't re-derive it: IOptions vs IOptionsMonitor hand
-        // out distinct WorkerOptions instances, so an independently-resolved
-        // auto-path would differ).
+        // worker with (it can't re-derive it: its options and ours, and the
+        // options after a reload, are distinct WorkerOptions instances, so an
+        // independently-resolved auto-path would differ).
         var socketPath = workerOpts.SocketPath;
         if (socketPath == null)
         {
@@ -107,7 +165,7 @@ public sealed class WorkerProcessHost : BackgroundService
             CreateNoWindow = true,
         };
 
-        var cacheOpts = _options.Value.Cache;
+        var cacheOpts = options.Cache;
         if (!string.IsNullOrEmpty(cacheOpts.VolumePath))
         {
             // Provision the directory the worker's cache lives in BEFORE
@@ -269,6 +327,71 @@ public sealed class WorkerProcessHost : BackgroundService
     }
 
     /// <summary>
+    /// Publishes the configured socket path of a worker this host does not
+    /// launch (AutoStart off). Without one there is no IPC endpoint:
+    /// publishing null makes the notification service disable itself instead
+    /// of blocking forever on SocketPathReady. With AutoStart off, SocketPath
+    /// is the configured path or null; it never resolves to an auto-path.
+    /// </summary>
+    private void PublishExternalWorker(WorkerOptions workerOpts)
+    {
+        var externalSocketPath = workerOpts.SocketPath;
+        if (externalSocketPath != null)
+        {
+            _logger.LogInformation(
+                "Worker auto-start is disabled; notifying the worker at {SocketPath}",
+                externalSocketPath);
+        }
+        else
+        {
+            _logger.LogInformation("Worker auto-start is disabled");
+        }
+        _endpoint.SetSocketPath(externalSocketPath);
+    }
+
+    /// <summary>
+    /// Returns the options to launch the worker with once PageSpeed is
+    /// active, or <c>null</c> when the worker is not to be launched. On fixed
+    /// options a disabled host never launches one and publishes a null socket
+    /// path, so the notification service disables itself. Otherwise it waits
+    /// for <see cref="PageSpeedActivation.Activated"/> (the first time
+    /// <see cref="PageSpeedOptions.Enabled"/> is true) and returns the options
+    /// current at that point; the host stopping first ends the wait with
+    /// <c>null</c>.
+    /// </summary>
+    private async Task<PageSpeedOptions?> WaitUntilEnabledAsync(
+        CancellationToken stoppingToken)
+    {
+        if (_activation == null)
+        {
+            var fixedOptions = _current();
+            if (fixedOptions.Enabled)
+                return fixedOptions;
+            _logger.LogInformation(
+                "PageSpeed is disabled; factory_worker will not start");
+            _endpoint.SetSocketPath(null);
+            return null;
+        }
+
+        if (!_activation.Activated.IsCompleted)
+        {
+            _logger.LogInformation(
+                "PageSpeed is disabled; factory_worker starts when "
+                + "PageSpeed:Enabled becomes true, no restart needed");
+            try
+            {
+                await _activation.Activated.WaitAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return null;
+            }
+            _logger.LogInformation("PageSpeed is enabled; starting factory_worker");
+        }
+        return _current();
+    }
+
+    /// <summary>
     /// Reports that the worker process ended without the host asking it to.
     /// A non-zero exit is an Error and carries the worker's last stderr
     /// lines; a clean exit is a Warning, because the host expects the worker
@@ -325,6 +448,8 @@ public sealed class WorkerProcessHost : BackgroundService
             _logger.LogWarning(ex, "Error stopping factory_worker");
         }
         _process?.Dispose();
+        if (_ownsActivation)
+            _activation?.Dispose();
         base.Dispose();
     }
 

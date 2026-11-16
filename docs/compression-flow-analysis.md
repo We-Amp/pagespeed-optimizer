@@ -133,7 +133,7 @@ pass through `ngx_http_output_filter` including the gzip filter.
 Updated to "applied to both cached (HIT) and proxied (MISS) responses".
 
 **Note on `gzip_proxied`**: This directive is irrelevant for HITs because the
-access-phase handler generates the response directly (not a proxied response in
+precontent-phase handler generates the response directly (not a proxied response in
 nginx's view). `gzip_proxied any` only affects MISS (proxied) responses.
 
 ### P1b: No ETag / conditional response support on cache HITs
@@ -425,6 +425,11 @@ set Content-Encoding. nginx's gzip/brotli filters run normally via
      - Level 11 REJECTED by council: ~10-20x slower than level 6, consumes
        ~37% of thread pool under burst load. Level 6 is ~5-8% larger but
        10x faster. Level 11 is only viable for low-traffic sites.
+     - A later burst measurement (300 small text resources, copies of 12 demo
+       HTML/CSS/JS files, queued at once on a 4-thread pool) found level 10
+       drained the queue about 2.6x slower than level 6 (0.92 s against
+       0.35 s) for roughly 10% smaller brotli output, so the default stays at
+       6 and higher levels remain an opt-in.
    - Write each with the appropriate encoding bits in the mask
    - Images: always write with encoding=identity (skip compression)
    - Write order: identity first, then gzip, then brotli (so identity is

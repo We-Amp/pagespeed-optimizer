@@ -16,7 +16,9 @@ namespace pagespeed {
 namespace css {
 
 // Minifies CSS by removing comments, collapsing whitespace, and
-// removing unnecessary characters. Returns true on success.
+// removing unnecessary characters. Comments starting with /*! or
+// containing "@license"/"@preserve" are kept byte for byte, in their
+// position. Returns true on success.
 // On any internal error, returns false and output is unchanged.
 bool MinifyCss(std::string_view input, std::string* output);
 

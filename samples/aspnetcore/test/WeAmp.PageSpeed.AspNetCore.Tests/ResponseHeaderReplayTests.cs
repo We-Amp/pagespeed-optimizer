@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using WeAmp.PageSpeed.AspNetCore.Internal;
 using Xunit;
 
 namespace WeAmp.PageSpeed.AspNetCore.Tests;
@@ -146,7 +147,11 @@ public class ResponseHeaderReplayTests
         ("Vary", "User-Agent"),
     };
 
-    private static FakeCache HitCache(byte flags = CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired,
+    // How the middleware records an entry: headers checked, from an
+    // anonymous request.
+    private const byte Recorded = CacheFlags.HeadersClassified | CacheFlags.AnonymousRecorded;
+
+    private static FakeCache HitCache(byte flags = Recorded | CacheFlags.HeadersSidecarRequired,
         (string, string)[]? block = null) =>
         new()
         {
@@ -218,7 +223,7 @@ public class ResponseHeaderReplayTests
     [Fact]
     public async Task CacheHit_NeedingRevalidation_CarriesApplicationHeaders()
     {
-        var cache = HitCache(CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired
+        var cache = HitCache(Recorded | CacheFlags.HeadersSidecarRequired
             | CacheFlags.NeedsRevalidation);
         var ctx = await Run(cache);
         Assert.Equal(200, ctx.Response.StatusCode);
@@ -235,7 +240,7 @@ public class ResponseHeaderReplayTests
                 ContentMemory = Body,
                 ContentType = PageSpeedContentType.Html,
                 OriginContentType = "text/html",
-                Flags = CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired,
+                Flags = Recorded | CacheFlags.HeadersSidecarRequired,
             },
             Block = EncodeBlock(("Link", "</app.css>; rel=preload; as=style"), ("Vary", "Save-Data")),
             EarlyHints = Encoding.UTF8.GetBytes("/hint.css\n"),
@@ -304,6 +309,18 @@ public class ResponseHeaderReplayTests
         Assert.True(reached);
     }
 
+    [Theory]
+    [InlineData(CacheFlags.HeadersClassified)]
+    [InlineData(CacheFlags.HeadersClassified | CacheFlags.HeadersSidecarRequired)]
+    public async Task CacheHit_EntryWithoutAnonymousRecordStamp_IsRefetched(int flags)
+    {
+        var cache = HitCache(flags: (byte)flags);
+        var reached = false;
+        var ctx = await Run(cache, NewContext(), c => { reached = true; return Task.CompletedTask; });
+        Assert.True(reached);
+        Assert.NotEqual("HIT", ctx.Response.Headers["X-PageSpeed"].ToString());
+    }
+
     [Fact]
     public async Task CacheHit_RequiredBlockMissing_IsRefetched()
     {
@@ -317,7 +334,7 @@ public class ResponseHeaderReplayTests
     [Fact]
     public async Task CacheHit_ClassifiedWithNothingToCarry_IsServed()
     {
-        var cache = HitCache(flags: CacheFlags.HeadersClassified);
+        var cache = HitCache(flags: Recorded);
         var ctx = await Run(cache);
         Assert.Equal("HIT", ctx.Response.Headers["X-PageSpeed"].ToString());
     }
@@ -357,6 +374,64 @@ public class ResponseHeaderReplayTests
         Assert.Contains("Accept-Encoding", vary);
     }
 
+    [Theory]
+    [InlineData("User-Agent")]
+    [InlineData("Accept")]
+    [InlineData("Save-Data")]
+    [InlineData("Origin")]
+    [InlineData("Accept-Encoding, User-Agent")]
+    public async Task Miss_ApplicationVaryOnARequestHeader_IsNotCached(string vary)
+    {
+        var cache = new FakeCache();
+        var ctx = await Run(cache, NewContext(), c =>
+        {
+            c.Response.StatusCode = 200;
+            c.Response.ContentType = "text/css";
+            c.Response.Headers.Vary = vary;
+            return c.Response.WriteAsync("body{}");
+        });
+        Assert.Equal(0, cache.BeginWriteCalls);
+        Assert.Equal("MISS", ctx.Response.Headers["X-PageSpeed"].ToString());
+    }
+
+    [Theory]
+    [InlineData("User-Agent")]
+    [InlineData("Accept")]
+    [InlineData("Origin")]
+    public async Task Miss_VarySetBeforeTheMiddlewareRan_IsNotCached(string vary)
+    {
+        // A token already on the response when the middleware is entered
+        // (set by middleware ahead of it) is not stored with the entry, but
+        // the response still varies on it, so it may not be shared.
+        var cache = new FakeCache();
+        var ctx = NewContext();
+        ctx.Response.Headers.Vary = vary;
+        await Run(cache, ctx, c =>
+        {
+            c.Response.StatusCode = 200;
+            c.Response.ContentType = "text/css";
+            return c.Response.WriteAsync("body{}");
+        });
+        Assert.Equal(0, cache.BeginWriteCalls);
+        Assert.Contains(vary, ctx.Response.Headers.Vary.ToString());
+    }
+
+    [Fact]
+    public async Task Miss_VaryOnAcceptEncodingOnly_IsStillCached()
+    {
+        var cache = new FakeCache();
+        var ctx = NewContext();
+        ctx.Response.Headers.Vary = "Accept-Encoding";
+        await Run(cache, ctx, c =>
+        {
+            c.Response.StatusCode = 200;
+            c.Response.ContentType = "text/css";
+            c.Response.Headers.Append("Vary", "accept-encoding");
+            return c.Response.WriteAsync("body{}");
+        });
+        Assert.Equal(1, cache.BeginWriteCalls);
+    }
+
     [Fact]
     public async Task Miss_HeadersThatCannotBeReplayed_AreNotCached()
     {
@@ -368,7 +443,9 @@ public class ResponseHeaderReplayTests
             c.Response.Headers["X-Request-Id"] = "abc";
             return c.Response.WriteAsync("body{}");
         });
-        Assert.Single(cache.Offered);
+        // Refused by the header gate: with the native library loaded the
+        // headers are classified before anything is offered to the cache.
+        Assert.True(cache.Offered.Count <= 1);
         Assert.Equal(0, cache.BeginWriteCalls);
         Assert.Equal("abc", ctx.Response.Headers["X-Request-Id"].ToString());
     }
@@ -462,6 +539,12 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         return results;
     }
 
+    // The application's answers to clients. Before a response is stored the
+    // middleware asks the application once more as an anonymous client from
+    // 224.0.0.0 (AnonymousFetchCheck); that request is not counted here.
+    private static bool FromClient(HttpContext ctx) =>
+        !AgentSelfFetch.Label.Equals(ctx.Connection.RemoteIpAddress);
+
     private static IEnumerable<string> Values(HttpResponseMessage r, string name) =>
         r.Headers.TryGetValues(name, out var v) ? v
         : r.Content.Headers.TryGetValues(name, out var c) ? c
@@ -473,12 +556,14 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         int runs = 0;
         var res = await Get(null, c =>
         {
-            runs++;
+            if (FromClient(c)) runs++;
             c.Response.ContentType = "text/css";
             c.Response.Headers["Content-Security-Policy"] = "default-src 'self'";
             c.Response.Headers["X-Content-Type-Options"] = "nosniff";
             c.Response.Headers["Access-Control-Allow-Origin"] = "https://app.example";
-            c.Response.Headers.Vary = "User-Agent";
+            // The one request header a stored response may vary on, spelled
+            // as the application spelled it so the replayed line is its own.
+            c.Response.Headers.Vary = "accept-encoding";
             return c.Response.WriteAsync("body { color: red }");
         }, "/a.css");
         Assert.Equal(1, runs);
@@ -488,8 +573,7 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         Assert.Equal("nosniff", Values(hit, "X-Content-Type-Options").Single());
         Assert.Equal("https://app.example", Values(hit, "Access-Control-Allow-Origin").Single());
         var vary = string.Join(",", Values(hit, "Vary"));
-        Assert.Contains("User-Agent", vary);
-        Assert.Contains("Accept-Encoding", vary);
+        Assert.Contains("accept-encoding", vary, StringComparison.Ordinal);
         Assert.Equal("body { color: red }", res[1].Body);
         Assert.Equal(res[1].Body.Length, hit.Content.Headers.ContentLength);
 
@@ -498,6 +582,66 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         Assert.Equal(304, cond[0].Status);
         Assert.Equal("default-src 'self'", Values(cond[0].Response, "Content-Security-Policy").Single());
         Assert.Equal("nosniff", Values(cond[0].Response, "X-Content-Type-Options").Single());
+    }
+
+    [Theory]
+    [InlineData("User-Agent", "User-Agent")]
+    [InlineData("Accept", "Accept")]
+    [InlineData("Save-Data", "Save-Data")]
+    [InlineData("Origin", "Origin")]
+    public async Task AppVaryOnARequestHeader_EachRequestGetsItsOwnAnswer(string vary, string header)
+    {
+        int runs = 0;
+        var res = await Get(null, c =>
+        {
+            runs++;
+            c.Response.ContentType = "text/css";
+            c.Response.Headers.Vary = vary;
+            return c.Response.WriteAsync($"/* {c.Request.Headers[header]} {runs} */");
+        }, "/v-" + vary + ".css", 3);
+        Assert.Equal(3, runs);
+        Assert.All(res, r => Assert.NotEqual("HIT", Values(r.Response, "X-PageSpeed").SingleOrDefault()));
+    }
+
+    [Fact]
+    public async Task OuterMiddlewareVary_KeepsTheResponseOutOfTheCache()
+    {
+        int runs = 0;
+        var res = await Get(
+            (c, next) => { c.Response.Headers.Vary = "Origin"; return next(); },
+            c => { runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("o{}"); },
+            "/outer-vary.css", 3);
+        Assert.Equal(3, runs);
+        Assert.All(res, r => Assert.NotEqual("HIT", Values(r.Response, "X-PageSpeed").SingleOrDefault()));
+    }
+
+    [Fact]
+    public async Task OuterMiddlewareVaryOnAcceptEncoding_IsStillCached()
+    {
+        int runs = 0;
+        var res = await Get(
+            (c, next) => { c.Response.Headers.Vary = "Accept-Encoding"; return next(); },
+            c => { if (FromClient(c)) runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("ae{}"); },
+            "/outer-ae.css");
+        Assert.Equal(1, runs);
+        Assert.Equal("HIT", Values(res[1].Response, "X-PageSpeed").Single());
+    }
+
+    [Fact]
+    public void VaryStoreRule_GivesTheNativeStorePredicatesAnswers()
+    {
+        string?[] values =
+        {
+            null, "", " ", ",", "Accept-Encoding", "accept-encoding", " Accept-Encoding ,\taccept-encoding",
+            "*", "Accept-Encoding, *", "Accept", "User-Agent", "Save-Data", "Origin", "Cookie",
+            "Accept-Encoding, User-Agent", "Accept-Encodings", "Accept-", "Sec-CH-DPR",
+        };
+        foreach (var v in values)
+        {
+            bool native = WeAmp.PageSpeed.Native.NativePageSpeed.VaryUncacheable(v) != 0;
+            bool managed = WeAmp.PageSpeed.AspNetCore.Internal.VaryStoreRule.Refuses(new[] { v });
+            Assert.True(native == managed, $"Vary [{v}]: native {native}, managed {managed}");
+        }
     }
 
     [Fact]
@@ -523,7 +667,7 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         int runs = 0, k = 0;
         var res = await Get(
             (c, next) => { c.Response.Headers["Access-Control-Allow-Origin"] = $"https://o{++k}.example"; return next(); },
-            c => { runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("z{}"); },
+            c => { if (FromClient(c)) runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("z{}"); },
             "/outer.css");
         Assert.Equal(1, runs);
         Assert.Equal("HIT", Values(res[1].Response, "X-PageSpeed").Single());
@@ -536,7 +680,7 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         int runs = 0, rid = 0;
         var res = await Get(
             (c, next) => { c.Response.Headers["X-Request-Id"] = $"r{++rid}"; return next(); },
-            c => { runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("y{}"); },
+            c => { if (FromClient(c)) runs++; c.Response.ContentType = "text/css"; return c.Response.WriteAsync("y{}"); },
             "/rid.css");
         Assert.Equal(1, runs);
         Assert.Equal("HIT", Values(res[1].Response, "X-PageSpeed").Single());
@@ -551,7 +695,7 @@ public class ResponseHeaderReplayNativeTests : IDisposable
             (c, next) => { c.Response.Headers["Referrer-Policy"] = $"origin-{++k}"; return next(); },
             c =>
             {
-                runs++;
+                if (FromClient(c)) runs++;
                 c.Response.ContentType = "text/css";
                 c.Response.Headers["Referrer-Policy"] = "no-referrer";
                 return c.Response.WriteAsync("w{}");
@@ -604,7 +748,7 @@ public class ResponseHeaderReplayNativeTests : IDisposable
         int runs = 0;
         var res = await Get(null, c =>
         {
-            runs++;
+            if (FromClient(c)) runs++;
             c.Response.OnStarting(() => { c.Response.Headers["Content-Security-Policy"] = "default-src 'self'"; return Task.CompletedTask; });
             c.Response.ContentType = "text/css";
             return c.Response.WriteAsync("x{}");

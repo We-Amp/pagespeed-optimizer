@@ -39,10 +39,13 @@ namespace WeAmp.PageSpeed.AspNetCore.Tests;
 /// On the buggy default (SocketPath == null) this fails at
 /// <c>notifications.received == 0</c>. With the auto-path default it passes.
 ///
-/// Native inputs (test SKIPS without them):
+/// Native inputs (without them the tests are reported as skipped, or fail
+/// when <c>PAGESPEED_E2E_REQUIRE_NATIVE=1</c>):
 /// <list type="bullet">
 /// <item><c>PAGESPEED_E2E_NATIVE_DIR</c>: a directory containing both
 /// <c>libpagespeed.{dylib,so,dll}</c> and <c>factory_worker[.exe]</c>.</item>
+/// <item>Otherwise the test output's <c>runtimes/&lt;rid&gt;/native/</c>,
+/// where a build with <c>PageSpeedNativeAssetsDir</c> copies them.</item>
 /// <item>Otherwise the restored NuGet native-assets layout under
 /// <c>~/.nuget/packages/weamp.pagespeed.nativeassets.*</c> for the current
 /// RID is probed.</item>
@@ -77,14 +80,10 @@ public class WorkerSocketPathDefaultTests
     /// On the buggy default (SocketPath == null) the notification service drops
     /// every notification, so received stays 0 and this fails.
     /// </summary>
-    [Fact]
+    [WorkerFact]
     public async Task DefaultConfig_NoExplicitSocketPath_WorkerReceivesNotification()
     {
-        if (!NativeAssetsFixture.TryStage(_output, out var skipReason))
-        {
-            _output.WriteLine($"SKIP: {skipReason}");
-            return;
-        }
+        Assert.True(NativeAssetsFixture.TryStage(_output, out var skipReason), skipReason);
 
         var cacheDir = Path.Combine(
             Path.GetTempPath(), $"ps_sockdefault_{Guid.NewGuid():N}");
@@ -99,25 +98,14 @@ public class WorkerSocketPathDefaultTests
 
             // The production default path: NO Worker.SocketPath is set.
             // AutoStart is true by default.
-            try
+            // AddPageSpeed's version check P/Invokes libpagespeed; the
+            // [WorkerFact] gate only runs this test when it is in place.
+            builder.Services.AddPageSpeed(opts =>
             {
-                builder.Services.AddPageSpeed(opts =>
-                {
-                    opts.Cache.VolumePath = cachePath;
-                    opts.Cache.VolumeSizeBytes = 64 * 1024 * 1024;
-                    // Intentionally DO NOT set opts.Worker.SocketPath.
-                });
-            }
-            catch (DllNotFoundException)
-            {
-                // libpagespeed not loadable in this run (plain `dotnet test`
-                // doesn't bundle NativeAssets — AddPageSpeed's version check
-                // P/Invokes the native lib). The smoke-test harness publishes
-                // the real native assets and runs this for real.
-                _output.WriteLine(
-                    "SKIP: libpagespeed not available (no NativeAssets in test output).");
-                return;
-            }
+                opts.Cache.VolumePath = cachePath;
+                opts.Cache.VolumeSizeBytes = 64 * 1024 * 1024;
+                // Intentionally DO NOT set opts.Worker.SocketPath.
+            });
 
             // `await using` so the host is disposed on scope exit:
             // WorkerProcessHost kills the factory_worker child in Dispose()
@@ -178,16 +166,12 @@ public class WorkerSocketPathDefaultTests
     /// middleware optimizes the HTML, caches it, notifies the worker, and the
     /// worker writes at least one variant — so the console's Dashboard /
     /// Savings / Metrics pages light up. Runs whenever the native assets are
-    /// present; skips otherwise.
+    /// present; reported as skipped otherwise.
     /// </summary>
-    [Fact]
+    [WorkerFact]
     public async Task DefaultConfig_GetDrivesVariantsWritten()
     {
-        if (!NativeAssetsFixture.TryStage(_output, out var skipReason))
-        {
-            _output.WriteLine($"SKIP: {skipReason}");
-            return;
-        }
+        Assert.True(NativeAssetsFixture.TryStage(_output, out var skipReason), skipReason);
 
         var cacheDir = Path.Combine(
             Path.GetTempPath(), $"ps_sockdefault_lic_{Guid.NewGuid():N}");
@@ -200,21 +184,12 @@ public class WorkerSocketPathDefaultTests
             builder.WebHost.UseTestServer();
             builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
-            try
+            builder.Services.AddPageSpeed(opts =>
             {
-                builder.Services.AddPageSpeed(opts =>
-                {
-                    opts.Cache.VolumePath = cachePath;
-                    opts.Cache.VolumeSizeBytes = 64 * 1024 * 1024;
-                    // Intentionally DO NOT set opts.Worker.SocketPath.
-                });
-            }
-            catch (DllNotFoundException)
-            {
-                _output.WriteLine(
-                    "SKIP: libpagespeed not available (no NativeAssets in test output).");
-                return;
-            }
+                opts.Cache.VolumePath = cachePath;
+                opts.Cache.VolumeSizeBytes = 64 * 1024 * 1024;
+                // Intentionally DO NOT set opts.Worker.SocketPath.
+            });
 
             // `await using`: dispose the host on scope exit so WorkerProcessHost
             // kills the factory_worker child (it does so in Dispose(), not
@@ -345,18 +320,54 @@ public class WorkerSocketPathDefaultTests
 /// <para>
 /// Deliberately does NOT stage <c>libpagespeed</c>: placing it in
 /// <see cref="AppContext.BaseDirectory"/> makes <c>PageSpeedVersion.Current</c>
-/// succeed process-wide, which would break <c>HealthCheckTests</c>'
-/// native-lib-missing case (same test assembly). Tests that call
-/// <c>AddPageSpeed</c> still need the library for its version check, so under a
-/// plain <c>dotnet test</c> they catch <c>DllNotFoundException</c> and skip; the
-/// smoke-test harness publishes the real NativeAssets (worker + library) and
-/// runs them for real. Staging only the worker is inert for every other test.
+/// succeed process-wide, which would otherwise affect <c>HealthCheckTests</c>'
+/// native-lib-missing case (same test assembly; that test also skips itself
+/// through <see cref="NativeLibAbsentFactAttribute"/> whenever the library is
+/// loadable). Tests that call
+/// <c>AddPageSpeed</c> still need the library for its version check, so they
+/// run only when it is already in that directory (a build with
+/// <c>PageSpeedNativeAssetsDir</c> copies it there) and are reported as
+/// skipped otherwise; see <see cref="WorkerFactAttribute"/>. Staging only the
+/// worker is inert for every other test.
 /// </para>
 /// </summary>
 internal static class NativeAssetsFixture
 {
     private static readonly object Gate = new();
     private static bool _workerStaged;
+
+    /// <summary>
+    /// Why the worker tests cannot run here, or null when they can: the
+    /// worker binary must be found (see <see cref="ResolveSourceDir"/>) and
+    /// the native library must be in the test output's
+    /// <c>runtimes/&lt;rid&gt;/native/</c>, where the P/Invoke resolver
+    /// loads it from.
+    /// </summary>
+    public static string? WhyNotRunnable()
+    {
+        var rid = RuntimeInformation.RuntimeIdentifier;
+        var workerName = WorkerFileName();
+        if (ResolveSourceDir(rid, workerName) == null)
+            return $"{workerName} not found for rid={rid}. Set PAGESPEED_E2E_NATIVE_DIR "
+                + $"to a directory containing {workerName}, build with "
+                + "PageSpeedNativeAssetsDir, or restore the "
+                + "WeAmp.PageSpeed.NativeAssets.* package.";
+        if (!NativeLibPresent())
+            return $"{NativeLibFileName()} not found in {NativeLibDir()}. Build with "
+                + "PageSpeedNativeAssetsDir pointing at the native assets.";
+        return null;
+    }
+
+    /// <summary>
+    /// The test output directory the P/Invoke resolver loads the native
+    /// library from.
+    /// </summary>
+    private static string NativeLibDir() => Path.Combine(
+        AppContext.BaseDirectory, "runtimes", RuntimeInformation.RuntimeIdentifier, "native");
+
+    /// <summary>Whether the native library is in <see cref="NativeLibDir"/>.</summary>
+    public static bool NativeLibPresent() =>
+        File.Exists(Path.Combine(NativeLibDir(), NativeLibFileName()));
 
     public static bool TryStage(ITestOutputHelper output, out string skipReason)
     {
@@ -380,15 +391,18 @@ internal static class NativeAssetsFixture
                 AppContext.BaseDirectory, "runtimes", rid, "native");
             Directory.CreateDirectory(destDir);
 
-            if (!_workerStaged)
+            if (!_workerStaged &&
+                !string.Equals(Path.GetFullPath(sourceDir).TrimEnd(Path.DirectorySeparatorChar),
+                    Path.GetFullPath(destDir).TrimEnd(Path.DirectorySeparatorChar),
+                    StringComparison.Ordinal))
             {
                 CopyIfNewer(Path.Combine(sourceDir, workerName),
                     Path.Combine(destDir, workerName));
                 if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                     TryChmodExec(Path.Combine(destDir, workerName));
-                _workerStaged = true;
             }
 
+            _workerStaged = true;
             output.WriteLine($"staged factory_worker from {sourceDir} -> {destDir}");
             return true;
         }
@@ -402,6 +416,12 @@ internal static class NativeAssetsFixture
         var env = Environment.GetEnvironmentVariable("PAGESPEED_E2E_NATIVE_DIR");
         if (!string.IsNullOrWhiteSpace(env) && HasNeeded(env))
             return env;
+
+        // The test output itself: a build with PageSpeedNativeAssetsDir copies
+        // the native assets into runtimes/<rid>/native/.
+        var output = Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native");
+        if (HasNeeded(output))
+            return output;
 
         // Probe the restored NuGet native-assets package for this RID.
         var home = Environment.GetEnvironmentVariable("HOME")
@@ -455,4 +475,9 @@ internal static class NativeAssetsFixture
     private static string WorkerFileName() =>
         RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? "factory_worker.exe" : "factory_worker";
+
+    private static string NativeLibFileName() =>
+        RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "pagespeed.dll"
+        : RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "libpagespeed.dylib"
+        : "libpagespeed.so";
 }

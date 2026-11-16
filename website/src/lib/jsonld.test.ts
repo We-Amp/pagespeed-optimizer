@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 import { describe, expect, it } from 'vitest';
-import { safeJsonLd } from './jsonld';
+import { htmlToPlainText, safeJsonLd } from './jsonld';
 
 describe('safeJsonLd', () => {
   it('serializes like JSON.stringify when nothing needs escaping', () => {
@@ -39,5 +39,35 @@ describe('safeJsonLd', () => {
     const out = safeJsonLd({ 'a<b': ['<img', { c: '1<2' }] });
     expect(out).not.toContain('<');
     expect(JSON.parse(out)).toEqual({ 'a<b': ['<img', { c: '1<2' }] });
+  });
+});
+
+describe('htmlToPlainText', () => {
+  it('keeps the words of code spans, links and emphasis and drops the markup', () => {
+    const html =
+      'Scope the switch: <code>ModPagespeed off</code> inside a <code>&lt;Location&gt;</code> block; see <a href="/docs/configuration/">the <strong>configuration</strong> page</a>.';
+    expect(htmlToPlainText(html)).toBe(
+      'Scope the switch: ModPagespeed off inside a &lt;Location&gt; block; see the configuration page.',
+    );
+  });
+
+  it('decodes numeric and named character references', () => {
+    expect(htmlToPlainText('It&#39;s &quot;on&quot; &amp; ready &#x2014; yes')).toBe(
+      'It\'s "on" & ready \u2014 yes',
+    );
+  });
+
+  it('collapses the line breaks a soft-wrapped answer renders with', () => {
+    expect(htmlToPlainText('one\ntwo  three')).toBe('one two three');
+  });
+
+  it('keeps angle brackets encoded so the text cannot read as a tag', () => {
+    expect(htmlToPlainText('<code>&lt;img&gt;</code> and &#60;b&#62;')).toBe(
+      '&lt;img&gt; and &lt;b&gt;',
+    );
+  });
+
+  it('leaves an unknown reference as written', () => {
+    expect(htmlToPlainText('a &bogus; b')).toBe('a &bogus; b');
   });
 });

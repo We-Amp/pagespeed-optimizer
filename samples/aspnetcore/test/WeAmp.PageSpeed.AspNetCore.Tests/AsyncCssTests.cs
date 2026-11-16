@@ -41,20 +41,26 @@ public class AsyncCssTests
     }
 
     // The NativeHtmlConfig struct must stay layout-matched with the C ABI
-    // ps_html_config_t, with enable_async_css appended at offset 120 (size 128).
+    // ps_html_config_t, with enable_async_css appended at offset 120 and
+    // scheme at offset 128 (size 136).
     // HtmlConfigInit is a real P/Invoke that writes the native defaults THROUGH
     // the managed layout, so this exercises the actual struct marshaling: a
     // wrong size/offset would corrupt StructSize or the field value.
     [Fact]
     public void NativeHtmlConfig_LayoutMatchesAbi_AndAsyncCssDefaultsOff()
     {
-        Assert.Equal(128, Marshal.SizeOf<NativeHtmlConfig>());
+        Assert.Equal(136, Marshal.SizeOf<NativeHtmlConfig>());
         Assert.Equal(120, (int)Marshal.OffsetOf<NativeHtmlConfig>(
             nameof(NativeHtmlConfig.EnableAsyncCss)));
+        Assert.Equal(128, (int)Marshal.OffsetOf<NativeHtmlConfig>(
+            nameof(NativeHtmlConfig.Scheme)));
 
         var config = default(NativeHtmlConfig);
         NativePageSpeed.HtmlConfigInit(ref config);
-        Assert.Equal((nuint)128, config.StructSize);  // native sizeof == managed
+        // The legacy initializer stamps the 128-byte size and leaves Scheme
+        // untouched; HtmlProcessor claims the full 136 itself.
+        Assert.Equal((nuint)128, config.StructSize);
+        Assert.Equal(IntPtr.Zero, config.Scheme);
         Assert.Equal(1, config.EnableCriticalCss);     // known default (sanity)
         Assert.Equal(0, config.EnableAsyncCss);        // opt-in, off by default
 

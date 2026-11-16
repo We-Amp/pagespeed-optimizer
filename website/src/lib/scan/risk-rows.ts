@@ -342,7 +342,7 @@ function buildingFor(
             building: [RX_BUILDING],
             link: {
               href: '/platform/#pack-response-firewall',
-              label: 'Transform packs: early access →',
+              label: 'Transform packs: tell me when it ships →',
               event: 'airead-cta-response-firewall',
             },
           }

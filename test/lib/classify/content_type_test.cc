@@ -64,6 +64,20 @@ TEST(ContentTypeTest, ContentTypeMimeRoundTrip) {
   EXPECT_EQ(ContentTypeMime(ContentType::kOther), "application/octet-stream");
 }
 
+// Tells text/html from XHTML, which ClassifyContentType files as kHtml too.
+TEST(ContentTypeTest, IsTextHtmlMediaType) {
+  EXPECT_TRUE(IsTextHtmlMediaType("text/html"));
+  EXPECT_TRUE(IsTextHtmlMediaType("TEXT/HTML"));
+  EXPECT_TRUE(IsTextHtmlMediaType("text/html; charset=utf-8"));
+  EXPECT_TRUE(IsTextHtmlMediaType(" text/html ;charset=utf-8"));
+  EXPECT_FALSE(IsTextHtmlMediaType("application/xhtml+xml"));
+  EXPECT_FALSE(IsTextHtmlMediaType("application/xhtml+xml; charset=utf-8"));
+  EXPECT_FALSE(IsTextHtmlMediaType("text/htmlx"));
+  EXPECT_FALSE(IsTextHtmlMediaType("text/xml"));
+  EXPECT_FALSE(IsTextHtmlMediaType("text/plain"));
+  EXPECT_FALSE(IsTextHtmlMediaType(""));
+}
+
 TEST(ContentTypeTest, ContentTypeMimeUnknownEnum) {
   // Defensive fallback for unknown ContentType value
   EXPECT_EQ(ContentTypeMime(static_cast<ContentType>(99)),

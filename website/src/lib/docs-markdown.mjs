@@ -9,9 +9,10 @@
 // fetches at /docs/<slug>.md is the body that sits in llms-full.txt.
 //
 // What the render does to a page's source:
-//   - frontmatter off; the title becomes the one H1, the description the lede,
-//     the canonical URL a line under it; the frontmatter `faq` pairs are
-//     appended as the page renders them (a "Frequently asked questions" section)
+//   - frontmatter off; the page's H1 (`h1`, else the title) becomes the one
+//     H1, the description the lede, the canonical URL a line under it; the
+//     frontmatter `faq` pairs are appended as the page renders them (a
+//     "Frequently asked questions" section)
 //   - MDX: `import` and `export const relNN = await getRelease(...)` lines go,
 //     `{relNN.path}` expressions and the release-aware components (<Version />,
 //     <ImageTag />, <NugetCmd />, <XPageSpeedExample />, <VersionMap />) resolve from the release
@@ -41,6 +42,7 @@ export const SITE = 'https://modpagespeed.com';
 /**
  * @typedef {{
  *   title: string,
+ *   h1?: string,
  *   description: string,
  *   order: number,
  *   group?: string,
@@ -102,15 +104,20 @@ export function dockerTag(rel) {
  * @param {Release} rel
  * @param {string} channel
  * @param {string} arch
+ * @param {string} [version] replaces %V; defaults to the release (a module
+ *   artifact of a module-only update passes MODULE_PACKAGE_VERSION)
  */
-export function artifactUrl(rel, channel, arch) {
+export function artifactUrl(rel, channel, arch, version = rel.release.semver) {
   const tmpl = rel.artifacts[channel]?.[arch];
   if (typeof tmpl !== 'string') {
     throw new Error(
       `No artifact template for channel=${channel} arch=${arch} in the ${rel.product.line} manifest`,
     );
   }
-  const filename = substituteRelease(tmpl, rel);
+  const filename = substituteRelease(tmpl, {
+    ...rel,
+    release: { ...rel.release, semver: version },
+  });
   // An absolute template (the IIS installer on the GitHub release) is
   // rendered as-is, as in src/lib/release.ts.
   if (filename.startsWith('https://')) return filename;
@@ -346,7 +353,9 @@ function summaryText(html) {
 // --- The render -------------------------------------------------------------
 
 const FENCE = /^(\s*)(`{3,}|~{3,})/;
-const CALLOUT_OPEN = /^:::([a-z]+)(?:\[([^\]]*)\])?\s*$/;
+// `:::name[Label]{attributes}`: the attributes (the `after` of a next-release
+// marker) are not part of the Markdown copy.
+const CALLOUT_OPEN = /^:::([a-z][a-z-]*)(?:\[([^\]]*)\])?(?:\{[^}]*\})?\s*$/;
 const CALLOUT_CLOSE = /^:::\s*$/;
 const CALLOUT_TITLES = {
   note: 'Note',
@@ -355,6 +364,7 @@ const CALLOUT_TITLES = {
   warning: 'Warning',
   danger: 'Danger',
   important: 'Important',
+  'next-release': 'From the next release',
 };
 
 /**
@@ -515,7 +525,16 @@ export function renderDocMarkdown(doc, m) {
 
   while (out.length && !out[out.length - 1]) out.pop();
   /** @type {string[]} */
-  const parts = [`# ${data.title}`, '', data.description, '', `Canonical URL: ${docUrl(slug)}`, ''];
+  // The H1 is the one the HTML page shows: `h1` when the page sets one (the
+  // sidebar keeps the shorter `title`), else the title.
+  const parts = [
+    `# ${data.h1 ?? data.title}`,
+    '',
+    data.description,
+    '',
+    `Canonical URL: ${docUrl(slug)}`,
+    '',
+  ];
   parts.push(...out);
   if (data.faq?.length) {
     parts.push('', '## Frequently asked questions', '');

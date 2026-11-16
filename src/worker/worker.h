@@ -37,6 +37,7 @@
 #include "src/worker/config_persister.h"
 #include "src/worker/image_transcoder.h"
 #include "src/worker/serve_stats.h"
+#include "src/worker/subresource_gate.h"
 #include "src/worker/webbotauth_warmer.h"
 #include "uv.h"
 
@@ -96,6 +97,7 @@ class HttpServer;
 class WsManager;
 class StaticFileCache;
 class UrlRegistry;
+class KnownSitesWriter;
 struct ApiContext;
 struct CacheApiContext;
 struct CaptureContext;
@@ -164,6 +166,24 @@ struct WorkerStats {
   std::atomic<uint64_t> notifications_rejected_malformed{0};
   std::atomic<uint64_t> notifications_rejected_sentinel{0};
   std::atomic<uint64_t> notifications_rejected_option_context{0};
+  // Site and sender (wire v6), checked at dispatch right after the option
+  // context.  A notification from the module must name a site
+  // (rejected_empty_site) and must not ask for page work: HTML, the llms.txt
+  // build, an agent request, or a vouched host (rejected_module_render).
+  std::atomic<uint64_t> notifications_rejected_empty_site{0};
+  std::atomic<uint64_t> notifications_rejected_module_render{0};
+  // Not a refusal: frames libpagespeed built for a caller whose parameters
+  // predate the site fields (an old module).  Processed unsited.
+  std::atomic<uint64_t> notifications_legacy_ex_caller{0};
+  // Not a refusal: HTML or llms.txt notifications whose sender did not vouch
+  // for the host.  The page is optimized; no agent render or llms.txt build
+  // runs for it.
+  std::atomic<uint64_t> notifications_unvouched_render_skipped{0};
+  // Mirrors of the URL registry's known-sites state, refreshed with the cache
+  // stats: sites seen past the cap since start, and whether a purge without
+  // a site may miss a site (1) or not (0).
+  std::atomic<uint64_t> known_sites_overflow{0};
+  std::atomic<uint64_t> known_sites_incomplete{0};
   // NOTIFICATIONS carrying a valid context that is not the default one, and
   // admitted by the option-context gate.  Not a refusal and not an error: the
   // context costs the notification nothing, because optimized output on this
@@ -282,9 +302,6 @@ struct WorkerStats {
   std::atomic<uint64_t> content_illustration{0};
   std::atomic<uint64_t> content_noisy{0};
 
-  // Denoising counter
-  std::atomic<uint64_t> images_denoised{0};
-
   // SSIMULACRA2 quality verification counters
   std::atomic<uint64_t> ssimulacra2_checks{0};
   std::atomic<uint64_t> ssimulacra2_reencodes{0};
@@ -365,6 +382,11 @@ struct WorkerStats {
   std::atomic<uint64_t> image_size_refused_avif{0};
   std::atomic<uint64_t> image_budget_rescued_webp{0};
   std::atomic<uint64_t> image_budget_rescued_avif{0};
+
+  // Save-Data variants refused because they were not smaller than the same
+  // variant without Save-Data. Tells a deliberately identical pair (the
+  // normal variant is served to both) apart from a missing variant.
+  std::atomic<uint64_t> image_savedata_refused{0};
 
   // Intra-notification content dedup: writes skipped because identical
   // bytes were already written under a different AlternateId.
@@ -518,11 +540,6 @@ struct WorkerConfig {
 
   // Content-aware quality presets
   bool content_analysis = true;  // --no-content-analysis
-
-  // Noise-adaptive denoising (Phase 3a)
-  float denoise_threshold = 0.3f;      // --denoise-threshold (0=disable)
-  float denoise_sigma_spatial = 3.0f;  // --denoise-sigma-spatial
-  float denoise_sigma_range = 25.0f;   // --denoise-sigma-range
 
   // SSIMULACRA2 perceptual quality verification (Phase 2b)
   bool quality_verify = true;          // --no-quality-verify
@@ -825,12 +842,13 @@ class Worker {
   // auto-heal counter is reset.  Auto-heal passes false to avoid loops.
   int InvalidateUrl(const std::string& url, const std::string& hostname = "",
                     const std::string& scheme = "https",
-                    bool clear_heal_state = true);
+                    std::string_view site = {}, bool clear_heal_state = true);
 
   // Clear dedup set and cooldown for a URL without removing cached content.
   void ClearDedupAndCooldown(const std::string& url,
                              const std::string& hostname,
-                             const std::string& scheme = "https");
+                             const std::string& scheme = "https",
+                             std::string_view site = {});
 
   // Build the inline rebuild notification HandleOriginRefreshed dispatches
   // after purging a URL's stale variant set (Issue C).  Factored out as a pure
@@ -912,7 +930,7 @@ class Worker {
   // Query cooldown state for a specific URL.  Thread-safe.
   std::optional<CooldownInfo> GetCooldownForUrl(
       const std::string& url, const std::string& hostname,
-      std::string_view scheme = "https") const;
+      std::string_view scheme = "https", std::string_view site = {}) const;
 
   // List all active (non-expired) cooldowns.  Thread-safe.
   std::vector<CooldownListEntry> ListActiveCooldowns() const;
@@ -924,16 +942,18 @@ class Worker {
   // explicitly purged.
   bool WasPurgedSinceDispatch(std::string_view url, std::string_view hostname,
                               const PurgeDispatchGen& dispatch_gen,
-                              std::string_view scheme = "https") const;
+                              std::string_view scheme = "https",
+                              std::string_view site = {}) const;
 
   // Convenience overload checking the per-URL generation only (all_gen
   // baseline 0).  Equivalent to the struct overload for workers that
   // never executed a full cache purge.
   bool WasPurgedSinceDispatch(std::string_view url, std::string_view hostname,
                               uint64_t dispatch_purge_gen,
-                              std::string_view scheme = "https") const {
+                              std::string_view scheme = "https",
+                              std::string_view site = {}) const {
     return WasPurgedSinceDispatch(
-        url, hostname, PurgeDispatchGen{dispatch_purge_gen, 0}, scheme);
+        url, hostname, PurgeDispatchGen{dispatch_purge_gen, 0}, scheme, site);
   }
 
   // Capture the current purge-fence baseline for a URL.  Called at
@@ -941,7 +961,13 @@ class Worker {
   // WasPurgedSinceDispatch before AND after every variant write.
   PurgeDispatchGen CapturePurgeGen(std::string_view url,
                                    std::string_view hostname,
-                                   std::string_view scheme = "https") const;
+                                   std::string_view scheme = "https",
+                                   std::string_view site = {}) const;
+
+  // True when the known sites may not name every site in the volume: sites
+  // were seen past the cap since start, or the known-sites file existed at
+  // start and could not be read (CacheApiContext::known_sites_incomplete).
+  bool KnownSitesIncomplete() const;
 
   // Full cache purge: resets the Cyclone volume, bumps the global purge
   // generation (fencing all in-flight variant writes), and clears the
@@ -957,13 +983,14 @@ class Worker {
   // already exists (so the perf-driven enqueue is skipped).
   bool AgentMarkdownNeedsBuild(
       const std::string& url, const std::string& hostname,
-      const std::string& scheme,
+      const std::string& scheme, std::string_view site,
       const std::array<std::byte, 32>& origin_hash) const;
 
   // True if the /llms.txt index for (hostname, scheme) must be
   // (re)built — absent kLlmsTxtMeta, a changed sitemap content-hash, or past the
   // regen TTL ceiling. Reads the kLlmsTxtMeta sentinel.
   bool LlmsTxtNeedsBuild(const std::string& hostname, const std::string& scheme,
+                         std::string_view site,
                          const std::array<std::byte, 32>& live_sitemap_hash,
                          int64_t now_sec) const;
 
@@ -974,7 +1001,7 @@ class Worker {
   // are unset or the URL was LRU-evicted since it was recorded.
   void RefreshAlternateCount(const std::string& url,
                              const std::string& hostname,
-                             const std::string& scheme);
+                             const std::string& scheme, std::string_view site);
 
   // Client connection context
   struct ClientContext;
@@ -1050,10 +1077,38 @@ class Worker {
   // the serve path, and counting both would report the optimizer doing twice
   // the lookups it does.  It does not touch the byte sequence — the contract
   // above is about bytes, and telemetry is not one of them.
+  // `gate_may_fetch` false (the browser-analysis caller, on the event loop)
+  // answers the sub-resource gate from its memo only; see
+  // SubresourceAdmitted.
   CombinedCssResult BuildCombinedCss(const HtmlScanResult& scan_result,
                                      const CacheNotification& notification,
                                      const WorkerConfig& cfg,
-                                     bool count_lookups = true);
+                                     bool count_lookups = true,
+                                     bool gate_may_fetch = true);
+
+  // Whether the cached bytes of `read_url` (a cache URL, keyed under
+  // `read_host`) may go into an output built for `notification`: the server
+  // serves that URL to an anonymous client (SubresourceGate).  Not admitted
+  // reads as absent.  `may_fetch` false answers from the gate's memo only,
+  // for callers that must not block.
+  bool SubresourceAdmitted(const CacheNotification& notification,
+                           std::string_view read_url,
+                           std::string_view read_host, bool may_fetch = true,
+                           const AlternateMetadata* entry = nullptr);
+
+  // The best cached entry for `read_url` (keyed under `read_host` and the
+  // notification's site) when it may go into an output built for
+  // `notification`, else nullopt.  When the worker may not ask the page's
+  // host, a stylesheet or image the front end recorded from an anonymous
+  // request is admitted as read, without asking the server; any other entry,
+  // and every entry under a host the worker may ask, goes through
+  // SubresourceAdmitted first, exactly as before the read.  `refused`, when
+  // given, is set when the gate did not admit the URL
+  // (as opposed to the cache holding nothing for it).
+  std::optional<ReadResult> ReadAdmittedSubresource(
+      const CacheNotification& notification, std::string_view read_url,
+      std::string_view read_host, bool may_fetch = true,
+      bool* refused = nullptr);
 
   // Write a minified text variant (CSS or JS) to cache, or compressed-only
   // when the minified output is not smaller than the original.
@@ -1122,7 +1177,8 @@ class Worker {
   // If a newer purge (per-URL or global) has occurred since purge_gen was
   // captured, the insertion is skipped (stale in-flight notification).
   void MarkVariantProcessed(const std::string& url, const std::string& hostname,
-                            std::string_view scheme, AlternateId id,
+                            std::string_view scheme, std::string_view site,
+                            AlternateId id,
                             const PurgeDispatchGen& purge_gen = {});
 
   // Record that this process wrote the optimized copy `id` of a URL, so a
@@ -1132,8 +1188,8 @@ class Worker {
   // any earlier record for the key, so only the latest verdict counts.  The
   // record is kept only while the key's processed mark exists.
   void MarkCopyWritten(const std::string& url, const std::string& hostname,
-                       std::string_view scheme, AlternateId id,
-                       const PurgeDispatchGen& purge_gen = {});
+                       std::string_view scheme, std::string_view site,
+                       AlternateId id, const PurgeDispatchGen& purge_gen = {});
 
   // Erase every processed mark of one URL -- all of its ids -- together
   // with the copy records that belong to them.  `prefix` is the key up to
@@ -1145,7 +1201,7 @@ class Worker {
   // re-processing loops when cache writes persistently fail.
   void SetWriteFailureCooldown(const std::string& url,
                                const std::string& hostname,
-                               std::string_view scheme);
+                               std::string_view scheme, std::string_view site);
 
   // SRI (issue #656): register subresource URLs referenced from HTML with
   // an integrity attribute.  Optimized variants at the same URL would fail
@@ -1178,6 +1234,16 @@ class Worker {
   // only the four validation failures are refused.  Returns true when
   // processing may continue. Called on the event loop thread.
   bool AcceptOptionContext(const CacheNotification& notification);
+
+  // Whether `notification` may start fetches from its hostname (the
+  // /llms.txt build, browser analysis and the agent render).
+  static bool MayRequestHostFetches(const CacheNotification& notification);
+
+  // Checks the site and sender bits (wire v6): a notification from the module
+  // must carry a site and must not ask for page work (HTML, the llms.txt
+  // build, an agent request, a vouched host).  Returns false, counted, when
+  // the notification is refused.  Called on the event loop thread.
+  bool AcceptSiteAndSender(const CacheNotification& notification);
 
   // Thread pool callbacks for uv_queue_work.
   static void OnNotificationWork(uv_work_t* req);
@@ -1248,7 +1314,7 @@ class Worker {
   // config_ at startup; runtime reads go through live_config_.
   // Hot-reloadable fields: quality settings (jpeg_quality, webp_quality,
   // avif_quality, savedata_*), viewport widths, content toggles
-  // (disable_html, etc.), denoise/SSIMULACRA2 thresholds.
+  // (disable_html, etc.), SSIMULACRA2 thresholds.
   // Uses AtomicSharedPtr for portable RCU semantics.
   AtomicSharedPtr<const WorkerConfig> live_config_;
 
@@ -1268,6 +1334,10 @@ class Worker {
   // thread pool.  Accessed only from the event loop (DispatchNotification
   // and OnNotificationDone), so no locking is needed.
   std::unordered_set<std::string> in_flight_urls_;
+
+  // Origin-refreshed sentinels turned away by the in-flight guard, one per
+  // in-flight key, dispatched from OnNotificationDone.  Event loop only.
+  std::unordered_map<std::string, CacheNotification> pending_origin_refresh_;
 
   // Health check socket
   std::unique_ptr<uv_pipe_s> health_server_;
@@ -1291,6 +1361,12 @@ class Worker {
   std::atomic<uint64_t> cached_hit_flush_fail_{0};
   std::atomic<uint64_t> cached_hit_flush_delta_{0};
   std::atomic<uint64_t> cached_hit_flush_fsyncs_{0};
+
+  // Asks the server, once per memo period, whether a cached sub-resource is
+  // served to anonymous clients before another URL's output uses it.
+  std::shared_ptr<SubresourceGate> subresource_gate_ =
+      std::make_shared<SubresourceGate>(MakeAnonymousHeadFn(),
+                                        MonotonicNowMs());
 
   // Cache and image transcoder
   std::unique_ptr<PageSpeedCache> cache_;
@@ -1479,7 +1555,7 @@ class Worker {
   // variant as before (fail-safe: never preserve on an uncertain binding).
   std::optional<std::array<std::byte, 32>> FreshOriginHash(
       const std::string& url, const std::string& hostname,
-      const std::string& scheme);
+      const std::string& scheme, std::string_view site);
 
   // Durability (#19) — D3: sticky set of ComposeInternalKey()s for URLs
   // that EVER held a markdown variant.  When a URL renders markdown then loses
@@ -1495,10 +1571,12 @@ class Worker {
   std::unordered_set<std::string> agent_markdown_intent_urls_;
   void RecordAgentMarkdownIntent(const std::string& url,
                                  const std::string& hostname,
-                                 const std::string& scheme);
+                                 const std::string& scheme,
+                                 std::string_view site);
   bool HasAgentMarkdownIntent(const std::string& url,
                               const std::string& hostname,
-                              const std::string& scheme) const;
+                              const std::string& scheme,
+                              std::string_view site) const;
 
   // Bump the purge generation for a URL and Remove() all its cached
   // alternates as one atomic step under purge_gen_mutex_ (see the
@@ -1506,7 +1584,8 @@ class Worker {
   // Returns 1 when the Remove deleted an entry, 0 otherwise.
   int PurgeUrlAndBumpGeneration(const std::string& norm_url,
                                 const std::string& norm_host,
-                                const std::string& scheme);
+                                const std::string& scheme,
+                                std::string_view site);
 
   // Bump the purge generation for a URL and remove every derived alternate
   // as one step under purge_gen_mutex_, keeping the origin's own recording
@@ -1515,7 +1594,8 @@ class Worker {
   // next notification.
   void PurgeDerivedCopiesAndBumpGeneration(const std::string& norm_url,
                                            const std::string& norm_host,
-                                           const std::string& scheme);
+                                           const std::string& scheme,
+                                           std::string_view site);
 
   // Increment the per-URL purge generation, seeding from
   // purge_generation_previous_ when the key only survives there (rotation
@@ -1541,7 +1621,8 @@ class Worker {
   // Inputs must be pre-normalized.
   void ClearUrlProcessingState(const std::string& norm_url,
                                const std::string& norm_host,
-                               const std::string& scheme);
+                               const std::string& scheme,
+                               std::string_view site);
 
   // Handle the kOriginRefreshedSentinel notification (issue #652): purge
   // the URL's STALE optimized variants while PRESERVING the identity
@@ -1593,6 +1674,8 @@ class Worker {
   //  - Tentative (in-flight guard): 60s (cleared on non-revalidation success)
   static constexpr int kWriteFailureCooldownSecs = 60;
   static constexpr int kRevalidationCooldownSecs = 3;
+  // Hold after a pass that dropped the critical block and changed nothing else.
+  static constexpr int kDroppedBlockCooldownSecs = 5;
   static constexpr size_t kMaxCooldownEntries = 256;
   mutable std::mutex write_cooldown_mutex_;
   std::unordered_map<std::string, CooldownEntry> text_cooldown_expiry_;
@@ -1618,13 +1701,18 @@ class Worker {
   // should log WARNING), false on subsequent sightings (caller suppresses).
   bool ShouldLogJsParseError(const std::string& url,
                              const std::string& hostname,
-                             const std::string& scheme);
+                             const std::string& scheme, std::string_view site);
 
   // HTTP Management API server (null when api_port == 0).
   // Declaration order matters: contexts must outlive http_server_ because
   // route handler lambdas capture references to them. url_registry_ must
   // outlive cache_api_ctx_ (which holds a reference to it).
   std::unique_ptr<UrlRegistry> url_registry_;
+  // Writes the registry's known sites to the known-sites file.  Declared
+  // after url_registry_ so it stops (and flushes) first.
+  std::unique_ptr<KnownSitesWriter> known_sites_writer_;
+  // The known-sites file existed at start but could not be read.
+  bool known_sites_unreadable_at_start_ = false;
   // Saves PATCH /v1/config changes off the event loop.  Declared before
   // http_server_ so it outlives the routes that hold a pointer to it.
   std::unique_ptr<ConfigPersister> config_persister_;

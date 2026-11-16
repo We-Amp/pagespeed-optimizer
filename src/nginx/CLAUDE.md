@@ -21,8 +21,8 @@ Headers inspected before recording to cache:
 | Request carries `Authorization` + response CC lacks `public`/`must-revalidate`/`s-maxage` | NOT cached, no worker notification (RFC 9111 §3.5) |
 | `Cache-Control: no-transform` | Cached but NO worker notification |
 | `Set-Cookie` | NOT cached (implicitly private) |
-| `Vary: *` or unsupported Vary | NOT cached |
-| `Vary: Accept-Encoding, User-Agent, Accept, Save-Data` | Allowed (handled via capability mask) |
+| `Vary: *` or any Vary token other than `Accept-Encoding` (incl. `User-Agent`, `Accept`, `Save-Data`, `Origin`) | NOT cached: one original per URL, so it would reach clients that sent another value |
+| `Vary: Accept-Encoding` | Allowed (identity stored, coding chosen per request) |
 | HEAD requests | NOT cached |
 | Any origin header a cache hit cannot reproduce (`ClassifyForHeadersSidecar` fall-through, e.g. `X-Request-Id`) | NOT cached, stored entry for the URL removed, `headers_sidecar_fall_through` counted, one NOTICE per (host, header) |
 | `Content-Security-Policy` carrying a nonce | NOT cached, stored entry removed, `headers_sidecar_never_optimized` counted |
@@ -89,6 +89,24 @@ decodes `meta.full_mask` to extract `TransferEncoding` and sets
 `Content-Encoding: gzip` or `Content-Encoding: br`. Also assigns
 `r->headers_out.content_encoding` to prevent nginx's built-in gzip and brotli
 filters from double-compressing the already-compressed content.
+
+**Cookie-bearing requests**: a request carrying `Cookie` or `Cookie2` (any
+value, empty included) is handled by response class (`cookie_cache_gate.h`,
+which calls the HTML cache policy's exported `CookieRequestMayStore` /
+`CookieRequestMayServe`). A page — any type that is not css, JavaScript or an
+image (`CookieShareClassForContentType`: case-insensitive, parameters
+ignored, unknown = page) — is recorded, and served from the cache, only when
+the origin Cache-Control carries `public` or an `s-maxage` above zero. A
+static asset is recorded only with an origin-stated lifetime (max-age,
+s-maxage, or Expires when no Cache-Control line was sent); stored assets are
+served as before. The Markdown copy and the Early Hints set on a miss are
+judged by the recorded page (the default-mask entry; none recorded = fail
+closed); `/llms.txt` is never served to a cookie-bearing request. The 304
+restamp declines to extend an entry once the rule is no longer met.
+Independent of the Authorization gate below; a request carrying both passes
+both. Entries stored before this rule are unreachable: the key namespace
+moved to `ks3:`, and to `ks4:` with the Vary store rule
+(`PageSpeedCache::kKeyNamespace`).
 
 **Authorization (RFC 9111 §3.5)**: Authorization-bearing requests are served
 from cache only when the stored entry's origin Cache-Control carries a §3.5
@@ -273,6 +291,18 @@ must land in every sentinel consumer (`ParseHintLine` and the .NET
 middleware's `BuildLinkHeader`) in the same release, with consumers deployed
 no later than the emitting worker — and rollback across a sentinel-format
 change requires a cache purge.
+
+## Cache Key Site
+
+Every key is in the keyspace (site) of the server block that received the
+request: `ngx_http_pagespeed_site(r)`, derived at configuration time from the
+block's server names and listen addresses (`src/nginx/site_identity.h`). Every
+URL-based cache call, the precomposed serve key and every `CacheNotification`
+carry it; the record and revalidation helpers get it through
+`SiteScopedCache`. The Host header only selects an entry inside the block's
+own keyspace. Seeding a HIT test therefore names the block:
+`seed_test_cache --site_listen 0.0.0.0:<port> --site_names localhost`
+(t/seed-*.sh). Integration test: `t/112-cache-per-server-block.t`.
 
 ## Cache Key Scheme
 

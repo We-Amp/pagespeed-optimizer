@@ -406,7 +406,7 @@ TEST(HtmlScannerTest, ClassifiesNoscriptContentThatRendersWithScriptsOff) {
   }
 }
 
-TEST(HtmlScannerTest, SkipsInertSubtreesAndMathButKeepsSvgStyle) {
+TEST(HtmlScannerTest, SkipsInertSubtreesAndForeignStyleAndLink) {
   HtmlScanner scanner;
   HtmlScanResult result = scanner.Scan(
       "http://example.com/",
@@ -416,14 +416,100 @@ TEST(HtmlScannerTest, SkipsInertSubtreesAndMathButKeepsSvgStyle) {
       "<link rel=\"stylesheet\" href=\"/e.css\"></noembed>"
       "<noframes><style>.f{}</style></noframes>"
       "<math><style>.m{}</style></math>"
-      // An SVG <style> in inline <svg> is a document stylesheet; a <link> in
-      // foreign content is not an HTML link.
+      // An SVG <style> or <link> is an SVG element, not an HTML one: its
+      // content is markup, not the page's CSS.
       "<svg><style>.s{fill:red}</style>"
       "<link rel=\"stylesheet\" href=\"/s.css\"></svg>"
       "<link rel=\"stylesheet\" href=\"/body.css\"></body></html>");
   ASSERT_TRUE(result.success);
-  EXPECT_EQ(".s{fill:red}", result.inline_css);
+  EXPECT_EQ("", result.inline_css);
   EXPECT_EQ(std::vector<std::string>{"/body.css"}, Hrefs(result));
+}
+
+// The parser reads inline SVG and MathML as browsers do: a <style> there is an
+// SVG or MathML element whose content is markup, so it is neither inline CSS
+// for the critical block nor a stylesheet source for the combined CSS and the
+// layer order, wherever it stands in foreign content.
+TEST(HtmlScannerTest, ForeignStyleIsNotPageCss) {
+  HtmlScanner scanner;
+  HtmlScanResult result = scanner.Scan(
+      "http://example.com/",
+      "<html><head></head><body>"
+      "<svg><style>.s{fill:red}</style><g><style>.g{}</style></g></svg>"
+      "<math><mrow><style>.m{}</style></mrow></math>"
+      "<svg><desc><svg><style>.d{}</style></svg></desc></svg>"
+      "<math><mi><mglyph><style>.mg{}</style></mglyph></mi></math>"
+      "<math><annotation-xml><style>.ax{}</style></annotation-xml></math>"
+      "<style>.page{}</style></body></html>");
+  ASSERT_TRUE(result.success);
+  EXPECT_EQ(".page{}", result.inline_css);
+  ASSERT_EQ(result.stylesheet_sources.size(), 1u);
+  EXPECT_EQ(result.stylesheet_sources[0].css, ".page{}");
+}
+
+// Inside an integration point (SVG foreignObject, desc and title; MathML mi,
+// mo, mn, ms and mtext; annotation-xml with an HTML encoding) elements are
+// HTML again: a <style> or stylesheet <link> there applies to the document.
+TEST(HtmlScannerTest, HtmlStyleAndLinkInIntegrationPointsApply) {
+  HtmlScanner scanner;
+  HtmlScanResult result = scanner.Scan(
+      "http://example.com/",
+      "<html><head></head><body>"
+      "<svg><foreignObject><style>.fo{}</style>"
+      "<link rel=\"stylesheet\" href=\"/fo.css\"></foreignObject></svg>"
+      "<math><mi><style>.mi{}</style></mi>"
+      "<annotation-xml encoding=\"text/html\">"
+      "<link rel=\"stylesheet\" href=\"/ax.css\"></annotation-xml></math>"
+      "</body></html>");
+  ASSERT_TRUE(result.success);
+  EXPECT_EQ(".fo{}\n.mi{}", result.inline_css);
+  EXPECT_EQ((std::vector<std::string>{"/fo.css", "/ax.css"}), Hrefs(result));
+}
+
+// A <noscript>, <template>, <noembed> or <noframes> in inline SVG or MathML
+// stays out of `elements` with what it holds, as in HTML content.
+TEST(HtmlScannerTest, LeavesForeignNoscriptAndTemplateOutOfElements) {
+  HtmlScanner scanner;
+  HtmlScanResult result = scanner.Scan(
+      "http://example.com/",
+      "<html><body><svg><noscript><text class=\"svgns\"></text></noscript>"
+      "<template><g class=\"svgtpl\"></g></template></svg>"
+      "<math><noembed><mi class=\"mathne\"></mi></noembed>"
+      "<noframes><mn></mn></noframes></math></body></html>");
+  ASSERT_TRUE(result.success);
+  std::vector<std::string> tags;
+  tags.reserve(result.elements.size());
+  for (const auto& e : result.elements) tags.push_back(e.tag_name);
+  EXPECT_EQ(tags, (std::vector<std::string>{"html", "body", "svg", "math"}));
+  std::vector<std::string> inert;
+  inert.reserve(result.inert_elements.size());
+  for (const auto& e : result.inert_elements) inert.push_back(e.tag_name);
+  EXPECT_EQ(inert,
+            (std::vector<std::string>{"noscript", "text", "template", "g",
+                                      "noembed", "mi", "noframes", "mn"}));
+}
+
+// An <svg> or <iframe> inside an integration point is an HTML-placed replaced
+// element again, so its width before author CSS is read like any other.
+TEST(HtmlScannerTest, ReplacedElementsInIntegrationPointsMayExceedAPhone) {
+  HtmlScanner scanner;
+  HtmlScanResult result = scanner.Scan(
+      "http://example.com/",
+      "<html><body><svg><foreignObject><svg class=\"fo\"></svg>"
+      "<iframe class=\"fi\" width=\"560\"></iframe></foreignObject>"
+      "<g><svg class=\"nested\"></svg></g></svg></body></html>");
+  ASSERT_TRUE(result.success);
+  auto wide = [&](const std::string& cls) -> std::optional<bool> {
+    for (const auto& e : result.elements) {
+      for (const auto& c : e.classes) {
+        if (c == cls) return e.may_exceed_viewport;
+      }
+    }
+    return std::nullopt;
+  };
+  EXPECT_EQ(wide("fo"), true) << "an svg inside foreignObject";
+  EXPECT_EQ(wide("fi"), true) << "an iframe inside foreignObject";
+  EXPECT_EQ(wide("nested"), false) << "an svg inside an svg";
 }
 
 TEST(HtmlScannerTest, SkipsNestedNonDocumentSubtrees) {

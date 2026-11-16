@@ -97,3 +97,6 @@ sbom/scan/
 
 # Apache RAT report left behind by a local tools/ci/rat.sh run
 rat-report.txt
+
+# Local tool caches
+/.cache/

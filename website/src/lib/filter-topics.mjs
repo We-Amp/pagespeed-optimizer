@@ -23,6 +23,11 @@
 // words of its own prose gets a topic page with `noindex,follow`, stays out of
 // the sitemap and out of llms.txt. Enriching the section on the group page
 // lifts the guard on the next build; nothing else needs to change.
+//
+// Alternate spellings (`insert_img_dimensions`, `left_trim_urls`) are never
+// indexable themselves. When the primary spelling's page is indexable, the
+// alternate page names it as its canonical (`canonicalPath`) instead of
+// carrying `noindex`, so the two pages send one signal: index the primary.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -644,6 +649,8 @@ export const RELATED = {
  * @property {{ apache: string, nginx: string, iis: string } | null} enable
  * @property {{ apache: string, nginx: string, iis: string } | null} disable
  * @property {boolean} indexable
+ * @property {string} canonicalPath  this page's own path, or the primary
+ *   spelling's path for an alternate spelling whose primary is indexable
  * @property {string} title
  * @property {string} description
  * @property {Array<{ q: string, a: string }>} faq  answers in markdown (code spans only)
@@ -786,7 +793,7 @@ export function loadFilterTopics(root = websiteRoot()) {
   ];
   const allNames = new Set(entries.map((e) => /** @type {string} */ (e.name)));
 
-  return entries.map((e) => {
+  const topics = entries.map((e) => {
     const human = HUMAN_NAMES[e.name];
     if (!human) throw new Error(`filter-topics.mjs: no HUMAN_NAMES entry for ${e.name}`);
     const page = /** @type {Record<string, string>} */ (PAGE_BY_CATEGORY)[e.category];
@@ -848,8 +855,15 @@ export function loadFilterTopics(root = websiteRoot()) {
       title: topicTitle(human, e.name),
       description: topicDescription(summary, e.name),
       faq: buildFaq(base),
+      canonicalPath: base.path,
     };
   });
+  const byName = new Map(topics.map((t) => [t.name, t]));
+  for (const t of topics) {
+    const primary = t.alternateSpellingOf ? byName.get(t.alternateSpellingOf) : undefined;
+    if (primary?.indexable) t.canonicalPath = primary.path;
+  }
+  return topics;
 }
 
 /** Names of the topic pages that are indexable (sitemap, llms.txt). */
@@ -915,6 +929,18 @@ export function topicFacts(t) {
   if (t.risk) facts.push(`Risk rating on these docs: **${t.risk}**.`);
   if (t.note) facts.push(t.note);
   return facts;
+}
+
+/**
+ * Where a link to a topic goes: its topic page when that is indexable, its
+ * entry on the group page otherwise, so in-site lists send readers and
+ * crawlers to a page search engines index. Self-healing: once a topic's
+ * section is enriched past THIN_WORDS, links point back at its topic page.
+ * @param {Topic} t
+ * @returns {string}
+ */
+export function topicHref(t) {
+  return t.indexable ? t.path : t.groupPath;
 }
 
 /**
@@ -1050,9 +1076,15 @@ function absolutizeFragment(md, pageUrl) {
  * Pure: the same inputs always give the same text.
  * @param {Topic} t
  * @param {Topic[]} topics  every topic, for the related list and the members
+ * @param {{ slug: string, title: string }[]} alsoIn  the other gallery demos
+ *   that apply the filter, as the topic page lists them (alsoAppliedIn() in
+ *   src/lib/filter-demos.ts)
  * @returns {string}
  */
-export function renderTopicMarkdown(t, topics) {
+export function renderTopicMarkdown(t, topics, alsoIn) {
+  if (!Array.isArray(alsoIn)) throw new Error(`renderTopicMarkdown(${t.name}): no demo list`);
+  const demoLink = (/** @type {{ slug: string, title: string }} */ ex) =>
+    `[${ex.title}](${SITE}/examples/${ex.slug}/)`;
   const url = `${SITE}${t.path}`;
   const abs = (/** @type {string} */ md) => absolutizeFragment(md, url);
   const byName = new Map(topics.map((x) => [x.name, x]));
@@ -1156,6 +1188,16 @@ export function renderTopicMarkdown(t, topics) {
       `See the before and after, with the source diff: [${t.name} example](${SITE}${t.example}).`,
       '',
     );
+    if (alsoIn.length) out.push(`Also applied in: ${alsoIn.map(demoLink).join(', ')}.`, '');
+  } else if (alsoIn.length) {
+    out.push(
+      '## Live examples',
+      '',
+      'No example isolates this filter. These apply it together with other filters:',
+      '',
+      ...alsoIn.map((ex) => `- ${demoLink(ex)}`),
+      '',
+    );
   }
 
   if (t.faq.length) {
@@ -1166,7 +1208,7 @@ export function renderTopicMarkdown(t, topics) {
   const related = relatedTopics(t, topics);
   out.push('## Related filters', '');
   if (related.length) {
-    out.push(...related.map((r) => `- [\`${r.name}\`](${SITE}${r.path}): ${r.human}`), '');
+    out.push(...related.map((r) => `- [\`${r.name}\`](${SITE}${topicHref(r)}): ${r.human}`), '');
   }
   out.push(
     `This page is drawn from the [${t.name} entry on ${groupName}](${groupUrl}). Every filter in one table: [PageSpeed filters](${SITE}${FILTERS_PAGE.path}).`,
@@ -1218,7 +1260,7 @@ export function renderFiltersHubMarkdown(topics) {
       '| --- | --- | --- | --- | --- |',
     );
     for (const t of rows) {
-      const href = t.indexable ? t.path : t.groupPath;
+      const href = topicHref(t);
       const risk = t.dangerous ? 'Dangerous' : t.deprecated ? 'Deprecated' : (t.risk ?? '-');
       out.push(
         `| [\`${t.name}\`](${SITE}${href}) | ${mark(t.core)} | ${mark(t.optimizeForBandwidth)} | ${cell(risk)} | ${cell(t.summary.replace(/<[^>]+>/g, '`$&`'))} |`,

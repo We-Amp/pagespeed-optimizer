@@ -3,12 +3,12 @@ title: 'Serve Markdown to AI agents'
 description: 'Serve AI agents a rendered Markdown copy of your pages at the same URL, and synthesize an /llms.txt — off by default, nothing leaves your server.'
 order: 60
 group: 'Agents'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-11-14
 faq:
   - q: 'Does this change what browsers and search engines see?'
     a: 'No. Browsers and crawlers receive your normal HTML at the same URL. Only a request that explicitly negotiates the agent representation (Accept: text/markdown), on a deployment where you have enabled agent optimization, receives the rendered-Markdown copy. The response carries Vary: Accept so shared caches never mix the two.'
   - q: 'Is it on by default?'
-    a: 'No. The capability ships in every build but stays off until you enable it with the --agent-optimize worker flag. There is no separate build.'
+    a: 'No. The capability ships in every build but stays off until you enable it with the `--agent-optimize` worker flag. There is no separate build.'
   - q: 'Does my content leave my server?'
     a: 'No. Rendering, cleaning, caching, and serving all happen on your own server. Serving a cached response performs zero outbound network I/O.'
   - q: 'Does this work with the module alone, or does it need the optimizer worker?'
@@ -48,6 +48,21 @@ The agent response is content-negotiated, with these guarantees:
 - The page **body and Content-Type for browsers are unchanged** — standard
   content negotiation on `Accept`, not cloaking.
 
+:::next-release{after="2.8.2"}
+In the nginx module, while agent optimization is on,
+the HTML responses of your pages name `Accept` in their `Vary` too (for example
+`Vary: Accept-Encoding, User-Agent, Accept`), whether or not a Markdown copy
+exists yet, so a CDN in front of nginx keys the two apart from the first
+request. With agent optimization off, `Vary` is as before. Stylesheets,
+scripts and images are not affected.
+
+- `x-markdown-tokens` (nginx module) — an estimate of the number of tokens in
+  the Markdown body, so an agent can budget its context before reading it. The estimate is
+  the body size in bytes divided by four, rounded down; no tokenizer is run, so
+  a model's own count differs. Treat it as an order of magnitude.
+- `content-signal` (nginx module) — only when you configure one (see below).
+:::
+
 The rendering runs in the optimizer worker process behind nginx, reusing
 the same headless-Chrome subsystem as [browser analysis](/docs/browser-analysis/).
 
@@ -63,6 +78,28 @@ While the flag is off, an agent request **transparently receives the normal
 HTML** of the same URL — never an error, never a half-rendered page. Turning the
 feature off is always safe.
 
+:::next-release{after="2.8.2"}
+## State a content-use policy (`content-signal`)
+
+A Markdown response can tell agents how you allow your content to be used,
+with a `content-signal` header in the [Content Signals](https://contentsignals.org/)
+format. The nginx module sends it only when you set one; there is no default
+policy, and the module never states one for you:
+
+```nginx
+pagespeed_agent_content_signal "search=yes, ai-input=yes, ai-train=no";
+```
+
+The directive works in `http`, `server` and `location` blocks and is inherited
+like other directives; `pagespeed_agent_content_signal off;` stops an inherited
+value. The header goes out with the Markdown copy and with `/llms.txt`, not with
+HTML. The value must be printable ASCII on one line, up to 512 bytes; nginx
+refuses to start with any other value. The module does not read a
+`content-signal` header from your origin's response: the directive is the only
+source. To state the same policy to crawlers that read `robots.txt`, add a
+`Content-Signal:` line there as well.
+:::
+
 ## Serve an `/llms.txt` site index
 
 The optimizer worker can also publish a synthesized **`/llms.txt`** for your
@@ -71,6 +108,11 @@ in the [llmstxt.org](https://llmstxt.org/) format. The worker builds it from you
 `sitemap.xml` (intersected with the paths you allow), with a one-line title and
 summary per page, and nginx serves it at `/llms.txt` with `X-Robots-Tag: noindex`,
 `Cache-Control: private`, and `Content-Type: text/markdown`.
+
+:::next-release{after="2.8.2"}
+`/llms.txt` carries the same `x-markdown-tokens` estimate and `content-signal`
+as the Markdown copy.
+:::
 
 It is off by default and enabled with its own flag (`--agent-optimize-llms-txt`,
 which requires `--agent-optimize`). Per-page summaries come for free: from a page's
@@ -106,6 +148,92 @@ The only network activity happens off the serving path:
 
 This makes agent optimization suitable for sovereign and regulated environments
 where content must not leave the premises.
+
+## What the Markdown copy contains
+
+The Markdown copy reproduces the page's own content. It is built from the page
+as the headless browser renders it, after the page's scripts have run. Those
+scripts run only inside that browser, as they would for any visitor; the
+conversion step never executes them. The converter treats every piece of text
+as data: it does not run it, follow instructions written in it, or fetch
+anything it links to. Text and link targets are escaped, so the copy's
+structure follows the page's markup. The copy has a fixed size limit.
+
+Content a reader is not meant to see is left out:
+
+- elements hidden in their own markup (`style="display:none"`,
+  `style="visibility:hidden"`, the `hidden` attribute, or `aria-hidden="true"`),
+  with everything inside them;
+- `<noscript>` and `<template>` content;
+- scripts, stylesheets, the document head, SVG graphics, and form drop-downs
+  and labels;
+- page-level navigation, header, and footer regions, unless the page's main
+  content sits inside them.
+
+Text hidden by CSS classes or an external stylesheet stays in the copy, because
+the conversion works from the page's markup, not from computed styles. Treat the
+copy as untrusted page content, not as instructions.
+
+## How the page cache treats signed-in visitors
+
+The page cache is shared between visitors, so it follows rules about requests
+that carry credentials or cookies. The cookie rules also apply to the Markdown
+copy and `/llms.txt`, which follow the page they were made from.
+
+**Never stored.** A response is not stored when it sets a cookie
+(`Set-Cookie`), or when it carries `Cache-Control: private` or
+`Cache-Control: no-store`. A response is stored only when its `Vary` names
+nothing beyond `Accept-Encoding`, `User-Agent`, `Accept` and `Save-Data`. Any
+other field, including `Vary: Cookie`, and `Vary: *`, means it is not stored. For
+a response that varies on `Accept`, `User-Agent` or `Save-Data`, those request
+headers take part in choosing which stored copy answers.
+
+:::next-release{after="2.8.2"}
+A response is stored only when its `Vary` names
+nothing beyond `Accept-Encoding`. Any other field, including `Vary: Accept`,
+`Vary: User-Agent`, `Vary: Save-Data`, `Vary: Cookie` and `Vary: *`, means it is
+not stored, and each request is answered by your origin. This is the `Vary`
+your origin sends; the `Vary` mod_pagespeed adds to its own responses (such as
+`Accept` with agent optimization on) does not count.
+:::
+
+**Requests with a cookie.** A request that carries a `Cookie` header is treated
+by the kind of response:
+
+- A page (every response except css, js and images) fetched for such a request
+  is stored and shared only when the origin marks it `Cache-Control: public` or
+  gives a single `s-maxage` greater than 0. A stored page is served to a request
+  with a cookie only under the same mark. Otherwise the request goes to your
+  origin.
+- A static asset (css, js, images) fetched for such a request is stored only when
+  the origin states a lifetime, with `max-age` or `s-maxage` above 0 (or
+  `Expires`, when no `Cache-Control` is sent). Without one, nothing is stored.
+
+**Requests with `Authorization`.** A request that carries an `Authorization`
+header is served from a shared copy, and its response is stored, only under the
+permit in RFC 9111 section 3.5: the response says `public`, `must-revalidate`
+or `s-maxage`. Without one of those, the request goes to your origin and the
+response is not stored. Once a copy is stale, it is served to such a request only
+when the response said `public`. The Markdown copy is served to a request that
+carries `Authorization` at most when the page itself was stored under that
+permit. `/llms.txt` is never served to a request that carries `Authorization`.
+When license enforcement (`rsl_cap_enforcement`) is on, a request whose
+Authorization header carries valid credentials under that scheme is treated as an
+agent, not as a signed-in visitor, and may be served the Markdown copy and
+/llms.txt. See [RSL-CAP](/docs/rsl-cap/) for details.
+
+### What to do on your origin
+
+- Mark every personalised page `Cache-Control: private`, or send
+  `Vary: Cookie`, which is never stored. `public` or `s-maxage` on a page that
+  differs per visitor makes it shared.
+- A response of any type that differs per visitor must carry
+  `Cache-Control: private` or `no-store`; a response with an explicit lifetime
+  and no `private` may be stored and shared.
+- If your site sets a cookie on every request (analytics, consent), pages that
+  are the same for every visitor are shared only when you mark them, for example
+  `Cache-Control: public, max-age=600`. Give css, js and images an explicit
+  `max-age`.
 
 ## Enabling it
 

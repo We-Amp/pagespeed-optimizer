@@ -1,19 +1,24 @@
 ---
 import { OG_DEFAULT_IMAGE } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import DocsSidebar from '../../components/docs/DocsSidebar.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
 import Icon from '../../components/Icon.astro';
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
+import DirectiveFinder from '../../components/DirectiveFinder.astro';
 import ReferralOrientation from '../../components/ReferralOrientation.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease, dockerTag } from '../../lib/release';
 import { gitLastModified } from '../../lib/git-date';
+import { htmlToPlainText } from '../../lib/jsonld';
+import { brandedTitle } from '../../lib/page-title';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { productRef } from '../../data/software-jsonld';
 import { ORGANIZATION_PUBLISHER } from '../../data/organization';
 import { basename } from 'node:path';
+import { tocHeadings as pageTocHeadings } from '../../lib/toc-headings';
 
 //: the JSON-LD HowTo schema for aspnet-getting-started cites
 // the literal `dotnet add package …` command shown on the page. Source it
@@ -37,7 +42,7 @@ export async function getStaticPaths() {
 }
 
 const { doc } = Astro.props;
-const { Content, headings } = await render(doc);
+const { Content, headings, remarkPluginFrontmatter } = await render(doc);
 
 const hasPlatformContent = doc.body?.includes('data-platform=') ?? false;
 
@@ -63,9 +68,10 @@ const faqItems = faqProcessor
 
 // "On this page" navigation: h2/h3 from the rendered body, plus the
 // frontmatter-driven FAQ section, which is rendered by this layout and so is
-// not part of the markdown `headings` export.
+// not part of the markdown `headings` export. A heading inside a
+// `:::next-release` marker is left out (src/lib/toc-headings.ts).
 const tocHeadings = [
-  ...headings.filter((h) => h.depth >= 2 && h.depth <= 3),
+  ...pageTocHeadings(headings, remarkPluginFrontmatter),
   ...(faqItems.length > 0 ? [{ depth: 2, slug: 'faq', text: 'Frequently asked questions' }] : []),
 ];
 const showToc = tocHeadings.length >= 3;
@@ -85,8 +91,10 @@ const sidebarGroups: { label: string; docs: typeof allDocs }[] = [];
   }
 }
 
-// Previous / next: neighbours in the sidebar's reading order (group, then
-// `order`), taken from the groups themselves so the two can never disagree.
+// Previous / next: neighbours in the reading order (group, then `order`) over
+// the whole collection. The sidebar (src/lib/docs-nav.ts) lists the same pages
+// in the same order, minus the per-line release notes and plus the filter
+// reference, which is not a collection page.
 const navDocs = sidebarGroups.flatMap((g) => g.docs);
 const docIndex = navDocs.findIndex((d) => d.id === doc.id);
 const prevDoc = docIndex > 0 ? navDocs[docIndex - 1] : undefined;
@@ -230,20 +238,22 @@ if (doc.id === 'installation-docker') {
   };
 }
 
-// Optional FAQPage JSON-LD assembled from frontmatter `faq` array.
-// Emitted as a sibling schema (alongside TechArticle or HowTo), not a
+// Optional FAQPage JSON-LD assembled from the same answers as the visible
+// accordion. Each answer is the plain text of its rendered HTML, so the markup
+// carries the words a reader sees, not the Markdown source (code spans, links,
+// bold). Emitted as a sibling schema (alongside TechArticle or HowTo), not a
 // replacement — Google parses each top-level JSON-LD script independently.
 const faqJsonLd =
-  doc.data.faq && doc.data.faq.length > 0
+  faqItems.length > 0
     ? {
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
-        mainEntity: doc.data.faq.map((item) => ({
+        mainEntity: faqItems.map((item) => ({
           '@type': 'Question',
           name: item.q,
           acceptedAnswer: {
             '@type': 'Answer',
-            text: item.a,
+            text: htmlToPlainText(item.a),
           },
         })),
       }
@@ -254,14 +264,8 @@ if (jsonLd) jsonLdEntries.push(jsonLd);
 if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 
 // <title>: an explicit seoTitle wins; otherwise the sidebar title plus the
-// product suffix, dropped when it would push the title past the ~60-character
-// point where search engines truncate (the same rule as the blog).
-const titleSuffix = ` — ${PRODUCT_DISPLAY_NAME}`;
-const pageTitle =
-  doc.data.seoTitle ??
-  (doc.data.title.length + titleSuffix.length <= 60
-    ? `${doc.data.title}${titleSuffix}`
-    : doc.data.title);
+// product suffix (the same rule as the blog, see brandedTitle).
+const pageTitle = doc.data.seoTitle ?? brandedTitle(doc.data.title);
 const heading = doc.data.h1 ?? doc.data.title;
 // The three pages the archived PageSpeed Module docs on developers.google.com
 // send their readers to (via the legacy /doc/* redirects) carry the
@@ -274,11 +278,13 @@ const showReferralOrientation = [
 ---
 
 <BaseLayout
+  skipTarget="doc-content"
   title={pageTitle}
   description={doc.data.description}
   jsonLd={jsonLdEntries}
   breadcrumbLeafName={doc.data.title}
   alternateMarkdown={markdownUrl}
+  wideHeader
 >
   <div
     class:list={[
@@ -292,101 +298,21 @@ const showReferralOrientation = [
         showToc && 'xl:grid-cols-[240px_minmax(0,1fr)_200px]',
       ]}
     >
-      <!-- Sidebar navigation -->
-      <nav class="hidden lg:block" aria-label="Documentation" data-pagefind-ignore>
-        {sidebarGroups.map((group) => (
-          <div class="mb-6">
-            <p class="eyebrow px-3 mb-2">{group.label}</p>
-            <ul class="space-y-1">
-              {group.docs.map((d) => (
-                <li>
-                  <a
-                    href={`/docs/${d.id}/`}
-                    aria-current={d.id === doc.id ? 'page' : undefined}
-                    class:list={[
-                      'block rounded-md px-3 py-2 text-sm transition-colors',
-                      d.id === doc.id
-                        ? 'bg-interactive-wash font-medium text-interactive shadow-[inset_2px_0_0_var(--color-interactive)]'
-                        : 'text-text-muted hover:bg-bg-secondary hover:text-text-body',
-                    ]}
-                  >
-                    {d.data.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-        {/* Release notes are a docs collection entry (release-notes.mdx) and
-            appear in `sidebarGroups` like every other page — no second,
-            hand-written link to a different destination. */}
-
-        {/* Sidebar install CTA — quietly persistent on every docs page */}
-        <a
-          href="/download/"
-          data-umami-event="cta_docs_sidebar_install"
-          class="block rounded-md border border-interactive/45 bg-interactive-wash px-3 py-3 text-sm font-medium text-interactive hover:border-interactive transition-colors text-center"
-        >
-          Download &amp; run
-        </a>
-        <p class="mt-2 px-1 text-xs text-text-annotation text-center">{FREE_TO_RUN_LINE}</p>
-      </nav>
-
-      <!-- Mobile navigation: a disclosure listing the same groups as the
-           sidebar. Plain links, so nothing navigates on a change of input
-           (WCAG 3.2.2); it works without JavaScript. -->
-      <details
-        id="docs-menu"
-        class="lg:hidden mb-8 rounded-lg border border-border bg-bg-elevated"
-        data-pagefind-ignore
-      >
-        <summary class="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-body">
-          Docs menu
-          <Icon
-            name="chevron-down"
-            class="docs-menu-chevron h-4 w-4 shrink-0 text-text-annotation"
-          />
-        </summary>
-        <nav aria-label="Documentation menu" class="border-t border-border px-2 pb-3">
-          {sidebarGroups.map((group) => (
-            <div class="pt-3">
-              <p class="eyebrow px-2 mb-1">{group.label}</p>
-              <ul class="space-y-0.5">
-                {group.docs.map((d) => (
-                  <li>
-                    <a
-                      href={`/docs/${d.id}/`}
-                      aria-current={d.id === doc.id ? 'page' : undefined}
-                      class:list={[
-                        'block rounded-md px-2 py-2 text-sm transition-colors',
-                        d.id === doc.id
-                          ? 'bg-interactive-wash font-medium text-interactive shadow-[inset_2px_0_0_var(--color-interactive)]'
-                          : 'text-text-muted hover:bg-bg-secondary hover:text-text-body',
-                      ]}
-                    >
-                      {d.data.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </nav>
-      </details>
+      <DocsSidebar current={doc.id} />
 
       <!-- Content -->
-      <article class="min-w-0">
+      <article id="doc-content" tabindex="-1" class="min-w-0 focus:outline-none">
         {showReferralOrientation && <ReferralOrientation />}
         <nav
           class="mb-6 text-sm font-mono text-text-annotation"
           aria-label="Breadcrumb"
           data-pagefind-ignore
         >
-          <a href="/" class="hover:text-text-body">
+          <a href="/" class="inline-block py-1 hover:text-text-body">
             Home
           </a>
           <span class="mx-1">/</span>
-          <a href="/docs/" class="hover:text-text-body">
+          <a href="/docs/" class="inline-block py-1 hover:text-text-body">
             Docs
           </a>
           <span class="mx-1">/</span>
@@ -405,14 +331,14 @@ const showReferralOrientation = [
           <a
             href={editUrl}
             rel="noopener noreferrer"
-            class="underline underline-offset-2 hover:text-interactive transition-colors"
+            class="py-1 underline underline-offset-2 hover:text-interactive transition-colors"
           >
             Edit this page
           </a>
           <a
             href={markdownUrl}
             type="text/markdown"
-            class="underline underline-offset-2 hover:text-interactive transition-colors"
+            class="py-1 underline underline-offset-2 hover:text-interactive transition-colors"
           >
             View as Markdown
           </a>
@@ -472,6 +398,12 @@ const showReferralOrientation = [
             release opens its collapsed <details> before scrolling to it.
             Gated on doc.id so no other docs page pays for it. */
           doc.id === 'release-notes' && <ReleaseNotesDeepLink />
+        }
+
+        {
+          /* The directive finder's behaviour and styles; its field is part of
+            the rendered reference on this page only. */
+          doc.id === 'configuration' && <DirectiveFinder />
         }
 
         {faqItems.length > 0 && (
@@ -547,7 +479,7 @@ const showReferralOrientation = [
             <a
               href="/download/"
               data-umami-event="cta_docs_footer_install"
-              class="inline-flex items-center rounded-lg bg-interactive hover:bg-interactive-hover px-5 py-2.5 text-sm font-semibold text-on-accent shadow-sm transition-colors"
+              class="inline-flex items-center rounded-lg bg-interactive hover:bg-interactive-hover px-5 py-2.5 text-sm font-semibold text-on-accent transition-colors"
             >
               Download &amp; run
             </a>
@@ -626,9 +558,6 @@ const showReferralOrientation = [
     }
     details > summary::-webkit-details-marker {
       display: none;
-    }
-    #docs-menu[open] > summary .docs-menu-chevron {
-      transform: rotate(180deg);
     }
 
     /* Platform selector tabs — dark-only tokens (no light-mode pair). */

@@ -1516,5 +1516,138 @@ TEST(ScoreAlternateTest, DurableOriginalScoresZero) {
   }
 }
 
+// --- Save-Data mismatch ---
+
+uint32_t SdMask(CapabilityMask::ImageFormat fmt, CapabilityMask::Viewport vp,
+                CapabilityMask::SaveData sd) {
+  return CapabilityMask(fmt, vp, CapabilityMask::PixelDensity::k1x, sd,
+                        CapabilityMask::TransferEncoding::kIdentity)
+      .Encode();
+}
+
+TEST(ScoreAlternateTest, SaveDataVariantPenalizedForNormalClient) {
+  using F = CapabilityMask::ImageFormat;
+  using V = CapabilityMask::Viewport;
+  using S = CapabilityMask::SaveData;
+  uint32_t client = SdMask(F::kWebP, V::kDesktop, S::kOff);
+  uint32_t sd_webp = SdMask(F::kWebP, V::kDesktop, S::kOn);
+  // 1000 + 2000 + 40 + 0 + 60 - 980
+  EXPECT_EQ(ScoreAlternate(client, sd_webp), 2120);
+  // The same slot for a Save-Data client keeps its full score.
+  EXPECT_EQ(ScoreAlternate(sd_webp, sd_webp), 3120);
+}
+
+TEST(ScoreAlternateTest, SaveDataPenaltyNeverScoresZero) {
+  using F = CapabilityMask::ImageFormat;
+  using V = CapabilityMask::Viewport;
+  using S = CapabilityMask::SaveData;
+  // Original-format Save-Data variant at another viewport: the raw sum is
+  // negative, but the variant stays selectable as a last resort.
+  uint32_t client = SdMask(F::kOriginal, V::kDesktop, S::kOff);
+  uint32_t stored = SdMask(F::kOriginal, V::kMobile, S::kOn);
+  EXPECT_GT(ScoreAlternate(client, stored), 0);
+}
+
+TEST(ScoreAlternateTest, SaveDataPenaltyKeepsOrderingAtTheBandEdges) {
+  using F = CapabilityMask::ImageFormat;
+  using V = CapabilityMask::Viewport;
+  using S = CapabilityMask::SaveData;
+  using E = CapabilityMask::TransferEncoding;
+  auto m = [](F f, V v, CapabilityMask::PixelDensity d, S sd, E e) {
+    return CapabilityMask(f, v, d, sd, e).Encode();
+  };
+  constexpr auto k1 = CapabilityMask::PixelDensity::k1x;
+  constexpr auto k2 = CapabilityMask::PixelDensity::k2xPlus;
+  // Client: WebP, desktop, 1x, no Save-Data, gzip.
+  uint32_t client = m(F::kWebP, V::kDesktop, k1, S::kOff, E::kGzip);
+  // Penalized exact-format variant at its best (density and encoding match).
+  uint32_t sd_best = m(F::kWebP, V::kDesktop, k1, S::kOn, E::kGzip);
+  // Normal original-format variant at the client's viewport at its worst
+  // (density and encoding fall back).
+  uint32_t normal_orig_worst =
+      m(F::kOriginal, V::kDesktop, k2, S::kOff, E::kIdentity);
+  EXPECT_EQ(ScoreAlternate(client, sd_best), 2120);
+  EXPECT_EQ(ScoreAlternate(client, normal_orig_worst), 2125);
+  EXPECT_GT(ScoreAlternate(client, normal_orig_worst),
+            ScoreAlternate(client, sd_best));
+  // Penalized original-format variant at the client's viewport at its worst
+  // against the best normal exact-format variant at another viewport.
+  uint32_t sd_orig_worst =
+      m(F::kOriginal, V::kDesktop, k2, S::kOn, E::kIdentity);
+  uint32_t normal_other_vp = m(F::kWebP, V::kMobile, k1, S::kOff, E::kGzip);
+  EXPECT_EQ(ScoreAlternate(client, sd_orig_worst), 1125);
+  EXPECT_EQ(ScoreAlternate(client, normal_other_vp), 1120);
+  EXPECT_GT(ScoreAlternate(client, sd_orig_worst),
+            ScoreAlternate(client, normal_other_vp));
+}
+
+TEST(ScoreAlternateTest, SaveDataPenaltyDoesNotApplyToSvg) {
+  using V = CapabilityMask::Viewport;
+  using S = CapabilityMask::SaveData;
+  auto mk = [](CapabilityMask::ImageFormat f, S sd) {
+    return CapabilityMask(f, V::kDesktop, CapabilityMask::PixelDensity::k1x, sd,
+                          CapabilityMask::TransferEncoding::kIdentity)
+        .Encode();
+  };
+  uint32_t client = mk(CapabilityMask::ImageFormat::kWebP, S::kOff);
+  // 1200 + 2000 + 40 + 0 (no Save-Data match) + 60: no penalty.
+  EXPECT_EQ(
+      ScoreAlternate(client, mk(CapabilityMask::ImageFormat::kSvg, S::kOn)),
+      3300);
+}
+
+TEST(PageSpeedSelectorTest, NormalClientPrefersNormalJpegOverSaveDataWebp) {
+  using F = CapabilityMask::ImageFormat;
+  using V = CapabilityMask::Viewport;
+  using S = CapabilityMask::SaveData;
+  PageSpeedSelector sel;
+  uint32_t client = SdMask(F::kWebP, V::kDesktop, S::kOff);
+  // The normal WebP slot is empty: the Save-Data WebP sibling and the normal
+  // JPEG are what the cache holds at the client's viewport.
+  std::vector<cyclone::AlternateInfo> alts = {
+      MakeAlternateInfo(SdMask(F::kWebP, V::kDesktop, S::kOn)),
+      MakeAlternateInfo(SdMask(F::kOriginal, V::kDesktop, S::kOff))};
+  auto ctx = MakeContext(client);
+  auto pick = sel.select(alts, ctx);
+  ASSERT_TRUE(pick.has_value());
+  EXPECT_EQ(*pick, 1u);
+}
+
+TEST(PageSpeedSelectorTest, SaveDataClientKeepsItsSibling) {
+  using F = CapabilityMask::ImageFormat;
+  using V = CapabilityMask::Viewport;
+  using S = CapabilityMask::SaveData;
+  PageSpeedSelector sel;
+  uint32_t client = SdMask(F::kWebP, V::kDesktop, S::kOn);
+  std::vector<cyclone::AlternateInfo> alts = {
+      MakeAlternateInfo(SdMask(F::kWebP, V::kDesktop, S::kOff)),
+      MakeAlternateInfo(SdMask(F::kWebP, V::kDesktop, S::kOn)),
+      MakeAlternateInfo(SdMask(F::kOriginal, V::kDesktop, S::kOff))};
+  auto ctx = MakeContext(client);
+  auto pick = sel.select(alts, ctx);
+  ASSERT_TRUE(pick.has_value());
+  EXPECT_EQ(*pick, 1u);
+  // With its own slot absent it takes the normal bytes of the same format.
+  alts.erase(alts.begin() + 1);
+  pick = sel.select(alts, ctx);
+  ASSERT_TRUE(pick.has_value());
+  EXPECT_EQ(*pick, 0u);
+}
+
+TEST(PageSpeedSelectorTest, SaveDataVariantStillBeatsAnotherViewport) {
+  using F = CapabilityMask::ImageFormat;
+  using V = CapabilityMask::Viewport;
+  using S = CapabilityMask::SaveData;
+  PageSpeedSelector sel;
+  uint32_t client = SdMask(F::kWebP, V::kDesktop, S::kOff);
+  std::vector<cyclone::AlternateInfo> alts = {
+      MakeAlternateInfo(SdMask(F::kWebP, V::kMobile, S::kOff)),
+      MakeAlternateInfo(SdMask(F::kWebP, V::kDesktop, S::kOn))};
+  auto ctx = MakeContext(client);
+  auto pick = sel.select(alts, ctx);
+  ASSERT_TRUE(pick.has_value());
+  EXPECT_EQ(*pick, 1u);
+}
+
 }  // namespace
 }  // namespace pagespeed

@@ -22,7 +22,7 @@ test.describe('Navigation', () => {
     }
     await page.goto('/');
     const groups = await page.locator('header nav button.nav-dropdown-btn').allInnerTexts();
-    expect(groups.map((g) => g.trim())).toEqual(['Docs', 'Tools', 'Support', 'Compare']);
+    expect(groups.map((g) => g.trim())).toEqual(['Docs', 'Tools', 'Support', 'Product']);
     // Rule packs left the top level; it lives in the Docs panel.
     await expect(page.locator('header nav .lg\\:flex > a:has-text("Rule packs")')).toHaveCount(0);
   });
@@ -42,6 +42,7 @@ test.describe('Navigation', () => {
     ]) {
       await expect(panel.getByText(title, { exact: true })).toBeVisible();
     }
+    await expect(panel.locator('a[href="/docs/getting-started/"]')).toHaveText('Getting started');
     const packs = panel.locator('a[href="/packs/"]');
     await expect(packs).toContainText('Browse rule packs');
     await expect(packs).toHaveAttribute('data-umami-event', 'nav-packs');
@@ -115,6 +116,24 @@ test.describe('Navigation', () => {
     await expect(open.locator('summary')).toContainText('Configure');
   });
 
+  test('mobile Product group is open on a product page', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/features/');
+    await page.locator('#mobile-menu-btn').click();
+    const open = page.locator('#mobile-menu details[open]');
+    await expect(open).toHaveCount(1);
+    await expect(open.locator('summary')).toContainText('Product');
+  });
+
+  test('mobile Tools group is open on a tool page', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/calculator/');
+    await page.locator('#mobile-menu-btn').click();
+    const open = page.locator('#mobile-menu details[open]');
+    await expect(open).toHaveCount(1);
+    await expect(open.locator('summary')).toContainText('Tools');
+  });
+
   for (const width of [1024, 1280, 1440]) {
     test(`Docs panel stays inside the viewport at ${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: 800 });
@@ -143,19 +162,6 @@ test.describe('Navigation', () => {
     await expect(page.locator('#mobile-menu')).toHaveClass(/hidden/);
     await page.setViewportSize({ width: 800, height: 700 });
     await expect(page.locator('#mobile-menu')).toBeHidden();
-  });
-
-  test('the sticky mobile CTA appears after scrolling', async ({ page }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
-    const cta = page.locator('#sticky-cta');
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
-    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 1.5));
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'visible');
-    await expect(cta).toBeVisible();
-    // At the bottom the footer is in view and the CTA steps aside.
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
   });
 
   test('Tools dropdown names the two lead tools plainly', async ({ page }) => {
@@ -216,12 +222,15 @@ test.describe('Navigation', () => {
     ).toHaveCount(1);
   });
 
-  test('Support dropdown carries the four offers as commercial CTAs', async ({ page }) => {
+  test('Support dropdown carries the plans, pricing and three offers as commercial CTAs', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.locator('header nav button.nav-dropdown-btn:has-text("Support")').click();
     const panel = page.locator('.nav-dropdown-panel:visible');
     const expected = [
       { href: '/support/', label: 'Support plans', offer: 'support' },
+      { href: '/pricing/', label: 'Pricing', offer: 'pricing' },
       { href: '/support/#hardened-builds', label: 'Signed artifacts', offer: 'hardened' },
       { href: '/hosting-partners/', label: 'Hosting partners', offer: 'hosting' },
       { href: 'https://we-amp.com/consulting/', label: 'Consulting', offer: 'consulting' },
@@ -234,8 +243,66 @@ test.describe('Navigation', () => {
       await expect(a).toHaveAttribute('data-umami-event-offer', item.offer);
       await expect(a).toHaveAttribute('data-umami-event-surface', 'nav');
     }
+    // Pricing sits directly under the plans and reports its own position.
+    const pricing = panel.locator('a').nth(1);
+    await expect(pricing).toHaveAttribute('href', '/pricing/');
+    await expect(pricing).toContainText('Prices for the three support tiers');
+    await expect(pricing).toHaveAttribute('data-umami-event-position', 'nav_support_pricing');
     await panel.locator('a[href="/support/"]').click();
     await expect(page).toHaveURL('/support/');
+  });
+
+  test('header has a Pricing link next to search; Sponsor stays in the footer and on the home page', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const nav = page.locator('header nav');
+    const pricing = nav.locator('a[data-umami-event-position="header_pricing"]');
+    await expect(pricing).toBeVisible();
+    await expect(pricing).toHaveText('Pricing');
+    await expect(pricing).toHaveAttribute('href', '/pricing/');
+    await expect(pricing).toHaveAttribute('data-umami-event', 'cta_commercial');
+    await expect(pricing).toHaveAttribute('data-umami-event-offer', 'pricing');
+    await expect(pricing).toHaveAttribute('data-umami-event-surface', 'nav');
+    await expect(pricing).not.toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('header a[href*="github.com/sponsors"]')).toHaveCount(0);
+    await expect(page.locator('footer a[href="https://github.com/sponsors/We-Amp"]')).toBeVisible();
+    await expect(page.locator('main a[href="https://github.com/sponsors/We-Amp"]')).toBeVisible();
+
+    await pricing.click();
+    await expect(page).toHaveURL('/pricing/');
+    await expect(
+      page.locator('header nav a[data-umami-event-position="header_pricing"]'),
+    ).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('header Pricing link appears at 1280 px and not below; the phone menu lists Pricing once', async ({
+    page,
+  }) => {
+    const pricing = page.locator('header nav a[data-umami-event-position="header_pricing"]');
+
+    // One pixel under the breakpoint the link is in the markup but not shown;
+    // Pricing stays reachable through the Support menu.
+    await page.setViewportSize({ width: 1279, height: 800 });
+    await page.goto('/');
+    await expect(pricing).toHaveCount(1);
+    await expect(pricing).toBeHidden();
+
+    // At the breakpoint it is shown.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(pricing).toBeVisible();
+
+    // On a phone the header link stays hidden and the open menu carries
+    // exactly one Pricing link, so the page is not listed twice.
+    await page.setViewportSize({ width: 375, height: 667 });
+    await expect(pricing).toBeHidden();
+    await page.locator('#mobile-menu-btn').click();
+    const mobileMenu = page.locator('#mobile-menu');
+    await expect(mobileMenu).toBeVisible();
+    await expect(mobileMenu.locator('a[href="/pricing/"]')).toHaveCount(1);
+    await expect(mobileMenu.locator('a[href="/pricing/"]')).toBeVisible();
+    await expect(page.locator('header a[href="/pricing/"]:visible')).toHaveCount(1);
   });
 
   test('header has no separate Message entry; the floating launcher stays', async ({ page }) => {
@@ -259,14 +326,106 @@ test.describe('Navigation', () => {
     await expect(desktopNav).toHaveAttribute('aria-current', 'page');
   });
 
-  test('footer has four groups plus Legal', async ({ page }) => {
+  test('Product dropdown lists features, how it works, alternatives and Core Web Vitals', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Product")').click();
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    const hrefs = await panel
+      .locator('a')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('href')));
+    expect(hrefs).toEqual(['/features/', '/how-it-works/', '/alternatives/', '/core-web-vitals/']);
+    await expect(panel.locator('a[href="/features/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-features',
+    );
+    await expect(panel.locator('a[href="/how-it-works/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-how-it-works',
+    );
+    await page.goto('/features/');
+    await expect(
+      page.locator('header nav button.nav-dropdown-btn:has-text("Product")'),
+    ).toHaveClass(/nav-item-active/);
+  });
+
+  test('footer splits tools from guides and links the PSOL and maintenance pages', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const group = (title: string) =>
+      page.locator(`footer div:has(> h2:text-is("${title}")) > ul a`);
+    const tools = await group('Tools').evaluateAll((els) =>
+      els.map((el) => el.getAttribute('href')),
+    );
+    expect(tools).toEqual([
+      '/ai-readability/',
+      '/analyze/',
+      '/ai-crawler-cost/',
+      '/examples/',
+      'https://we-amp.com/pagespeed_global_admin/',
+      '/calculator/',
+      '/demo/',
+    ]);
+    const guides = await group('Guides').evaluateAll((els) =>
+      els.map((el) => el.getAttribute('href')),
+    );
+    expect(guides).toEqual([
+      '/pagespeed-markers/',
+      '/pagespeed-insights/',
+      '/wordpress/',
+      '/aspnet-core-performance/',
+      '/self-hosted-image-optimization/',
+      '/psol/',
+    ]);
+    const footer = page.locator('footer');
+    await expect(footer.locator('a[href="/psol/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-psol-footer',
+    );
+    await expect(footer.locator('a[href="/ai-crawler-cost/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-crawler-cost-footer',
+    );
+    const maintained = footer.locator('a[href="/mod-pagespeed-still-maintained/"]');
+    await expect(maintained).toHaveText('Is it still maintained?');
+    await expect(maintained).toHaveAttribute('data-umami-event', 'nav-still-maintained-footer');
+  });
+
+  test('landing pages end with a Related block; other pages have none', async ({ page }) => {
+    await page.goto('/psol/');
+    const related = page.locator('main nav[data-related]');
+    await expect(related.getByRole('heading', { name: 'Related' })).toBeVisible();
+    const hrefs = await related
+      .locator('a')
+      .evaluateAll((els) => els.map((el) => el.getAttribute('href')));
+    expect(hrefs).toEqual(['/how-it-works/', '/mod-pagespeed-still-maintained/', '/docs/upgrade/']);
+    await expect(related.locator('a').first()).toHaveAttribute('data-umami-event', 'nav-related');
+    await expect(related.locator('a').first()).toHaveAttribute(
+      'data-umami-event-position',
+      'how_it_works',
+    );
+    await page.goto('/core-web-vitals/lcp/');
+    await expect(page.locator('nav[data-related]')).toHaveCount(0);
+    for (const href of ['/core-web-vitals/cls/', '/core-web-vitals/inp/']) {
+      await expect(
+        page.locator(`main section:has(p:text-is("See also:")) a[href="${href}"]`),
+      ).toHaveCount(1);
+    }
+    await page.goto('/');
+    await expect(page.locator('nav[data-related]')).toHaveCount(0);
+  });
+
+  test('footer has five groups plus Legal', async ({ page }) => {
     await page.goto('/');
     // Group headings are the labels directly above each link list.
-    const headings = await page.locator('footer p.uppercase:has(+ ul)').allInnerTexts();
+    const headings = await page.locator('footer h2:has(+ ul)').allInnerTexts();
     expect(headings.map((h) => h.trim().toLowerCase())).toEqual([
       'product',
       'install and docs',
       'tools',
+      'guides',
       'support and company',
       'legal',
     ]);
@@ -381,16 +540,53 @@ test.describe('Navigation', () => {
     const support = mobileMenu.locator('a[href="/support/"]');
     await expect(support).toHaveAttribute('data-umami-event', 'cta_commercial');
     await expect(support).toHaveAttribute('data-umami-event-position', 'support_plans_mobile');
+    // Pricing is listed once, inside the Support group; the menu has no
+    // Sponsor entry.
+    const pricing = mobileMenu.locator('a[href="/pricing/"]');
+    await expect(pricing).toHaveCount(1);
+    await expect(pricing).toBeVisible();
+    await expect(pricing).toHaveAttribute('data-umami-event', 'cta_commercial');
+    await expect(pricing).toHaveAttribute(
+      'data-umami-event-position',
+      'nav_support_pricing_mobile',
+    );
+    await expect(mobileMenu.locator('a[href*="github.com/sponsors"]')).toHaveCount(0);
+    await expect(mobileMenu.locator('a').last()).toHaveAttribute('href', '/contact/');
     for (const href of [
       '/support/#hardened-builds',
       '/hosting-partners/',
       'https://we-amp.com/consulting/',
-      '/ai-readability/',
-      '/analyze/',
     ]) {
       await expect(mobileMenu.locator(`a[href="${href}"]`), href).toBeVisible();
     }
+
+    // The download button is the first link of the menu.
+    await expect(mobileMenu.locator('a').first()).toHaveAttribute('href', '/download/');
+    await expect(mobileMenu.locator('a').first()).toHaveAttribute(
+      'data-umami-event',
+      'cta_nav_download_mobile',
+    );
+
+    // Tools start collapsed behind their label and open on a tap.
+    const tools = mobileMenu.locator('details', { hasText: 'Tools' });
+    await expect(tools).not.toHaveAttribute('open', '');
+    await expect(tools.locator('a[href="/analyze/"]')).toBeHidden();
+    await tools.locator('summary').click();
+    for (const href of ['/ai-readability/', '/analyze/']) {
+      await expect(tools.locator(`a[href="${href}"]`), href).toBeVisible();
+    }
     await expect(mobileMenu.locator('[data-qm-open]')).toHaveCount(0);
+
+    // Product starts collapsed the same way.
+    const product = mobileMenu.locator('details').filter({
+      has: page.locator('summary', { hasText: /^\s*Product\s*$/ }),
+    });
+    await expect(product).not.toHaveAttribute('open', '');
+    await expect(product.locator('a[href="/features/"]')).toBeHidden();
+    await product.locator('summary').click();
+    for (const href of ['/features/', '/how-it-works/', '/alternatives/', '/core-web-vitals/']) {
+      await expect(product.locator(`a[href="${href}"]`), href).toBeVisible();
+    }
 
     // Docs: a plain home link, then one <details> per column.
     await expect(mobileMenu.locator('a[href="/docs/"]')).toContainText('Docs home');
@@ -413,6 +609,7 @@ test.describe('Navigation', () => {
 
     await expect(page.locator('main')).toHaveAttribute('inert', '');
     await expect(page.locator('footer[data-site-footer]')).toHaveAttribute('inert', '');
+    await expect(page.locator('[data-ui="telemetry-strip"]')).toHaveAttribute('inert', '');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe(
       'hidden',
     );
@@ -429,6 +626,7 @@ test.describe('Navigation', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('main')).not.toHaveAttribute('inert', '');
     await expect(page.locator('footer[data-site-footer]')).not.toHaveAttribute('inert', '');
+    await expect(page.locator('[data-ui="telemetry-strip"]')).not.toHaveAttribute('inert', '');
     expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe(
       'hidden',
     );
@@ -453,22 +651,6 @@ test.describe('Navigation', () => {
     expect(await page.evaluate(() => !!document.activeElement?.closest('body > header'))).toBe(
       false,
     );
-  });
-
-  test('the sticky CTA is out of the tab order and the accessibility tree while hidden', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
-    const cta = page.locator('#sticky-cta');
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'hidden');
-    await expect(cta).toHaveAttribute('inert', '');
-    expect(await cta.evaluate((e) => getComputedStyle(e).visibility)).toBe('hidden');
-    await expect(page.locator('nav[aria-label="Quick actions"] #sticky-cta')).toHaveCount(1);
-    await page.evaluate(() => window.scrollTo(0, window.innerHeight * 1.5));
-    await expect(cta).toHaveAttribute('data-sticky-cta', 'visible');
-    await expect(cta).not.toHaveAttribute('inert', '');
-    await expect(cta).toBeVisible();
   });
 
   test('the header search button advertises its shortcuts', async ({ page }) => {
@@ -510,7 +692,7 @@ test.describe('Site search', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog).toHaveAttribute('open', '');
     // The dev server has no Pagefind index; the dialog must say so rather than
-    // fail silently (the production build writes /pagefind/ at build time).
+    // fail silently (the production build writes /pagefind/v<version>/ at build time).
     await expect(dialog.locator('#site-search-status')).toContainText(/search/i);
 
     await page.keyboard.press('Escape');

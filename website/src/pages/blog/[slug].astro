@@ -7,7 +7,9 @@ import ShareButtons from '../../components/ShareButtons.astro';
 import { getCollection, render } from 'astro:content';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { brandedTitle } from '../../lib/page-title';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
+import { BLOG_INSTALL_PLATFORMS, INSTALL_PLATFORM_LINKS } from '../../data/blog-install-links';
 
 // Build-time set of generated social cards. Blog pages are prerendered, so this
 // frontmatter runs during `astro build` with cwd = the project root — read the
@@ -44,7 +46,10 @@ export async function getStaticPaths() {
 }
 
 const { post, related } = Astro.props;
-const { Content } = await render(post);
+const { Content, headings } = await render(post);
+// A post that ends with its own "## Related" list gets no "Read next" list
+// from the template: two related-reading lists in a row is one too many.
+const hasOwnRelated = headings.some((h) => h.depth === 2 && h.text.trim() === 'Related');
 
 const canonicalUrl = `https://modpagespeed.com/blog/${post.id}/`;
 
@@ -78,16 +83,15 @@ if (!post.data.coverImage && !generatedCards.has(`${post.id}.png`)) {
 const absoluteCardUrl = new URL(cardUrl, Astro.site ?? new URL('https://modpagespeed.com')).href;
 
 const isOneOne = post.data.product === '1.1';
+// Server-specific install links for the fix posts (see the data file).
+const installLinks = (BLOG_INSTALL_PLATFORMS[post.id] ?? []).map((p) => INSTALL_PLATFORM_LINKS[p]);
+const installKind = installLinks[0]?.kind ?? 'module';
 const productLabel = PRODUCT_DISPLAY_NAME;
 
-// Append the product suffix to the <title> only when it won't push the SERP
-// title past the ~60-char truncation point. Long post titles keep their full
-// text rather than spending the budget on a brand suffix Google would cut off.
-const titleSuffix = ` — ${productLabel}`;
-const pageTitle =
-  post.data.title.length + titleSuffix.length <= 60
-    ? `${post.data.title}${titleSuffix}`
-    : post.data.title;
+// Append the product suffix to the <title> only when the title does not name
+// the product already and the suffix won't push it past the ~60-char
+// truncation point (brandedTitle).
+const pageTitle = brandedTitle(post.data.title);
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -169,7 +173,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
     <header>
       <time
         datetime={post.data.date.toISOString()}
-        class="font-mono text-xs font-medium uppercase tracking-wider text-text-annotation"
+        class="font-mono text-xs font-normal uppercase tracking-wider text-text-annotation"
       >
         {post.data.date.toLocaleDateString('en-US', {
           year: 'numeric',
@@ -184,7 +188,6 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         By{' '}
         <a
           href="https://www.linkedin.com/in/oschaaf"
-          target="_blank"
           rel="noopener noreferrer"
           class="text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
         >
@@ -222,11 +225,13 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
           </p>
           <div class="mt-5 flex flex-wrap items-center gap-3">
             <a
-              href="/docs/"
+              href="/docs/getting-started/"
               data-umami-event="cta_blog_bottom_install"
               class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
             >
-              Get started &rarr;
+              <span>
+                Get started <span aria-hidden="true">&rarr;</span>
+              </span>
             </a>
             <a
               href="/pricing/"
@@ -249,17 +254,35 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
               data-umami-event="cta_blog_bottom_install"
               class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
             >
-              Install &amp; run &rarr;
+              <span>
+                Install &amp; run <span aria-hidden="true">&rarr;</span>
+              </span>
             </a>
             <a
               href="/pricing/"
               data-umami-event="cta_blog_bottom_buy"
               class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
             >
-              Support plans
+              Support pricing
             </a>
           </div>
         </>
+      )}
+      {installLinks.length > 0 && (
+        <div class="mt-4 border-t border-interactive/30 pt-4" data-blog-install-links>
+          <p class="text-sm text-text-muted">Install the {installKind} this guide configures:</p>
+          <div class="mt-2 flex flex-wrap items-center gap-x-5 gap-y-2">
+            {installLinks.map((link) => (
+              <a
+                href={link.href}
+                data-umami-event={link.event}
+                class="text-sm font-medium text-interactive hover:text-interactive-hover underline decoration-border-strong underline-offset-2"
+              >
+                {link.label} <span aria-hidden="true">&rarr;</span>
+              </a>
+            ))}
+          </div>
+        </div>
       )}
     </aside>
 
@@ -281,7 +304,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         Drop an access log; nothing from it leaves your browser.
       </aside>
     )}
-    {related.length > 0 && (
+    {related.length > 0 && !hasOwnRelated && (
       <section class="mt-12 border-t border-border pt-8">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-text-annotation">
           Read next
@@ -289,12 +312,14 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         <ul class="mt-4 space-y-4">
           {related.map((r) => (
             <li>
-              <a href={`/blog/${r.id}/`} class="group block">
+              <div class="group card-stretch block">
                 <h3 class="text-base font-semibold text-text-body group-hover:text-interactive transition-colors">
-                  {r.data.title}
+                  <a href={`/blog/${r.id}/`} class="card-stretch-link">
+                    {r.data.title}
+                  </a>
                 </h3>
                 <p class="mt-1 text-sm text-text-muted">{r.data.description}</p>
-              </a>
+              </div>
             </li>
           ))}
         </ul>
@@ -302,8 +327,11 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
     )}
 
     <nav class="mt-8 border-t border-border pt-8" aria-label="Article navigation">
-      <a href="/blog/" class="text-sm font-medium text-interactive hover:text-interactive-hover">
-        &larr; Back to blog
+      <a
+        href="/blog/"
+        class="tap-area text-sm font-medium text-interactive hover:text-interactive-hover"
+      >
+        <span aria-hidden="true">&larr; </span>Back to blog
       </a>
     </nav>
   </article>
@@ -449,9 +477,8 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         lastFocus = document.activeElement;
         lb.hidden = false;
         document.body.style.overflow = 'hidden';
-        // Marks the page as hosting a modal overlay: the floating share and
-        // message widgets hide while this attribute is set. Also close any
-        // of them that is open (single-popup law).
+        // Marks the page as hosting a modal overlay: the floating message
+        // widget hides while this attribute is set, and closes if it is open.
         document.documentElement.setAttribute('data-dialog-open', '');
         window.dispatchEvent(new CustomEvent('weamp:fab-open', { detail: { source: 'lightbox' } }));
         closeBtn?.focus();

@@ -107,6 +107,33 @@ TEST(OriginCacheControl, DeltaSecondsToleratesQuotesAndLeadingSpace) {
   EXPECT_EQ(ParseCacheControlSeconds("  600"), 600u);
 }
 
+// --- optional whitespace (RFC 9110 section 5.6.3) ----------------------
+
+TEST(OriginCacheControl, OptionalWhitespaceAroundDirectivesIsIgnored) {
+  EXPECT_TRUE(Parse("max-age=60,\tprivate").cc_flags & AM::kCCOriginPrivate);
+  EXPECT_TRUE(Parse("max-age=60,\tno-store").cc_flags & AM::kCCOriginNoStore);
+  EXPECT_TRUE(Parse("max-age=60,private\t").cc_flags & AM::kCCOriginPrivate);
+  EXPECT_TRUE(Parse("\tno-store").cc_flags & AM::kCCOriginNoStore);
+  EXPECT_TRUE(Parse("public, max-age=60\t, no-cache").cc_flags &
+              AM::kCCOriginNoCache);
+  EXPECT_TRUE(Parse(" \t no-store \t ").cc_flags & AM::kCCOriginNoStore);
+}
+
+TEST(OriginCacheControl, OptionalWhitespaceAroundNameAndValueIsIgnored) {
+  const OriginCacheControl cc = Parse("max-age\t=\t60\t,\ts-maxage=\t30\t");
+  EXPECT_EQ(cc.max_age, 60u);
+  EXPECT_EQ(cc.s_maxage, 30u);
+  EXPECT_TRUE(cc.cc_flags & AM::kCCOriginSMaxagePresent);
+  EXPECT_TRUE(Parse("private\t=\t\"Set-Cookie\"").cc_flags &
+              AM::kCCOriginPrivateQualified);
+}
+
+TEST(OriginCacheControl, DeltaSecondsToleratesSurroundingWhitespace) {
+  EXPECT_EQ(ParseCacheControlSeconds("\t600\t"), 600u);
+  EXPECT_EQ(ParseCacheControlSeconds("\"600\"\t"), 600u);
+  EXPECT_EQ(ParseCacheControlSeconds("\t\"\t600\""), 600u);
+}
+
 // --- the qualified forms (RFC 9111 §5.2.2.4 / §5.2.2.7) ------------------
 
 TEST(OriginCacheControl, BarePrivateIsBlanket) {
@@ -379,7 +406,9 @@ TEST(OriginCacheControlEquivalence,
         want.cc_flags |= AM::kCCOriginHeaderPresent;
         legacy::ParseInline(input, &want);
 
-        EXPECT_EQ(got.cc_flags, want.cc_flags)
+        // The repeated-s-maxage bit postdates the transcription; it is
+        // pinned on its own below.
+        EXPECT_EQ(got.cc_flags & ~AM::kCCOriginSMaxageRepeated, want.cc_flags)
             << "flags diverged on: [" << input << "]";
         EXPECT_EQ(got.max_age, want.max_age)
             << "max-age diverged on: [" << input << "]";
@@ -390,6 +419,30 @@ TEST(OriginCacheControlEquivalence,
     }
   }
   EXPECT_EQ(compared, pieces.size() * pieces.size() * 5);
+}
+
+TEST(OriginCacheControlTest, RepeatedSMaxageIsMarked) {
+  for (const char* line :
+       {"s-maxage=60", "max-age=60, s-maxage=60", "public, s-maxage=0"}) {
+    OriginCacheControl cc;
+    AccumulateOriginCacheControl(line, &cc);
+    EXPECT_EQ(cc.cc_flags & AM::kCCOriginSMaxageRepeated, 0) << line;
+  }
+  for (const char* line :
+       {"s-maxage=60, s-maxage=60", "s-maxage=60, S-MaxAge=120",
+        "s-maxage=abc, s-maxage=60"}) {
+    OriginCacheControl cc;
+    AccumulateOriginCacheControl(line, &cc);
+    EXPECT_NE(cc.cc_flags & AM::kCCOriginSMaxageRepeated, 0) << line;
+    EXPECT_NE(cc.cc_flags & AM::kCCOriginSMaxagePresent, 0) << line;
+  }
+  // Across header lines too.
+  OriginCacheControl cc;
+  AccumulateOriginCacheControl("s-maxage=60", &cc);
+  AccumulateOriginCacheControl("max-age=10", &cc);
+  EXPECT_EQ(cc.cc_flags & AM::kCCOriginSMaxageRepeated, 0);
+  AccumulateOriginCacheControl("s-maxage=60", &cc);
+  EXPECT_NE(cc.cc_flags & AM::kCCOriginSMaxageRepeated, 0);
 }
 
 }  // namespace

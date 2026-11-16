@@ -301,17 +301,6 @@ cc_library(
     ],
 )
 
-# Bilateral filter for noise-adaptive denoising
-cc_library(
-    name = "bilateral_filter",
-    srcs = ["bilateral_filter.cc"],
-    hdrs = ["bilateral_filter.h"],
-    visibility = ["//:internal"],
-    deps = [
-        "//lib/base:message_handler",
-    ],
-)
-
 # Image analysis - gradient, histogram, photo detection
 cc_library(
     name = "image_analysis",

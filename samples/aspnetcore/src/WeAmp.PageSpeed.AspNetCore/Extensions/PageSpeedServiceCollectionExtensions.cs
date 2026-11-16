@@ -44,27 +44,24 @@ public static class PageSpeedServiceCollectionExtensions
         // Runtime version check: fail fast if native library is incompatible.
         VersionCheck.EnsureCompatible();
 
-        // Cache: singleton, disposed on shutdown. Registered as interface.
-        // Wrapped so it follows the worker's volume resets (full purge):
-        // the wrapper reopens the cache when {VolumePath}.gen changes.
-        services.AddSingleton<IPageSpeedCache>(sp =>
+        // Activation: the one point where PageSpeed becomes active, the first
+        // time PageSpeed:Enabled is true (at startup or through a hot reload).
+        // It opens the real cache, then releases WorkerProcessHost to launch
+        // the worker. Until then nothing touches the disk. Enabled going back
+        // to false tears nothing down.
+        services.AddSingleton(sp =>
         {
-            var opts = sp.GetRequiredService<IOptions<PageSpeedOptions>>().Value;
-            var cacheOpts = new WeAmp.PageSpeed.PageSpeedCacheOptions
-            {
-                VolumePath = opts.Cache.VolumePath,
-                VolumeSizeBytes = opts.Cache.VolumeSizeBytes,
-                EnableChecksum = opts.Cache.EnableChecksum,
-                RamCacheSizeBytes = opts.Cache.RamCacheSizeBytes,
-                MaxMetadataSizeBytes = opts.Cache.MaxMetadataSizeBytes,
-            };
-            var logger = sp.GetService<ILoggerFactory>()
-                ?.CreateLogger<GenerationAwarePageSpeedCache>();
-            return new GenerationAwarePageSpeedCache(
-                () => new PageSpeedCache(cacheOpts),
-                cacheOpts.VolumePath + ".gen",
-                logger);
+            var loggerFactory = sp.GetService<ILoggerFactory>();
+            return new PageSpeedActivation(
+                sp.GetRequiredService<IOptionsMonitor<PageSpeedOptions>>(),
+                opts => OpenCache(opts, loggerFactory),
+                loggerFactory?.CreateLogger<PageSpeedActivation>());
         });
+
+        // Cache: singleton, disposed on shutdown. Registered as interface.
+        // An empty stand-in until activation, then the real cache.
+        services.AddSingleton<IPageSpeedCache>(sp =>
+            sp.GetRequiredService<PageSpeedActivation>().Cache);
 
         // HTML processor: singleton, reads IOptionsMonitor per call.
         services.AddSingleton<IHtmlProcessor, HtmlProcessor>();
@@ -80,7 +77,13 @@ public static class PageSpeedServiceCollectionExtensions
         services.AddSingleton<InternalWorkerEndpoint>();
 
         // Worker process host: auto-starts factory_worker as a child process.
-        services.AddSingleton<WorkerProcessHost>();
+        // It waits for the activation above, so a host that starts with
+        // PageSpeed disabled launches the worker once a hot reload enables it.
+        services.AddSingleton(sp => new WorkerProcessHost(
+            sp.GetRequiredService<PageSpeedActivation>(),
+            sp.GetRequiredService<IOptionsMonitor<PageSpeedOptions>>(),
+            sp.GetRequiredService<InternalWorkerEndpoint>(),
+            sp.GetRequiredService<ILogger<WorkerProcessHost>>()));
         services.AddHostedService(sp =>
             sp.GetRequiredService<WorkerProcessHost>());
 
@@ -101,5 +104,28 @@ public static class PageSpeedServiceCollectionExtensions
                 tags: ["pagespeed", "ready"]);
 
         return services;
+    }
+
+    /// <summary>
+    /// Opens the real cache on activation. Wrapped so it follows the worker's
+    /// volume resets (full purge): the wrapper reopens the cache when
+    /// {VolumePath}.gen changes.
+    /// </summary>
+    private static IPageSpeedCache OpenCache(
+        PageSpeedOptions opts, ILoggerFactory? loggerFactory)
+    {
+        var cacheOpts = new WeAmp.PageSpeed.PageSpeedCacheOptions
+        {
+            VolumePath = opts.Cache.VolumePath,
+            VolumeSizeBytes = opts.Cache.VolumeSizeBytes,
+            EnableChecksum = opts.Cache.EnableChecksum,
+            RamCacheSizeBytes = opts.Cache.RamCacheSizeBytes,
+            MaxMetadataSizeBytes = opts.Cache.MaxMetadataSizeBytes,
+        };
+        var logger = loggerFactory?.CreateLogger<GenerationAwarePageSpeedCache>();
+        return new GenerationAwarePageSpeedCache(
+            () => new PageSpeedCache(cacheOpts),
+            cacheOpts.VolumePath + ".gen",
+            logger);
     }
 }

@@ -3,10 +3,12 @@
 //
 // The per-filter topic pages (/docs/filters/<name>/): three representative
 // pages render (one with a live example, one compound name, one noindex), the
-// group pages keep their anchors and link each section to its topic page, and
-// the /docs/filters/ table links each row to one.
+// group pages keep their anchors and link each section to its topic page, the
+// /docs/filters/ table links each row to one, and a related-filters list sends
+// a thin filter to its group-page entry.
 
 import { test, expect } from '@playwright/test';
+import { loadFilterTopics } from '../src/lib/filter-topics.mjs';
 
 test.describe('Filter topic pages', () => {
   test('a filter with a live example renders its guide', async ({ page }) => {
@@ -64,6 +66,29 @@ test.describe('Filter topic pages', () => {
     await expect(page.locator('a[href="/docs/filters/convert_jpeg_to_webp/"]')).toBeVisible();
   });
 
+  test('the related filters list links a thin filter to its group-page entry', async ({ page }) => {
+    const topics = loadFilterTopics();
+    const byPath = new Map(topics.map((t) => [t.path, t]));
+    const byGroup = new Map(topics.map((t) => [t.groupPath, t]));
+    // add_base_tag's related list includes thin HTML filters such as add_head.
+    await page.goto('/docs/filters/add_base_tag/');
+    const hrefs = await page
+      .locator('#related ~ ul a')
+      .evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+    expect(hrefs.length).toBeGreaterThan(0);
+    let toGroup = 0;
+    for (const href of hrefs) {
+      const target = byPath.get(href) ?? byGroup.get(href);
+      expect(target, href).toBeDefined();
+      if (target!.indexable) expect(href).toBe(target!.path);
+      else {
+        expect(href).toBe(target!.groupPath);
+        toGroup++;
+      }
+    }
+    expect(toGroup).toBeGreaterThan(0);
+  });
+
   test('the filters table links rows to topic pages', async ({ page }) => {
     await page.goto('/docs/filters/');
     const link = page.locator('tr#inline_javascript a[data-topic-link]');
@@ -71,6 +96,28 @@ test.describe('Filter topic pages', () => {
     await link.click();
     await expect(page).toHaveURL(/\/docs\/filters\/inline_javascript\/$/);
     await expect(page.locator('main h1')).toHaveText('Inline JavaScript (inline_javascript)');
+  });
+
+  test('a page lists the other examples that apply its filter', async ({ page }) => {
+    await page.goto('/docs/filters/rewrite_css/');
+    await expect(
+      page.locator('[data-topic-also] a[href="/examples/rewrite_css_extend_cache/"]'),
+    ).toBeVisible();
+  });
+
+  test('a page lists a demo whose capture shows the filter acting', async ({ page }) => {
+    await page.goto('/docs/filters/extend_cache/');
+    await expect(page.locator('[data-not-applied]')).toHaveCount(0);
+    await expect(
+      page.locator('[data-topic-also] a[href="/examples/rewrite_css_extend_cache/"]'),
+    ).toBeVisible();
+  });
+
+  test('a filter no example isolates links to the examples that apply it', async ({ page }) => {
+    await page.goto('/docs/filters/convert_jpeg_to_webp/');
+    const example = page.locator('[data-topic-example]');
+    await expect(example.locator('h2')).toHaveText('Live examples');
+    await expect(example.locator('a[href="/examples/rewrite_images/"]')).toBeVisible();
   });
 
   test('an example page links to its full guide', async ({ page }) => {
@@ -100,6 +147,36 @@ test.describe('Filter topic pages', () => {
     expect(body).toContain('## Frequently asked questions');
     expect(body).not.toContain('](/');
     expect((await page.request.get('/docs/filters/lazyload_images.md/')).status()).toBe(404);
+  });
+
+  // The demos a page links in its live example section are the ones its
+  // Markdown twin links, in the same order, on every indexable page.
+  test('every Markdown twin lists the same example demos as its page', async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'server output; one project is enough');
+    await page.route('**/*', (route) => route.abort());
+    const names = loadFilterTopics()
+      .filter((t) => t.indexable)
+      .map((t) => t.name);
+    expect(names.length).toBeGreaterThan(30);
+    let withDemos = 0;
+    for (const name of names) {
+      const html = await (await request.get(`/docs/filters/${name}/`)).text();
+      await page.setContent(html, { waitUntil: 'domcontentloaded' });
+      const fromPage = await page
+        .locator('[data-topic-example] a[href^="/examples/"]')
+        .evaluateAll((as) => as.map((a) => a.getAttribute('href')!.split('/')[2]));
+      const md = await (await request.get(`/docs/filters/${name}.md`)).text();
+      const section = md.match(/\n## Live examples?\n[\s\S]*?(?=\n## )/)?.[0] ?? '';
+      const fromTwin = [
+        ...section.matchAll(/\]\(https:\/\/modpagespeed\.com\/examples\/([^/)]+)\/\)/g),
+      ].map((m) => m[1]);
+      expect(fromTwin, name).toEqual(fromPage);
+      if (fromPage.length) withDemos++;
+    }
+    expect(withDemos).toBeGreaterThan(0);
   });
 
   test('a thin page has no Markdown twin', async ({ page, request }) => {

@@ -156,3 +156,15 @@ PAGESPEED_1.11 {
   global:
     ps_serve_stats_record_hit_host;
 } PAGESPEED_1.10;
+
+PAGESPEED_1.12 {
+  global:
+    ps_html_store_classify;
+    ps_html_decision_format;
+    ps_html_store_reason_name;
+    ps_read_encoded_origin_length;
+    ps_serve_stats_record_hit_split;
+    ps_cache_read_best_site;
+    ps_cache_read_alternate_site;
+    ps_cache_write_original_site;
+} PAGESPEED_1.11;

@@ -23,6 +23,10 @@ const allPages = [
   '/license/',
   '/terms/',
   '/pagespeed-markers/',
+  // Hand-written HTML in public/, outside the layout's head tags. The dev
+  // server serves a public/ file only by its full name (the directory URL is
+  // its 404 page there), so name the file.
+  '/cyclone-benchmark/index.html',
   // /privacy/ points at the notice on we-amp.com; it is covered by its own
   // suite in terms-privacy.spec.ts
 ];
@@ -58,7 +62,8 @@ test.describe('SEO', () => {
 
   test('every page has canonical URL', async ({ page }) => {
     for (const path of allPages) {
-      await page.goto(path);
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(200);
       const canonical = page.locator('link[rel="canonical"]');
       const href = await canonical.getAttribute('href');
       expect(href).toContain('modpagespeed.com');
@@ -112,7 +117,7 @@ test.describe('SEO', () => {
         // no unconditional money-back guarantee.
         expect(data.offers['@type']).toBe('Offer');
         expect(data.offers.price).toBe(0);
-        expect(data.offers.priceCurrency).toBeTruthy();
+        expect(data.offers.priceCurrency).toBe('EUR');
         expect(data.offers.availability).toMatch(/InStock/);
         expect(typeof data.offers.url).toBe('string');
         expect(data.offers.url).toMatch(/^https?:\/\//);
@@ -145,17 +150,24 @@ test.describe('SEO', () => {
   });
 
   // /download/ must actually offer the current release: a bare integration
-  // grid with no current row was a past defect. One card per integration,
-  // each labelled with the product and the exact release from the manifest
-  // (the download page is where the version is the point).
-  test('/download/ offers the current release on every integration card', async ({ page }) => {
+  // grid with no current row was a past defect. The exact release from the
+  // manifest is named once, on the chip above the grid (the download page is
+  // where the version is the point), and there is one card per integration.
+  // Every card is the current release, so no card carries its own version.
+  test('/download/ offers the current release above one card per integration', async ({ page }) => {
     await page.goto('/download/');
-    for (const name of ['Apache', 'nginx', 'nginx (Docker)', 'Helm']) {
+    const grid = page.locator('#integrations');
+    await expect(grid.locator('p', { hasText: 'see release notes' })).toContainText(
+      `v${MANIFEST_SEMVER}`,
+    );
+    for (const name of ['Apache', 'nginx', 'nginx (Docker)', 'Helm', 'ASP.NET Core Sidecar']) {
       await test.step(name, async () => {
-        const card = page.locator('a.card', {
+        const card = grid.locator('.card', {
           has: page.getByRole('heading', { level: 3, name, exact: true }),
         });
-        await expect(card).toContainText(`mod_pagespeed ${MANIFEST_SEMVER}`);
+        await expect(card).toHaveCount(1);
+        await expect(card).not.toContainText(`mod_pagespeed ${MANIFEST_SEMVER}`);
+        await expect(card).not.toContainText(/mod_pagespeed \d+\.\d+/);
       });
     }
   });
@@ -199,6 +211,17 @@ test.describe('SEO', () => {
     const org = nodes.find((node) => node['@type'] === 'Organization');
     expect(org['@id']).toBe('https://we-amp.com/#organization');
     expect(org.brand.name).toBe('mod_pagespeed');
+  });
+
+  test('/analyze/ structured data names the tool by the current product name only', async ({
+    page,
+  }) => {
+    await page.goto('/analyze/');
+    const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+    const app = blocks.map((b) => JSON.parse(b)).find((node) => node['@type'] === 'WebApplication');
+    expect(app.name).toBe('mod_pagespeed Analyze');
+    expect(app).not.toHaveProperty('alternateName');
+    expect(blocks.join('\n')).not.toMatch(/ModPageSpeed/);
   });
 
   test('og:image is set on all pages', async ({ page }) => {

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// PlatformInterestForm — the early-access interest form on /platform/ and its
+// PlatformInterestForm — the tell-me-when-it-ships interest form on /platform/ and its
 // two sub-pages. One instance per transform-pack direction; `wedge` names the
 // direction and is the only thing that differs between instances on the hub.
 //
@@ -52,7 +52,7 @@ const {
   messageLabel = 'Message',
   messageRequired = false,
   messageHint,
-  submitLabel = 'Request early access',
+  submitLabel = 'Tell me when it ships',
 } = Astro.props;
 
 const id = `pi-${wedge}`;
@@ -67,7 +67,7 @@ const inputClass =
   data-wedge={wedge}
   data-pack={pack}
   data-fallback-email={COMMERCIAL_EMAIL}
-  aria-label={`Early access: ${pack}`}
+  aria-label={`Tell me when it ships: ${pack}`}
   class="mt-5 space-y-3"
 >
   <input type="hidden" name="topic" value="platform" />
@@ -160,7 +160,7 @@ const inputClass =
   </div>
 
   <p class="text-xs text-text-annotation">
-    We use what you send to reply and to email you when there is a build to try. See the
+    We use what you send to reply and to email you when it ships. See the
     <a
       href="https://we-amp.com/privacy/"
       class="text-interactive hover:text-interactive-hover underline"
@@ -277,7 +277,7 @@ const inputClass =
         });
         setStatus(
           'success',
-          'Thanks, we have your request. We will email you when the compliance or privacy packs have a build to try.',
+          'Thanks, we have your request. We will email you when the compliance or privacy packs ship.',
         );
       } catch {
         setStatus('error', `Could not send just now. Try again, or email ${recipient}.`);

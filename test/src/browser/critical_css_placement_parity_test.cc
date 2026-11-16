@@ -149,6 +149,7 @@ std::string Serve(std::string_view html, std::string_view critical_css,
         auto* filter =
             new HtmlTransformFilter(parser, config, a->critical_css, nullptr,
                                     "", "https", {}, {}, {}, *a->defer_scripts);
+        filter->set_document_is_text_html(true);
         filter->set_cascade_layer_order(*a->layer_order);
         return static_cast<net_instaweb::HtmlFilter*>(filter);
       },
@@ -306,6 +307,30 @@ TEST(CriticalCssPlacementParityTest, HeadPreludeAfterAnEarlySheet) {
       "<noscript><meta http-equiv=\"content-type\" content=\"text/html\">"
       "</noscript><link rel=\"stylesheet\" href=\"/late.css\">"
       "</head><body></body></html>");
+}
+
+// A Tailwind CSS v4 block, whose `@property` rules carry `syntax: "<color>"`
+// and whose `content` strings hold `<` and `</style>`: the serve path writes
+// each such `<` as the escape `\3c `, and the validator's candidate carries
+// the same text.
+TEST(CriticalCssPlacementParityTest, TailwindV4BlockIsWrittenTheSameWay) {
+  constexpr std::string_view kTailwind =
+      "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
+      "initial-value:#0000}"
+      ".content-\\[\\'\\<\\'\\]{--tw-content:'<';content:var(--tw-content)}"
+      ".x{&:hover{content:\"</style>\"}}"
+      "@media (width<48rem){.y{display:none}}";
+  for (bool async_css : {false, true}) {
+    ExpectParity(
+        "<html><head><title>T</title><link rel=\"stylesheet\" "
+        "href=\"/a.css\"></head><body><p>x</p></body></html>",
+        kTailwind, async_css);
+  }
+  const std::string served = Serve(
+      "<html><head><title>T</title><link rel=\"stylesheet\" href=\"/a.css\">"
+      "</head><body><p>x</p></body></html>",
+      kTailwind, /*async_css=*/false);
+  EXPECT_NE(served.find("syntax:\"\\3c color>\""), std::string::npos) << served;
 }
 
 // The validator renders the page without its <noscript>

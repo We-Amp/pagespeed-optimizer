@@ -226,15 +226,27 @@ function configBlock(snippet: string, view: View, redraw: (focus?: string) => vo
     pre.appendChild(el('code', '', snippet));
     body.appendChild(pre);
     const copy = button('btn-secondary mt-3 min-h-11 text-xs', 'Copy');
+    // The accessible name stays "Copy" while the visible text says "Copied".
+    copy.setAttribute('aria-label', 'Copy');
     copy.setAttribute('data-umami-event', 'psi-result-config-copy');
+    // Spoken through the layout's one status writer (window.siteAnnounce),
+    // like the code-block buttons; the button's own name never changes.
+    const announceCopy = (ok: boolean) =>
+      (window as { siteAnnounce?: (_message: string) => void }).siteAnnounce?.(
+        ok ? 'Copied to clipboard' : 'Copy failed, select the text to copy',
+      );
     copy.addEventListener('click', () => {
       if (!navigator.clipboard?.writeText) return;
-      void navigator.clipboard.writeText(snippet).then(() => {
-        copy.textContent = 'Copied';
-        setTimeout(() => {
-          copy.textContent = 'Copy';
-        }, 1500);
-      });
+      void navigator.clipboard.writeText(snippet).then(
+        () => {
+          announceCopy(true);
+          copy.textContent = 'Copied';
+          setTimeout(() => {
+            copy.textContent = 'Copy';
+          }, 1500);
+        },
+        () => announceCopy(false),
+      );
     });
     body.appendChild(copy);
   }

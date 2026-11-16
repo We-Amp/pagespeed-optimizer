@@ -40,6 +40,8 @@ import {
   generateContent,
   loadContext,
   buildIndex,
+  decodeCharacterReferences,
+  decodeReferences,
   distributionLines,
   PUBLIC_DIR,
   TARGETS,
@@ -99,6 +101,7 @@ import {
   VENDOR,
   COMPANY_COUNTRY,
   PKG_APACHE_MODULE,
+  MODULE_PACKAGE_VERSION,
   PKG_NGINX_MODULE,
   PKG_OPTIMIZER,
   PKG_ASPNETCORE,
@@ -117,8 +120,8 @@ vi.mock('../../src/lib/release', async () => {
   return { getRelease: async () => releaseManifest };
 });
 
-const generated = generateContent();
-const ctx = loadContext();
+const generated = await generateContent();
+const ctx = await loadContext();
 const index = generated['llms.txt'];
 const full = generated['llms-full.txt'];
 // The generator's own surfaces: the index (which llms-full.txt opens with) and
@@ -132,6 +135,76 @@ const combined = [index, generated['.well-known/ai-plugin.json']].join('\n');
 // current copy.
 const isReleaseNotes = (slug: string) => /^release-notes(-\d+-\d+)?$/.test(slug);
 
+// The llms files are plain text: they carry each Markdown body with its HTML
+// character references decoded outside code (the .md twins keep them).
+const asText = decodeCharacterReferences;
+
+describe('character references are decoded in the llms files', () => {
+  it('decodes a reference in prose', () => {
+    expect(asText('a stylesheet that contains a \u201c&lt;\u201d.')).toBe(
+      'a stylesheet that contains a \u201c<\u201d.',
+    );
+    expect(asText('&lt;form&gt; &amp; &quot;x&quot; 16&nbsp;KB')).toBe('<form> & "x" 16\u00a0KB');
+  });
+  it('decodes numeric references, decimal and hex', () => {
+    expect(decodeReferences('it&#39;s &#x2014; &#X41;')).toBe("it's \u2014 A");
+  });
+  it('decodes once: &amp;lt; becomes &lt;', () => {
+    expect(asText('write &amp;lt; for <')).toBe('write &lt; for <');
+  });
+  it('leaves unknown names and invalid code points as written', () => {
+    expect(decodeReferences('&bogus; &#0; &#xD800; &#x110000; & alone')).toBe(
+      '&bogus; &#0; &#xD800; &#x110000; & alone',
+    );
+  });
+  it('keeps inline code spans literal', () => {
+    expect(asText('Apache `&lt;Directory&gt;` and &lt;Files&gt;')).toBe(
+      'Apache `&lt;Directory&gt;` and <Files>',
+    );
+    expect(asText('a ``code with ` and &lt;`` then &lt;')).toBe(
+      'a ``code with ` and &lt;`` then <',
+    );
+    expect(asText('a `span\nacross &lt; lines` &gt;')).toBe('a `span\nacross &lt; lines` >');
+    expect(asText('an unpaired ` tick &lt;')).toBe('an unpaired ` tick <');
+  });
+  it('keeps fenced code blocks literal', () => {
+    const md = [
+      '&lt;p&gt;',
+      '',
+      '```html',
+      '<p>&lt;b&gt; &amp; &#39;</p>',
+      '```',
+      '',
+      '~~~~',
+      '&lt;',
+      '~~~',
+      '&gt;',
+      '~~~~',
+      '&lt;after&gt;',
+    ].join('\n');
+    expect(asText(md)).toBe(
+      [
+        '<p>',
+        '',
+        '```html',
+        '<p>&lt;b&gt; &amp; &#39;</p>',
+        '```',
+        '',
+        '~~~~',
+        '&lt;',
+        '~~~',
+        '&gt;',
+        '~~~~',
+        '<after>',
+      ].join('\n'),
+    );
+  });
+  it('the release notes read the character, not the reference', () => {
+    expect(full).toContain('whose stylesheet contains a \u201c<\u201d.');
+    expect(full).not.toContain('contains a \u201c&lt;\u201d');
+  });
+});
+
 describe('llms*.txt drift guard', () => {
   describe('1. byte-equivalence: committed file === fresh render', () => {
     for (const { output } of TARGETS) {
@@ -142,8 +215,8 @@ describe('llms*.txt drift guard', () => {
         expect(committed).toBe(generated[output]);
       });
     }
-    it('a second render is byte-identical (deterministic output)', () => {
-      const again = generateContent();
+    it('a second render is byte-identical (deterministic output)', async () => {
+      const again = await generateContent();
       for (const { output } of TARGETS) expect(again[output]).toBe(generated[output]);
     });
     it('carries no timestamp beyond the manifests’ release dates', () => {
@@ -285,13 +358,14 @@ describe('agent files cover the docs collection', () => {
   for (const doc of ctx.docs) {
     it(`llms.txt lists /docs/${doc.slug}/ with its title and description`, () => {
       expect(index).toContain(
-        `- [${doc.data.title}](${docUrl(doc.slug)}): ${doc.data.description}`,
+        asText(`- [${doc.data.title}](${docUrl(doc.slug)}): ${doc.data.description}`),
       );
     });
     it(`llms-full.txt carries the full Markdown of /docs/${doc.slug}/`, () => {
       const md = renderDocMarkdown(doc, ctx.manifests);
-      expect(md.startsWith(`# ${doc.data.title}\n`)).toBe(true);
-      expect(full).toContain(md.trimEnd());
+      // The H1 is the one the HTML page shows: `h1` when set, else the title.
+      expect(md.startsWith(`# ${doc.data.h1 ?? doc.data.title}\n`)).toBe(true);
+      expect(full).toContain(asText(md.trimEnd()));
     });
   }
 
@@ -351,7 +425,7 @@ describe('agent files cover the docs collection', () => {
           /\{rel\d+\.|<[A-Z][A-Za-z]*\b[^>]*\/>|^import |^export /,
         );
       }
-      expect(h1s, doc.slug).toEqual([`# ${doc.data.title}`]);
+      expect(h1s, doc.slug).toEqual([`# ${doc.data.h1 ?? doc.data.title}`]);
       expect(relative, doc.slug).toEqual([]);
     }
   });
@@ -372,7 +446,7 @@ describe('agent files cover the docs collection', () => {
       `${rel21.artifacts.docker.worker_image}:${tag}`,
       `\`${rel21.artifacts.helm.chart}\``,
       rel21.artifacts.helm.repository,
-      artifactUrl(rel21, 'msi', 'win_x64'),
+      artifactUrl(rel21, 'msi', 'win_x64', MODULE_PACKAGE_VERSION),
       `\`${rel20.artifacts.nuget.package}\``,
       `\`${PKG_ASPNETCORE}\``,
       `\`${PKG_SIDECAR}\``,
@@ -468,15 +542,16 @@ describe('/docs/<slug>.md serves the same Markdown', () => {
     expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
     const body = await res.text();
     expect(body).toBe(renderDocMarkdown(doc, ctx.manifests));
-    expect(full).toContain(body.trimEnd());
-    expect(body.startsWith('# Getting started\n')).toBe(true);
+    expect(full).toContain(asText(body.trimEnd()));
+    expect(body.startsWith('# Install mod_pagespeed\n')).toBe(true);
     expect(body).toContain(`Canonical URL: ${SITE}/docs/getting-started/`);
   });
 });
 
 describe('filter reference pages have Markdown twins', () => {
   const indexable = ctx.topics;
-  const bodyOf = (t: (typeof indexable)[number]) => renderTopicMarkdown(t, ctx.allTopics);
+  const bodyOf = (t: (typeof indexable)[number]) =>
+    renderTopicMarkdown(t, ctx.allTopics, ctx.demos[t.name]);
   const hub = renderFiltersHubMarkdown(ctx.allTopics);
   const canonical = (path: string) => `\nCanonical URL: ${SITE}${path}\n`;
 
@@ -493,19 +568,19 @@ describe('filter reference pages have Markdown twins', () => {
   });
 
   it('llms-full.txt carries the hub once, then each topic once, in index order', () => {
-    expect(full).toContain(hub.trimEnd());
+    expect(full).toContain(asText(hub.trimEnd()));
     expect(full.split(canonical('/docs/filters/')).length - 1).toBe(1);
     const positions = indexable.map((t) => {
-      const md = bodyOf(t).trimEnd();
+      const md = asText(bodyOf(t).trimEnd());
       expect(full.split(md).length - 1, t.name).toBe(1);
       expect(full.split(canonical(t.path)).length - 1, t.name).toBe(1);
       return full.indexOf(md);
     });
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
-    expect(full.indexOf(hub.trimEnd())).toBeGreaterThan(
+    expect(full.indexOf(asText(hub.trimEnd()))).toBeGreaterThan(
       full.indexOf(canonical(`/docs/${ctx.docs.at(-1)!.slug}/`)),
     );
-    expect(full.indexOf(hub.trimEnd())).toBeLessThan(positions[0]);
+    expect(full.indexOf(asText(hub.trimEnd()))).toBeLessThan(positions[0]);
   });
 
   it('the thin topics get no body', () => {
@@ -553,7 +628,7 @@ describe('filter reference pages have Markdown twins', () => {
     expect(body).toBe(bodyOf(topic));
     expect(body.startsWith('# Lazy-load images (lazyload_images)\n')).toBe(true);
     expect(body).toContain(`Canonical URL: ${SITE}/docs/filters/lazyload_images/`);
-    expect(full).toContain(body.trimEnd());
+    expect(full).toContain(asText(body.trimEnd()));
   });
 
   it('/docs/filters.md serves the hub', async () => {
@@ -583,7 +658,7 @@ describe('ai-plugin.json manifest drift guard', () => {
 
   it('description_for_model carries the single-sourced identity + support facts', () => {
     const m: string = manifest.description_for_model;
-    expect(m).toContain(`The current product, ${PRODUCT_NAME} 2,`);
+    expect(m).toContain(`The current product, ${PRODUCT_NAME},`);
     expect(m).not.toMatch(/mod[_ ]pagespeed 2\.1(?![.\d])/i);
     expect(m).toContain(`mod_pagespeed ${V1_LINE}`);
     expect(m).toContain(`renumbered from ${V1_RENUMBERED_FROM}`);
@@ -612,11 +687,12 @@ describe('product-facts consumers reflect the single source', () => {
     expect(SUPPORT_LADDER_LINE).not.toMatch(/\$\d/);
   });
 
-  it('offer-jsonld emits the $0 Offer', () => {
+  it('offer-jsonld emits the free (0 EUR) Offer', () => {
     const offer = offerJsonLd();
     expect(offer['@type']).toBe('Offer');
     expect(offer.price).toBe(0);
-    expect(offer.priceCurrency).toBe('USD');
+    // Every offer on the site is in euro, the free one included.
+    expect(offer.priceCurrency).toBe('EUR');
     expect(offer.priceValidUntil).toBe(PRICE_VALID_UNTIL);
     expect(offer.description).toContain(SOURCE_PUBLICATION.license);
     expect(offer.description).toContain(SUPPORT_URL);
@@ -665,6 +741,9 @@ describe('product-facts consumers reflect the single source', () => {
     expect(data.related_products[0]).not.toHaveProperty('support_until');
     expect(data.related_products[0].nuget_sidecar.bundled_nginx).toBe(SIDECAR_NGINX_VERSION);
     expect(data.related_products[0].nuget_sidecar.package).toBe(PKG_SIDECAR);
+    expect(data.related_products[0].nuget_sidecar.description).toBe(
+      'The current mod_pagespeed module, run behind Kestrel.',
+    );
     expect(data.related_products[1].product).toBe(`ModPageSpeed ${V2_LINE}`);
     expect(data.related_products[1]).not.toHaveProperty('status');
     expect(data.related_products[1]).not.toHaveProperty('support_until');

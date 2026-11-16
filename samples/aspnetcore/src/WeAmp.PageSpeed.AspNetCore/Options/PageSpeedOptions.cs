@@ -12,7 +12,12 @@ public sealed class PageSpeedOptions
     /// <summary>Configuration section name for IConfiguration binding.</summary>
     public const string SectionName = "PageSpeed";
 
-    /// <summary>Whether the middleware is active. Supports hot-reload.</summary>
+    /// <summary>
+    /// Whether the middleware is active. Supports hot-reload.
+    /// The cache volume is opened, and the worker launched, the first time
+    /// this is true, at startup or through a later hot reload. Switching it
+    /// back to false leaves both in place.
+    /// </summary>
     public bool Enabled { get; set; } = true;
 
     /// <summary>Cache volume configuration.</summary>
@@ -35,6 +40,17 @@ public sealed class PageSpeedOptions
     /// </summary>
     public List<string> ExcludePaths { get; set; } =
         ["/api/", "/signalr/", "/_blazor/", "/_framework/"];
+
+    /// <summary>
+    /// Whether the middleware stores responses in its cache. Supports
+    /// hot-reload. On a cache miss whose response would be stored, the
+    /// middleware requests the same URL once more as an anonymous request and
+    /// stores that response, so the app handles each stored response twice.
+    /// Set to false for an app whose GET handlers have side effects: pages
+    /// are still optimized for each response, and nothing new is stored.
+    /// Default: true.
+    /// </summary>
+    public bool RecordResponses { get; set; } = true;
 
     /// <summary>
     /// Max response body size to buffer (bytes). Responses larger than this

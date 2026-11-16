@@ -18,7 +18,7 @@
 #       -v $HOME/.cache/bazel:/root/.cache/bazel \
 #       -v $HOME/bazel-repo-cache:/root/bazel-repo-cache \
 #       -v $HOME/.ssh/<ci-key>:/tmp/ssh_key:ro \
-#       --add-host=bazel-remote-cache:${BAZEL_CACHE_HOST} \
+#       <remote-cache flags from tools/ci/remote-cache-docker-args.sh> \
 #       pagespeed2-lint:latest \
 #       bash -c 'cp /tmp/ssh_key /root/.ssh/ci_key && chmod 600 /root/.ssh/ci_key \
 #         && ssh-keyscan -H github.com >> /root/.ssh/known_hosts 2>/dev/null \

@@ -8,7 +8,7 @@
 // .deb/.rpm package, GPG key), use a plain <a> — those are not conversion CTAs.
 //
 // The default label is value-led and consistent sitewide. Callers can override
-// via `label` for surfaces that need different framing (e.g. "Support plans").
+// via `label` for surfaces that need different framing (e.g. "Support pricing").
 //
 // `event` defaults to a sensible cta_install slug, but callers should
 // pass the existing data-umami-event value for surfaces that already report
@@ -35,14 +35,10 @@ const {
   showSubtext = false,
 } = Astro.props;
 
-// `inverse` = dark pill on a cyan band (used in bottom CTA sections).
+// `inverse` = dark button on a cyan band (used in bottom CTA sections).
 // Keeps the same canonical text + analytics contract as primary.
 const variantClass =
-  variant === 'primary'
-    ? 'btn-primary'
-    : variant === 'secondary'
-      ? 'btn-secondary'
-      : 'inline-flex items-center justify-center gap-2 rounded-lg bg-bg-elevated px-6 py-3 text-sm font-semibold text-interactive hover:bg-bg-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white transition-colors';
+  variant === 'primary' ? 'btn-primary' : variant === 'secondary' ? 'btn-secondary' : 'btn-inverse';
 ---
 
 <a href={href} data-umami-event={event} class:list={[variantClass, extraClass]}>

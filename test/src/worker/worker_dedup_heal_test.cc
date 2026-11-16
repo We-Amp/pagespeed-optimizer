@@ -51,6 +51,8 @@ TEST_F(WorkerTest, HtmlCooldownPreventsReprocessing) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
@@ -115,6 +117,8 @@ TEST_F(WorkerTest, CooldownExpiresAllowsReprocessing) {
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
 
   NullMessageHandler handler;
+  config.unsafe_force_async_css =
+      true;  // fixture page is not under test for the gate
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 

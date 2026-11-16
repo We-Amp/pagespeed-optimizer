@@ -128,9 +128,9 @@ void PopulateViewportFromPageAnalysis(PageAnalysisResult& result,
 bool AgentBindingStillLive(PageSpeedCache& cache,
                            const AnalysisQueue::Item& item) {
   if (!item.has_origin_html_hash) return false;
-  auto live =
-      cache.ReadAlternate(item.url, item.hostname, item.scheme,
-                          static_cast<AlternateId>(SentinelId::kContentHash));
+  auto live = cache.ReadAlternate(
+      item.url, item.hostname, item.scheme,
+      static_cast<AlternateId>(SentinelId::kContentHash), item.site);
   if (!live.has_value()) return false;
   auto sc = live->content();
   return sc.size() == AlternateMetadata::kHashSize &&
@@ -158,6 +158,11 @@ bool ShouldInlineCriticalCss(float coverage_ratio) {
   return coverage_ratio < kInlineCriticalCssMaxCoverage;
 }
 
+bool MayRunAgentRender(const AnalysisQueue::Item& item, bool agent_optimize,
+                       bool chrome_running) {
+  return agent_optimize && chrome_running && item.host_vouched;
+}
+
 AnalysisQueue::Item BuildReanalysisItem(const AnalysisQueue::Item& src,
                                         int next_retry_count) {
   AnalysisQueue::Item retry;
@@ -171,6 +176,10 @@ AnalysisQueue::Item BuildReanalysisItem(const AnalysisQueue::Item& src,
   // bound (else AgentBindingStillLive fail-closes -> markdown amputated).
   retry.has_origin_html_hash = src.has_origin_html_hash;
   retry.origin_html_hash = src.origin_html_hash;
+  // The retry stays in the item's keyspace and keeps its sender bits.
+  retry.site = src.site;
+  retry.host_vouched = src.host_vouched;
+  retry.from_module = src.from_module;
   return retry;
 }
 
@@ -249,7 +258,9 @@ ValidationInputs BuildValidationInputs(const CombinedCssBuilder& builder,
                                        const std::string& url,
                                        const std::string& hostname,
                                        const std::string& scheme,
-                                       std::string_view pre_inline_html) {
+                                       std::string_view pre_inline_html,
+                                       const std::string& site,
+                                       bool host_vouched, bool from_module) {
   ValidationInputs inputs;
   if (!builder) {
     inputs.skip = ValidationInputSkip::kNoSheetBuilder;
@@ -267,7 +278,8 @@ ValidationInputs BuildValidationInputs(const CombinedCssBuilder& builder,
     return inputs;
   }
 
-  CombinedCssBytes combined = builder(scan, url, hostname, scheme);
+  CombinedCssBytes combined =
+      builder(scan, url, hostname, scheme, site, host_vouched, from_module);
   if (combined.external_css_missing) {
     inputs.skip = combined.revalidatable_css_missing
                       ? ValidationInputSkip::kStylesheetNotCachedYet
@@ -481,6 +493,7 @@ using browser_internal::ChromeExitReason;
 using browser_internal::GetViewportProfile;
 using browser_internal::IndexToViewport;
 using browser_internal::LooksLikeDegradedProfile;
+using browser_internal::MayRunAgentRender;
 using browser_internal::ViewportToIndex;
 
 namespace {
@@ -888,9 +901,62 @@ void BrowserAnalysisManager::OnChromeExit(int64_t exit_status,
   restart_timer_active_ = true;
 }
 
+std::function<std::optional<std::string>(std::string_view)>
+BrowserAnalysisManager::GatedLookup(const AnalysisQueue::Item& item,
+                                    bool may_fetch) {
+  return [this, &item,
+          may_fetch](std::string_view url) -> std::optional<std::string> {
+    if (cache_ == nullptr || subresource_gate_ == nullptr) return std::nullopt;
+    std::string_view url_host = UrlHostname(url);
+    const std::string host =
+        url_host.empty() ? item.hostname : std::string(url_host);
+    SubresourceRead read;
+    read.site = item.site;
+    read.scheme = item.scheme;
+    read.host = host;
+    read.url = url;
+    read.page_host = item.hostname;
+    // An item is queued only for a sender that may ask for fetches
+    // (Worker::MayRequestHostFetches); the host is asked only when vouched.
+    read.host_fetch_allowed = item.host_vouched;
+    auto read_entry = [&] {
+      return cache_->ReadBestAlternate(
+          std::string(url), host, item.scheme, CapabilityMask(),
+          /*agent_request_entitled=*/false, item.site);
+    };
+    std::optional<ReadResult> r;
+    // Under a host the worker may not ask, a stylesheet or script the front
+    // end recorded from an anonymous request is admitted as read.  Anything
+    // else is asked about first, without holding a read.
+    if (!read.host_fetch_allowed) {
+      auto first = read_entry();
+      if (first.has_value() &&
+          (first->metadata.flags & AlternateMetadata::kFlagAnonymousRecorded) !=
+              0) {
+        read.entry_read = true;
+        read.entry_flags = first->metadata.flags;
+        read.entry_site = item.site;  // the read above is keyed by item.site
+        if (subresource_gate_->Admitted(read, may_fetch)) {
+          r.emplace(std::move(*first));
+        }
+        read.entry_read = false;
+      }
+    }
+    if (!r.has_value()) {
+      if (!subresource_gate_->Admitted(read, may_fetch)) return std::nullopt;
+      auto again = read_entry();
+      if (!again.has_value()) return std::nullopt;
+      r.emplace(std::move(*again));
+    }
+    auto span = r->content();
+    return std::string(reinterpret_cast<const char*>(span.data()), span.size());
+  };
+}
+
 bool BrowserAnalysisManager::EnqueueAnalysis(
     const std::string& url, const std::string& hostname,
-    const std::string& scheme, uint32_t mask, uint64_t template_hash,
+    const std::string& scheme, const std::string& site, bool host_vouched,
+    bool from_module, uint32_t mask, uint64_t template_hash,
     std::string_view original_html,
     std::optional<std::array<std::byte, 32>> origin_html_hash,
     bool force_agent_render) {
@@ -901,6 +967,9 @@ bool BrowserAnalysisManager::EnqueueAnalysis(
   item.hostname = hostname;
   item.scheme = scheme;
   item.mask = mask;
+  item.site = site;
+  item.host_vouched = host_vouched;
+  item.from_module = from_module;
   item.force_agent_render = force_agent_render;
   // OWN a copy of the raw origin HTML the worker holds at enqueue time.  The
   // analysis runs ASYNCHRONOUSLY (later, on the Chrome pass), so the item must
@@ -913,16 +982,36 @@ bool BrowserAnalysisManager::EnqueueAnalysis(
   // markdown is per-URL), NOT the structural template hash — else distinct URLs
   // sharing a warm template would collapse in the queue's per-key dedup and
   // starve.  A normal (perf) analysis dedups on the template hash as before.
-  item.template_hash = force_agent_render
-                           ? static_cast<uint64_t>(std::hash<std::string>{}(
-                                 absl::StrCat(scheme, "|", hostname, "|", url)))
-                           : template_hash;
+  // The site is part of that key: the same URL on two sites is two renders.
+  item.template_hash =
+      force_agent_render
+          ? static_cast<uint64_t>(std::hash<std::string>{}(
+                site.empty() ? absl::StrCat(scheme, "|", hostname, "|", url)
+                             : absl::StrCat(scheme, "|", hostname, "|", url,
+                                            "|s=", site)))
+          : template_hash;
   // Carry the worker's raw-origin content hash so the
   // store-time re-validation can prove the rendered markdown still matches the
   // live origin (else discard — the v1/v2 race).
   if (origin_html_hash.has_value()) {
     item.has_origin_html_hash = true;
     item.origin_html_hash = *origin_html_hash;
+  }
+
+  // The analysis loads the page's cached stylesheets and scripts on the
+  // event loop, where the sub-resource gate answers from its memo only.  Ask
+  // it here, on the notification's thread, before the item can run: build
+  // the same documents and map once with lookups that may ask the server.
+  if (subresource_gate_ != nullptr && cache_ != nullptr &&
+      !item.original_html.empty()) {
+    auto warm = GatedLookup(item, /*may_fetch=*/true);
+    browser_internal::AnalysisDocuments docs =
+        browser_internal::BuildAnalysisDocuments(
+            item.original_html, item.url, item.hostname, item.scheme, warm);
+    if (!item.force_agent_render) {
+      BuildAnalysisResourceMap(docs.document, item.url, item.hostname,
+                               item.scheme, warm, config_.url_normalization);
+    }
   }
 
   bool enqueued = queue_.Enqueue(std::move(item));
@@ -974,8 +1063,9 @@ void BrowserAnalysisManager::RunAnalysis(AnalysisQueue::Item item) {
   } else {
     // Fallback (e.g. a re-analysis/retry path with no HTML supplied): re-read
     // the HTML from cache.  This preserves the prior behavior.
-    auto html_read = cache_->ReadBestAlternate(item.url, item.hostname,
-                                               item.scheme, CapabilityMask());
+    auto html_read = cache_->ReadBestAlternate(
+        item.url, item.hostname, item.scheme, CapabilityMask(),
+        /*agent_request_entitled=*/false, item.site);
     if (!html_read.has_value()) {
       if (handler_ != nullptr) {
         handler_->Info("Browser analysis: HTML not in cache for %s",
@@ -1013,24 +1103,11 @@ void BrowserAnalysisManager::RunAnalysis(AnalysisQueue::Item item) {
   std::string coverage_html;
   std::string coverage_refusal;
   {
-    auto lookup = [&](std::string_view url) -> std::optional<std::string> {
-      // Use the CSS URL's hostname for cache lookup, falling back to the
-      // page hostname for relative URLs.  Nginx stores CSS keyed by the
-      // Host header of the CSS request (the CSS URL's own hostname).
-      std::string_view css_host = UrlHostname(url);
-      std::string css_host_str;
-      if (css_host.empty()) {
-        css_host_str = item.hostname;
-      } else {
-        css_host_str = std::string(css_host);
-      }
-      auto r = cache_->ReadBestAlternate(std::string(url), css_host_str,
-                                         item.scheme, CapabilityMask());
-      if (!r.has_value()) return std::nullopt;
-      auto span = r->content();
-      return std::string(reinterpret_cast<const char*>(span.data()),
-                         span.size());
-    };
+    // Use the CSS URL's hostname for cache lookup, falling back to the page
+    // hostname for relative URLs.  Nginx stores CSS keyed by the Host header
+    // of the CSS request (the CSS URL's own hostname).  Only sheets the
+    // server serves to any client are loaded (memo only on this loop).
+    auto lookup = GatedLookup(item, /*may_fetch=*/false);
     CssInliningStats css_stats;
     browser_internal::AnalysisDocuments docs =
         browser_internal::BuildAnalysisDocuments(html_content, item.url,
@@ -1087,20 +1164,11 @@ void BrowserAnalysisManager::RunAnalysis(AnalysisQueue::Item item) {
   // by contract).
   if (cache_ != nullptr) {
     const AnalysisQueue::Item& cur = current_analysis_->item;
-    auto lookup = [&](std::string_view url) -> std::optional<std::string> {
-      // The map builder hands over the cache-normalized path+query form,
-      // which never carries a host, so the page hostname keys the read; the
-      // UrlHostname branch is defensive only.
-      std::string_view src_host = UrlHostname(url);
-      std::string host_str =
-          src_host.empty() ? cur.hostname : std::string(src_host);
-      auto r = cache_->ReadBestAlternate(std::string(url), host_str, cur.scheme,
-                                         CapabilityMask());
-      if (!r.has_value()) return std::nullopt;
-      auto span = r->content();
-      return std::string(reinterpret_cast<const char*>(span.data()),
-                         span.size());
-    };
+    // The map builder hands over the cache-normalized path+query form, which
+    // never carries a host, so the page hostname keys the read; the
+    // UrlHostname branch is defensive only.  Only scripts the server serves
+    // to any client are mapped (memo only on this loop).
+    auto lookup = GatedLookup(cur, /*may_fetch=*/false);
     AnalysisResourceMapStats map_stats;
     current_analysis_->analysis_resources =
         std::make_shared<const PageAnalyzer::ResourceMap>(
@@ -1172,7 +1240,8 @@ void BrowserAnalysisManager::PrepareValidationInputs() {
   browser_internal::ValidationInputs inputs =
       browser_internal::BuildValidationInputs(
           combined_css_builder_, ctx.item.url, ctx.item.hostname,
-          ctx.item.scheme, ctx.pre_inline_html);
+          ctx.item.scheme, ctx.pre_inline_html, ctx.item.site,
+          ctx.item.host_vouched, ctx.item.from_module);
   ctx.validation_inputs_ready = inputs.ready;
   ctx.pre_inline_elements = std::move(inputs.elements);
   ctx.combined_css = std::move(inputs.combined_css);
@@ -1668,7 +1737,10 @@ void BrowserAnalysisManager::FinishAnalysis() {
   if (!skip_store) {
     StoreProfile(current_analysis_->profile);
   }
-  if (config_.agent_optimize && chrome_ && chrome_->running()) {
+  // The agent render fetches from the item's hostname, so it runs only for a
+  // notification whose sender vouched for that host.
+  if (MayRunAgentRender(current_analysis_->item, config_.agent_optimize,
+                        chrome_ && chrome_->running())) {
     RunAgentRender();  // → OnAgentRenderDone → OnAnalysisComplete
     return;
   }
@@ -1750,9 +1822,9 @@ void BrowserAnalysisManager::OnAgentRenderDone(
       // (kFlagWorkerProcessed && origin_content_length>0) deliberately does NOT
       // count markdown serves yet — agent serve-stats parity is deferred
       // follow-up work, not a bug.
-      auto wh =
-          cache_->WriteAgentAlternate(item.url, item.hostname, item.scheme,
-                                      result->agent_markdown.size(), meta);
+      auto wh = cache_->WriteAgentAlternate(
+          item.url, item.hostname, item.scheme, result->agent_markdown.size(),
+          meta, item.site);
       if (wh.has_value()) {
         (void)wh->write_sync(std::as_bytes(std::span(
             result->agent_markdown.data(), result->agent_markdown.size())));
@@ -1767,7 +1839,7 @@ void BrowserAnalysisManager::OnAgentRenderDone(
         // Evict post-commit.
         cache_->EvictAlternateFromRamCache(
             item.url, item.hostname, item.scheme,
-            static_cast<AlternateId>(SentinelId::kAgentMarkdown));
+            static_cast<AlternateId>(SentinelId::kAgentMarkdown), item.site);
         if (handler_) {
           handler_->Info("agent_optimize: wrote %zu bytes of markdown for %s",
                          result->agent_markdown.size(), item.url.c_str());
@@ -1777,7 +1849,8 @@ void BrowserAnalysisManager::OnAgentRenderDone(
         // (otherwise /v1/cache/urls would under-report agent-optimized pages
         // by one until the next normal notification).
         if (on_agent_alternate_written_) {
-          on_agent_alternate_written_(item.url, item.hostname, item.scheme);
+          on_agent_alternate_written_(item.url, item.hostname, item.scheme,
+                                      item.site);
         }
       } else if (handler_) {
         handler_->Warning("agent_optimize: markdown write failed for %s",
@@ -1806,9 +1879,10 @@ void BrowserAnalysisManager::StoreProfile(const OptimizationProfile& profile) {
 
   std::string cache_url =
       OptimizationProfile::CacheUrl(current_analysis_->item.template_hash);
+  const std::string& site = current_analysis_->item.site;
   auto wh = cache_->WriteSentinel(
       cache_url, std::string(OptimizationProfile::kProfileHostname), "https",
-      SentinelId::kBrowserProfile, json.size());
+      SentinelId::kBrowserProfile, json.size(), site);
   if (!wh) return;
   // Profile storage is best-effort; write failure is non-fatal.
   (void)wh->write_sync(std::as_bytes(std::span(json.data(), json.size())));
@@ -1821,7 +1895,7 @@ void BrowserAnalysisManager::StoreProfile(const OptimizationProfile& profile) {
   // never used (issue #1126).  Evict the just-committed slot post-commit.
   cache_->EvictAlternateFromRamCache(
       cache_url, std::string(OptimizationProfile::kProfileHostname), "https",
-      static_cast<AlternateId>(SentinelId::kBrowserProfile));
+      static_cast<AlternateId>(SentinelId::kBrowserProfile), site);
 
   // Record in template detector AFTER cache write is committed,
   // so LookupProfile() from worker threads never sees the template
@@ -1839,7 +1913,8 @@ void BrowserAnalysisManager::StoreProfile(const OptimizationProfile& profile) {
 }
 
 void BrowserAnalysisManager::TestStoreProfile(
-    uint64_t template_hash, const OptimizationProfile& profile) {
+    uint64_t template_hash, const OptimizationProfile& profile,
+    std::string_view site) {
   // Mirror StoreProfile's persistence, but keyed on the supplied template_hash
   // (StoreProfile reads current_analysis_->item.template_hash, which only exists
   // mid-pipeline).  Test-only.
@@ -1850,7 +1925,7 @@ void BrowserAnalysisManager::TestStoreProfile(
   std::string cache_url = OptimizationProfile::CacheUrl(template_hash);
   auto wh = cache_->WriteSentinel(
       cache_url, std::string(OptimizationProfile::kProfileHostname), "https",
-      SentinelId::kBrowserProfile, json.size());
+      SentinelId::kBrowserProfile, json.size(), site);
   if (!wh) return;
   (void)wh->write_sync(std::as_bytes(std::span(json.data(), json.size())));
   (void)wh->close_sync();
@@ -1858,7 +1933,7 @@ void BrowserAnalysisManager::TestStoreProfile(
   // (issue #1126) — this mirror must behave identically under test.
   cache_->EvictAlternateFromRamCache(
       cache_url, std::string(OptimizationProfile::kProfileHostname), "https",
-      static_cast<AlternateId>(SentinelId::kBrowserProfile));
+      static_cast<AlternateId>(SentinelId::kBrowserProfile), site);
 
   // Record AFTER the cache write commits, so LookupProfile never sees the
   // template entry before the data is available (matches StoreProfile ordering).
@@ -1866,7 +1941,7 @@ void BrowserAnalysisManager::TestStoreProfile(
 }
 
 std::optional<OptimizationProfile> BrowserAnalysisManager::LookupProfile(
-    uint64_t template_hash) {
+    uint64_t template_hash, std::string_view site) {
   if (!template_detector_.HasProfile(template_hash)) {
     return std::nullopt;
   }
@@ -1874,10 +1949,12 @@ std::optional<OptimizationProfile> BrowserAnalysisManager::LookupProfile(
   std::string cache_url = OptimizationProfile::CacheUrl(template_hash);
   auto read_result = cache_->ReadAlternate(
       cache_url, std::string(OptimizationProfile::kProfileHostname), "https",
-      static_cast<AlternateId>(SentinelId::kBrowserProfile));
+      static_cast<AlternateId>(SentinelId::kBrowserProfile), site);
   if (!read_result.has_value()) {
-    // Cache entry gone (evicted).  Remove stale template entry.
-    template_detector_.RemoveProfile(template_hash);
+    // Cache entry gone (evicted).  Remove stale template entry.  The template
+    // record is not per site, so a sited miss only means this site has no
+    // profile for the template yet; it leaves the record alone.
+    if (site.empty()) template_detector_.RemoveProfile(template_hash);
     return std::nullopt;
   }
 
@@ -1911,7 +1988,8 @@ std::optional<OptimizationProfile> BrowserAnalysisManager::LookupProfile(
 
 bool BrowserAnalysisManager::RequestRevalidation(
     const std::string& url, const std::string& hostname,
-    const std::string& scheme, uint32_t mask, uint64_t template_hash,
+    const std::string& scheme, const std::string& site, bool host_vouched,
+    bool from_module, uint32_t mask, uint64_t template_hash,
     std::string_view original_html,
     std::optional<std::array<std::byte, 32>> origin_html_hash,
     std::chrono::steady_clock::time_point now) {
@@ -1952,8 +2030,8 @@ bool BrowserAnalysisManager::RequestRevalidation(
     ++budget.requests;
     budget.last = now;
   }
-  if (!EnqueueAnalysis(url, hostname, scheme, mask, template_hash,
-                       original_html, origin_html_hash)) {
+  if (!EnqueueAnalysis(url, hostname, scheme, site, host_vouched, from_module,
+                       mask, template_hash, original_html, origin_html_hash)) {
     return false;
   }
   stats_.revalidations_queued.fetch_add(1, std::memory_order_relaxed);

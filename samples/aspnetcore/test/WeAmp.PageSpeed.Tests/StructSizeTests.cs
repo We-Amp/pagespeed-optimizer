@@ -35,15 +35,17 @@ public class StructSizeTests
     }
 
     [Fact]
-    public void NativeHtmlConfig_Is128Bytes()
+    public void NativeHtmlConfig_Is136Bytes()
     {
-        // 8 + 10*4 + 2*8 + 7*8 = 120, then enable_async_css (int@120) + tail
-        // pad to the struct's 8-byte (pointer/size_t) alignment = 128.
-        Assert.Equal(128, Marshal.SizeOf<NativeHtmlConfig>());
-        // enable_async_css is appended at the end so every prior offset is
-        // preserved; pin the appended field's offset too.
+        // 8 + 10*4 + 2*8 + 7*8 = 120, then enable_async_css (int@120) + pad
+        // to 128, then scheme (const char*@128) = 136.
+        Assert.Equal(136, Marshal.SizeOf<NativeHtmlConfig>());
+        // Fields are appended at the end so every prior offset is preserved;
+        // pin the appended fields' offsets too.
         Assert.Equal(120, (int)Marshal.OffsetOf<NativeHtmlConfig>(
             nameof(NativeHtmlConfig.EnableAsyncCss)));
+        Assert.Equal(128, (int)Marshal.OffsetOf<NativeHtmlConfig>(
+            nameof(NativeHtmlConfig.Scheme)));
     }
 
     [Fact]

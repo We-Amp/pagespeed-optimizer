@@ -21,11 +21,10 @@
 #     one-shot clone) and FAILS CLOSED if it is unreachable — floor moves
 #     only happen on pin bumps, so the network dependency sits in the
 #     rare path.
-#   * the JS-kernel drift check's RATCHET step (--mode
-#     drift): same validity + equality unconditionally; for a MOVE it
-#     uses the canonical source the reach ladder already selected
-#     (--canonical). With no source it mirrors the drift job's own
-#     semantics: warn-pass on pull_request, fail otherwise.
+#   * --mode drift: a non-gating variant kept for local use (no workflow
+#     calls it): same validity + equality unconditionally; for a MOVE it
+#     uses the canonical source given by --canonical. With no source it
+#     warn-passes on pull_request and fails otherwise.
 #
 # Main-side floor states (F2): ok (present + valid) / absent (no floor
 # line: pull_request-only bootstrap notice-pass, every other event fails —
@@ -174,12 +173,12 @@ if [[ -n "$CANONICAL" && -d "$CANONICAL" ]] && resolves_both "$CANONICAL"; then
 fi
 CLONE_TMP=""
 if [[ -z "$SRC" && -n "$CANONICAL_URL" ]]; then
-  # Mirror-then-clone fallback (required mode): same persistent-mirror +
-  # SSH mechanism the drift workflow's reach ladder uses.
+  # Mirror-then-clone fallback (required mode): persistent mirror first,
+  # then a one-shot clone.
   if [[ -n "$MIRROR_DIR_ARG" ]]; then
     mkdir -p "$(dirname "$MIRROR_DIR_ARG")"
-    # Serialize mirror writers on the CI runner fleet: both drift
-    # workflows and both required ratchet jobs share this mirror path,
+    # Serialize mirror writers on the CI runner fleet: both required
+    # ratchet jobs (HTML and JS kernel) share this mirror path,
     # and nothing keys them to the same concurrency group — concurrent
     # `fetch --prune` calls contend on ref/FETCH_HEAD locks, and the
     # losing job would fall back to a stale mirror (slow one-shot clone,
@@ -279,7 +278,7 @@ fi
 # Stale-run tolerance — DRIFT MODE ONLY: outside pull_request, a delayed/
 # re-run build of an OLDER commit can see a main floor that already advanced
 # past it. That is not a downgrade of main (the advancing merge passed its
-# own gates), so the advisory drift workflow tolerates it with a notice; on
+# own gates), so the non-gating drift mode tolerates it with a notice; on
 # pull_request it stays a hard fail — a PR whose floor is behind main must
 # rebase, not merge.
 #

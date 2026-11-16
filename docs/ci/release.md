@@ -103,6 +103,10 @@ version: the scan's lifecycle sentence (`website/src/lib/scan/lifecycle.ts`)
 compares a detected `X-Mod-Pagespeed` header against it, so until it moves an
 install of the previous release is never told that a newer release exists, and
 `module-package-version.test.ts` compares it with the live package index.
+The site update that moves the version also removes the website's
+`:::next-release` markers for the shipped behaviour
+(`website/test/next-release-markers.test.ts` fails on it until they are gone;
+`website/CLAUDE.md`, "Unreleased behaviour").
 
 ## The CI gate
 
@@ -438,7 +442,8 @@ It requires the run to have concluded `success`, to have run that `sha`, and
 the artifact to be `nupkg-<first 7 of sha>`.
 
 Checks, made by `tools/ci/nupkg_checks.sh`, the script the `package` job
-also uses (the three checks `package` ran inline moved there with the same
+also uses, taken in the lane from a checkout of `main` (an older tag does
+not carry it; the three checks `package` ran inline moved there with the same
 logic):
 
 - seven packages: exactly the seven ids and file names, nuspec id and

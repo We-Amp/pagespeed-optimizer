@@ -34,9 +34,9 @@ test.describe('/terms/ page', () => {
     await expect(page.locator('main').getByText(`Version ${TERMS_VERSION_WEB}`)).toBeVisible();
   });
 
-  test('displays effective date October 2026', async ({ page }) => {
+  test('displays effective date November 2026', async ({ page }) => {
     await page.goto('/terms/');
-    await expect(page.getByText('October 2026')).toBeVisible();
+    await expect(page.getByText('November 2026')).toBeVisible();
   });
 
   test('links to privacy policy', async ({ page }) => {
@@ -81,7 +81,7 @@ test.describe('/terms/ page', () => {
     await page.goto('/terms/');
     const main = page.locator('main');
     await expect(main).toContainText('Apache License 2.0');
-    await expect(main).toContainText('private package repository');
+    await expect(main).not.toContainText('private package repository');
     await expect(main).not.toContainText('SLA-backed');
     await expect(main).not.toContainText('hardened');
     await expect(main).not.toContainText('when available');

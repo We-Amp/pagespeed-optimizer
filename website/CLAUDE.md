@@ -32,7 +32,7 @@ Run everything from `website/`.
 | `npm run dev` | Dev server at `http://localhost:4321`. |
 | `PRICING_ALLOW_STALE=1 npm run build` | Production build. The prebuild step fetches localized prices; without network or credentials it refuses unless this variable is set, in which case it builds from the committed `src/data/fastspring-pricing.json`. CI always sets it. |
 | `npm run format` / `npm run format:check` | Prettier over `src/`, `tests/`, `test/`, `scripts/` and the root configs (never the Markdown content). Run before staging; CI runs `format:check`. |
-| `npm run lint` | ESLint plus `astro check`. |
+| `npm run lint` | ESLint plus `astro check`. CI runs it; warnings and hints do not fail it, errors do. |
 | `npx vitest run` | Unit tests and the sync/content gates in `test/`. Fast; run this first. |
 | `npx playwright test` | Browser suite in `tests/`. Starts the dev server itself (`webServer` in `playwright.config.ts`); run `npx playwright install chromium` once. |
 | `npm run gen:llms` | Regenerate `public/llms.txt` and `public/llms-full.txt` from the docs collection, and `public/.well-known/ai-plugin.json` from its template (see "The agent files"). |
@@ -50,26 +50,66 @@ such a session start the dev server first (`npm run dev`, which backgrounds itse
 
 ## Stylesheet strategy
 
-The site CSS stays an external sheet (Astro's default): in production the site's own optimizer inlines the critical CSS and defers the full sheet, so first paint is not blocked and nothing flashes unstyled.
-Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process; fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
+The site CSS stays an external sheet (Astro's default). In production, mod_pagespeed's `prioritize_critical_css` filter inlines the critical rules and defers the sheet (back on since We-Amp/mod_pagespeed#713 was fixed in 2.8.2).
+Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process. Fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
+
+## Theme and error pages
+
+- **The site is dark-only.** `BaseLayout.astro` always renders `<html class="dark">` with
+  `color-scheme: dark`; there is no toggle and no light theme on screen. Review, screenshot
+  and contrast-check pages in dark only.
+- The light values in the `@theme` block of `src/styles/global.css` are only the defaults
+  Tailwind needs to generate its utilities; the `.dark` block overrides them
+  and is what visitors see on screen. Do not design against the light values or treat
+  them as a second screen theme.
+- **The one light rendering is print.** The `@media print` block in `global.css` re-declares
+  the tokens with the same light values and prints code blocks in the light half of the
+  Shiki theme. Keep the two sets of light values in step, check the print view when a
+  change touches tokens, and do not remove the light Shiki theme.
+- **Review the 404 page locally at `/error/404/`** (and the 500 page at `/error/500/`). The
+  local production server (`node dist/server/entry.mjs`) answers an unknown URL with a 404
+  status and a bare redirect stub, not the designed page; in production the web server
+  maps failing URLs onto the prerendered `/error/` pages. The stub is expected, not a bug.
 
 ## Site search
 
 Search is [Pagefind](https://pagefind.app/), a static index built after the Astro build:
 the `postbuild` script (`scripts/build-search-index.mjs`) indexes `dist/client/` and writes
-`dist/client/pagefind/`, which the node server serves at `/pagefind/`. Which pages are
+`dist/client/pagefind/v<version>/`, which the node server serves at `/pagefind/v<version>/`.
+The Pagefind version is in the path (`src/lib/pagefind-bundle.mjs`, baked into the dialog by
+`astro.config.mjs`) because the bundle's file names never change and the web server caches
+script and style files for a year: a returning visitor must never pair a cached old
+`pagefind.js` with a new index. Never reference a bare `/pagefind/` URL. Which pages are
 indexed is decided in the HTML: `BaseLayout.astro` puts `data-pagefind-body` on `<main>`
 for every page that is not noindex and not a utility route (`/api/`, `/go/`, `/buy/`,
 `/error/`, 404, 500); pages without the attribute, including the static `/1.0/` archive,
 are skipped, and `data-pagefind-ignore` keeps navigation chrome out of the excerpts.
 `SearchDialog.astro` (rendered by the layout) is a native `<dialog>` opened by the header
 buttons, the docs hub search box, `/` and Ctrl/Cmd+K; it lazy-loads Pagefind's UI from
-`/pagefind/` on first open, so a page that never opens search loads no search code.
+the versioned bundle directory on first open, so a page that never opens search loads no
+search code.
 `astro dev` has no build output and therefore no index: the dialog says so instead of
 searching, and the Playwright suite asserts that message. Pagefind runs WebAssembly, so a
 Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `script-src`;
 the dialog probes for that before loading and reports a blocked policy visibly. The docs
 sitemap `lastmod` comes from the same git-derived date as the page (`src/lib/git-date.ts`).
+The static pages and the generated route families date from git too
+(`src/lib/page-lastmod.mjs`); each example page dates from its own catalog entry and capture.
+Git dates need full history: a shallow clone answers none, so its build falls back to the
+frontmatter dates and leaves the other sitemap entries undated. Check a date change in a
+full-history clone (`git clone --filter=blob:none`).
+
+Result order is tuned in two places. At build time the layout gives `<main>` a
+`data-pagefind-weight` and, for the pages people search for by name, a short result title
+(`src/lib/search-index.ts`, from the path alone; no page file carries search attributes). At
+search time the dialog passes Pagefind `ranking` options. Neither is covered by the test
+suites, because the dev server has no index: after changing either, build, serve the build and
+run `node scripts/search-probes.mjs http://127.0.0.1:<port>`, which prints where each probe
+query's page lands. The dialog mirrors Pagefind's result count into a visually hidden
+`role="status"` element and shows a fixed row of links when a search finds nothing; the 404
+page opens the dialog with the last segment of the missing path as the query. The index
+step fails the build when a Pagefind output file is missing or empty
+(`scripts/lib/search-index-output.mjs`); rebuild if it does.
 
 ## Directory map
 
@@ -86,6 +126,11 @@ src/content/releases-1.1/    data for the pages that still describe them)
 src/content.config.ts        Collection schemas: the frontmatter contracts below
 src/components/              UI components. src/components/release/ holds the
                              release-aware components; its README.md is the manual.
+                             src/components/home/ holds the home page, one file per
+                             section; src/pages/index.astro keeps the metadata, the
+                             JSON-LD and the shared style block. Those files are
+                             hand-formatted (.prettierignore) and their copy is
+                             scanned by test/content-accuracy.test.ts like a page.
 src/data/                    product-facts.mjs (single-source facts; re-exports the
                              repo-root shared/product-facts.mjs), agent-files.mjs
                              (the prose and page list of the generated agent
@@ -94,12 +139,18 @@ src/data/                    product-facts.mjs (single-source facts; re-exports 
                              overlays and notes; see below), examples.ts +
                              examples-data.json, demo-metrics.json,
                              fastspring-pricing.json, JSON-LD builders
-src/layouts/BaseLayout.astro The one layout: <head>, nav, footer, JSON-LD, the
-                             critical-CSS dark-mode overrides, the provenance notice
+src/layouts/BaseLayout.astro The one layout: the page shell, the critical-CSS
+                             dark-mode overrides, the global stylesheet import
+src/layouts/parts/           The layout's pieces: HeadMeta (meta tags, JSON-LD),
+                             SiteHeader (nav), SiteFooter (links, the provenance
+                             notice). Menu and footer links: src/data/nav.ts
 src/lib/release.ts           getRelease(line) and artifactUrl(): typed manifest access
 src/lib/docs-markdown.mjs    The docs collection as Markdown: the render behind
                              /docs/<slug>.md and public/llms-full.txt
-public/                      Served as-is: fonts, images, og-cards/, charts/ (the
+src/assets/fonts/            The web fonts (woff2): imported by global.css and the
+                             HeadMeta preloads, so the build serves them from hashed
+                             /_astro/ URLs; the font licenses stay in public/fonts/
+public/                      Served as-is: images, og-cards/, charts/ (the
                              Helm repository: packaged charts + index.yaml), robots.txt,
                              llms.txt, llms-full.txt, .well-known/ai-plugin.json
 scripts/                     Build-time generators: fetch-pricing.js, generate-llms.mjs,
@@ -138,6 +189,37 @@ workflow (`.github/workflows/website.yml`), which also fails when the manifest l
 the latest stable `v2.*` tag of the public mod_pagespeed repository by more than a
 few hours.
 
+**Unreleased behaviour.** Docs on `main` can describe behaviour that is merged but
+not released yet; a reader on the released version who copies it gets an error. Wrap
+that text in a next-release marker, with `after` set to the last released version
+when you write it:
+
+```md
+:::next-release{after="2.8.2"}
+The new paragraph, list or table, unchanged.
+:::
+```
+
+It renders as a callout titled "From the next release" (`[Label]` overrides the title,
+as on the other callouts) and as a `> **From the next release**` blockquote in the
+Markdown copies. Write the marker at the top level, starting at the first column with
+three colons: the Markdown copies convert only those (the check also finds nested ones).
+Wrap whole blocks only, headings included (a section that is new goes in the marker with its heading;
+it keeps its anchor but stays out of "On this page", see `src/lib/rehype-next-release-headings.mjs`): a new sentence inside an existing paragraph
+moves into its own marker block after it, a changed table row goes back to its
+released text with the new row in a one-row table inside the marker, and text that
+replaced released text keeps the released text outside the marker. Frontmatter (a
+FAQ answer) cannot hold a marker, so it keeps the released wording. For a generated
+reference entry, add it to `src/data/reference/next-release.json` (region, entry name,
+`after`) and run `node scripts/render-references.mjs`; the renderer wraps the entry's
+block, heading included, and leaves it out of the region's index links and counts.
+Module directives cannot be marked (the directive finder needs that region flat), so the
+renderer refuses them; describe an unreleased module directive in a docs-page marker. `test/next-release-markers.test.ts` fails on a marker without `after` and on
+every marker whose `after` is older than the released version, the newer of
+`release.semver` in the 2.1 manifest and `MODULE_PACKAGE_VERSION` in
+`src/data/product-facts.mjs`. So it fires on the release's own site update, which
+removes the markers (keep the content, drop the `:::` lines and the JSON entries).
+
 ## Gates in `test/`
 
 `npx vitest run` runs them all; the two build-output gates skip themselves when
@@ -174,6 +256,9 @@ few hours.
   wording (license keys, trials, per-site pricing) stays out.
 - `sync/terms-version-sync.test.ts` — the terms-of-service version stamp is identical
   on `/terms/` and the `/pricing/` quote form.
+- `next-release-markers.test.ts` — every `:::next-release` marker and
+  `reference/next-release.json` entry names the released version in `after`; it
+  fails once a newer version is released (see "Unreleased behaviour").
 
 ## Generated references
 
@@ -185,7 +270,22 @@ mod_pagespeed tree at the `v2.*` tag in `src/data/reference/source-pin.json`, an
 re-clones the pin and fails on any diff. At release time bump `source-pin.json` to the
 new tag, run `MOD_PAGESPEED_SRC=<clone> npm run gen:references` and commit the JSON and
 the two pages. Prose the source does not carry lives in `src/data/reference/notes/*.md`
-and the two `*-overlay.json` files; never hand-edit the JSON or a generated region.
+and the two `*-overlay.json` files; an entry that is not released yet is listed in
+`next-release.json` (see "Unreleased behaviour"); never hand-edit the JSON or a generated region.
+
+The Markdown of the directive reference stays flat (an `h3` per area, an `h4` per
+directive). `src/lib/rehype-directive-blocks.mjs` marks it when the page is rendered:
+each directive heading and each area heading gets an attribute, and the "Find a directive"
+field goes above the first area. It adds no wrapper per directive or per area (hundreds of
+wrappers cost layout time on phones); the script hides a directive's heading and the
+elements after it up to the next heading; `src/components/DirectiveFinder.astro` carries the filter script and the
+styles, and `src/lib/directive-match.ts` the rule that turns typed text into a name to
+look for. Only the HTML page changes:
+the Markdown source, `/docs/configuration.md` and `llms-full.txt` do not. Astro caches
+rendered content, so after editing the plugin delete `.astro/data-store.json` and
+`node_modules/.astro/data-store.json` before the next local build or dev run (CI builds
+start clean). `test/reference/directive-blocks.test.ts`, `test/directive-match.test.ts` and
+`tests/directive-finder.spec.ts` cover the markup, the matching rule and the finder.
 
 ## The agent files
 

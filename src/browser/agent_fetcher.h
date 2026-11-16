@@ -30,9 +30,9 @@
 //
 // Everything except the two injected blocking effects (spawn, resolve) is pure and
 // cross-platform, so the redirect engine + response parser + header hygiene + env
-// scrub are unit-tested hermetically with a mock spawn/resolver. The real spawn and
-// resolver are POSIX implementations; on Windows they are fail-closed stubs (the P1
-// agent_optimize worker ships behind nginx on Linux).
+// scrub are unit-tested hermetically with a mock spawn/resolver. The real spawn is
+// posix_spawn on POSIX and CreateProcess on Windows; the real resolver is
+// getaddrinfo on both (agent_fetcher.cc).
 //
 // Fail-closed everywhere: any resolve/SSRF/parse/spawn failure, a malformed URL or
 // port, an un-resolvable redirect, or exceeding the redirect bound => a DENY outcome

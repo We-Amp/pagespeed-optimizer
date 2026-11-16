@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "lib/classify/hostname.h"
+#include "src/worker/known_sites.h"
 
 namespace pagespeed {
 
@@ -17,21 +18,36 @@ UrlRegistry::UrlRegistry(size_t max_entries)
 
 std::string UrlRegistry::MakeKey(std::string_view url,
                                  std::string_view hostname,
-                                 std::string_view scheme) {
+                                 std::string_view scheme,
+                                 std::string_view site) {
   std::string key;
-  key.reserve(url.size() + 1 + hostname.size() + 1 + scheme.size());
+  key.reserve(url.size() + 1 + hostname.size() + 1 + scheme.size() + 1 +
+              site.size());
   key.append(url);
   key.push_back('\0');
   key.append(hostname);
   key.push_back('\0');
   key.append(scheme);
+  if (!site.empty()) {
+    key.push_back('\0');
+    key.append(site);
+  }
   return key;
 }
 
 void UrlRegistry::Record(std::string_view url, std::string_view hostname,
-                         std::string_view scheme) {
-  std::string key = MakeKey(url, hostname, scheme);
+                         std::string_view scheme, std::string_view site) {
+  std::string key = MakeKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!site.empty() && !known_sites_.contains(std::string(site))) {
+    if (known_sites_.size() < kMaxKnownSites) {
+      known_sites_.emplace(site);
+      known_sites_changed_ = true;
+    } else {
+      ++known_sites_overflow_;
+    }
+  }
 
   auto it = entries_.find(key);
   if (it != entries_.end()) {
@@ -49,8 +65,8 @@ void UrlRegistry::Record(std::string_view url, std::string_view hostname,
 
   order_.push_front(key);
   entries_[key] = MapEntry{
-      .entry =
-          Entry{std::string(url), std::string(hostname), std::string(scheme)},
+      .entry = Entry{std::string(url), std::string(hostname),
+                     std::string(scheme), std::string(site)},
       .order_it = order_.begin(),
   };
 
@@ -58,8 +74,8 @@ void UrlRegistry::Record(std::string_view url, std::string_view hostname,
 }
 
 void UrlRegistry::Remove(std::string_view url, std::string_view hostname,
-                         std::string_view scheme) {
-  std::string key = MakeKey(url, hostname, scheme);
+                         std::string_view scheme, std::string_view site) {
+  std::string key = MakeKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = entries_.find(key);
@@ -71,8 +87,9 @@ void UrlRegistry::Remove(std::string_view url, std::string_view hostname,
 
 void UrlRegistry::SetAlternateCount(std::string_view url,
                                     std::string_view hostname,
-                                    std::string_view scheme, uint32_t count) {
-  std::string key = MakeKey(url, hostname, scheme);
+                                    std::string_view scheme, uint32_t count,
+                                    std::string_view site) {
+  std::string key = MakeKey(url, hostname, scheme, site);
   std::lock_guard<std::mutex> lock(mutex_);
 
   auto it = entries_.find(key);
@@ -105,13 +122,60 @@ bool UrlRegistry::HasHostname(std::string_view hostname) const {
   return known_hostnames_.contains(std::string(hostname));
 }
 
+bool UrlRegistry::HasSite(std::string_view site) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return known_sites_.contains(std::string(site));
+}
+
+std::vector<std::string> UrlRegistry::KnownSites() const {
+  std::vector<std::string> out;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    out.assign(known_sites_.begin(), known_sites_.end());
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+void UrlRegistry::ClearKnownSites() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  known_sites_.clear();
+  known_sites_changed_ = true;
+}
+
+void UrlRegistry::LoadKnownSites(const std::vector<std::string>& sites) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  for (const std::string& site : sites) {
+    if (known_sites_.size() >= kMaxKnownSites) break;
+    known_sites_.insert(site);
+  }
+}
+
+std::optional<std::vector<std::string>> UrlRegistry::TakeKnownSitesIfChanged() {
+  std::vector<std::string> out;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!known_sites_changed_) return std::nullopt;
+    known_sites_changed_ = false;
+    out.assign(known_sites_.begin(), known_sites_.end());
+  }
+  std::sort(out.begin(), out.end());
+  return out;
+}
+
+uint64_t UrlRegistry::known_sites_overflow() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return known_sites_overflow_;
+}
+
 UrlRegistry::Page UrlRegistry::List(size_t offset, size_t limit,
-                                    std::string_view hostname) const {
+                                    std::string_view hostname,
+                                    std::string_view site) const {
   std::lock_guard<std::mutex> lock(mutex_);
 
   Page page;
 
-  if (hostname.empty()) {
+  if (hostname.empty() && site.empty()) {
     // Unfiltered: fast path using positional offset.
     page.total = order_.size();
     if (offset >= order_.size()) {
@@ -140,7 +204,7 @@ UrlRegistry::Page UrlRegistry::List(size_t offset, size_t limit,
     return page;
   }
 
-  // Filtered by hostname: scan the full list, count matches, skip to
+  // Filtered by hostname and/or site: scan the full list, count matches, skip to
   // offset, then collect up to limit entries.
   size_t matched = 0;
   page.entries.reserve(std::min(limit, size_t{128}));
@@ -148,7 +212,10 @@ UrlRegistry::Page UrlRegistry::List(size_t offset, size_t limit,
   for (const auto& key : order_) {
     auto map_it = entries_.find(key);
     if (map_it == entries_.end()) continue;
-    if (map_it->second.entry.hostname != hostname) continue;
+    if (!hostname.empty() && map_it->second.entry.hostname != hostname) {
+      continue;
+    }
+    if (!site.empty() && map_it->second.entry.site != site) continue;
 
     if (matched >= offset && page.entries.size() < limit) {
       page.entries.push_back(map_it->second.entry);

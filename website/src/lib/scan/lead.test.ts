@@ -14,6 +14,7 @@ import {
   type LeadPayload,
 } from './lead';
 import { buildReportMarkdown, riskStates } from './report';
+import { riskRows } from './risk-rows';
 
 const fixture = (name: string) =>
   JSON.parse(
@@ -412,5 +413,27 @@ describe('report markdown', () => {
     });
     expect(md).toContain('AI readability: not measured');
     expect(md).not.toContain('Risk and SEO');
+  });
+});
+
+describe('report risk states match the panel', () => {
+  const cases: Record<string, Record<string, unknown>> = {
+    'ok with no verdict': { scriptInventory: { status: 'ok' } },
+    'ok with unknown verdict': { seoDefects: { status: 'ok', verdict: 'unknown' } },
+    'ok and flagged': { preConsentLeak: { status: 'ok', verdict: 'leaks' } },
+    'ok and clean': { responseExposure: { status: 'ok', verdict: 'clean' } },
+    blocked: { seoDefects: { status: 'blocked' } },
+    error: { responseExposure: { status: 'error' } },
+  };
+  for (const [name, report] of Object.entries(cases)) {
+    it(name, () => {
+      expect(riskStates(report).map((r) => r.state)).toEqual(riskRows(report).map((r) => r.chip));
+    });
+  }
+
+  it('does not report a lens with no verdict as nothing flagged', () => {
+    expect(riskStates({ scriptInventory: { status: 'ok' } })).toEqual([
+      { name: 'Script inventory', state: 'Not measured' },
+    ]);
   });
 });

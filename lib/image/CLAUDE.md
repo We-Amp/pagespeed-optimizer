@@ -1,6 +1,6 @@
 # Image Processing Pipeline
 
-Pipeline order: Decode → Content Analysis → Resize → Denoise (if noisy) → Encode
+Pipeline order: Decode → Content Analysis → Resize → Encode
 → SSIMULACRA2 check (JPEG only) → Re-encode if needed.
 
 Safety limit: `kMaxDecodedPixels` (50MB) for decoded pixel buffers.
@@ -18,15 +18,6 @@ Classifies images and adjusts quality per-class. Disable: `--no-content-analysis
 
 Analysis stages: (1) unique color sampling via LCG PRNG, (2) edge density via
 `SobelGradient()` + `PhotoMetric()`, (3) noise estimation via 8x8 patch variance MAD.
-
-## Noise-Adaptive Denoising (`bilateral_filter.h`)
-
-Edge-preserving bilateral filter. Applied when `noise_level > denoise_threshold`
-(default 0.3) and width >= 640px. Range sigma scaled by noise level.
-Disable: `--denoise-threshold 0`.
-
-Config: `--denoise-sigma-spatial F` (default 3.0), `--denoise-sigma-range F`
-(default 25.0).
 
 ## Viewport-Based Resizing
 

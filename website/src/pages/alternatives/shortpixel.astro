@@ -1,10 +1,16 @@
 ---
 import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import PageHero from '../../components/PageHero.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { productJsonLd } from '../../data/software-jsonld';
-import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import {
+  editionClause,
+  FREE_TO_RUN_LINE,
+  NGINX_APT_SHORT_NBSP,
+  NGINX_RPM_SHORT,
+} from '../../data/product-facts.mjs';
 
 const rows = [
   {
@@ -70,7 +76,7 @@ const rows = [
   },
   {
     label: 'License',
-    mps: 'Licensed under the Apache License&nbsp;2.0. The software is free. We sell support; Priority and Enterprise add a private package repository (being set up). See the <a href="/license/" class="text-interactive hover:text-interactive-hover underline">software license</a>.',
+    mps: 'Licensed under the Apache License&nbsp;2.0. The software is free. We sell support; the software and its signed packages are the same for everyone. See the <a href="/license/" class="text-interactive hover:text-interactive-hover underline">software license</a>.',
     other: 'Plugins open source on WordPress.org; service/API proprietary',
   },
   {
@@ -100,8 +106,13 @@ const jsonLd = [
   description="A self-hosted ShortPixel alternative for WordPress and any CMS: mod_pagespeed optimizes images and the whole page at your origin. No third-party CDN."
   jsonLd={jsonLd}
 >
-  <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+  <PageHero
+    id="shortpixel-title"
+    width="prose"
+    class="max-w-3xl"
+    title="mod_pagespeed vs ShortPixel"
+  >
+    <nav slot="before" class="mb-6 text-small text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">
         Home
       </a>
@@ -112,10 +123,10 @@ const jsonLd = [
       <span class="mx-1">/</span>
       <span>vs ShortPixel</span>
     </nav>
+  </PageHero>
 
-    <h1 class="mt-6 h1-hero text-text-body">mod_pagespeed vs ShortPixel</h1>
-
-    <section class="mt-8">
+  <article class="container-prose max-w-3xl pb-16">
+    <section>
       <h2 class="h2-section text-text-body">TL;DR</h2>
       <p class="mt-4 text-text-body">
         ShortPixel is an image-optimization product. It ships as WordPress plugins &mdash; the Image
@@ -228,10 +239,7 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2
-        id="migrating-from-shortpixel-to-modpagespeed"
-        class="h2-section scroll-mt-24 text-text-body"
-      >
+      <h2 id="migrating-from-shortpixel-to-modpagespeed" class="h2-section text-text-body">
         Migrating from ShortPixel to mod_pagespeed
       </h2>
       <p class="mt-4 text-text-body">
@@ -282,18 +290,27 @@ const jsonLd = [
         ShortPixel API key in <code>wp-admin &rarr; Settings &rarr; ShortPixel</code>, then choose
         WebP/AVIF and (for Adaptive Images) CDN delivery. No server config.
       </p>
-      <p class="mt-4 text-text-body">
+      <p id="config-1" class="mt-4 text-text-body">
         <strong>Equivalent in mod_pagespeed.</strong> Install the nginx module on
-        Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 +
-        aarch64):
+        {NGINX_APT_SHORT_NBSP} (amd64 + arm64), or AlmaLinux/RHEL/Rocky&nbsp;{NGINX_RPM_SHORT}:
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre
+        tabindex="0"
+        role="region"
+        aria-labelledby="config-1"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
-      <p class="mt-4 text-text-body">
+      <p id="config-2" class="mt-4 text-text-body">
         Then enable the filters (nginx config; images are optimized and served from your origin,
         alongside the rest of the pipeline):
       </p>
-      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre
+        tabindex="0"
+        role="region"
+        aria-labelledby="config-2"
+        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-sm sm:text-xs leading-snug text-text-body"
+      ><code>pagespeed on;
 pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters convert_jpeg_to_webp,recompress_images,resize_images,lazyload_images,prioritize_critical_css;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
@@ -305,7 +322,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
+      <div class="rounded-card border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Switching from ShortPixel</h2>
         <p class="mt-3 text-text-body">
           Server-layer optimization that covers the whole page &mdash; not just images &mdash; and
@@ -322,7 +339,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
             data-umami-event="cta_vs_shortpixel_buy"
           >
-            Support plans
+            Support pricing
           </a>
           <a
             href="#migrating-from-shortpixel-to-modpagespeed"

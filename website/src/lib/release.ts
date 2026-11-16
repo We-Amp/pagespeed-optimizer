@@ -39,10 +39,19 @@ export type Release = Awaited<ReturnType<typeof getRelease>>;
  * A template that is already an absolute https:// URL is returned without
  * the archive_base prefix.
  *
+ * `version` replaces %V; it defaults to the release and is passed explicitly
+ * for a module artifact (the IIS installer) of a module-only update, whose
+ * version leads the release (MODULE_PACKAGE_VERSION).
+ *
  * Throws when the channel/arch pair is absent so build-time failures surface
  * loudly instead of producing a broken href.
  */
-export function artifactUrl(rel: Release, channel: string, arch: string): string {
+export function artifactUrl(
+  rel: Release,
+  channel: string,
+  arch: string,
+  version: string = rel.release.semver,
+): string {
   const channelTemplates = rel.artifacts[channel];
   if (!channelTemplates) {
     throw new Error(`No artifact channel "${channel}" in ${rel.product.line} manifest`);
@@ -54,7 +63,7 @@ export function artifactUrl(rel: Release, channel: string, arch: string): string
     );
   }
   const filename = tmpl
-    .replaceAll('%V', rel.release.semver)
+    .replaceAll('%V', version)
     .replaceAll('%R', String(rel.release.revision ?? 0))
     .replaceAll('%T', rel.release.tag);
   // An absolute template names an artifact hosted outside archive_base (the

@@ -5,15 +5,15 @@
 #
 # sync-js-kernel.sh - Vendor the canonical JS kernel from mod_pagespeed 1.15.
 #
-# mod_pagespeed 2.1 does NOT own its JavaScript tokenizer/minifier kernel.
+# This repository does NOT own its JavaScript tokenizer/minifier kernel.
 # The 1.15 repository (mod_pagespeed) is the single
 # canonical source: fixes land there first and flow here through this script.
 # The vendored copy under lib/js/ is CHECKED IN so the 2.0 build stays
-# hermetic, and a CI drift check re-runs this
-# script against the pin and fails if the checked-in files would change — a
-# hand-edit of a vendored file, or a pin bump without a re-sync, can never
-# drift silently. Hand edits to vendored files are NEVER sanctioned; fix the
-# canonical source and re-sync.
+# hermetic, and the required differential job runs this script with --check
+# against the canonical repository at the pin (tools/ci/check-kernel-bytes.sh)
+# and fails if the checked-in files would change — a hand-edit of a vendored
+# file, or a pin bump without a re-sync, can never drift silently. Hand edits
+# to vendored files are NEVER sanctioned; fix the canonical source and re-sync.
 #
 # The pin lives in lib/js/JS_KERNEL_PIN (first token of the first
 # non-comment line = the canonical 1.15 commit SHA). Bump the pin, re-run
@@ -23,19 +23,17 @@
 # on a second line, `floor <sha>`. The ancestry gate below alone would
 # accept ANY ancestor of canonical master, so re-pinning to an
 # older-but-complete commit yields a self-consistent tree that passes both
-# the drift and the differential gates. The floor closes that window: this
+# the byte check and the differential gates. The floor closes that window: this
 # script fails (exit 6) unless the pin equals the floor or has it as an
 # ancestor. Convention: a routine pin bump moves the floor to the new pin
-# in the same commit; a hotfix-valve pin (unmerged branch, see below)
-# keeps the floor at the last MERGED pin and moves it at reconciliation.
+# in the same commit.
 # tools/ci/check-floor-ratchet.sh additionally enforces that the floor
 # itself never moves backwards relative to origin/main — as a REQUIRED
-# check in the js-kernel-differential job of pipeline-pr.yml and as the advisory RATCHET
-# step in the drift workflow.
+# check in the js-kernel-differential job of pipeline-pr.yml.
 #
 # Usage:
 #   tools/sync-js-kernel.sh --source <path-to-1.15-git-checkout-or-mirror>
-#   tools/sync-js-kernel.sh --source <path> --check   # drift check (no writes)
+#   tools/sync-js-kernel.sh --source <path> --check   # byte check (no writes)
 #
 # --source may be any local git dir (worktree, clone, bare mirror) in which
 # the pinned commit is reachable; only `git show` is used, never the working
@@ -45,15 +43,10 @@
 # of the synced set that tools/check-js-kernel-membership.sh enforces
 # tree-locally (also invoked by --check).
 #
-# Pin-ancestry valve: by default the pinned commit must be an ancestor of the
-# source's master (origin/master if present, else master) — a merged,
-# permanent commit. SYNC_ALLOW_UNMERGED_PIN=1 permits a pin on a pushed but
-# unmerged 1.15 branch (hotfix flow). Because 1.15 PRs are usually
-# squash-merged, the unmerged pin's SHA will NOT survive the merge:
-# reconciliation is ALWAYS re-pin to the squashed master commit followed by
-# an expected no-op re-sync. The drift workflow honors the valve only on
-# pull_request events, so the hotfix PR can go green while push/schedule
-# runs stay red until the pin is reconciled.
+# Pin ancestry: the pinned commit must be an ancestor of the source's master
+# (origin/master if present, else master) — a merged, permanent commit. There
+# is no override: a pin on an unmerged branch is refused (exit 4). Wait for
+# the merge and pin the merged commit.
 #
 # Transform (deterministic):
 #   * anchored ^#include rewrites per the fixed mapping table below
@@ -137,8 +130,7 @@ if ! git -C "$SRC_REPO" cat-file -e "${PIN}^{commit}" 2>/dev/null; then
   exit 3
 fi
 
-# Ancestry gate: the pin must be a permanent (merged) master commit unless
-# the SYNC_ALLOW_UNMERGED_PIN valve is set (see header).
+# Ancestry gate: the pin must be a permanent (merged) master commit.
 MASTER_REF=""
 for ref in origin/master master; do
   if git -C "$SRC_REPO" rev-parse --verify --quiet "$ref" >/dev/null; then
@@ -152,24 +144,13 @@ if [[ -z "$MASTER_REF" ]]; then
   exit 3
 fi
 if ! git -C "$SRC_REPO" merge-base --is-ancestor "$PIN" "$MASTER_REF"; then
-  if [[ "${SYNC_ALLOW_UNMERGED_PIN:-0}" == "1" ]]; then
-    echo "WARNING: pin ${PIN:0:12} is NOT an ancestor of ${MASTER_REF} —" >&2
-    echo "         proceeding under SYNC_ALLOW_UNMERGED_PIN=1 (hotfix valve)." >&2
-    echo "         Squash-merges will orphan this SHA: reconcile by re-pinning" >&2
-    echo "         to the squashed master commit + an expected no-op re-sync." >&2
-  else
-    echo "ERROR: pin ${PIN:0:12} is not an ancestor of ${MASTER_REF} in '${SRC_REPO}'." >&2
-    echo "       Merged pins only (set SYNC_ALLOW_UNMERGED_PIN=1 for the" >&2
-    echo "       documented hotfix valve)." >&2
-    exit 4
-  fi
+  echo "ERROR: pin ${PIN:0:12} is not an ancestor of ${MASTER_REF} in '${SRC_REPO}'." >&2
+  echo "       Merged pins only: wait for the 1.15 merge and pin the merged commit." >&2
+  exit 4
 fi
 
 # Pin-downgrade ratchet, part 2 — enforce the floor (#1104). Runs IN
-# ADDITION to the ancestry gate above and regardless of the unmerged-pin
-# valve: a hotfix pin still branches off a floor-respecting base. Exit 6 is
-# this check's distinct code (the drift workflow maps it to a dedicated
-# diagnosis).
+# ADDITION to the ancestry gate above. Exit 6 is this check's distinct code.
 if ! git -C "$SRC_REPO" cat-file -e "${FLOOR}^{commit}" 2>/dev/null; then
   echo "ERROR: floor commit ${FLOOR} not reachable in '${SRC_REPO}' —" >&2
   echo "       cannot evaluate the pin-downgrade ratchet. Fetch the" >&2

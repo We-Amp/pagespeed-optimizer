@@ -94,9 +94,6 @@ json ConfigToJsonPersistable(const WorkerConfig& c) {
   j["quality_verify"] = c.quality_verify;
   j["target_ssimulacra2"] = c.target_ssimulacra2;
   j["ssimulacra2_tolerance"] = c.ssimulacra2_tolerance;
-  j["denoise_threshold"] = c.denoise_threshold;
-  j["denoise_sigma_spatial"] = c.denoise_sigma_spatial;
-  j["denoise_sigma_range"] = c.denoise_sigma_range;
   j["learned_quality"] = c.learned_quality;
   j["learned_quality_jpeg"] = c.learned_quality_jpeg;
   j["learned_quality_webp"] = c.learned_quality_webp;
@@ -367,30 +364,11 @@ ConfigApplyResult ApplyConfigJson(const json& body, WorkerConfig* config) {
               "target_ssimulacra2 > 90: May prevent effective compression");
         }
       }
-    } else if (key == "denoise_threshold" && value.is_number()) {
-      float v = value.get<float>();
-      if (!std::isfinite(v) || v < 0.0f || v > 1.0f) {
-        rejected[key] = "Must be 0.0-1.0";
-      } else {
-        config->denoise_threshold = v;
-        applied[key] = v;
-      }
-    } else if (key == "denoise_sigma_spatial" && value.is_number()) {
-      float v = value.get<float>();
-      if (!std::isfinite(v) || v < 0.0f || v > 100.0f) {
-        rejected[key] = "Must be 0-100";
-      } else {
-        config->denoise_sigma_spatial = v;
-        applied[key] = v;
-      }
-    } else if (key == "denoise_sigma_range" && value.is_number()) {
-      float v = value.get<float>();
-      if (!std::isfinite(v) || v < 0.0f || v > 255.0f) {
-        rejected[key] = "Must be 0-255";
-      } else {
-        config->denoise_sigma_range = v;
-        applied[key] = v;
-      }
+    } else if (key == "denoise_threshold" || key == "denoise_sigma_spatial" ||
+               key == "denoise_sigma_range") {
+      // Removed options: noisy images are no longer smoothed before
+      // encoding.  Existing configs that still set them keep loading.
+      warnings.push_back(key + " is deprecated and ignored");
     } else if (key == "savedata_score_reduction" && value.is_number()) {
       float v = value.get<float>();
       if (!std::isfinite(v) || v < 0.0f || v > 50.0f) {

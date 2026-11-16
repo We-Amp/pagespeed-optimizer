@@ -407,20 +407,23 @@ TEST(HeadersSidecarTest, AgeDoesNotDisturbCarriedHeaders) {
 TEST(HeadersSidecarTest, TheOriginsActualVaryStringIsWhatIsStored) {
   // Not the tokens the cache understood, and not a re-synthesised list: the
   // bytes the origin sent, spacing and case included.
-  const Fields fields = {{"Vary", "Accept-Encoding,   ACCEPT ,Save-Data"}};
+  const Fields fields = {
+      {"Vary", "Accept-Encoding,   ACCEPT-ENCODING ,accept-encoding"}};
   const auto result = Classify(fields);
   ASSERT_EQ(result.verdict, SidecarVerdict::kSwapEligible) << result.reasons[0];
   const auto parsed = RoundTrip(result);
   ASSERT_EQ(parsed.size(), 1u);
   EXPECT_EQ(parsed[0].first, "Vary");
-  EXPECT_EQ(parsed[0].second, "Accept-Encoding,   ACCEPT ,Save-Data");
+  EXPECT_EQ(parsed[0].second,
+            "Accept-Encoding,   ACCEPT-ENCODING ,accept-encoding");
 }
 
 TEST(HeadersSidecarTest,
      SeveralVaryLinesAreCarriedSeparatelyAndJudgedTogether) {
   // RFC 9110 §5.3: they are one list for the storability question, and two
   // lines for the relay question. Both halves matter, so both are checked.
-  const Fields storable = {{"Vary", "Accept-Encoding"}, {"vary", "Accept"}};
+  const Fields storable = {{"Vary", "Accept-Encoding"},
+                           {"vary", "accept-encoding"}};
   const auto ok = Classify(storable);
   ASSERT_EQ(ok.verdict, SidecarVerdict::kSwapEligible) << ok.reasons[0];
   const auto parsed = RoundTrip(ok);
@@ -537,7 +540,7 @@ TEST(HeadersSidecarTest, TheClassCostsNoEntryMetadataVersionOfItsOwn) {
   // that byte: adding it did not move the entry-metadata format version, and
   // must not. An entry format version is a cache-wide event — every entry on
   // every volume — and a new entry class is not a reason to spend one.
-  EXPECT_EQ(AlternateMetadata::kCurrentVersion, 8);
+  EXPECT_EQ(AlternateMetadata::kCurrentVersion, 9);
   EXPECT_EQ(kHeadersSidecarFormatVersion, 1);
 }
 

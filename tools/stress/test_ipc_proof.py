@@ -86,6 +86,15 @@ class TestWireFormat:
         offset += 1
         assert sig_len == 0, f"Expected empty option signature, got {sig_len} bytes"
 
+        # v6 appends the site length and a flags byte after the signature.
+        site_len = data[offset]
+        offset += 1
+        assert site_len == 0, f"Expected empty site, got {site_len} bytes"
+
+        flags = data[offset]
+        offset += 1
+        assert flags == 0, f"Expected zero flags, got {flags}"
+
         # Should have consumed all bytes
         assert offset == len(data)
 

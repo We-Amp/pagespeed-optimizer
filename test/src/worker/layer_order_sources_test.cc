@@ -63,7 +63,10 @@ TEST(StylesheetSourcesTest, RecordsEverySourceInDocumentOrder) {
       "<link rel=\"stylesheet\" href=\"/svg.css\"></svg>"
       "<math><style>.m{}</style></math></body></html>");
   const auto& s = r.stylesheet_sources;
-  ASSERT_EQ(s.size(), 8u);
+  // <noscript> and <template> apply nothing when scripts run; an inline <svg>
+  // <style> or <link> and a <math> <style> are SVG and MathML elements, not
+  // the page's CSS.
+  ASSERT_EQ(s.size(), 7u);
   EXPECT_FALSE(s[0].is_link);
   EXPECT_EQ(s[0].css, ".a{}");
   EXPECT_TRUE(s[1].is_link);
@@ -84,10 +87,6 @@ TEST(StylesheetSourcesTest, RecordsEverySourceInDocumentOrder) {
   EXPECT_TRUE(s[5].not_plain_stylesheet);
   EXPECT_EQ(s[6].media, "print");
   EXPECT_EQ(s[6].css, ".p{}");
-  // <noscript> and <template> apply nothing when scripts run; an inline <svg>
-  // <style> applies to the document, a <link> or a <math> <style> does not.
-  EXPECT_FALSE(s[7].is_link);
-  EXPECT_EQ(s[7].css, ".s{}");
 }
 
 TEST(StylesheetSourcesTest, NonCssTypesAndTitles) {
@@ -256,13 +255,23 @@ TEST(LayerOrderSourcesTest, SourcesTheBrowserDoesNotApplyAreNotCounted) {
     ASSERT_TRUE(order.proven) << before << ": " << order.reason;
     EXPECT_EQ(order.Statement(), "@layer a,b;") << before;
   }
-  // An <svg> <style> does apply: counted, `b` first, as in a browser.
+  // An HTML <style> inside an integration point does apply: counted, `b`
+  // first, as in a browser.
+  CascadeLayerOrder fo = OrderFor(
+      "<html><head><svg><foreignObject><style>@layer b{}</style>"
+      "</foreignObject></svg>"
+      "<link rel=\"stylesheet\" href=\"/m.css\"></head></html>",
+      cache);
+  ASSERT_TRUE(fo.proven) << fo.reason;
+  EXPECT_EQ(fo.Statement(), "@layer b,a;");
+  // An <svg> <style> is an SVG element whose content is markup; it is not read
+  // as the page's CSS, so it is not a source here.
   CascadeLayerOrder svg = OrderFor(
       "<html><head><svg><style>@layer b{}</style></svg>"
       "<link rel=\"stylesheet\" href=\"/m.css\"></head></html>",
       cache);
   ASSERT_TRUE(svg.proven) << svg.reason;
-  EXPECT_EQ(svg.Statement(), "@layer b,a;");
+  EXPECT_EQ(svg.Statement(), "@layer a,b;");
 }
 
 TEST(LayerOrderSourcesTest, LoadCssPreloadCountsAtThePreloadPosition) {

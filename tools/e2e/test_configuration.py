@@ -117,12 +117,6 @@ class TestContentAnalysis:
         resp = api.patch_config(target_ssimulacra2=95.0)
         assert len(resp.get("warnings", [])) > 0
 
-    def test_denoise_threshold_applied(self, restore_config):
-        api = restore_config
-        api.patch_config(denoise_threshold=0.5)
-        cfg = api.get_config()
-        assert cfg["denoise_threshold"] == pytest.approx(0.5)
-
 
 # ---------------------------------------------------------------------------
 # 4c. Learned Quality Prediction

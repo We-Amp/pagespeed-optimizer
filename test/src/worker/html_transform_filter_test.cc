@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -28,6 +29,7 @@
 #include "lib/html/html_writer_filter.h"
 #include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_scanner.h"
+#include "src/worker/subresource_gate.h"
 
 namespace pagespeed {
 namespace {
@@ -41,6 +43,17 @@ size_t CountOccurrences(std::string_view haystack, std::string_view needle) {
     pos += needle.size();
   }
   return count;
+}
+
+// A gate whose server serves every URL to any client: the pre-gate behaviour
+// the tests below were written against.
+SubresourceGate* AdmitAllGate() {
+  static SubresourceGate gate(
+      [](const std::string&, const std::string&) -> std::optional<int> {
+        return 200;
+      },
+      [] { return std::int64_t{0}; });
+  return &gate;
 }
 
 // Helper to run the transform filter on HTML and return the output.
@@ -60,6 +73,8 @@ std::string TransformHtml(
   HtmlTransformFilter transform(&parser, config, critical_css, cache, hostname,
                                 "https", lcp_candidate, preconnect_origins,
                                 speculation_urls, defer_scripts, font_urls);
+  transform.set_subresource_gate(AdmitAllGate(), /*host_fetch_allowed=*/true);
+  transform.set_document_is_text_html(true);
   parser.AddFilter(&transform);
 
   std::string output;
@@ -156,6 +171,42 @@ TEST(HtmlTransformFilterTest, AddsLazyLoadToImages) {
   std::string second_tag =
       result.substr(second_img_start, second_img_end - second_img_start + 1);
   EXPECT_NE(second_tag.find("loading=\"lazy\""), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, LazyImagesGetAsyncDecoding) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = true;
+  config.enable_image_dimensions = false;
+
+  std::string result = TransformHtml(
+      "<html><body>"
+      "<img src=\"hero.jpg\">"
+      "<img src=\"below.jpg\">"
+      "<img src=\"authored.jpg\" decoding=\"sync\">"
+      "<iframe src=\"a.html\"></iframe><iframe src=\"b.html\"></iframe>"
+      "<iframe src=\"c.html\"></iframe><iframe src=\"d.html\"></iframe>"
+      "</body></html>",
+      "http://example.com/", config);
+
+  auto tag_around = [&](const std::string& needle) {
+    auto at = result.find(needle);
+    EXPECT_NE(at, std::string::npos) << needle;
+    auto start = result.rfind('<', at);
+    return result.substr(start, result.find('>', at) - start + 1);
+  };
+  // The promoted first image is not lazy and gets no decoding hint.
+  EXPECT_EQ(tag_around("hero.jpg").find("decoding="), std::string::npos);
+  // A lazy image gets decoding="async".
+  EXPECT_NE(tag_around("below.jpg").find("decoding=\"async\""),
+            std::string::npos);
+  // An authored decoding attribute is kept as written.
+  std::string authored = tag_around("authored.jpg");
+  EXPECT_NE(authored.find("decoding=\"sync\""), std::string::npos);
+  EXPECT_EQ(authored.find("decoding=\"async\""), std::string::npos);
+  // Lazy iframes get loading but no decoding attribute.
+  EXPECT_NE(tag_around("d.html").find("loading=\"lazy\""), std::string::npos);
+  EXPECT_EQ(tag_around("d.html").find("decoding="), std::string::npos);
 }
 
 TEST(HtmlTransformFilterTest, SkipsImgWithExistingLoading) {
@@ -693,7 +744,7 @@ TEST(HtmlTransformFilterTest, StandInPlaceholderNeverTakesTheFallback) {
               std::string::npos)
         << first << " in " << real;
     EXPECT_EQ(tag_around(real, "/a.jpg"),
-              "<img src=\"/a.jpg\" loading=\"lazy\">")
+              "<img src=\"/a.jpg\" loading=\"lazy\" decoding=\"async\">")
         << first << " in " << real;
   }
 
@@ -2638,40 +2689,77 @@ TEST(HtmlTransformFilterTest, LcpPreloadRejectsProtocolRelativeUrl) {
       << "Protocol-relative URL should NOT produce a preload link";
 }
 
-// ========== Coverage: XSS check character mismatch (lines 132-133, 137) ==========
+// ========== Critical CSS: sequences that could open markup ==========
 
-TEST(HtmlTransformFilterTest, CriticalCssAllowsNonStyleClosingTag) {
+TEST(HtmlTransformFilterTest, CriticalCssRefusesAnyClosingTagSequence) {
   HtmlTransformConfig config;
   config.enable_critical_css = true;
   config.enable_lazy_load = false;
   config.enable_image_dimensions = false;
 
-  // CSS containing "</span>" — starts with "</" but is NOT "</style",
-  // so the XSS check loop should hit the mismatch branch and allow
-  // injection.
   std::string result = TransformHtml("<html><head></head><body></body></html>",
                                      "http://example.com/", config,
                                      "body { } </span> .foo { color: red; }");
 
-  // The CSS should be injected (it's safe — no </style).
-  EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos)
-      << "CSS with </span> should be allowed (not </style)";
-  EXPECT_NE(result.find("</span>"), std::string::npos);
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+      << "CSS with </span> must not be injected";
 }
 
-TEST(HtmlTransformFilterTest, CriticalCssAllowsMultipleNonStyleClosingTags) {
+TEST(HtmlTransformFilterTest, CriticalCssRefusesMarkupOpeningSequences) {
   HtmlTransformConfig config;
   config.enable_critical_css = true;
   config.enable_lazy_load = false;
   config.enable_image_dimensions = false;
 
-  // CSS containing multiple "</xyz" sequences that are NOT "</style".
-  std::string result = TransformHtml(
-      "<html><head></head><body></body></html>", "http://example.com/", config,
-      ".a { } </div> .b { } </section> .c { color: blue; }");
+  // Outside a CSS string or comment: refused.
+  const char* const refused[] = {
+      "a { color: red; } </x", "a { color: red; } <b", "a { color: red; } <!--",
+      "a { color: red; } <?x", "a { --x: a<i; }",
+  };
+  for (const char* css : refused) {
+    SCOPED_TRACE(css);
+    std::string result =
+        TransformHtml("<html><head></head><body></body></html>",
+                      "http://example.com/", config, css);
+    EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+  }
+  // Inside one: inlined, the `<` written as the CSS escape `\3c `.
+  const char* const escaped[] = {
+      "a[title=\"<b\"] { color: red; }", "a { content: \"<A\"; }",
+      "a { content: \"<!\"; }",          "a { content: \"<?\"; }",
+      "a { background: url(\"<i\"); }",
+  };
+  for (const char* css : escaped) {
+    SCOPED_TRACE(css);
+    std::string result =
+        TransformHtml("<html><head></head><body></body></html>",
+                      "http://example.com/", config, css);
+    EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos)
+        << result;
+    EXPECT_NE(result.find("\"\\3c "), std::string::npos) << result;
+  }
+}
 
-  EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos)
-      << "CSS with </div> and </section> should be allowed";
+TEST(HtmlTransformFilterTest, CriticalCssKeepsRangeMediaQueries) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = true;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+
+  const char* const kept[] = {
+      "@media (width<900px) { .a { color: red; } }",
+      "@media (width<=900px) { .a { color: red; } }",
+      "@media (400px < width < 900px) { .a { color: red; } }",
+      ".a { --x: 1 < 2; }",
+      ".a { color: red; }<",
+  };
+  for (const char* css : kept) {
+    SCOPED_TRACE(css);
+    std::string result =
+        TransformHtml("<html><head></head><body></body></html>",
+                      "http://example.com/", config, css);
+    EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos);
+  }
 }
 
 TEST(HtmlTransformFilterTest, CriticalCssRejectsStyleAfterNonStyleTag) {
@@ -2873,6 +2961,104 @@ TEST(HtmlTransformFilterTest, ImageDimensionsFromCache) {
       << "Should inject width from cached image";
   EXPECT_NE(result.find("height=\"1\""), std::string::npos)
       << "Should inject height from cached image";
+}
+
+// An image the server refuses to an anonymous client sizes nothing, even
+// though a copy of it is in the cache; an image it serves still does.
+TEST(HtmlTransformFilterTest, ImageDimensionsSkipRefusedImage) {
+  CacheHelper cache_helper;
+  ASSERT_TRUE(cache_helper.valid()) << "Cache creation failed";
+  const std::string hostname = "example.com";
+  cache_helper.WriteImage("/held/a.png", hostname,
+                          std::span<const uint8_t>(kMinimalPng));
+  cache_helper.WriteImage("/open/b.png", hostname,
+                          std::span<const uint8_t>(kMinimalPng));
+
+  std::vector<std::string> asked;
+  SubresourceGate gate(
+      [&asked](const std::string&,
+               const std::string& url) -> std::optional<int> {
+        asked.push_back(url);
+        return url.find("/held/") != std::string::npos ? 403 : 200;
+      },
+      [] { return std::int64_t{0}; });
+
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = true;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+
+  net_instaweb::HtmlKeywords::Init();
+  net_instaweb::NullMessageHandler message_handler;
+  net_instaweb::HtmlParse parser(&message_handler);
+  HtmlTransformFilter transform(&parser, config, "", cache_helper.cache(),
+                                hostname, "https");
+  transform.set_subresource_gate(&gate, /*host_fetch_allowed=*/true);
+  parser.AddFilter(&transform);
+  std::string output;
+  net_instaweb::StringWriter writer(&output);
+  net_instaweb::HtmlWriterFilter writer_filter(&parser);
+  writer_filter.set_writer(&writer);
+  parser.AddFilter(&writer_filter);
+  ASSERT_TRUE(parser.StartParse("https://example.com/"));
+  parser.ParseText(
+      "<html><body><img src=\"/held/a.png\"><img src=\"/open/b.png\">"
+      "</body></html>");
+  parser.FinishParse();
+
+  EXPECT_NE(output.find("<img src=\"/held/a.png\">"), std::string::npos)
+      << output;
+  EXPECT_NE(output.find("src=\"/open/b.png\" width=\"1\""), std::string::npos)
+      << output;
+  EXPECT_EQ(asked.size(), 2u);
+}
+
+// Without a gate, and for a sender that may not have the worker ask the
+// host, no cached image is read.
+TEST(HtmlTransformFilterTest, ImageDimensionsNeedGateAndPermission) {
+  CacheHelper cache_helper;
+  ASSERT_TRUE(cache_helper.valid()) << "Cache creation failed";
+  const std::string hostname = "example.com";
+  cache_helper.WriteImage("/images/test.png", hostname,
+                          std::span<const uint8_t>(kMinimalPng));
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = true;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+
+  for (int variant = 0; variant < 2; ++variant) {
+    int heads = 0;
+    SubresourceGate gate(
+        [&heads](const std::string&, const std::string&) -> std::optional<int> {
+          ++heads;
+          return 200;
+        },
+        [] { return std::int64_t{0}; });
+    net_instaweb::HtmlKeywords::Init();
+    net_instaweb::NullMessageHandler message_handler;
+    net_instaweb::HtmlParse parser(&message_handler);
+    HtmlTransformFilter transform(&parser, config, "", cache_helper.cache(),
+                                  hostname, "https");
+    if (variant == 1) {
+      transform.set_subresource_gate(&gate, /*host_fetch_allowed=*/false);
+    }
+    parser.AddFilter(&transform);
+    std::string output;
+    net_instaweb::StringWriter writer(&output);
+    net_instaweb::HtmlWriterFilter writer_filter(&parser);
+    writer_filter.set_writer(&writer);
+    parser.AddFilter(&writer_filter);
+    ASSERT_TRUE(parser.StartParse("https://example.com/"));
+    parser.ParseText(
+        "<html><body><img src=\"/images/test.png\"></body></html>");
+    parser.FinishParse();
+    EXPECT_EQ(output.find("width="), std::string::npos) << output;
+    EXPECT_EQ(heads, 0);
+  }
 }
 
 // An image whose header declares an out-of-range dimension must yield NO
@@ -3824,6 +4010,35 @@ TEST(HtmlTransformFilterTest, ScriptDeferralSkipsAsyncScripts) {
   EXPECT_EQ(result.find("data-pagespeed-defer"), std::string::npos);
 }
 
+// An SVG or MathML <script> is not an HTML script element: it is left as it
+// is, while an HTML one inside an integration point is deferred.
+TEST(HtmlTransformFilterTest, ScriptDeferralSkipsForeignScripts) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+  config.enable_script_deferral = true;
+
+  const std::string foreign =
+      "<html><head></head><body>"
+      "<svg><script src=\"https://cdn.example.com/analytics.js\"></script>"
+      "</svg><math><script src=\"https://cdn.example.com/analytics.js\">"
+      "</script></math></body></html>";
+  EXPECT_EQ(TransformHtml(foreign, "http://example.com/", config, "", nullptr,
+                          "", {}, {}, {}, {"analytics.js"}),
+            foreign);
+
+  std::string result = TransformHtml(
+      "<html><head></head><body><svg><foreignObject>"
+      "<script src=\"https://cdn.example.com/analytics.js\"></script>"
+      "</foreignObject></svg></body></html>",
+      "http://example.com/", config, "", nullptr, "", {}, {}, {},
+      {"analytics.js"});
+  EXPECT_NE(result.find("data-pagespeed-defer"), std::string::npos);
+}
+
 TEST(HtmlTransformFilterTest, ScriptDeferralSkipsInlineScripts) {
   HtmlTransformConfig config;
   config.enable_critical_css = false;
@@ -4178,6 +4393,7 @@ std::string TransformWithHeaderCsps(std::string_view html,
   config.enable_image_dimensions = false;
   HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
                                 "https");
+  transform.set_document_is_text_html(true);
   transform.set_header_csps(std::move(header_csps));
   parser.AddFilter(&transform);
 
@@ -4481,7 +4697,7 @@ TEST(HtmlTransformFilterTest,
   std::string result = TransformHtml(
       "<html><head><link rel=\"stylesheet\" href=\"/style.css\"></head>"
       "<body></body></html>",
-      "http://example.com/", config, "body{content:\"</style>\"}");
+      "http://example.com/", config, "body{--x:a</style>}");
 
   EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
       << "precondition: the XSS guard must refuse this critical block";
@@ -4940,6 +5156,7 @@ std::string TransformHtmlWithLayers(std::string_view html,
   net_instaweb::HtmlParse parser(&message_handler);
   HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
                                 "https");
+  transform.set_document_is_text_html(true);
   transform.set_cascade_layer_order(order);
   parser.AddFilter(&transform);
   std::string output;
@@ -5124,6 +5341,497 @@ TEST(HtmlTransformFilterTest, CriticalCssRefusedByLaterMetaCspStillReverts) {
   EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
   EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos);
   EXPECT_NE(result.find("rel=\"stylesheet\""), std::string::npos);
+}
+
+// ========== Critical CSS markup guard and document type ==========
+
+// As TransformHtml, with the document type under the test's control:
+// std::nullopt leaves set_document_is_text_html uncalled (the default).
+std::string TransformWithDocumentType(std::string_view html,
+                                      const HtmlTransformConfig& config,
+                                      std::string_view critical_css,
+                                      std::optional<bool> is_text_html,
+                                      bool* injected = nullptr) {
+  net_instaweb::HtmlKeywords::Init();
+  net_instaweb::NullMessageHandler message_handler;
+  net_instaweb::HtmlParse parser(&message_handler);
+  HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
+                                "https");
+  transform.set_subresource_gate(AdmitAllGate(), /*host_fetch_allowed=*/true);
+  if (is_text_html.has_value()) {
+    transform.set_document_is_text_html(*is_text_html);
+  }
+  parser.AddFilter(&transform);
+  std::string output;
+  net_instaweb::StringWriter writer(&output);
+  net_instaweb::HtmlWriterFilter writer_filter(&parser);
+  writer_filter.set_writer(&writer);
+  parser.AddFilter(&writer_filter);
+  if (!parser.StartParse("http://example.com/")) return "";
+  parser.ParseText(html);
+  parser.FinishParse();
+  if (injected != nullptr) *injected = transform.critical_css_injected();
+  return output;
+}
+
+HtmlTransformConfig GuardConfig() {
+  HtmlTransformConfig config;
+  config.enable_critical_css = true;
+  config.enable_async_css = true;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+  return config;
+}
+
+constexpr std::string_view kGuardPage =
+    "<html><head><title>T</title>"
+    "<link rel=\"stylesheet\" href=\"/style.css\"></head>"
+    "<body><p>x</p></body></html>";
+
+// The block shipped and the stylesheet stays deferred behind it.
+void ExpectInjectedAndDeferred(const std::string& result,
+                               std::string_view css) {
+  EXPECT_EQ(CountOccurrences(result, "data-pagespeed-critical"), 1u) << result;
+  EXPECT_NE(result.find(css), std::string::npos) << result;
+  EXPECT_NE(result.find("data-pagespeed-async=\"\""), std::string::npos)
+      << result;
+  EXPECT_NE(result.find("rel=\"preload\""), std::string::npos) << result;
+}
+
+// No block, and the deferral it would have bridged is reverted: the author's
+// render-blocking stylesheet, nothing else.
+void ExpectRefusedAndReverted(const std::string& result) {
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+      << result;
+  EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos) << result;
+  EXPECT_EQ(result.find("rel=\"preload\""), std::string::npos) << result;
+  EXPECT_EQ(result.find("<noscript"), std::string::npos) << result;
+  EXPECT_EQ(result.find("/pagespeed_static/async_css."), std::string::npos)
+      << result;
+  EXPECT_EQ(CountOccurrences(result, "rel=\"stylesheet\""), 1u) << result;
+}
+
+// The block text between the critical <style> start tag and its end tag.
+std::string_view CriticalBlockText(const std::string& result) {
+  const size_t open = result.find("data-pagespeed-critical");
+  if (open == std::string::npos) return {};
+  const size_t text = result.find('>', open);
+  if (text == std::string::npos) return {};
+  const size_t end = result.find("</style>", text);
+  if (end == std::string::npos) return {};
+  return std::string_view(result).substr(text + 1, end - text - 1);
+}
+
+// True when `text` holds a `<` then an ASCII letter, `/`, `!` or `?`.
+bool HoldsMarkupOpener(std::string_view text) {
+  for (size_t i = 0; i + 1 < text.size(); ++i) {
+    if (text[i] != '<') continue;
+    const unsigned char next = static_cast<unsigned char>(text[i + 1]);
+    if ((next >= 'a' && next <= 'z') || (next >= 'A' && next <= 'Z') ||
+        next == '/' || next == '!' || next == '?') {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Tailwind CSS v4's `syntax: "<color>"` and other CSS strings holding a `<`
+// keep the block: each such `<` is written as the CSS escape `\3c `, which
+// means the same to CSS, and the stylesheet stays deferred behind it.
+TEST(HtmlTransformFilterTest, CriticalCssWithLessThanInStringsIsEscaped) {
+  struct Case {
+    std::string_view css;
+    std::string_view written;
+  };
+  for (const Case& c : {
+           Case{"@property --tw-gradient-from{syntax:\"<color>\";"
+                "inherits:false;initial-value:#0000}",
+                "@property --tw-gradient-from{syntax:\"\\3c color>\";"
+                "inherits:false;initial-value:#0000}"},
+           Case{"a{content:\"<!-- x\"}", "a{content:\"\\3c !-- x\"}"},
+           Case{"a{content:'<? x'}", "a{content:'\\3c ? x'}"},
+           Case{"a{content:\"<b>\"}", "a{content:\"\\3c b>\"}"},
+           Case{"a{content:\"</b>\"}", "a{content:\"\\3c /b>\"}"},
+           Case{"a{content:\"<style>\"}", "a{content:\"\\3c style>\"}"},
+           Case{"a{content:\"</style>\"}", "a{content:\"\\3c /style>\"}"},
+           Case{"a{content:\"</StYlE \"}", "a{content:\"\\3c /StYlE \"}"},
+           Case{"/* <div> */a{color:red}", "/* \\3c div> */a{color:red}"},
+       }) {
+    SCOPED_TRACE(std::string(c.css));
+    bool injected = false;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   c.css, true, &injected);
+    EXPECT_TRUE(injected);
+    ExpectInjectedAndDeferred(result, c.written);
+    EXPECT_EQ(CriticalBlockText(result), c.written) << result;
+  }
+}
+
+// A real Tailwind CSS v4 critical block keeps its critical CSS: the layer
+// order statement, `@property` registrations, arbitrary-value utilities
+// (`content-['<']`, whose class name escapes the `<`), nested `&` rules and
+// range media queries. The text that ships holds no `<` that opens markup.
+TEST(HtmlTransformFilterTest, TailwindV4CriticalCssIsInlined) {
+  constexpr std::string_view kTailwindV4 =
+      "@layer theme,base,components,utilities;"
+      "@layer utilities{"
+      ".content-\\[\\'\\<\\'\\]{--tw-content:'<';content:var(--tw-content)}"
+      ".before\\:content-\\[\\\"\\<\\/b\\>\\\"\\]{&::before{"
+      "--tw-content:\"</b>\";content:var(--tw-content)}}"
+      ".bg-linear-to-r{--tw-gradient-position:to right in oklab;"
+      "background-image:linear-gradient(var(--tw-gradient-stops))}"
+      ".hover\\:text-red-500{&:hover{@media (hover:hover){color:red}}}"
+      ".max-md\\:hidden{@media (width<48rem){display:none}}}"
+      "@property --tw-gradient-from{syntax:\"<color>\";inherits:false;"
+      "initial-value:#0000}"
+      "@property --tw-gradient-from-position{syntax:\"<length-percentage>\";"
+      "inherits:false;initial-value:0%}";
+  bool injected = false;
+  std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                 kTailwindV4, true, &injected);
+  EXPECT_TRUE(injected);
+  const std::string_view block = CriticalBlockText(result);
+  EXPECT_FALSE(HoldsMarkupOpener(block)) << result;
+  for (std::string_view expected : {
+           std::string_view("syntax:\"\\3c color>\""),
+           std::string_view("syntax:\"\\3c length-percentage>\""),
+           std::string_view(".content-\\[\\'\\3c \\'\\]{--tw-content:'\\3c '"),
+           std::string_view("--tw-content:\"\\3c /b>\""),
+           std::string_view("&:hover{@media (hover:hover){color:red}}"),
+           std::string_view("@media (width<48rem){display:none}"),
+       }) {
+    EXPECT_NE(block.find(expected), std::string_view::npos) << expected << "\n"
+                                                            << result;
+  }
+  ExpectInjectedAndDeferred(result, "@layer theme,base,components,utilities;");
+}
+
+// Outside a CSS string or comment, a `<` then an ASCII letter, `/`, `!` or
+// `?` is not valid CSS and refuses the block. The stylesheets stay
+// render-blocking.
+TEST(HtmlTransformFilterTest, CriticalCssWithMarkupOutsideStringsIsRefused) {
+  for (std::string_view css : {
+           std::string_view("@media (400px<width<800px){a{color:red}}"),
+           std::string_view("a{color:red}<b>"),
+           std::string_view("a{color:red}<!-- x"),
+           std::string_view("a{color:red}<? x"),
+           std::string_view("a{--x:a<B}"),
+           // An unescaped newline ends a string, so the `<b` is outside it.
+           std::string_view("a{content:\"x\n<b>\"}"),
+           // An escaped quote opens no string.
+           std::string_view(".x\\\"{a:1}<b>"),
+           // A quote in a comment opens no string.
+           std::string_view("/* \" */a{}<b>"),
+       }) {
+    SCOPED_TRACE(std::string(css));
+    bool injected = true;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   css, true, &injected);
+    EXPECT_FALSE(injected);
+    ExpectRefusedAndReverted(result);
+  }
+}
+
+// A `<` before anything else, as in a range media query, stays allowed.
+TEST(HtmlTransformFilterTest, CriticalCssWithRangeMediaQueryIsInjected) {
+  for (std::string_view css : {
+           std::string_view("@media (width<=600px){a{color:red}}"),
+           std::string_view("@media (width<600px){a{color:red}}"),
+           std::string_view("@media (width < 600px){a{color:red}}"),
+       }) {
+    bool injected = false;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   css, true, &injected);
+    EXPECT_TRUE(injected) << css;
+    ExpectInjectedAndDeferred(result, css);
+  }
+}
+
+// Pages where a browser's tokenizer can leave a state the parser does not
+// model, and read a <select> or a raw-text element the parser never sees.
+// Whatever the filter decides, no CSS text may become an element: the block
+// is either refused or holds no `<` then an ASCII letter, `/`, `!` or `?`,
+// whether its CSS strings hold a `<` (Tailwind's `syntax: "<color>"`, a
+// `</style>`, a `<!--`) or not. One test per tokenizer case.
+void ExpectBlockTextNeverHoldsMarkup(std::string_view page) {
+  for (std::string_view css : {
+           std::string_view("@property --tw-gradient-from{syntax:\"<color>\";"
+                            "inherits:false;initial-value:#0000}"
+                            ".bg{color:red}"),
+           std::string_view("a{content:\"</style><script>x()</script>\"}"),
+           std::string_view("a{content:\"<!--<script>\"}b{content:'-->'}"),
+           std::string_view("/* <select> */body{color:red}"),
+           std::string_view("body{color:red}"),
+       }) {
+    SCOPED_TRACE(std::string(page) + " / " + std::string(css));
+    std::string result =
+        TransformWithDocumentType(page, GuardConfig(), css, true);
+    if (result.find("data-pagespeed-critical") == std::string::npos) continue;
+    const std::string_view block = CriticalBlockText(result);
+    ASSERT_FALSE(block.empty()) << result;
+    EXPECT_FALSE(HoldsMarkupOpener(block)) << result;
+  }
+}
+
+// `<!-->`: a browser ends the comment at once; the parser runs on to `-->`.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupShortComment) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><!--><select>--><link rel=stylesheet href=/s.css></head>"
+      "<body><p>x</p></body></html>");
+}
+
+// `<!--->`: the same, one dash longer.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupShortComment3) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><!---><select>--><link rel=stylesheet href=/s.css></head>"
+      "<body><p>x</p></body></html>");
+}
+
+// `--!>`: a browser ends a comment there; the parser does not.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupBangComment) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><!-- x --!><select>--><link rel=stylesheet href=/s.css>"
+      "</head><body><p>x</p></body></html>");
+}
+
+// A CDATA section in HTML content: a browser reads a bogus comment that ends
+// at the first `>`; the parser reads on to `]]>`.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupCdata) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><![CDATA[><select>]]><link rel=stylesheet href=/s.css>"
+      "</head><body><p>x</p></body></html>");
+}
+
+// <noscript> content is raw text to a browser running scripts; the parser
+// reads it as markup.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupNoscript) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head></head><body><noscript><script></noscript><select>"
+      "</script></noscript><link rel=stylesheet href=/s.css>"
+      "<p>x</p></body></html>");
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><noscript><style></noscript><select></style></noscript>"
+      "<link rel=stylesheet href=/s.css></head><body><p>x</p></body></html>");
+}
+
+// <noembed> content is raw text to a browser; the parser reads it as markup.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupNoembed) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><noembed><style></noembed><select></style></noembed>"
+      "<link rel=stylesheet href=/s.css></head><body><p>x</p></body></html>");
+}
+
+// <noframes> content is raw text to a browser; the parser reads it as markup.
+TEST(HtmlTransformFilterTest, CriticalCssTextNeverHoldsMarkupNoframes) {
+  ExpectBlockTextNeverHoldsMarkup(
+      "<html><head><noframes><style></noframes><select></style></noframes>"
+      "<link rel=stylesheet href=/s.css></head><body><p>x</p></body></html>");
+}
+
+// `</style` in any letter case, whatever follows it (a space, `/`, `>`, any
+// other byte, or the end of the block), outside a CSS string, refuses the
+// block. (Inside one it is escaped: CriticalCssWithLessThanInStringsIsEscaped.)
+TEST(HtmlTransformFilterTest, CriticalCssWithStyleEndTagIsRefusedInAnyCase) {
+  for (std::string_view css : {
+           std::string_view("a{color:red}</style><script>x()</script>"),
+           std::string_view("a{color:red}</STYLE>"),
+           std::string_view("a{color:red}</StYlE b{}"),
+           std::string_view("a{color:red}</StYlE/b{}"),
+           std::string_view("a{color:red}</StYlE>"),
+           std::string_view("a{color:red}</stylesheet"),
+           std::string_view("a{content:\"x\"}</style>"),
+           std::string_view("a{color:red}</style"),
+           std::string_view("a{color:red}<\0/style>", 21),
+       }) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(kGuardPage, GuardConfig(),
+                                                   css, true, &injected);
+    EXPECT_FALSE(injected) << css;
+    ExpectRefusedAndReverted(result);
+  }
+}
+
+// An XHTML page (application/xhtml+xml), or one whose type the caller cannot
+// tell, gets no block at all, even plain CSS: its <style> text is XML there.
+TEST(HtmlTransformFilterTest, CriticalCssIsNotInjectedUnlessTextHtml) {
+  for (std::optional<bool> is_text_html :
+       {std::optional<bool>(false), std::optional<bool>()}) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(
+        kGuardPage, GuardConfig(), "body{color:red}", is_text_html, &injected);
+    EXPECT_FALSE(injected);
+    ExpectRefusedAndReverted(result);
+  }
+}
+
+// The insertion point must be where an inserted <style> is a document
+// stylesheet. A <head> or <body> nested in <noscript> or <template> refuses
+// the block, for the whole document: no second try at a later end tag.
+TEST(HtmlTransformFilterTest, CriticalCssRefusedWhenAnchorIsInNonDocument) {
+  for (std::string_view page : {
+           std::string_view("<html><noscript><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "</head></noscript><body><p>x</p></body></html>"),
+           std::string_view("<html><template><head><title>T</title></head>"
+                            "</template><link rel=\"stylesheet\" "
+                            "href=\"/style.css\"><body><p>x</p></body></html>"),
+           std::string_view("<html><noscript><body><p>x</p></body>"
+                            "</noscript></html>"),
+       }) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_FALSE(injected) << page;
+    EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+        << result;
+    EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos) << result;
+    EXPECT_EQ(result.find("rel=\"preload\""), std::string::npos) << result;
+  }
+}
+
+// <head> and <body> start tags end foreign content (the lexer pops <svg> and
+// <math> for them, as browsers do), so the end tag the block goes before is
+// back in HTML: the block is a document stylesheet there and is inlined.
+TEST(HtmlTransformFilterTest, CriticalCssInlinedWhenHeadEndsForeignContent) {
+  for (std::string_view page : {
+           std::string_view("<html><svg><head></head></svg>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<body><p>x</p></body></html>"),
+           std::string_view("<html><math><head></head></math>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<body><p>x</p></body></html>"),
+       }) {
+    bool injected = false;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_TRUE(injected) << page;
+    ExpectInjectedAndDeferred(result, "body{color:red}");
+  }
+}
+
+// A browser in "in select" mode ignores a <style> start tag, so the CSS
+// would be text; it leaves that mode only at an explicit </select>, not at
+// an ancestor's end tag the parser uses to close the select for its own tree
+// (conservative: the filter also stays in select at a second <select> start
+// tag, which a browser treats as </select>). Any start tag in select other
+// than <option>, <optgroup>, <hr> or <script> keeps the document in select
+// for good, and so does a select the parser closes for its own tree, such as
+// at a table cell's end tag (the browser's table exit is not followed).
+// After <plaintext> everything is text, and a frameset document gets no
+// block either. All of these refuse the block for the document, and any
+// deferral is reverted.
+TEST(HtmlTransformFilterTest, CriticalCssRefusedInSelectPlaintextOrFrameset) {
+  for (std::string_view page : {
+           // The parser closes the select at </div>; the browser does not.
+           std::string_view("<html><body><div><select></div>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A stylesheet inside a select that is never closed.
+           std::string_view("<html><body><select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A deferrable sheet, then an unclosed select before </head>.
+           std::string_view("<html><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<select><option>a</head><body><p>x</p></body>"
+                            "</html>"),
+           // The parser closes the template and matches </select>; the
+           // browser ignores </select> in the template and is in select
+           // again after </template>.
+           std::string_view("<html><body><select><template></select>"
+                            "</template>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A nested select inside that template.
+           std::string_view("<html><body><select><template><select>"
+                            "</select></template></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // The parser matches </select> past an open <div> (a browser
+           // would not nest it; refused all the same).
+           std::string_view("<html><body><select><div></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // Foreign content in select.
+           std::string_view("<html><body><select><svg></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // A select the parser closes at a table cell's end tag.
+           std::string_view("<html><body><table><tr><td><select></td></tr>"
+                            "</table>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           // An unclosed select before </body>.
+           std::string_view("<html><body><p>x</p>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<select><option>a</body></html>"),
+           // <plaintext> before </head>.
+           std::string_view("<html><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<plaintext>a</head><body></body></html>"),
+           // A frameset document: the frameset follows </head>.
+           std::string_view("<html><head><title>T</title>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "</head><frameset cols=\"*\"><frame src=\"a.html\">"
+                            "</frameset></html>"),
+       }) {
+    bool injected = true;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_FALSE(injected) << page;
+    EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos)
+        << result;
+    EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos) << result;
+    EXPECT_EQ(result.find("rel=\"preload\""), std::string::npos) << result;
+    EXPECT_EQ(result.find("/pagespeed_static/async_css."), std::string::npos)
+        << result;
+  }
+}
+
+// A select closed by its own </select>, holding only <option>, <optgroup>,
+// <hr> or <script>, ends "in select" mode: a stylesheet after it anchors the
+// block as usual (no <head>, so the block goes before that sheet, after the
+// select) and is deferred behind it.
+TEST(HtmlTransformFilterTest,
+     CriticalCssInjectedAfterAnExplicitlyClosedSelect) {
+  for (std::string_view page : {
+           std::string_view("<html><body><select><option>a</option></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           std::string_view("<html><body><select><option>a<optgroup>"
+                            "<option>b</select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+           std::string_view("<html><body><select><script>x()</script>"
+                            "<hr></select>"
+                            "<link rel=\"stylesheet\" href=\"/style.css\">"
+                            "<p>x</p></body></html>"),
+       }) {
+    bool injected = false;
+    std::string result = TransformWithDocumentType(
+        page, GuardConfig(), "body{color:red}", true, &injected);
+    EXPECT_TRUE(injected) << page;
+    ExpectInjectedAndDeferred(result, "body{color:red}");
+    EXPECT_GT(result.find("data-pagespeed-critical"), result.find("</select>"))
+        << result;
+  }
+}
+
+// A block placed before </head> precedes any <select> later in the body: it
+// is a style element there and stays.
+TEST(HtmlTransformFilterTest, CriticalCssInHeadKeptWhenASelectFollows) {
+  bool injected = false;
+  std::string result = TransformWithDocumentType(
+      "<html><head><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/style.css\"></head><body>"
+      "<select><option>a<p>x</p></body></html>",
+      GuardConfig(), "body{color:red}", true, &injected);
+  EXPECT_TRUE(injected);
+  ExpectInjectedAndDeferred(result, "body{color:red}");
+  EXPECT_LT(result.find("data-pagespeed-critical"), result.find("</head>"))
+      << result;
 }
 
 }  // namespace

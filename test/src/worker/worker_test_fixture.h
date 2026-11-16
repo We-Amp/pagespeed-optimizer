@@ -58,6 +58,7 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include "src/worker/html_scanner.h"
 #include "src/worker/layer_order_sources.h"
 #include "src/worker/shared_config.h"
+#include "src/worker/subresource_gate.h"
 #include "src/worker/text_compressor.h"
 #include "test/test_util/pipe_client.h"
 #include "test/test_util/tcp_client.h"
@@ -133,6 +134,32 @@ intptr_t ConnectToSocket(const std::string& path);
 // Worker Integration Tests
 // =============================================================================
 
+// The Content-Type a front end records with an original it stores, for a test
+// that names none: text/html for an HTML document (one that opens with
+// `<!doctype html` or `<html`, ASCII case-insensitive, after whitespace),
+// otherwise none. The worker inlines critical CSS only into a page recorded
+// as text/html.
+inline std::string DefaultOriginContentType(std::string_view content) {
+  size_t i = 0;
+  while (i < content.size() &&
+         (content[i] == ' ' || content[i] == '\t' || content[i] == '\n' ||
+          content[i] == '\r' || content[i] == '\f')) {
+    ++i;
+  }
+  auto opens_with = [&](std::string_view prefix) {
+    if (content.size() - i < prefix.size()) return false;
+    for (size_t k = 0; k < prefix.size(); ++k) {
+      char c = content[i + k];
+      if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+      if (c != prefix[k]) return false;
+    }
+    return true;
+  };
+  return opens_with("<!doctype html") || opens_with("<html")
+             ? "text/html; charset=utf-8"
+             : "";
+}
+
 class WorkerTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -148,9 +175,17 @@ class WorkerTest : public ::testing::Test {
 #else
     socket_path_ = temp_dir_ + "/worker.sock";
 #endif
+    // No front end answers the worker's sub-resource checks here: every
+    // cached sub-resource counts as served to any client, as before the gate.
+    // Tests of the gate itself install their own verdicts.
+    SubresourceGate::SetVerdictOverrideForTest(
+        [](const SubresourceRead&) -> std::optional<SubresourceVerdict> {
+          return SubresourceVerdict::kAdmitted;
+        });
   }
 
   void TearDown() override {
+    SubresourceGate::SetVerdictOverrideForTest(nullptr);
     if (!temp_dir_.empty()) {
       std::error_code ec;
       std::filesystem::remove_all(temp_dir_, ec);
@@ -279,7 +314,9 @@ class WorkerTest : public ::testing::Test {
     AlternateMetadata meta;
     meta.full_mask = default_mask.Encode();
     meta.content_type = ContentType::kOther;
-    meta.origin_content_type = origin_content_type;
+    meta.origin_content_type = origin_content_type.empty()
+                                   ? DefaultOriginContentType(content)
+                                   : origin_content_type;
     meta.flags = flags;
     if (source_binding != nullptr) {
       meta.origin_html_hash = *source_binding;

@@ -715,11 +715,6 @@ TEST_F(ConfigFileTest, FullRoundTrip) {
   original.target_ssimulacra2 = 80.5f;
   original.ssimulacra2_tolerance = 8.0f;
 
-  // Denoise settings (defaults: 0.3, 3.0, 25.0)
-  original.denoise_threshold = 0.5f;
-  original.denoise_sigma_spatial = 5.0f;
-  original.denoise_sigma_range = 30.0f;
-
   // Learned quality (defaults: all true, reduction 15.0)
   original.learned_quality = false;
   original.learned_quality_jpeg = false;
@@ -782,7 +777,7 @@ TEST_F(ConfigFileTest, FullRoundTrip) {
 
   // Guard: if a new field is added to ConfigToJsonPersistable without updating
   // this test, this assertion will fail.
-  EXPECT_EQ(persistable.size(), 62u);
+  EXPECT_EQ(persistable.size(), 59u);
 
   std::string path = (tmp_dir_ / "pagespeed.json").string();
   ASSERT_TRUE(WriteConfigFile(path, persistable));
@@ -827,11 +822,6 @@ TEST_F(ConfigFileTest, FullRoundTrip) {
   // SSIMULACRA2 targets
   EXPECT_FLOAT_EQ(restored.target_ssimulacra2, 80.5f);
   EXPECT_FLOAT_EQ(restored.ssimulacra2_tolerance, 8.0f);
-
-  // Denoise settings
-  EXPECT_FLOAT_EQ(restored.denoise_threshold, 0.5f);
-  EXPECT_FLOAT_EQ(restored.denoise_sigma_spatial, 5.0f);
-  EXPECT_FLOAT_EQ(restored.denoise_sigma_range, 30.0f);
 
   // Learned quality
   EXPECT_EQ(restored.learned_quality, false);
@@ -1185,40 +1175,7 @@ TEST_F(ConfigFileTest, ApplySvgTimeoutMsRejectsOutOfRange) {
   EXPECT_TRUE(result.rejected.contains("svg_timeout_ms"));
 }
 
-// --- Float field rejections: denoise_threshold, denoise_sigma_*, etc. ---
-
-TEST_F(ConfigFileTest, ApplyDenoiseThresholdRejectsOutOfRange) {
-  WorkerConfig config;
-  json body = {{"denoise_threshold", -0.1}};
-  auto result = ApplyConfigJson(body, &config);
-  EXPECT_TRUE(result.rejected.contains("denoise_threshold"));
-
-  body = {{"denoise_threshold", 1.5}};
-  result = ApplyConfigJson(body, &config);
-  EXPECT_TRUE(result.rejected.contains("denoise_threshold"));
-}
-
-TEST_F(ConfigFileTest, ApplyDenoiseSigmaSpatialRejectsOutOfRange) {
-  WorkerConfig config;
-  json body = {{"denoise_sigma_spatial", -1.0}};
-  auto result = ApplyConfigJson(body, &config);
-  EXPECT_TRUE(result.rejected.contains("denoise_sigma_spatial"));
-
-  body = {{"denoise_sigma_spatial", 150.0}};
-  result = ApplyConfigJson(body, &config);
-  EXPECT_TRUE(result.rejected.contains("denoise_sigma_spatial"));
-}
-
-TEST_F(ConfigFileTest, ApplyDenoiseSigmaRangeRejectsOutOfRange) {
-  WorkerConfig config;
-  json body = {{"denoise_sigma_range", -1.0}};
-  auto result = ApplyConfigJson(body, &config);
-  EXPECT_TRUE(result.rejected.contains("denoise_sigma_range"));
-
-  body = {{"denoise_sigma_range", 300.0}};
-  result = ApplyConfigJson(body, &config);
-  EXPECT_TRUE(result.rejected.contains("denoise_sigma_range"));
-}
+// --- Float field rejections ---
 
 TEST_F(ConfigFileTest, ApplySavedataScoreReductionRejectsOutOfRange) {
   WorkerConfig config;
@@ -1677,26 +1634,21 @@ TEST_F(ConfigFileTest, ApplyMaxJsSizeValid) {
 
 // --- Float fields: valid apply paths ---
 
-TEST_F(ConfigFileTest, ApplyDenoiseThresholdValid) {
+// The removed denoise options still load: they are ignored with a warning,
+// so a config file or API call that sets them keeps working.
+TEST_F(ConfigFileTest, RemovedDenoiseOptionsLoadAsDeprecated) {
   WorkerConfig config;
-  json body = {{"denoise_threshold", 0.5}};
+  json body = {{"denoise_threshold", 0.5},
+               {"denoise_sigma_spatial", 5.0},
+               {"denoise_sigma_range", 30.0},
+               {"jpeg_quality", 77}};
   auto result = ApplyConfigJson(body, &config);
-  EXPECT_FLOAT_EQ(config.denoise_threshold, 0.5f);
-  EXPECT_TRUE(result.applied.contains("denoise_threshold"));
-}
-
-TEST_F(ConfigFileTest, ApplyDenoiseSigmaSpatialValid) {
-  WorkerConfig config;
-  json body = {{"denoise_sigma_spatial", 5.0}};
-  auto result = ApplyConfigJson(body, &config);
-  EXPECT_FLOAT_EQ(config.denoise_sigma_spatial, 5.0f);
-}
-
-TEST_F(ConfigFileTest, ApplyDenoiseSigmaRangeValid) {
-  WorkerConfig config;
-  json body = {{"denoise_sigma_range", 30.0}};
-  auto result = ApplyConfigJson(body, &config);
-  EXPECT_FLOAT_EQ(config.denoise_sigma_range, 30.0f);
+  EXPECT_FALSE(result.rejected.contains("denoise_threshold"));
+  EXPECT_FALSE(result.rejected.contains("denoise_sigma_spatial"));
+  EXPECT_FALSE(result.rejected.contains("denoise_sigma_range"));
+  EXPECT_EQ(3u, result.warnings.size());
+  EXPECT_TRUE(result.applied.contains("jpeg_quality"));
+  EXPECT_EQ(77, config.jpeg_quality);
 }
 
 TEST_F(ConfigFileTest, ApplySavedataScoreReductionValid) {

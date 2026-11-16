@@ -1,5 +1,11 @@
 # mod_pagespeed — pagespeed-optimizer
 
+[![CI](https://github.com/We-Amp/pagespeed-optimizer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/We-Amp/pagespeed-optimizer/actions/workflows/ci.yml?query=branch%3Amain)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/We-Amp/pagespeed-optimizer/badge)](https://scorecard.dev/viewer/?uri=github.com/We-Amp/pagespeed-optimizer)
+[![Release](https://img.shields.io/github/v/release/We-Amp/pagespeed-optimizer?filter=optimizer-v*&label=release)](https://github.com/We-Amp/pagespeed-optimizer/releases)
+[![NuGet](https://img.shields.io/nuget/v/WeAmp.PageSpeed)](https://www.nuget.org/packages/WeAmp.PageSpeed)
+[![License](https://img.shields.io/github/license/We-Amp/pagespeed-optimizer)](LICENSE)
+
 The optimization worker, nginx serving module and management console of
 mod_pagespeed. The same worker also backs the Apache module
 (shipped from the [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed)
@@ -165,7 +171,7 @@ curl -s -o /dev/null -D - http://localhost/style.css | grep -i x-pagespeed
 | `pagespeed_cache_path PATH` | (required) | Path to Cyclone cache file |
 | `pagespeed_disallow PATTERN` | (none) | Exclude URL patterns from optimization |
 
-These three are the minimum. The module also takes `pagespeed_cache_mode`, the max-age family (`pagespeed_max_age`, `pagespeed_html_max_age`, `pagespeed_css_max_age`, `pagespeed_image_max_age`, `pagespeed_immutable_max_age`, `pagespeed_stale_if_error_max_age`), `pagespeed_synthesize_swr`, `pagespeed_conditional_revalidation`, `pagespeed_hot_threshold`, `pagespeed_force_refresh`, `pagespeed_force_refresh_html` and `pagespeed_trust_x_forwarded_proto`; see [cache modes](https://modpagespeed.com/docs/cache-modes/) and [cache control](https://modpagespeed.com/docs/cache-control/).
+These three are the minimum. The module also takes `pagespeed_cache_mode`, the max-age family (`pagespeed_max_age`, `pagespeed_html_max_age`, `pagespeed_css_max_age`, `pagespeed_image_max_age`, `pagespeed_immutable_max_age`, `pagespeed_stale_if_error_max_age`), `pagespeed_synthesize_swr`, `pagespeed_conditional_revalidation`, `pagespeed_hot_threshold`, `pagespeed_force_refresh`, `pagespeed_force_refresh_html`, `pagespeed_trust_x_forwarded_proto` and `pagespeed_agent_content_signal`; see [cache modes](https://modpagespeed.com/docs/cache-modes/) and [cache control](https://modpagespeed.com/docs/cache-control/).
 
 The worker socket path and HTML processing toggle are configured on
 the worker side and shared with nginx automatically via `pagespeed-shared.conf`

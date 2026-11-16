@@ -121,6 +121,14 @@ struct ViewportProfile {
 //      silently absent from the bytes and `external_css_missing` is set.
 //   7. No normalization of any kind: no minification, no whitespace collapsing,
 //      no ordering fix-up. Bytes in, bytes hashed.
+//   8. Media scoping (css::CombinedSheetMediaScope): a <style> or <link> whose
+//      media is not empty, `all` or `screen` contributes its body or sheet
+//      inside `@media <media>{...}`, so a print sheet stays print-only; a
+//      print <link> with an onload handler (the print-media trick) counts as
+//      unscoped; a media value that cannot be written as an @media prelude
+//      contributes nothing and does not set the missing flag. Records made
+//      before scoping, for a page with such media, no longer match and are
+//      validated again once.
 //
 // KNOWN INSTABILITIES — accepted, and design inputs for the validator that
 // will produce these records:
@@ -264,8 +272,8 @@ bool AsyncCssValidatedForServedSheet(const ViewportProfile* vp,
 //
 // So: `vp` when the derivation produced the block, nullptr otherwise. Feeding
 // the result straight into `AsyncCssValidatedForServedSheet` keeps the
-// stylesheet render-blocking; the substitute block is still inlined, which is a
-// win on its own and needs no confirmation.
+// stylesheet render-blocking, and nothing is inlined next to it: a block is
+// inlined only together with the deferral it makes possible.
 const ViewportProfile* AsyncCssRecordForDerivedBlock(
     const ViewportProfile* vp, std::string_view derived_critical_css);
 

@@ -5,7 +5,7 @@ seoTitle: 'Install mod_pagespeed: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-30
+lastUpdated: 2026-11-11
 faq:
   - q: 'Which mod_pagespeed integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
@@ -14,7 +14,7 @@ faq:
   - q: 'Does the native nginx module need the optimizer worker?'
     a: 'It runs without it, on its own filters only; the install path installs the worker too. Install the `pagespeed-optimizer` package first, then `nginx-module-pagespeed`, and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block so the module hands in-place optimization to the worker. The Apache packages install that wiring for you.'
   - q: 'What are the prerequisites?'
-    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2016 or later. For ASP.NET Core: .NET 8 or .NET 10.'
+    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04, 24.04 or 26.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2016 or later. For ASP.NET Core: .NET 8 or .NET 10.'
   - q: 'What is safe cache mode and why is it the default?'
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
 ---
@@ -24,10 +24,6 @@ web server and an optimizer worker that does the heavy work beside it. Pick the
 integration that matches how you serve pages, run the few lines under it, then
 check the result with the same two requests. Every path below is free to
 install and run; the software is licensed under the Apache License 2.0.
-Since 2.5.0 every artifact of a release carries the release number (the Helm
-chart keeps its own chart version, and the Sidecar package is versioned on its
-own); the [version map](/docs/release-notes/#version-map) lists them per
-release.
 
 ## Pick an integration
 
@@ -47,7 +43,7 @@ Installing with a coding agent? [Install with a coding agent](/docs/agent-instal
 
 ## Prerequisites
 
-- **Native module:** Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux
+- **Native module:** Debian 12 or 13, Ubuntu 22.04, 24.04 or 26.04, or RHEL, AlmaLinux
   or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
 - **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
   ships inside the image, so you do not install it yourself.
@@ -233,3 +229,8 @@ recommended mode while you validate your setup. See
   per deployment shape
 - [Monitoring](/docs/monitoring/): health, metrics and what to alert on
 - [Troubleshooting](/docs/troubleshooting/): common issues and diagnostics
+
+Since 2.5.0 every artifact of a release carries the release number (the Helm
+chart keeps its own chart version, and the Sidecar package is versioned on its
+own); the [version map](/docs/release-notes/#version-map) lists them per
+release.
