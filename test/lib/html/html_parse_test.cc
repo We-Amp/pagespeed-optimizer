@@ -803,6 +803,66 @@ TEST_F(HtmlParseTest, CommentEndingWithExtraDash) {
   ValidateNoChanges("<!--- comment --->");
 }
 
+// Browsers end a comment on "<!-->", "<!--->" and "--!>" as well as on "-->",
+// and so does the parser. The writer writes each of these as a comment that
+// ends in "-->", which every parser reads the same way.
+TEST_F(HtmlParseTest, CommentEndsWhereBrowsersEndIt) {
+  ValidateExpected("<!-->a<b>c</b>-->", "<!---->a<b>c</b>-->");
+  ValidateExpected("<!--->a<b>c</b>-->", "<!---->a<b>c</b>-->");
+  ValidateExpected("<!--x--!>a<b>c</b>-->", "<!--x-->a<b>c</b>-->");
+  // "--!" not followed by ">" is part of the comment, as is a ">" that does
+  // not directly follow "<!--" or "<!---".
+  ValidateNoChanges("<!--x--!y-->");
+  ValidateNoChanges("<!--x--!-->");
+  ValidateNoChanges("<!-- > -->");
+  ValidateNoChanges("<!--x->-->");
+  // The downlevel-revealed conditional comment idiom stays one comment.
+  ValidateNoChanges("<!--[if !IE]><!-->x<!--<![endif]-->");
+}
+
+namespace {
+
+// Deletes every comment, as a comment-removing rewrite does.
+class DeleteCommentsFilter : public EmptyHtmlFilter {
+ public:
+  explicit DeleteCommentsFilter(HtmlParse* parse) : parse_(parse) {}
+  void Comment(HtmlCommentNode* comment) override {
+    parse_->DeleteNode(comment);
+  }
+  [[nodiscard]] const char* Name() const override {
+    return "DeleteCommentsFilter";
+  }
+
+ private:
+  HtmlParse* parse_;
+};
+
+}  // namespace
+
+// A comment that browsers end on "<!-->", "<!--->" or "--!>" is removed up to
+// there, not up to the next "-->": the markup after it stays as it was.
+TEST_F(HtmlParseTest, DeletedCommentEndsWhereBrowsersEndIt) {
+  static constexpr std::string_view kExpected =
+      "<p>a</p><textarea>--><b>text</b></textarea>";
+  for (std::string_view input :
+       {"<p>a<!--></p><textarea>--><b>text</b></textarea>",
+        "<p>a<!---></p><textarea>--><b>text</b></textarea>",
+        "<p>a<!--x--!></p><textarea>--><b>text</b></textarea>"}) {
+    HtmlParse parser(&message_handler_);
+    std::string output;
+    StringWriter writer(&output);
+    DeleteCommentsFilter delete_comments(&parser);
+    HtmlWriterFilter writer_filter(&parser);
+    writer_filter.set_writer(&writer);
+    parser.AddFilter(&delete_comments);
+    parser.AddFilter(&writer_filter);
+    parser.StartParse("http://test.com/");
+    parser.ParseText(input);
+    parser.FinishParse();
+    EXPECT_EQ(kExpected, output) << "Input: " << input;
+  }
+}
+
 TEST_F(HtmlParseTest, BriefCloseVoidElement) {
   // <br/> is a brief close on a void element.
   ValidateNoChanges("<br/>");
@@ -1338,6 +1398,33 @@ TEST_F(HtmlParseTest, DoctypeHtml5) {
   const DocType& dt = html_parse_->doctype();
   EXPECT_TRUE(dt.IsVersion5());
   EXPECT_FALSE(dt.IsXhtml());
+}
+
+// A CE-HTML page (CEA-2014) is read by XML parsers, so it is parsed with the
+// rules for pages that may be parsed as XML: its HTML5 doctype is the XHTML
+// one, as for application/xhtml+xml. The same page served as text/html keeps
+// the HTML doctype.
+TEST_F(HtmlParseTest, CeHtmlPageIsParsedAsXml) {
+  static constexpr std::string_view kPage =
+      "<!DOCTYPE html><html><body><p>a</p></body></html>";
+  struct Case {
+    const ContentType* type;
+    bool xhtml;
+  };
+  for (const Case& c :
+       {Case{&kContentTypeCeHtml, true}, Case{&kContentTypeXhtml, true},
+        Case{&kContentTypeHtml, false}}) {
+    output_.clear();
+    html_parse_->StartParseWithType("http://test.com/", *c.type);
+    html_parse_->ParseText(kPage);
+    html_parse_->FinishParse();
+    const DocType& dt = html_parse_->doctype();
+    EXPECT_TRUE(dt.IsVersion5()) << c.type->mime_type();
+    EXPECT_EQ(c.xhtml, dt.IsXhtml()) << c.type->mime_type();
+    EXPECT_EQ(c.xhtml ? DocType::kXHTML5 : DocType::kHTML5, dt)
+        << c.type->mime_type();
+    EXPECT_EQ(kPage, output_) << c.type->mime_type();
+  }
 }
 
 TEST_F(HtmlParseTest, DoctypeXhtml10Strict) {
