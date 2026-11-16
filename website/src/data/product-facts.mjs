@@ -531,7 +531,7 @@ export const STOCK_NGINX_ALMA = '1.20.1'; // AlmaLinux 9 (rpm/Apache target)
 // Debian 11 (bullseye) is deliberately absent: it is end of life and no
 // longer supported, and the repository's bullseye suite carries no packages
 // (glibc 2.34, needed by the serving components, is not available there) — see
-// migrating-to-2-1.md's Debian 11 platform note and release-notes.mdx's
+// migrate-from-1-15.md's Debian 11 platform note and release-notes.mdx's
 // current-release operator note.
 export const NGINX_APT_DISTROS = [
   { distro: 'Debian 12 bookworm', nginx: '1.22.1' },
