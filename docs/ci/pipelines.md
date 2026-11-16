@@ -40,9 +40,9 @@ Rules that follow from the shape:
 
 | Tier | Workflow | Runs on | Holds |
 |---|---|---|---|
-| PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint (clang-format only on a push to `main`; clang-tidy scoped or skipped by the changed files on a pull request, whole tree on a dispatch), the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, the path-filtered CSS and JS fuzz smokes, and the path-filtered ETag subset of the production-readiness rig (conditional and range request tests against the prebuilt images, from the Linux build bundle; the whole rig stays in the nightly). Later changes add the Linux arm64 build and tests |
+| PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint (clang-format only on a push to `main`; clang-tidy scoped or skipped by the changed files on a pull request, whole tree on a dispatch), the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, the path-filtered CSS and JS fuzz smokes, the path-filtered ETag subset of the production-readiness rig (conditional and range request tests against the prebuilt images, from the Linux build bundle; the whole rig stays in the nightly), the path-filtered Test::Nginx suite (`t/`, from the Linux build bundle), and the path-filtered .NET tests (`WeAmp.PageSpeed.Tests` and `WeAmp.PageSpeed.AspNetCore.Tests`, from the Linux build bundle). Later changes add the Linux arm64 build and tests |
 | Full | `pipeline-full.yml`, called by `ci.yml` and `nightly.yml` (job `full` in both) | push to `main` (unless `FULL_TIER_TRIGGER` is `nightly`), `workflow_dispatch` with `full: true`, a pull request labelled `ci:full`, the scheduled nightly, or a nightly `workflow_dispatch` with `full_tier: true` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests; the whole-tree lint (`lint-full`, for `ci:full` pull requests, dispatches with `full: true` and the nightly, not on a push). See "When the full tier runs" |
-| Nightly | `pipeline-nightly.yml`, called by `nightly.yml` (which also calls the full tier as `full`) | `nightly.yml`: daily at 04:17 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the nightly image leg of the dependency scan |
+| Nightly | `pipeline-nightly.yml`, called by `nightly.yml` (which also calls the full tier as `full`) | `nightly.yml`: daily at 04:17 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the Test::Nginx suite (`t/`, x64); the .NET tests (x64); the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the nightly image leg of the dependency scan |
 | Sweep | `pipeline-sweep.yml` | `sweep-queued.yml`: hourly and on dispatch | cancels runs that wait for a runner nobody serves (see "The queued-run sweep") |
 
 The `ci:full` label is read when a pull request run starts (open, push,
@@ -689,15 +689,18 @@ base commit) and the repository variable `DOCS_LANE`.
 
 ## WEBSITE_GATE: the website checks in `CI gate`
 
-The `website` job of `pipeline-pr.yml` runs only when the repository variable
-`WEBSITE_GATE` is `on`. Unset (the default) or any other value keeps today's
-behaviour: `website.yml` runs from its own `pull_request` trigger as an
-advisory check, outside `CI gate` and outside the merge queue. With the
-variable `on`, the CI pipeline calls `website.yml` and every job of a direct
-`pull_request` run of `website.yml` skips, so the checks run once, inside
-`CI gate`; flipping the variable is the only step
-(`gh variable set WEBSITE_GATE --body on --repo We-Amp/pagespeed-optimizer`,
-rollback `gh variable delete WEBSITE_GATE --repo We-Amp/pagespeed-optimizer`).
+The `website` job of `pipeline-pr.yml` runs for every pull request and merge
+group that changes the site or its sources, unless the repository variable
+`WEBSITE_GATE` is `off`. Unset (the default) or any value but `off`: the CI
+pipeline calls `website.yml` and every job of a direct `pull_request` run of
+`website.yml` skips, so the checks run once, inside `CI gate` and the merge
+queue, and a website check that fails fails the gate. `off` is the rollback:
+`website.yml` runs from its own `pull_request` trigger again, as an advisory
+check outside `CI gate` and outside the merge queue
+(`gh variable set WEBSITE_GATE --body off --repo We-Amp/pagespeed-optimizer`,
+undo with `gh variable delete WEBSITE_GATE --repo We-Amp/pagespeed-optimizer`).
+Before this default, an unset variable meant advisory, and a pull request
+merged with its website build red because no required check reported it.
 **Release windows.** The build job's release-state guards are release-window
 tolerant, so turning the gate on does not block the pull requests that
 carry a release. A run is a release window when it is a pull request (or a
@@ -758,9 +761,10 @@ compile`, `pr / Windows Build`, `pr / Windows Unit Tests`), and `CI gate`.
 
 Not listed individually: `pr / Dependency Scan (report-only)` (it never
 fails the build), the two fuzz smokes (`pr / CSS fuzz smoke (deterministic
-oracle replay)`, `pr / JS fuzz smoke (deterministic oracle replay)`) and
-`pr / Production readiness (ETag subset)`, which are skipped on a pull request
-that does not touch their paths. The ETag subset runs when a pull request or
+oracle replay)`, `pr / JS fuzz smoke (deterministic oracle replay)`),
+`pr / Production readiness (ETag subset)`, `pr / nginx integration
+(Test::Nginx t/)` and `pr / .NET tests (WeAmp.PageSpeed, AspNetCore)`, which
+are skipped on a pull request that does not touch their paths. The ETag subset runs when a pull request or
 a merge group changes `src/nginx/etag_util.*`,
 `src/nginx/ngx_pagespeed_module.cc`, `src/nginx/header_key_util.*`,
 `src/worker/worker.cc`, `src/worker/worker.h`, `src/worker/api_handlers.*`,
@@ -776,6 +780,42 @@ as fine and fails on any other non-success result; a skipped job leaves `pr`
 successful, which is what `CI gate` reads. The job runs under a compose project
 named for the run and attempt, so two runs on one host never share images,
 containers or the volume.
+
+The Test::Nginx job runs when a pull request or a merge group changes
+anything under `src/nginx/`, `lib/cache/`, `lib/classify/`, `lib/base/`,
+`src/proto/`, `src/crypto/webbotauth/` or `t/`, `src/worker/shared_config.*`,
+`src/worker/serve_stats.*`, `src/worker/async_css_loader.*`,
+`tools/seed-test-cache.cc`, `tools/docker-test-nginx.sh`, `docker/Dockerfile`,
+`docker/nginx-version.txt` or `pipeline-pr.yml`, and on a
+`workflow_dispatch`. The run step uses `shell: bash` (`-eo pipefail`) so a
+failing suite is not hidden by the pipe into `tee`. It builds nothing: it
+downloads the Linux Build bundle (module, `seed_test_cache`,
+`webbotauth_sign_tool`) and runs `tools/docker-test-nginx.sh` in its prebuilt
+mode (`PREBUILT_DIR`) inside the dev image, whose nginx is the version the
+module was built against. The container runs as root with the checkout
+mounted read-only and copied in, so nothing root-owned lands in the runner's
+workspace. The nightly runs the same suite on its optimized x64 bundle
+(`test-nginx-x64`).
+
+The .NET test job runs when a pull request or a merge group changes
+anything under `samples/aspnetcore/`, `lib/` or `src/` (the native library
+and worker the tests load) or `tools/workbench/` (the console SPA the
+AspNetCore package embeds), `tools/ci/dotnet-tests.sh` or `pipeline-pr.yml`,
+and on a `workflow_dispatch`. It builds no native code: it downloads the
+Linux Build bundle and hands its `libpagespeed.so` and `factory_worker` to
+`tools/ci/dotnet-tests.sh`. The script builds the workbench SPA that
+`WeAmp.PageSpeed.AspNetCore` embeds (pnpm in `node:22`), then builds and runs
+both test projects on `net8.0` and `net10.0` in one image that holds the
+.NET 10 SDK and the .NET 8 runtimes (both pinned by digest). Every container
+runs as the runner's user (container root on a rootless daemon, from
+`tools/ci/container-identity.sh`), with its SDK state and package cache
+inside the container. The tests run with `CI=true`, so a test that needs the native
+library fails instead of skipping when it does not load. The job fails on a
+failed test, on a project that reports no tests, and when
+`CookieRequestRecordTests` did not run and pass on both frameworks. The step
+summary has the counts per project and framework; on a failure the `.trx`
+files are uploaded. The nightly runs the same script on its optimized x64
+bundle (`dotnet-tests-x64`).
 
 ## Trying a pipeline change on the fleet: `ci-dev`
 

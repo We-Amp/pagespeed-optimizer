@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-11-13
+lastUpdated: 2026-11-14
 ---
 
 Most mod_pagespeed problems surface in one place: the `X-PageSpeed`
@@ -73,8 +73,9 @@ been requested before.
    and the nginx module use different cache formats (typically one was rolled
    back, or the packages were upgraded separately). The module then serves
    with its cache off, so every response is a `MISS`. The line names both
-   generations and which side is older. Install the same release of both, or
-   run both containers from the same image tag; the module turns its cache
+   generations and which side is older. Install the optimizer the repository
+   offers and upgrade or roll back both together, or run both containers from
+   the same image tag; the module turns its cache
    back on by itself once they match. Check the current state:
 
    ```bash
@@ -655,6 +656,48 @@ rather than the Docker / nginx reverse-proxy worker.
 - Optimization is progressive: the first request to a page triggers background optimization. Wait for the rewrite to complete and retry.
 - If repeated requests still serve the original resources, check cache directory permissions and disk space.
 - Verify the cache path exists and is writable by the web server process.
+
+### Stylesheets and scripts respond slowly while images are being optimized {#slow-ce-while-optimizing-images}
+
+**Symptom:** On the first visit to an image-heavy page, for example after a deploy or a cache clear, the page stays blank for several seconds. Once image optimization has finished, the same page loads normally. In one lab test on a 2-CPU server, Largest Contentful Paint rose from about 0.35 s to 9.4 s on such a first view.
+
+**How to confirm:** Request a stylesheet or script that the module serves with an extended cache lifetime (its URL contains `.pagespeed.ce.`) while images on the page are still being optimized, and look at the response time:
+
+```bash
+curl -s -o /dev/null -w '%{time_total}s\n' 'https://example.com/css/site.css.pagespeed.ce.HASH.css'
+```
+
+If those responses take seconds during that window and are fast afterwards, and other optimized resources are not affected, this is the cause. The URL to test is the `.pagespeed.ce.` one in the page's HTML.
+
+**Workaround:** The heavy image work and these responses share the expensive rewrite pool, whose size [`NumExpensiveRewriteThreads`](/docs/configuration/#numexpensiverewritethreads) controls. With `auto` it is sized from the CPUs the process may use, half of them divided by the number of server processes, never fewer than one. On nginx the divisor is `worker_processes`: with `worker_processes auto` (one worker per core), or with workers pinned by `worker_cpu_affinity`, `auto` resolves to one expensive thread per worker. Setting a larger explicit value, at the `http` level, relieves the stall; in the lab test above, 4 removed it entirely.
+
+<!-- platform: nginx -->
+
+<div data-platform="nginx" data-platform-label="nginx">
+
+```nginx
+http {
+    pagespeed NumExpensiveRewriteThreads 4;
+}
+```
+
+</div>
+
+<!-- platform: apache -->
+
+<div data-platform="apache" data-platform-label="Apache">
+
+```apache
+ModPagespeedNumExpensiveRewriteThreads 4
+```
+
+Put it in the server configuration, outside any virtual host.
+
+</div>
+
+Restart the web server to apply it. The directive is global and cannot be set per virtual host or location. The cost is more image work at the same time, so higher CPU use and more memory at peak while a page's images are being optimized; raise it in steps and watch request latency, as described in [Optimization threads](/docs/configuration/#optimization-threads). Reducing the number of images optimized per page also helps.
+
+This is tracked as [mod_pagespeed#781](https://github.com/We-Amp/mod_pagespeed/issues/781) and is being fixed in an upcoming release.
 
 ### Why does a `.pagespeed.` URL return 404? {#optimized-resources-return-404}
 

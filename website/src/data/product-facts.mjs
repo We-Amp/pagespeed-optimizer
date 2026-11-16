@@ -67,8 +67,8 @@ export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 // /api/product.json describe. Prices are in euro, per year, excl. VAT
 // (prices are listed in EUR; checkout runs on FastSpring); the first-response target
 // of each tier is the last entry of its `includes`.
-//   servers     the production-server band the tier covers (one organization's
-//               production deployment)
+//   scope       what the tier covers: people and response, never a count of
+//               servers or installations
 //   prices      annualEur is the yearly price; from marks "from" pricing;
 //               monthlyEur stays null (annual billing only)
 //   includes    what the tier adds, in display order; the first entry of a
@@ -84,7 +84,7 @@ export const SUPPORT_TIERS = [
     name: 'Standard support',
     kind: 'support',
     hardened: false,
-    servers: 'up to 5 production servers',
+    scope: 'one organization, 1 person',
     prices: { annualEur: 490, from: false, monthlyEur: null },
     cta: {
       href: 'https://mpspro.onfastspring.com/support-standard-annual',
@@ -92,7 +92,7 @@ export const SUPPORT_TIERS = [
       offer: 'buy-standard',
       external: true,
     },
-    note: 'a direct channel to the engineers who build the product, for up to 5 production servers',
+    note: 'a direct channel to the engineers who build the product, for one organization and one person at your organization who can open tickets',
     includes: [
       'Ticket and email channel to the engineers who build the product',
       'Configuration, upgrade and incident help',
@@ -106,7 +106,7 @@ export const SUPPORT_TIERS = [
     name: 'Priority support',
     kind: 'support',
     hardened: false,
-    servers: 'up to 25 production servers',
+    scope: 'one organization, up to 3 people',
     prices: { annualEur: 1900, from: false, monthlyEur: null },
     cta: {
       href: 'https://mpspro.onfastspring.com/support-priority-annual',
@@ -114,10 +114,11 @@ export const SUPPORT_TIERS = [
       offer: 'buy-priority',
       external: true,
     },
-    note: 'everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for up to 25 production servers',
+    note: 'everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for one organization and up to 3 people at it who can open tickets, with faster first-response targets',
     includes: [
       'Everything in Standard',
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
+      'Up to 3 people at your organization who can open tickets',
       'Upgrade rehearsal on request',
       'Quarterly review call',
       'First response next business day; severity 1 (production down) within 8 business hours',
@@ -128,7 +129,7 @@ export const SUPPORT_TIERS = [
     name: 'Enterprise',
     kind: 'support',
     hardened: false,
-    servers: 'unlimited servers and sites, one organization',
+    scope: 'one organization, people as agreed',
     prices: { annualEur: 7500, from: true, monthlyEur: null },
     cta: {
       href: '/contact/?topic=enterprise',
@@ -136,10 +137,11 @@ export const SUPPORT_TIERS = [
       offer: 'enterprise',
       external: false,
     },
-    note: 'everything in Priority plus a named engineer, custom build targets and backports, for unlimited servers and sites in one organization',
+    note: 'everything in Priority plus a named engineer, response targets per agreement, custom build targets and backports, for one organization and the people at it agreed in your order',
     includes: [
       'Everything in Priority',
       'A named engineer',
+      'People at your organization who can open tickets, as agreed',
       'Custom build targets (distributions, nginx versions), published for everyone',
       'Backports, published for everyone',
       'Master agreement, purchase order and invoice',
@@ -151,7 +153,7 @@ export const SUPPORT_TIERS = [
 // The line under the tier cards: what is signed and attested is not a tier
 // feature; security fixes reach everyone at the same time.
 export const SAME_SOFTWARE_LINE =
-  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription. Security fixes reach every user at the same time. A build or backport made for an Enterprise customer is published for everyone when it is delivered.';
+  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription, on every server. Security fixes reach every user at the same time. A build or backport made for an Enterprise customer is published for everyone when it is delivered.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
@@ -496,7 +498,7 @@ export const MODULE_PACKAGE_VERSION = '2.8.2';
 
 // --- NuGet packages ---------------------------------------------------------
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
-export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // mod_pagespeed 1.15 sidecar
+export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // the current module, run behind Kestrel
 export const PKG_SIDECAR_NATIVE = 'WeAmp.PageSpeed.Sidecar.NativeAssets.Linux';
 // From 2.6.0 on the sidecar packages carry the product version and ship with
 // every full release (release-notes-2-6.mdx, release-notes-2-8.mdx), so the
@@ -526,10 +528,10 @@ export const STOCK_NGINX_ALMA = '1.20.1'; // AlmaLinux 9 (rpm/Apache target)
 
 // The signed apt matrix for nginx-module-pagespeed (Debian + Ubuntu), each row
 // pinned to the distro's stock nginx. Order is the install-doc display order.
-// Debian 11 (bullseye) is deliberately absent: the repository's bullseye
-// suite tops out at the final 1.15.0 module packages (glibc 2.34, needed by
-// the 2.1 serving components, is not available there) — see
-// migrating-to-2-1.md's Debian 11 platform note and release-notes.mdx's
+// Debian 11 (bullseye) is deliberately absent: it is end of life and no
+// longer supported, and the repository's bullseye suite carries no packages
+// (glibc 2.34, needed by the serving components, is not available there) — see
+// migrate-from-1-15.md's Debian 11 platform note and release-notes.mdx's
 // current-release operator note.
 export const NGINX_APT_DISTROS = [
   { distro: 'Debian 12 bookworm', nginx: '1.22.1' },

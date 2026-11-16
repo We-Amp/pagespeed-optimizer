@@ -305,6 +305,27 @@ defaults of [`pagespeed_css_max_age`](#pagespeed_css_max_age) and
 [`pagespeed_image_max_age`](#pagespeed_image_max_age) follow the mode. See
 [Cache modes](/docs/cache-modes/) for the full reference.
 
+:::next-release{after="2.8.2"}
+#### pagespeed_agent_content_signal {#pagespeed_agent_content_signal}
+
+- **Syntax:** `pagespeed_agent_content_signal value | off;`
+- **Default:** `(empty)`
+- **Context:** http, server, location
+
+The `content-signal` header sent with a Markdown response for agents (the
+page's Markdown copy and `/llms.txt`), in the
+[Content Signals](https://contentsignals.org/) format. Unset, no header is
+sent; `off` stops an inherited value.
+
+```nginx
+pagespeed_agent_content_signal "search=yes, ai-input=yes, ai-train=no";
+```
+
+The value must be printable ASCII on one line, up to 512 bytes; nginx refuses
+to start with any other value. See
+[Serve Markdown to AI agents](/docs/agent-optimize/).
+:::
+
 <!-- generated:end thin-module-directives -->
 
 ### Cache-Control directives {#cache-control-directives}
@@ -334,8 +355,9 @@ rewrites its shared config (the ~1s poll).
 
 A mismatch clears itself: once the worker publishes the matching generation,
 the module turns its cache back on without a reload and logs "now matches".
-The fix is to run the same release of both, from packages or from one image
-tag.
+The module and the worker are versioned separately, so their version numbers
+can differ. The fix is to upgrade or roll back both together, from packages or
+from one image tag.
 
 Three variables expose the result, as this nginx worker last saw it:
 
