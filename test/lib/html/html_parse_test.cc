@@ -8601,8 +8601,10 @@ TEST_F(HtmlParseTest, ElementAtTheNestingCapIsWrittenAsText) {
   for (std::string_view at_cap :
        {"<x/>y", "<textarea><b>z</b></textarea>", "<br>w"}) {
     counter.start_element_count = 0;
-    const std::string input =
-        open + std::string(at_cap) + close + "<p>after</p>";
+    std::string input = open;
+    input.append(at_cap);
+    input += close;
+    input += "<p>after</p>";
     EXPECT_EQ(input, Parse(input)) << at_cap;
     EXPECT_EQ(kDepth, counter.start_element_count) << at_cap;
   }
