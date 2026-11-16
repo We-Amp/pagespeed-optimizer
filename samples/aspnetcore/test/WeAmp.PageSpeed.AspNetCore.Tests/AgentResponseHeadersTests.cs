@@ -543,7 +543,11 @@ public sealed class AgentVaryStoredEntryTests : IDisposable
             notifierOptions, new InternalWorkerEndpoint(),
             Substitute.For<ILogger<WorkerNotificationService>>());
 
+        // The app's answers to the visitor, and to the middleware's own
+        // anonymous request from 224.0.0.0 that a stored response comes from
+        // (AnonymousFetchCheck).
         int originRuns = 0;
+        int anonymousRuns = 0;
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
         await using var web = builder.Build();
@@ -552,7 +556,10 @@ public sealed class AgentVaryStoredEntryTests : IDisposable
             Substitute.For<ILogger<PageSpeedMiddleware>>()).InvokeAsync);
         RequestDelegate origin = async ctx =>
         {
-            originRuns++;
+            if (AgentSelfFetch.Label.Equals(ctx.Connection.RemoteIpAddress))
+                anonymousRuns++;
+            else
+                originRuns++;
             ctx.Response.ContentType = "text/html; charset=utf-8";
             ctx.Response.Headers.CacheControl = "public, max-age=60";
             await ctx.Response.WriteAsync(Page);
@@ -589,6 +596,7 @@ public sealed class AgentVaryStoredEntryTests : IDisposable
         Assert.Equal("HIT", Header(hit, "X-PageSpeed"));
         Assert.Equal(expectedAccept, AcceptCount(Vary(hit)));
         Assert.Equal(1, originRuns);
+        Assert.Equal(1, anonymousRuns);
 
         // The stored entry: what the store decision saw and what was written.
         Assert.Single(cache.Offered);
@@ -621,6 +629,7 @@ public sealed class AgentVaryStoredEntryTests : IDisposable
         Assert.Equal("HIT", Header(again, "X-PageSpeed"));
         Assert.Equal(expectedAccept, AcceptCount(Vary(again)));
         Assert.Equal(1, originRuns);
+        Assert.Equal(1, anonymousRuns);
 
         await web.StopAsync();
     }
