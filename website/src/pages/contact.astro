@@ -340,7 +340,7 @@ const nextSteps = [
       const qualifiers = form?.querySelector<HTMLFieldSetElement>('[data-qualifiers]') ?? null;
       const messageEl = document.getElementById('contact-message') as HTMLTextAreaElement | null;
 
-      // Show the optional company / role / server-band fields only for the
+      // Show the optional company / role / deployment-size fields only for the
       // commercial topics. Hidden fields are disabled so they never post.
       function syncTopic() {
         if (!topicEl) return;

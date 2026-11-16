@@ -92,7 +92,7 @@ export const SUPPORT_TIERS = [
       offer: 'buy-standard',
       external: true,
     },
-    note: 'a direct channel to the engineers who build the product, for one organization and 1 person at it who can open tickets',
+    note: 'a direct channel to the engineers who build the product, for one organization and one person at your organization who can open tickets',
     includes: [
       'Ticket and email channel to the engineers who build the product',
       'Configuration, upgrade and incident help',
@@ -137,7 +137,7 @@ export const SUPPORT_TIERS = [
       offer: 'enterprise',
       external: false,
     },
-    note: 'everything in Priority plus a named engineer, response targets per agreement, for one organization and the people at it who can open tickets as agreed, custom build targets and backports',
+    note: 'everything in Priority plus a named engineer, response targets per agreement, custom build targets and backports, for one organization and the people at it agreed in your order',
     includes: [
       'Everything in Priority',
       'A named engineer',

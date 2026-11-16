@@ -36,7 +36,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'Which tier do I need?',
-    a: `Standard is a ticket and email channel with a first-response target, for one organization and 1 person at it who can open tickets. Choose Priority when you need a next-business-day first response, vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, or up to 3 people at your organization who can open tickets. Choose Enterprise for response targets per agreement and people at your organization as agreed. ${link('/support/', 'What each tier includes')}.`,
+    a: `Standard is a ticket and email channel with a first-response target, for one organization and one person at your organization who can open tickets. Choose Priority when you need a next-business-day first response, vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, or up to 3 people at your organization who can open tickets. Choose Enterprise for response targets per agreement and people at your organization as agreed. ${link('/support/', 'What each tier includes')}.`,
   },
   {
     q: 'Which version is current?',
