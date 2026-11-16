@@ -1672,7 +1672,8 @@ bool Worker::Initialize() {
             config_.cache_path.c_str(),
             make_error_code(open_error).message().c_str(),
             open_error == cyclone::CacheError::VolumeFileRefused
-                ? " Remove it and let the daemon recreate the volume."
+                ? " Remove the volume file named in the preceding \"cyclone: not "
+                  "using volume\" line and let the daemon recreate it."
                 : "");
         cache_degraded_ = true;
         // cache_ stays nullptr, as above.
