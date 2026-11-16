@@ -268,6 +268,7 @@ pagespeed EnableFilters convert_to_webp_lossless;
 - `convert_png_to_jpeg` drops the alpha channel on opaque PNGs. mod_pagespeed checks for alpha before converting, but semi-transparent pixels at the boundary may cause subtle edge artifacts.
 - `convert_jpeg_to_webp` decides per request, so the rewritten HTML names a `.webp` image for some browsers and a JPEG for others. A CDN or proxy that caches the HTML must not serve one browser's copy to another; test with your CDN configuration.
 - `convert_to_webp_animated` can produce large files for complex animations. Verify output sizes.
+- `convert_to_webp_lossless` applies to PNGs and GIFs the image analysis classes as graphics. A large, smooth photograph can be classed as a graphic and then served as lossless WebP, which can be much larger than a lossy encoding. Serve photographs as JPEG, or keep the original URL (`ImagePreserveURLs on`, or `data-pagespeed-no-transform`) so the optimizer worker negotiates a lossy format.
 
 ## AVIF filters {#avif}
 
