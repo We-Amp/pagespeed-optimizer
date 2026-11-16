@@ -3,7 +3,7 @@ title: 'Image filters'
 description: 'Image filters in mod_pagespeed for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
 order: 43
 group: 'Filters'
-lastUpdated: 2026-10-22
+lastUpdated: 2026-11-16
 ---
 
 ## Overview
@@ -269,6 +269,37 @@ pagespeed EnableFilters convert_to_webp_lossless;
 - `convert_jpeg_to_webp` decides per request, so the rewritten HTML names a `.webp` image for some browsers and a JPEG for others. A CDN or proxy that caches the HTML must not serve one browser's copy to another; test with your CDN configuration.
 - `convert_to_webp_animated` can produce large files for complex animations. Verify output sizes.
 - `convert_to_webp_lossless` applies to PNGs and GIFs the image analysis classes as graphics. A large, smooth photograph can be classed as a graphic and then served as lossless WebP, which can be much larger than a lossy encoding. Serve photographs as JPEG, or keep the original URL (`ImagePreserveURLs on`, or `data-pagespeed-no-transform`) so the optimizer worker negotiates a lossy format.
+
+### Lossy fallback for large PNG graphics (off by default) {#png_lossy_fallback}
+
+The image analysis behind `convert_png_to_jpeg` is a heuristic, and a large, smooth photo saved as PNG can be classed as a graphic. It is then stored as lossless WebP, which can be many times larger than a lossy file that looks the same. The `PngLossyFallbackMaxSizePercent` option adds a second look at those images. For a large opaque PNG classed as a graphic, the module tries a lossy WebP encode and serves it only when it is much smaller than the lossless WebP and passes a local quality check. Otherwise the lossless result stays.
+
+The option is off by default. A configuration that does not set it behaves as before. To turn it on, give the largest size the lossy file may have as a percentage of the lossless one:
+
+**Apache:**
+
+```apache
+ModPagespeedPngLossyFallbackMaxSizePercent 20
+```
+
+**nginx:**
+
+```nginx
+pagespeed PngLossyFallbackMaxSizePercent 20;
+```
+
+With 20, the lossy file must be at most 20 percent of the lossless one. The trial runs only when all of these hold:
+
+- the PNG is opaque and not animated, `convert_png_to_jpeg` and `convert_jpeg_to_webp` are on, and `WebpRecompressionQuality` is at least 50;
+- the lossless WebP is at least 64 KiB and at least `PngLossyFallbackMinBytesPerMegapixel` (default 250000) per megapixel of the image as served, so text, UI and charts that merely look noisy stay lossless;
+- the lossy file is within the configured percentage of the lossless one;
+- no 32x32 tile of the decoded lossy image falls below 29.5 dB PSNR against the source pixels, which keeps out local damage such as small coloured text over a noisy backdrop.
+
+A failed or timed-out trial leaves the lossless output. AVIF output for these images stays lossless; when the browser accepts AVIF, the smaller of the AVIF and the lossy WebP is served. With the `debug` filter on, the page names the outcome for each trial. The statistics `image_png_lossy_fallback_attempted`, `image_png_lossy_fallback_adopted` and `image_png_lossy_fallback_rejected_quality` count the trials.
+
+Per-image results depend on the picture. On the test images, a smooth 1200 px photo went from 776 KB to 27 KB, a 1200 px photo on a plain background from 310 KB to 8.9 KB, and a 1600 px star field from 572 KB to 45 KB. On misclassified photos the lossy file is typically 13 to 35 times smaller than the lossless one.
+
+**Caveat:** with the option on, a PNG that the debug filter describes as "sensitive to compression noise" can still be served as lossy WebP when the lossy output is much smaller and passes the quality check. Where lossy output is not acceptable, such as X-ray, microscopy or CAD images, or any image that must stay pixel-exact, set `PngLossyFallbackMaxSizePercent 0` in the server block, `location` or `<Directory>` that holds them, or put `data-pagespeed-no-transform` on the `<img>`. The option has directory scope, so a query parameter cannot switch it. Turning off `convert_png_to_jpeg` also disables the fallback, along with all other lossy PNG output.
 
 ## AVIF filters {#avif}
 
