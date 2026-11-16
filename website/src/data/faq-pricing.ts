@@ -32,11 +32,11 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'What does support cover?',
-    a: "Configuration, upgrades and incidents on the servers in your tier's band, for mod_pagespeed on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.",
+    a: "Configuration, upgrades and incidents for your named contacts, for mod_pagespeed on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.",
   },
   {
     q: 'Which tier do I need?',
-    a: `Count production servers: up to 5 is Standard, up to 25 is Priority, more than that (or one organization without a limit) is Enterprise. Choose Priority when you need a next-business-day first response or vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. ${link('/support/', 'What each tier includes')}.`,
+    a: `Standard is email support with a first-response target, for one organization. Choose Priority when you need a next-business-day first response, vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, or up to 3 named contacts. Choose Enterprise for agreed response commitments and more named contacts. ${link('/support/', 'What each tier includes')}.`,
   },
   {
     q: 'Which version is current?',
