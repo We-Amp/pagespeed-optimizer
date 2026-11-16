@@ -32,11 +32,11 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'What does support cover?',
-    a: "Configuration, upgrades and incidents for the people at your organization who can open tickets, for mod_pagespeed on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.",
+    a: 'Configuration, upgrades and incidents for the people at your organization who can open tickets, for mod_pagespeed on Apache, nginx, IIS, Docker and ASP.NET Core. It does not cover changes to your own application code or site content; that is the audit or a consulting engagement.',
   },
   {
     q: 'Which tier do I need?',
-    a: `Standard is email support with a first-response target, for one organization. Choose Priority when you need a next-business-day first response, vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, or up to 3 people at your organization who can open tickets. Choose Enterprise for agreed response commitments and more people who can open tickets. ${link('/support/', 'What each tier includes')}.`,
+    a: `Standard is a ticket and email channel with a first-response target, for one organization and 1 person at it who can open tickets. Choose Priority when you need a next-business-day first response, vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, or up to 3 people at your organization who can open tickets. Choose Enterprise for response targets per agreement and people at your organization as agreed. ${link('/support/', 'What each tier includes')}.`,
   },
   {
     q: 'Which version is current?',

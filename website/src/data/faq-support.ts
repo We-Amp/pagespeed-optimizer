@@ -32,7 +32,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'Does the number of servers I run change the price?',
-    a: 'No. A subscription covers people and response: who can contact us and how fast we answer. The software, updates and fixes are the same and free on every server, there is no metering, and the software never reports a count.',
+    a: 'No. A subscription covers people and response, not installations: who at your organization can open tickets and how fast we answer. The software, updates and fixes are the same and free on every server, there is no metering, and the software never reports a count.',
   },
   {
     q: 'What is signed today?',

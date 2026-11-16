@@ -84,7 +84,7 @@ export const SUPPORT_TIERS = [
     name: 'Standard support',
     kind: 'support',
     hardened: false,
-    scope: 'one organization',
+    scope: 'one organization, 1 person',
     prices: { annualEur: 490, from: false, monthlyEur: null },
     cta: {
       href: 'https://mpspro.onfastspring.com/support-standard-annual',
@@ -92,7 +92,7 @@ export const SUPPORT_TIERS = [
       offer: 'buy-standard',
       external: true,
     },
-    note: 'a direct channel to the developer who builds the product, for one organization',
+    note: 'a direct channel to the developer who builds the product, for one organization and 1 person at it who can open tickets',
     includes: [
       'Ticket and email channel to the developer who builds the product',
       'Configuration, upgrade and incident help',
@@ -106,7 +106,7 @@ export const SUPPORT_TIERS = [
     name: 'Priority support',
     kind: 'support',
     hardened: false,
-    scope: 'up to 3 of your people',
+    scope: 'one organization, up to 3 people',
     prices: { annualEur: 1900, from: false, monthlyEur: null },
     cta: {
       href: 'https://mpspro.onfastspring.com/support-priority-annual',
@@ -114,7 +114,7 @@ export const SUPPORT_TIERS = [
       offer: 'buy-priority',
       external: true,
     },
-    note: 'everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows and up to 3 people at your organization who can open tickets, with faster first-response targets',
+    note: 'everything in Standard plus vulnerability notifications timed to the EU Cyber Resilience Act reporting windows, for one organization and up to 3 people at it who can open tickets, with faster first-response targets',
     includes: [
       'Everything in Standard',
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
@@ -129,7 +129,7 @@ export const SUPPORT_TIERS = [
     name: 'Enterprise',
     kind: 'support',
     hardened: false,
-    scope: 'agreed response, more of your people',
+    scope: 'one organization, people as agreed',
     prices: { annualEur: 7500, from: true, monthlyEur: null },
     cta: {
       href: '/contact/?topic=enterprise',
@@ -137,10 +137,10 @@ export const SUPPORT_TIERS = [
       offer: 'enterprise',
       external: false,
     },
-    note: 'everything in Priority plus agreed response commitments, more people at your organization who can open tickets, custom build targets and backports',
+    note: 'everything in Priority plus response targets per agreement, for one organization and the people at it who can open tickets as agreed, custom build targets and backports',
     includes: [
       'Everything in Priority',
-      'More people at your organization who can open tickets',
+      'People at your organization who can open tickets, as agreed',
       'Custom build targets (distributions, nginx versions), published for everyone',
       'Backports, published for everyone',
       'Master agreement, purchase order and invoice',
@@ -152,7 +152,7 @@ export const SUPPORT_TIERS = [
 // The line under the tier cards: what is signed and attested is not a tier
 // feature; security fixes reach everyone at the same time.
 export const SAME_SOFTWARE_LINE =
-  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription. A support subscription covers people and response, not installations: the software, updates and fixes are the same and free on every server. Security fixes reach every user at the same time. A build or backport made for an Enterprise customer is published for everyone when it is delivered.';
+  'We sell support; the software and its signed packages are the same for everyone, with or without a subscription, on every server. Security fixes reach every user at the same time. A build or backport made for an Enterprise customer is published for everyone when it is delivered.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
