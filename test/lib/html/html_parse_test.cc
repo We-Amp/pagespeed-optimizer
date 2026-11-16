@@ -8498,12 +8498,11 @@ TEST_F(HtmlParseTest, TokenSizeLimitNotTriggeredUnderLimit) {
 
 // =============================================================================
 // Coverage: html_lexer.cc kMaxNestingDepth guard.  Deeply nested elements
-// would otherwise grow element_stack_ without bound; once the stack would
-// exceed kMaxNestingDepth (512, unified with mod_pagespeed 1.15) the guard
-// sets skip_parsing_ and parsing of the remainder stops.  The element stack
-// carries a sentinel entry, so the guard trips when the 512th element is
-// opened.  Converged with 1.15 (SPEC.md SS3.4): the trip does
-// NOT set size_limit_exceeded_; the truncated parse is the observable signal.
+// would otherwise grow element_stack_ without bound.  With kMaxNestingDepth
+// (512, unified with mod_pagespeed 1.15) elements open, a start tag that would
+// open one more creates no element: it and the rest of the document are
+// passed through as text, so the page is served whole.  Converged with 1.15
+// (SPEC.md SS3.4): the cap does NOT set size_limit_exceeded_.
 // =============================================================================
 
 namespace {
@@ -8519,28 +8518,94 @@ std::string NestedDivsDoc(int depth) {
 }  // namespace
 
 TEST_F(HtmlParseTest, NestingDepthUnderCapParsesNormally) {
-  // 510 nested <div>s + a trailing <span>: the span is the 511th element;
-  // with the sentinel the stack peaks at 512 only on the 512th open, so
-  // this stays one below the trip point and everything parses.
-  Parse(NestedDivsDoc(HtmlLexer::kMaxNestingDepth - 2) + "<span>tail</span>");
+  // 511 nested <div>s + a trailing <span>: the span is the 512th element,
+  // the last one the cap allows, so everything parses.
+  const int kDepth = HtmlLexer::kMaxNestingDepth;
+  CountingFilter counter("counter");
+  html_parse_->AddFilter(&counter);
+  Parse(NestedDivsDoc(kDepth - 1) + "<span>tail</span>");
   EXPECT_FALSE(html_parse_->size_limit_exceeded());
+  EXPECT_FALSE(html_parse_->passing_through());
   EXPECT_NE(std::string::npos, output_.find("tail"));
+  EXPECT_EQ(kDepth, counter.start_element_count);
 }
 
-TEST_F(HtmlParseTest, NestingDepthAtCapTripsGuard) {
-  // 512 nested <div>s: opening the 512th element reaches kMaxNestingDepth and
-  // the guard stops parsing the remainder of the document -- silently, so
+TEST_F(HtmlParseTest, NestingDepthAtCapPassesTheRestThrough) {
+  // 512 nested <div>s: the <span> would open element 513, so it and the rest
+  // of the document go out as they came in -- silently, so
   // size_limit_exceeded() stays false (1.15-converged).
-  Parse(NestedDivsDoc(HtmlLexer::kMaxNestingDepth) + "<span>tail</span>");
+  const std::string input =
+      NestedDivsDoc(HtmlLexer::kMaxNestingDepth) + "<span>tail</span>";
+  EXPECT_EQ(input, Parse(input));
   EXPECT_FALSE(html_parse_->size_limit_exceeded());
-  EXPECT_EQ(std::string::npos, output_.find("tail"));
+  EXPECT_TRUE(html_parse_->passing_through());
 }
 
-TEST_F(HtmlParseTest, NestingDepthBeyondCapTripsGuard) {
-  // 513 nested <div>s: same silent trip.
-  Parse(NestedDivsDoc(HtmlLexer::kMaxNestingDepth + 1) + "<span>tail</span>");
+TEST_F(HtmlParseTest, NestingDepthBeyondCapPassesTheRestThrough) {
+  // 1000 more nested <div>s than the cap, then content and the closing tags:
+  // the output is the input.
+  const int kInputDivs = HtmlLexer::kMaxNestingDepth + 1000;
+  std::string input = NestedDivsDoc(kInputDivs) + "deep";
+  for (int i = 0; i < kInputDivs; ++i) {
+    input += "</div>";
+  }
+  input += "<p>after</p>";
+  EXPECT_EQ(input, Parse(input));
   EXPECT_FALSE(html_parse_->size_limit_exceeded());
-  EXPECT_EQ(std::string::npos, output_.find("tail"));
+  EXPECT_TRUE(html_parse_->passing_through());
+}
+
+// Past the nesting cap the element that would go deeper is not created, and
+// it and the rest of the page are written as they came, wherever the input is
+// cut into pieces: nothing after the cap is lost.
+TEST_F(HtmlParseTest, ContentPastTheNestingCapIsWritten) {
+  const int kDepth = HtmlLexer::kMaxNestingDepth;
+  std::string input = "<html><body>";
+  for (int i = 0; i < kDepth + 100; ++i) {
+    input += "<span>";
+  }
+  input += "inside";
+  for (int i = 0; i < kDepth + 100; ++i) {
+    input += "</span>";
+  }
+  input += "<p>after</p><script>a()</script></body></html>";
+  CountingFilter counter("counter");
+  html_parse_->AddFilter(&counter);
+  for (size_t piece : {size_t{1}, size_t{7}, input.size()}) {
+    output_.clear();
+    counter.start_element_count = 0;
+    html_parse_->StartParse("http://test.com/");
+    for (size_t pos = 0; pos < input.size(); pos += piece) {
+      html_parse_->ParseText(std::string_view(input).substr(pos, piece));
+    }
+    html_parse_->FinishParse();
+    EXPECT_EQ(input, output_) << "piece " << piece;
+    EXPECT_TRUE(html_parse_->passing_through()) << "piece " << piece;
+    // html, body and the spans up to the cap.
+    EXPECT_EQ(kDepth, counter.start_element_count) << "piece " << piece;
+  }
+}
+
+// The element at the cap can be brief-closed, a literal element or a void
+// element: none is created, and nothing is closed or read as its content.
+TEST_F(HtmlParseTest, ElementAtTheNestingCapIsWrittenAsText) {
+  const int kDepth = HtmlLexer::kMaxNestingDepth;
+  std::string open;
+  std::string close;
+  for (int i = 0; i < kDepth; ++i) {
+    open += "<div>";
+    close += "</div>";
+  }
+  CountingFilter counter("counter");
+  html_parse_->AddFilter(&counter);
+  for (std::string_view at_cap :
+       {"<x/>y", "<textarea><b>z</b></textarea>", "<br>w"}) {
+    counter.start_element_count = 0;
+    const std::string input =
+        open + std::string(at_cap) + close + "<p>after</p>";
+    EXPECT_EQ(input, Parse(input)) << at_cap;
+    EXPECT_EQ(kDepth, counter.start_element_count) << at_cap;
+  }
 }
 
 // NOTE: the Restart() empty-literal guard coverage that lived here was

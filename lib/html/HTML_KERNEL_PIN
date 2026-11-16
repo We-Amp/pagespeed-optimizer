@@ -14,5 +14,5 @@
 # floor — for changes arriving via PR, the floor only moves forward.
 # Convention: on a routine pin bump, move the floor to the new pin in the
 # same commit. See lib/html/CLAUDE.md.
-8bd19464a214a057cd16168b3465932d44d84230  rewriter: write script, style and comment content back in the page's own terms (#798)
-floor 8bd19464a214a057cd16168b3465932d44d84230
+67344671acede7fd9ad9dde37f08fd1dfbfef78b  html: keep the rest of a page that nests past the depth limit (#802)
+floor 67344671acede7fd9ad9dde37f08fd1dfbfef78b
