@@ -15,8 +15,8 @@ export interface CutInFlightInput {
   version: string;
   /** The site's current (first) version-map row. */
   rowRelease: string;
-  /** The row's Helm chart version. */
-  rowHelmChart: string;
+  /** The row's Helm chart version; null when the row ships no chart. */
+  rowHelmChart: string | null;
   /** Chart.yaml version and appVersion. */
   chartVersion: string;
   chartAppVersion: string;
@@ -30,6 +30,8 @@ export interface CutInFlightInput {
  * row is at or ahead of VERSION.txt, or the chart version is not ahead of the row.
  */
 export function releaseCutInFlight(i: CutInFlightInput): boolean {
+  // Without a chart on the row, chart vs row cannot be judged: stay strict.
+  if (i.rowHelmChart === null) return false;
   return (
     i.chartAppVersion === i.version &&
     compareVersions(i.version, i.rowRelease) > 0 &&
