@@ -31,6 +31,9 @@ describe('releaseCutInFlight', () => {
   it('is false when the chart version is behind the row', () => {
     expect(releaseCutInFlight({ ...base, chartVersion: '0.3.14' })).toBe(false);
   });
+  it('is false when the chart version equals the row (stale chart)', () => {
+    expect(releaseCutInFlight({ ...base, chartVersion: '0.3.15' })).toBe(false);
+  });
   it('compares numerically, not as strings', () => {
     expect(releaseCutInFlight({ ...base, version: '2.10.0', chartAppVersion: '2.10.0' })).toBe(
       true,

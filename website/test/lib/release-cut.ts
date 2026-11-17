@@ -24,14 +24,15 @@ export interface CutInFlightInput {
 
 /**
  * True only when the chart already ships VERSION.txt, the site's row is
- * strictly behind it, and the chart has not moved backwards from the row.
+ * strictly behind it, and the chart version is strictly newer than the row's (a VERSION.txt bump always
+ * ships a new chart version).
  * Strict (false) when the chart's appVersion disagrees with VERSION.txt, the
- * row is at or ahead of VERSION.txt, or the chart version is behind the row.
+ * row is at or ahead of VERSION.txt, or the chart version is not ahead of the row.
  */
 export function releaseCutInFlight(i: CutInFlightInput): boolean {
   return (
     i.chartAppVersion === i.version &&
     compareVersions(i.version, i.rowRelease) > 0 &&
-    compareVersions(i.chartVersion, i.rowHelmChart) >= 0
+    compareVersions(i.chartVersion, i.rowHelmChart) > 0
   );
 }
