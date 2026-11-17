@@ -180,9 +180,9 @@ export function addUrlsToGroup(
     for (const entry of entries) {
       const exists = group.urls.some(
         (u) =>
-        u.url === entry.url &&
-        u.hostname === entry.hostname &&
-        (u.site ?? '') === (entry.site ?? ''),
+          u.url === entry.url &&
+          u.hostname === entry.hostname &&
+          (u.site ?? '') === (entry.site ?? ''),
       );
       if (!exists) {
         group.urls.push({ ...entry });
