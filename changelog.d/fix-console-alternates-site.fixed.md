@@ -1,0 +1,1 @@
+Fixed: admin console on nginx, where each server block keeps its own cache entries: the URL Inspector again shows a URL's optimized variants, and selection preview and content preview work again. Before, clicking a URL showed "No alternates found". Reprocess from the console also addresses the URL's own server block.
