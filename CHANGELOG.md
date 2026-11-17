@@ -6,18 +6,18 @@ All notable changes to mod_pagespeed are documented in this file.
 
 ## 2.9.0 - 2026-11-17
 
-Security: Fixed shared-cache issues that could serve a response meant for one visitor to other visitors. Update recommended.
+Security: fixed shared-cache issues that could serve a response meant for one visitor to other visitors. Affected: 2.8.1 and earlier. Update recommended.
 
-Security: Fixed issues that let one site's cached responses or restricted content be served on another site or to clients it was not meant for, in multi-site setups and in the ASP.NET Core package. Update recommended.
+Security: fixed issues that let one site's cached responses or restricted content be served on another site or to clients it was not meant for, in multi-site setups and in the ASP.NET Core package. Affected: 2.8.1 and earlier. Update recommended.
 
-Security: Fixed cross-site scripting issues in how HTML pages are rewritten. Update recommended.
+Security: fixed cross-site scripting issues in how HTML pages are rewritten. Affected: 2.8.1 and earlier. Update recommended.
 
 Changed: the Helm chart 0.3.16 is published with this release; its default
 image version is 2.9.0.
 
 Changed: in the ASP.NET Core middleware (WeAmp.PageSpeed.AspNetCore), on a cache miss, a response that would be cached is fetched once more as an anonymous request (no signed-in user, cookies or credentials, from the client address `224.0.0.0`); only that response is stored, and the visitor still gets its own. The app therefore handles each response that gets cached twice. Put rules that admit clients by address or identity after `UsePageSpeed()`, or list their paths in `ExcludePaths`. Call `UseRouting()` after `UsePageSpeed()`: an endpoint selected ahead of it is cached only when nothing about its selection can depend on the client. For an app whose GET handlers have side effects, set the new `RecordResponses` option to `false`: pages are still optimized, and nothing new is cached.
 
-Changed: a response whose `Vary` names a request header other than `Accept-Encoding`, such as `Accept`, `User-Agent`, `Save-Data` or `Origin`, is no longer cached or optimized. It is passed through from the origin on every request, so each client gets the origin's answer to its own request. Before, a response with `Vary: Accept`, `Vary: User-Agent` or `Vary: Save-Data` was cached once per URL and that copy was served to every client. The ASP.NET Core middleware (WeAmp.PageSpeed.AspNetCore) behaves the same way as the nginx module, and also counts a `Vary` set by middleware that runs before it. The native modules that store through the optimizer worker follow the same rule (`ps_vary_uncacheable` now refuses these values, and `ps_vary_varies_accept` returns 0). Entries cached by earlier versions are not used after the upgrade, so the cache starts empty.
+Changed: a response whose `Vary` names a request header other than `Accept-Encoding`, such as `Accept`, `User-Agent`, `Save-Data` or `Origin`, is no longer cached or optimized. It is passed through from the origin on every request, so each client gets the origin's answer to its own request. The ASP.NET Core middleware (WeAmp.PageSpeed.AspNetCore) behaves the same way as the nginx module, and also counts a `Vary` set by middleware that runs before it. The native modules that store through the optimizer worker follow the same rule (`ps_vary_uncacheable` now refuses these values, and `ps_vary_varies_accept` returns 0). Entries cached by earlier versions are not used after the upgrade, so the cache starts empty.
 
 Fixed: in the ASP.NET Core middleware (WeAmp.PageSpeed.AspNetCore), the cached Markdown copy of a page served to an agent (`Accept: text/markdown`) no longer carries `Content-Encoding: gzip`. The copy is sent uncompressed, and the header made clients that accept gzip fail to decode it. The nginx module was not affected.
 
@@ -27,7 +27,7 @@ Changed: in the nginx module, with agent optimization on, every HTML response na
 
 Fixed: in the nginx module, a revalidated response whose 304 from the origin carries `Vary: Accept` no longer lists `Accept` twice in its `Vary` headers.
 
-Fixed: a cache volume path that is not a plain file is reported and not used, and an idle cache no longer wakes up about 20 times a second (the Cyclone cache library was updated).
+Fixed: a cache volume path that cannot be used is reported and not used, and an idle cache no longer wakes up about 20 times a second (the Cyclone cache library was updated).
 
 Added: the Markdown copy for agents and `/llms.txt` carry an `x-markdown-tokens` header with an estimate of the number of tokens in the body (the body size in bytes divided by four, rounded down). The new nginx directive `pagespeed_agent_content_signal` sets a `content-signal` header for these responses, for example `pagespeed_agent_content_signal "search=yes, ai-input=yes, ai-train=no";`. Without it no `content-signal` header is sent.
 
