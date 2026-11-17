@@ -154,6 +154,56 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
       <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
+      <!-- End-of-life notices -->
+      <div>
+        <h2 id="end-of-life-notices" class="h2-section text-text-body">End-of-life notices</h2>
+        <p class="mt-4 text-text-muted">
+          We sometimes write to an organisation whose public website answers with a response header
+          identifying a PageSpeed release that no longer receives security fixes. If you received
+          such a notice, this is how to tell it is ours:
+        </p>
+        <ul class="mt-4 space-y-3 text-text-muted">
+          <li class="flex items-start gap-3">
+            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
+            <span>
+              It comes from <code>otto@modpagespeed.com</code>, as plain text without attachments,
+              to an address your organisation published for security reports.
+            </span>
+          </li>
+          <li class="flex items-start gap-3">
+            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
+            <span>
+              It names the host and the header, so you can check the claim yourself, and it lists
+              every request we made.
+            </span>
+          </li>
+          <li class="flex items-start gap-3">
+            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
+            <span>
+              It is sent once. It contains no offer, asks for no payment or bounty, and we do not
+              write again unless you reply.
+            </span>
+          </li>
+        </ul>
+        <p class="mt-4 text-text-muted">
+          Before writing we make a handful of ordinary requests to public pages of the site, with
+          the User-Agent <code>weamp-notice-check/1 (+https://modpagespeed.com/security/)</code>,
+          and we may request the homepage once or twice in the following three months to see whether
+          the header has changed. We do not log in, scan or test for vulnerabilities, and we do not
+          publish host names. If you would rather not hear from us, reply and say so. How we handle
+          the correspondence is described in the{' '}
+          <a
+            href="https://we-amp.com/privacy/"
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            privacy policy
+          </a>
+          .
+        </p>
+      </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+
       <!-- Evidence -->
       <div>
         <h2 class="h2-section text-text-body">Evidence</h2>
