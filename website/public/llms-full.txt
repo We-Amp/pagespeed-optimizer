@@ -4375,7 +4375,8 @@ module's own code.
 - **What third-party builds contain.** We looked at public packaging information and
   found no packager that states it updated these libraries under an original version
   number. We have not inspected third-party binaries.
-- **Which library versions IISpeed carries.** We have not verified this for every
+- **Which library versions IISpeed carries.** The last IISpeed installer we distributed
+  was built in September 2022, before the fixed libwebp existed; we found no later
   build. Treat IISpeed like the releases above.
 
 ## What to do
@@ -4408,6 +4409,8 @@ Switch the module fully off as a stopgap. It stays installed, so this is not a f
 - **nginx, 1.12.34.2 and later:** `pagespeed unplugged;`.
 - **nginx, 1.12.34.1 and earlier:** use `pagespeed off;`. On those releases `unplugged`
   crashes the server.
+- **IISpeed:** no stopgap has been verified, and an expired license is not one.
+  Uninstall it.
 
 Set it in the main server configuration, and remove any `ModPagespeed on` or
 `pagespeed on;` from virtual hosts and server blocks, which can turn it back on. Then
