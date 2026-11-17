@@ -22788,11 +22788,11 @@ the release entry says so.
 | 4 | none | memory safety while optimizing page content | all releases up to and including 2.8.2 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
 | 5 | none | response framing, proxies and caches in front of the server | all releases up to and including 2.8.2 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
 | 6 | none | local privilege escalation in cache file handling, when the server is started as root | all releases up to and including 2.8.2 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
-| 7 | none | visitor credentials and the option-override token stay private, mapped hosts (MapProxyDomain) | all releases up to and including 2.8.2 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
+| 7 | none | disclosure of visitor credentials to mapped hosts (MapProxyDomain) and of the option-override token to clients | all releases up to and including 2.8.2 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
 | 8 | none | memory, CPU and connections one page or request can use are bounded, resource and beacon handling | all releases up to and including 2.8.2 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
-| 9 | none | a response meant for one visitor is no longer served to others, shared cache, optimizer worker and ASP.NET Core package | releases up to and including 2.8.1 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
-| 10 | none | one site's cached responses or restricted content stay with their site, multi-site setups and ASP.NET Core package | releases up to and including 2.8.1 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
-| 11 | none | cross-site scripting in how HTML pages are rewritten, optimizer worker and ASP.NET Core package | releases up to and including 2.8.1 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
+| 9 | none | a response meant for one visitor is no longer served to others, shared cache | optimizer releases up to and including 2.8.1 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
+| 10 | none | cached and restricted content stays with its site and is not served to other clients, multi-site setups and the ASP.NET Core package | optimizer releases up to and including 2.8.1 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
+| 11 | none | cross-site scripting in rewritten HTML pages | optimizer releases up to and including 2.8.1 | [mod_pagespeed 2.9.0](https://modpagespeed.com/docs/release-notes-2-9/#v2-9-0) | Recommended |
 | 12 | none | restricted content no longer reaches other clients | all releases up to and including 2.7.0 | [mod_pagespeed 2.8.0](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-0) | Recommended |
 | 13 | none | cached content stays with its site and URL | all releases up to and including 2.7.0 | [mod_pagespeed 2.8.0](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-0) | Recommended |
 | 14 | none | optimizer requests stay on the site's own hosts | the nginx module and the ASP.NET Core package in releases up to and including 2.7.0, only where agent optimization is on | [mod_pagespeed 2.8.0](https://modpagespeed.com/docs/release-notes-2-8/#v2-8-0) | Recommended |
@@ -23129,15 +23129,15 @@ _Module (all ports unless named)_
 - **Fixed disclosure of visitor credentials to mapped hosts (MapProxyDomain) and of the option-override token to clients.** Affected: 2.8.2 and earlier. Update recommended.
 - **Bounded the memory, CPU and connections that a single page or request can use, and hardened resource and beacon handling.** Affected: 2.8.2 and earlier. Update recommended.
 
+Discovered by Anthropic's OSS Scanner, as vulnerabilities ANT-2026-3GXZ2FJ4, ANT-2026-5VWO29MF, ANT-2026-93QF8A08, ANT-2026-BUV08RGL, ANT-2026-CE1K91NK, ANT-2026-E36DA7HW, ANT-2026-EVRV1GOT, ANT-2026-GA2NW51K, ANT-2026-GCMBO647, ANT-2026-H715O8QA, ANT-2026-J4OONKYD, ANT-2026-JJRHGNWJ, ANT-2026-KFGRNMLQ, ANT-2026-L2JPNWZK, ANT-2026-LKCRXG9W, ANT-2026-N0QLFDLF, ANT-2026-OJ2VYK4V, ANT-2026-QUU5BK5O, ANT-2026-RIRYHATG, ANT-2026-W5KWJX8Y, ANT-2026-WBIXUP2I, ANT-2026-WCV97OJ0, ANT-2026-Y0MQRQHL, ANT-2026-YBMNZDA9, ANT-2026-YS3L5B90, ANT-2026-YVZP8N68, ANT-2026-Z97AV5ZJ, and ANT-2026-ZWGW37QM. We thank the scanner team for the reports.
+
+We also thank Inanna Malick (@inanna-malick) for reporting an issue fixed in this release ([f778972](https://github.com/We-Amp/mod_pagespeed/commit/f7789722479614886b614791c53dc37dbaa97795)).
+
 _Optimizer worker, nginx module and ASP.NET Core package_
 
 - Security: fixed shared-cache issues that could serve a response meant for one visitor to other visitors. Affected: 2.8.1 and earlier. Update recommended.
 - Security: fixed issues that let one site's cached responses or restricted content be served on another site or to clients it was not meant for, in multi-site setups and in the ASP.NET Core package. Affected: 2.8.1 and earlier. Update recommended.
 - Security: fixed cross-site scripting issues in how HTML pages are rewritten. Affected: 2.8.1 and earlier. Update recommended.
-
-Discovered by Anthropic's OSS Scanner, as vulnerabilities ANT-2026-3GXZ2FJ4, ANT-2026-5VWO29MF, ANT-2026-93QF8A08, ANT-2026-BUV08RGL, ANT-2026-CE1K91NK, ANT-2026-E36DA7HW, ANT-2026-EVRV1GOT, ANT-2026-GA2NW51K, ANT-2026-GCMBO647, ANT-2026-H715O8QA, ANT-2026-J4OONKYD, ANT-2026-JJRHGNWJ, ANT-2026-KFGRNMLQ, ANT-2026-L2JPNWZK, ANT-2026-LKCRXG9W, ANT-2026-N0QLFDLF, ANT-2026-OJ2VYK4V, ANT-2026-QUU5BK5O, ANT-2026-RIRYHATG, ANT-2026-W5KWJX8Y, ANT-2026-WBIXUP2I, ANT-2026-WCV97OJ0, ANT-2026-Y0MQRQHL, ANT-2026-YBMNZDA9, ANT-2026-YS3L5B90, ANT-2026-YVZP8N68, ANT-2026-Z97AV5ZJ, and ANT-2026-ZWGW37QM. We thank the scanner team for the reports.
-
-We also thank Inanna Malick (@inanna-malick) for reporting an issue fixed in this release ([f778972](https://github.com/We-Amp/mod_pagespeed/commit/f7789722479614886b614791c53dc37dbaa97795)).
 
 **Action required when upgrading**
 
