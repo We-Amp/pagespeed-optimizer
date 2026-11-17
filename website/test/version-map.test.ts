@@ -51,12 +51,16 @@ describe('version map', () => {
         `::warning::release cut ${VERSION} in flight: the site's row follows with the release's site PR`,
       );
     }
-    expectOrWarn('version map row vs Helm chart', () => {
-      expect(current.helmChart).toBe(String(chart.version));
-      expect(
-        artifactVersionProblems({ ...current, chartAppVersion: String(chart.appVersion) }),
-      ).toEqual([]);
-    }, inReleaseWindow() || cutInFlight);
+    expectOrWarn(
+      'version map row vs Helm chart',
+      () => {
+        expect(current.helmChart).toBe(String(chart.version));
+        expect(
+          artifactVersionProblems({ ...current, chartAppVersion: String(chart.appVersion) }),
+        ).toEqual([]);
+      },
+      inReleaseWindow() || cutInFlight,
+    );
     // Two committed files, not live state: strict in a window too.
     expect(current.packages).toBe(MODULE_PACKAGE_VERSION);
   });
