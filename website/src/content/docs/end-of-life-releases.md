@@ -8,7 +8,7 @@ lastUpdated: 2026-11-17
 datePublished: 2026-11-17
 ---
 
-If a report says a server runs mod_pagespeed or ngx_pagespeed 1.14.36.1 or earlier, it
+If a report says a server reports mod_pagespeed or ngx_pagespeed 1.14.36.1 or earlier, it
 concerns releases that receive no security fixes from the original project.
 [Check the server's header](#check), then
 [remove the module or move to a build that still receives security fixes](#what-to-do).
@@ -126,17 +126,17 @@ Back up the module's configuration and test each step in staging first.
 Switch the module fully off as a stopgap. It stays installed, so this is not a fix.
 
 - **Apache:** `ModPagespeed unplugged`.
-- **nginx, 1.13.35.1 and later:** `pagespeed unplugged;`.
+- **nginx, 1.12.34.2 and later:** `pagespeed unplugged;`.
 - **nginx, 1.12.34.1 and earlier:** use `pagespeed off;`. On those releases `unplugged`
   crashes the server.
 
-Set it at the top level of the configuration, where a virtual host or `.htaccess` file
-cannot turn it back on, then restart. Apart from the old nginx releases above, `off` is
-not enough: the module still answers requests for `.pagespeed.` resources and still
-honors PageSpeed query parameters. See
-[Setting the module fully off](/1.0/doc/configuration.html#unplugged) in the original
-documentation. We have not verified any narrower measure, such as disabling single
-image filters, and do not recommend relying on one.
+Set it in the main server configuration, and remove any `ModPagespeed on` or
+`pagespeed on;` from virtual hosts and server blocks, which can turn it back on. Then
+restart. Apart from the old nginx releases above, `off` is not enough: the module still
+answers requests for `.pagespeed.` resources and still honors PageSpeed query
+parameters. See [Setting the module fully off](/1.0/doc/configuration.html#unplugged)
+in the original documentation. We have not verified any narrower measure, such as
+disabling single image filters, and do not recommend relying on one.
 
 ## Detection rule for scanners {#rule}
 
@@ -147,7 +147,8 @@ release; it is not a confirmed vulnerability. Leave any value that does not matc
 untagged. The rule may change; check the date of this page.
 
 In words: four numbers at or below `1.14.36.1`, without leading zeros, optionally
-followed by a hyphen and digits, `-stable` or `-beta`; or `1.15.0.0-` and digits.
+followed by a hyphen with or without digits, `-stable` or `-beta`; or `1.15.0.0-` and
+digits.
 
 As an expression, to be applied as a full match, case-sensitive, on a single line:
 
