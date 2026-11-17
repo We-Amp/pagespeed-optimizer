@@ -100,9 +100,9 @@ module's own code.
 - **What third-party builds contain.** We looked at public packaging information and
   found no packager that states it updated these libraries under an original version
   number. We have not inspected third-party binaries.
-- **Which library versions IISpeed carries.** The last IISpeed installer we distributed
-  was built in September 2022, before the fixed libwebp existed; we found no later
-  build. Treat IISpeed like the releases above.
+- **Which library versions IISpeed carries.** The IISpeed installer on our download
+  page was built in September 2022, before the fixed libwebp existed. Treat IISpeed like
+  the releases above.
 
 ## What to do {#what-to-do}
 
