@@ -30,8 +30,8 @@ Google.
   and 1.14.36.1 (2020); all earlier releases are covered too.
 - Builds made from the original project's unreleased source after 1.14.36.1. They
   identify themselves as `1.15.0.0-` followed by a number.
-- We-Amp's retired commercial builds, which report five numbers such as `1.14.36.1.4`.
-  They are end of life and receive no fixes. Treat them like the releases above.
+- IISpeed, We-Amp's deprecated product for IIS, which was built on these releases. It
+  reports five numbers, such as `1.14.36.1.4`, and is end of life too.
 
 It does not cover releases of the current mod_pagespeed. For those, see the
 [security updates](/docs/release-notes/#security-updates) in the release notes and the
@@ -40,7 +40,7 @@ supported versions on the [security page](/security/).
 ## How to check a server {#check}
 
 The module adds a response header to the pages it serves: `X-Mod-Pagespeed` on
-Apache and `X-Page-Speed` on nginx.
+Apache and `X-Page-Speed` on nginx and on IIS.
 
 ```bash
 curl -sL -o /dev/null -D - https://www.example.com/ | grep -i -E 'x-mod-pagespeed|x-page-speed'
@@ -50,7 +50,7 @@ curl -sL -o /dev/null -D - https://www.example.com/ | grep -i -E 'x-mod-pagespee
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | Four numbers up to `1.14.36.1`, such as `1.13.35.2-0` or `1.14.36.1-0` | Identifies as a release of the original project. End of life. |
 | `1.15.0.0-` and a number                                               | Identifies as a build of the original project's unreleased source. End of life.                                                   |
-| Five numbers, such as `1.14.36.1.4` | Usually one of We-Amp's retired commercial builds. End of life. |
+| Five numbers, such as `1.14.36.1.4` | Usually IISpeed, We-Amp's deprecated product for IIS. End of life. |
 | Three numbers, such as `1.19.0` or `2.8.2`                             | A release of the current mod_pagespeed. Not covered here; check it against the [security updates](/docs/release-notes/#security-updates). |
 | Any other suffix, such as `1.13.35.2-5w` | Not matched here. Ask whoever built it what it contains. |
 | `on`, `1` or other text | The version is hidden. The current mod_pagespeed shows `on` by default since 2.7.0, but any build can be set to show it. Check the installed package, as shown below. |
@@ -90,10 +90,9 @@ module's own code.
 
 ## What is not known {#not-known}
 
-- **Whether CVE-2023-4863 can be exploited through the module.** We have not attempted
-  it, and as of 17 November 2026 we are not aware of any public report of exploitation
-  through the module. Public reports of exploitation of this CVE concerned client
-  software.
+- **Whether CVE-2023-4863 can be exploited through the module.** As of 17 November
+  2026, we had not attempted it and knew of no public report of exploitation through
+  the module. Public reports of exploitation of this CVE concerned client software.
 - **Whether a given site is exposed.** That depends on whether images from sources the
   operator does not control reach the module's image optimization: uploads to the site
   itself, a proxied backend, or other domains the configuration authorizes. Only the
@@ -101,6 +100,8 @@ module's own code.
 - **What third-party builds contain.** We looked at public packaging information and
   found no packager that states it updated these libraries under an original version
   number. We have not inspected third-party binaries.
+- **Which library versions IISpeed carries.** We have not verified this for every
+  build. Treat IISpeed like the releases above.
 
 ## What to do {#what-to-do}
 
@@ -114,11 +115,14 @@ Back up the module's configuration and test each step in staging first.
    if it is still there, then restart Apache. On nginx, delete the `pagespeed`
    directives and any `load_module` line for `ngx_pagespeed_module.so`, then run
    `sudo nginx -t` and restart. If `nginx -V` lists ngx_pagespeed, install an nginx
-   build without it.
+   build without it. On IIS, uninstall IISpeed under _Apps & features_, then run
+   `iisreset`. An expired license does not switch IISpeed fully off, so uninstall it in
+   that case too.
 2. **Or move to a build that still receives security fixes.** The current mod_pagespeed
    keeps the directives and the filter names, with a few exceptions listed in the
    guides: [Migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/)
-   and [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/). Other maintained
+   and [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/). From IISpeed, see
+   [Migrate from IISpeed](/docs/migrate-from-iispeed/). Other maintained
    builds and implementations exist; we have not assessed them.
 
 ### If you cannot do either yet {#interim}
@@ -165,8 +169,8 @@ As an expression, to be applied as a full match, case-sensitive, on a single lin
 | `1.15.0.0`, `1.14.36.2`, `1.14.37.0-0`, `1.13.35.2-5w`                  | No match            |
 | `1.14.36.1.4`                                                           | No match; see below |
 
-We-Amp's retired commercial builds report five numbers, often followed by text. They
-are end of life as well and have their own expression:
+IISpeed reports five numbers, often followed by text. It is end of life as well and has
+its own expression:
 
 ```text
 ^1\.1[34]\.[0-9]+\.[0-9]+\.[0-9]+(?: .*)?$
