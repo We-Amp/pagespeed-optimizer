@@ -21,6 +21,19 @@ test.describe('Analytics hygiene', () => {
     });
   }
 
+  test('the opt-out script comes before the tracker tag', async ({ page }) => {
+    await page.goto('/');
+    const order = await page.evaluate(() => {
+      const tracker = document.querySelector('script[data-website-id]');
+      const optOut = [...document.querySelectorAll('script:not([src])')].find((s) =>
+        (s.textContent ?? '').includes('umami-opt-out'),
+      );
+      if (!tracker || !optOut) return null;
+      return Boolean(optOut.compareDocumentPosition(tracker) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(order).toBe(true);
+  });
+
   test('?umami-opt-out=1 sets the flag and ?umami-opt-out=0 clears it', async ({ page }) => {
     const flag = () => page.evaluate(() => localStorage.getItem('umami.disabled'));
     await page.goto('/');
