@@ -1,5 +1,6 @@
 ---
 title: 'End-of-life releases: 1.14.36.1 and earlier'
+seoTitle: 'mod_pagespeed 1.14.36.1 and earlier: end-of-life advisory'
 description: 'Advisory for the archived mod_pagespeed and ngx_pagespeed releases, 1.14.36.1 and earlier: what is known, how to check a server, what to do.'
 order: 17
 group: 'Upgrade and migrate'
@@ -7,16 +8,24 @@ lastUpdated: 2026-11-17
 datePublished: 2026-11-17
 ---
 
-The archived mod_pagespeed and ngx_pagespeed releases, 1.14.36.1 and earlier, have
-had no release from the original project since 2020 and receive no security fixes.
-They compile their own copies of several image libraries into the module, so an
-operating-system update does not replace those copies. If a server still runs one of
-these releases, remove the module or move to a build that still receives security
-fixes.
+If a report says a server runs mod_pagespeed or ngx_pagespeed 1.14.36.1 or earlier, it
+concerns releases that receive no security fixes from the original project.
+[Check the server's header](#check), then
+[remove the module or move to a build that still receives security fixes](#what-to-do).
+
+These releases build their own copies of several image libraries into the module, so
+operating-system updates do not replace them. Their libwebp is in the range affected by
+[CVE-2023-4863](https://www.cve.org/CVERecord?id=CVE-2023-4863). The original project's
+last release was 1.14.36.1, in 2020. The project was donated to the Apache Software
+Foundation in 2017, the Incubator podling retired in 2023, and the repositories became
+read-only in 2025.
 
 mod_pagespeed is an open-source project originally developed at Google. The current
 mod_pagespeed is developed by We-Amp B.V. and is not affiliated with or endorsed by
 Google.
+
+Published 17 November 2026. No severity is assigned here: the library CVE has its own
+score, and whether it can be reached through the module depends on the site.
 
 ## Which releases this covers {#scope}
 
@@ -24,73 +33,153 @@ Google.
   and 1.14.36.1 (2020); all earlier releases are covered too.
 - Builds made from the original project's unreleased source after 1.14.36.1. They
   identify themselves as `1.15.0.0-` followed by a number.
+- We-Amp's own retired commercial builds of these releases. They report five numbers,
+  such as `1.14.36.1.4`, and are end of life too.
 
-It does not cover the current mod_pagespeed. For that, see the
-[security updates](/docs/release-notes/#security-updates) in the release notes.
+It does not cover releases of the current mod_pagespeed. For those, see the
+[security updates](/docs/release-notes/#security-updates) in the release notes and the
+supported versions on the [security page](/security/).
 
 ## How to check a server {#check}
 
-The module adds a response header to the pages it serves: `X-Mod-Pagespeed` on Apache
-and `X-Page-Speed` on nginx.
+The module adds a response header to the pages it processes: `X-Mod-Pagespeed` on
+Apache and `X-Page-Speed` on nginx.
 
 ```bash
-curl -s -o /dev/null -D - https://www.example.com/ | grep -i -E 'x-mod-pagespeed|x-page-speed'
+curl -sL -o /dev/null -D - https://www.example.com/ | grep -i -E 'x-mod-pagespeed|x-page-speed'
 ```
 
-| Header value                                                              | What it means                                                                                 |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Four numbers up to `1.14.36.1`, such as `1.13.35.2-0` or `1.14.36.1-0`    | A release of the original project. End of life.                                               |
-| `1.15.0.0-` and a number                                                  | A build of the original project's unreleased source. End of life.                             |
-| Three numbers, such as `2.8.2`                                            | The current mod_pagespeed. Not covered by this page.                                          |
-| `on`, `1`, or other text                                                  | The version is hidden. Check the installed package or ask whoever built the server.           |
+| Header value                                                           | What it means                                                                                                                     |
+| ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Four numbers up to `1.14.36.1`, such as `1.13.35.2-0` or `1.14.36.1-0` | Identifies as a release of the original project, which is end of life.                                                            |
+| `1.15.0.0-` and a number                                               | Identifies as a build of the original project's unreleased source. End of life.                                                   |
+| Five numbers, such as `1.14.36.1.4`                                    | One of We-Amp's retired commercial builds. End of life.                                                                           |
+| Three numbers, such as `1.19.0` or `2.8.2`                             | A release of the current mod_pagespeed. Not covered here; check it against the [security updates](/docs/release-notes/#security-updates). |
+| A version with other text added, such as a packager's suffix           | A build by someone else. Ask the packager what it contains.                                                                       |
+| `on`, `1` or other text                                                | The version is hidden. Any build can be set to show this. Check the installed package, as shown below.                            |
 
-The header shows which release a build calls itself. It does not show what is inside.
+No header does not mean no module: the header can be switched off. To see what is
+installed, run `dpkg -l | grep -i pagespeed` on Debian and Ubuntu or
+`rpm -qa | grep -i pagespeed` on Enterprise Linux, and `nginx -V` for a module compiled
+into nginx.
+
+The header shows which release a build identifies as. It does not show what is inside.
 A third party can rebuild an old release with newer libraries and keep the version
-number, and an operator can set the header to any text. If your module came from a
-packager other than the original project, ask the packager which library versions it
-contains.
+number. If your module came from a packager other than the original project, ask the
+packager which library versions it contains and whether it carries fixes for the
+module's own code.
 
 ## What is known {#known}
 
-- **The image libraries are frozen at release time.** 1.13.35.2 builds in libwebp
-  0.5.1 and 1.14.36.1 builds in libwebp 0.6.1. The copies of libpng, libjpeg-turbo,
-  giflib and zlib in these releases also date from 2016 and 2017.
-- **CVE-2023-4863 applies to those libwebp versions.** The CVE record lists every
-  libwebp version before 1.3.2 as affected.
-- **A system update does not change the module.** The original build compiles libwebp
-  from its own source tree into the module and has no option to use a system copy.
-- **WebP decoding is on with default settings.** With the default filter set, the
-  module decodes the WebP images it optimizes.
-- **Other fixes have been published since.** The current mod_pagespeed has fixed
-  further defects inherited from these releases: memory-safety issues in image
-  processing, and denial-of-service and cross-site-scripting issues in the module.
-  They are listed by impact and affected version under
+- **The bundled image libraries are the versions pinned at release.** 1.13.35.2 builds
+  in libwebp 0.5.1 and 1.14.36.1 builds in libwebp 0.6.1. Builds of the unreleased
+  source carry libwebp 0.6.1 or 1.1.0.
+- **CVE-2023-4863 applies to those libwebp versions.** It is a memory-safety flaw in
+  WebP decoding, rated high (CVSS 8.8) by NVD. The CVE record lists every libwebp
+  version before 1.3.2 as affected.
+- **A system update does not change the module.** The original project's build compiles
+  libwebp from its own source tree into the module and has no switch for a system
+  libwebp.
+- **Default settings are in scope.** Image optimization, WebP included, is on in the
+  default configuration.
+- **Other bundled libraries are of the same age.** The copies of libpng, libjpeg-turbo,
+  giflib and zlib date from 2016 and 2017, and CVEs have been published against
+  libraries of that age. This page does not map them.
+- **Defects in the module's own code have been fixed since.** The current
+  mod_pagespeed has fixed further defects inherited from these releases: memory safety
+  in image processing, denial of service from untrusted input, and cross-site scripting
+  in generated output. They are listed by impact and affected version under
   [security updates](/docs/release-notes/#security-updates).
 
 ## What is not known {#not-known}
 
-- **Whether CVE-2023-4863 can be exploited through the module.** We have not
-  demonstrated it and know of no report of it. An attacker would need a crafted image
-  to be served from a location the module optimizes, for example on a site that
-  accepts image uploads.
-- **Whether a given site is exposed.** That depends on its configuration and on where
-  its images come from. Only the operator can judge it.
-- **What third-party builds contain.** We have not assessed builds by other packagers.
+- **Whether CVE-2023-4863 can be exploited through the module.** We have not attempted
+  it, and as of 17 November 2026 we are not aware of any public report of exploitation
+  through the module. Public reports of exploitation of this CVE concerned client
+  software.
+- **Whether a given site is exposed.** That depends on whether images from sources the
+  operator does not control reach the module's image optimization: uploads to the site
+  itself, a proxied backend, or other domains the configuration authorizes. Only the
+  operator can judge it.
+- **What third-party builds contain.** We looked at public packaging information and
+  found no packager that states it updated these libraries under an original version
+  number. We have not inspected third-party binaries.
 
 ## What to do {#what-to-do}
 
-1. **Remove the module if nothing depends on it.** On Apache, remove the
-   `mod-pagespeed-stable` or `mod-pagespeed-beta` package and restart. On nginx,
-   remove the `pagespeed` directives and install an nginx build without the module.
-2. **Or move to a build that still receives security fixes.** The current
-   mod_pagespeed keeps the directives and the filter names. See
-   [Migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/)
-   and [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/). Test in
-   staging first.
+Test each step in staging first.
+
+1. **Remove the module if nothing depends on it.** On Apache, run
+   `sudo apt-get purge mod-pagespeed-stable` (Debian, Ubuntu) or
+   `sudo dnf remove mod-pagespeed-stable` (Enterprise Linux), using `-beta` if you
+   installed that package. Delete `/etc/apt/sources.list.d/mod-pagespeed.list` if it is
+   still there, then restart Apache. On nginx, delete the `pagespeed` directives and any
+   `load_module` line for `ngx_pagespeed_module.so`, then run `sudo nginx -t` and
+   restart. If `nginx -V` lists ngx_pagespeed, install an nginx build without it.
+2. **Or move to a build that still receives security fixes.** The current mod_pagespeed
+   keeps the directives and the filter names, with a few exceptions listed in the
+   guides: [Migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/)
+   and [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/). Other maintained
+   implementations may exist; we have not assessed them.
+
+### If you cannot do either yet {#interim}
+
+Switch the module fully off: `ModPagespeed unplugged` on Apache, `pagespeed unplugged;`
+on nginx, then restart. In these releases `off` is not enough: the module still answers
+requests for resources it rewrote earlier. See
+[Setting the module fully off](/1.0/doc/configuration#unplugged) in the original
+documentation. We have not verified any narrower measure, such as disabling single
+image filters, and do not recommend relying on one.
+
+## Detection rule for scanners {#rule}
+
+Apply the rule to the trimmed value of `X-Mod-Pagespeed` or `X-Page-Speed`. A match
+means the build identifies as an end-of-life release; it is not a confirmed
+vulnerability. Any value that does not match should be left untagged.
+
+```text
+\A(?:(?:0\.N\.N\.N|1\.(?:[0-9]|1[0-3])\.N\.N|1\.14\.(?:[0-9]|[12][0-9]|3[0-5])\.N|1\.14\.36\.[01])(?:-(?:[0-9]*|stable|beta))?|1\.15\.0\.0-[0-9]+)\Z
+```
+
+Replace each `N` with `(?:0|[1-9][0-9]*)`. In words: four numbers at or below
+`1.14.36.1`, optionally followed by a hyphen and digits, `-stable` or `-beta`; or
+`1.15.0.0-` and digits.
+
+| Value                                                                 | Result                 |
+| --------------------------------------------------------------------- | ---------------------- |
+| `1.13.35.2-0`, `1.14.36.1-0`, `1.14.36.1`, `1.9.32.3-4448`, `1.7.30.4-` | Match                  |
+| `1.12.34.2-stable`, `0.8.1.5`, `1.15.0.0-8917`                        | Match                  |
+| `on`, `1`, `enabled`, `Powered By mod_pagespeed`                      | No match               |
+| `1.1.0`, `1.15.0`, `1.19.0`, `2.8.2`                                  | No match               |
+| `1.15.0.0`, `1.14.36.2`, `1.14.37.0-0`, `1.13.35.2-5w`                | No match               |
+| `1.14.36.1.4`                                                         | No match; see below    |
+
+The five-number values of We-Amp's retired commercial builds are end of life as well.
+They often carry extra text, so they are easier to match on their own:
+`\A[0-9]+(?:\.[0-9]+){4}(?: .*)?\Z`.
+
+## Sources {#sources}
+
+- The CVE record for [CVE-2023-4863](https://www.cve.org/CVERecord?id=CVE-2023-4863)
+  and its [NVD entry](https://nvd.nist.gov/vuln/detail/CVE-2023-4863).
+- The libraries pinned by the original project's release tags:
+  [1.13.35.2](https://github.com/apache/incubator-pagespeed-mod/tree/v1.13.35.2/third_party)
+  and
+  [1.14.36.1](https://github.com/apache/incubator-pagespeed-mod/tree/v1.14.36.1/third_party).
+- The [Apache Incubator page](https://incubator.apache.org/projects/pagespeed.html)
+  for the project's status.
+- Counts of deployed versions: the
+  [installed-base census](https://github.com/We-Amp/pagespeed-census).
 
 ## About this advisory {#about}
 
-We-Amp develops the current mod_pagespeed and earns its income from support for it,
-so we are not a neutral party. This page makes no offer. If something on it is wrong
-or incomplete, tell us at
-[security@modpagespeed.com](mailto:security@modpagespeed.com) and we will correct it.
+We-Amp develops the current mod_pagespeed and earns its income from support for it, so
+we are not a neutral party. Removing the module is a complete fix, and any build that
+still receives security fixes will do; the migration guides above cover ours.
+
+This is general information as of the date above, not advice for a specific system. If
+something here is wrong or out of date, for example because your packages ship newer
+libraries under an original version number, tell us through the
+[contact page](/contact/). We will review it, correct the page where needed and note
+the change. To report a vulnerability in the current mod_pagespeed, see the
+[security policy](/security/).
