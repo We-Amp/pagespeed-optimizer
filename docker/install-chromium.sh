@@ -44,8 +44,8 @@ printf 'Package: *\nPin: release n=bookworm\nPin-Priority: 100\n\nPackage: *\nPi
 # and if apt is left to resolve those it pulls ~18 bookworm libraries into a
 # noble image — an unpatched cross-distro surface the dep scan flags forever.
 # Pre-installing the noble t64 builds satisfies the deps via Provides, so
-# the bookworm pull shrinks to chromium itself plus a couple of libraries
-# noble has no compatible build for (libdav1d6, libminizip1).
+# the bookworm pull shrinks to chromium itself plus a few libraries
+# noble has no compatible build for (libdav1d6, libminizip1, libjpeg62-turbo).
 # shellcheck disable=SC2086
 apt-get update \
     && apt-get install -y --no-install-recommends \
