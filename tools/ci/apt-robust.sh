@@ -9,7 +9,7 @@
 #                                        Ubuntu archive sources at it
 #        tools/ci/apt-robust.sh update   setup, then apt-get update; fail when
 #                                        any index failed to download, after
-#                                        one retry
+#                                        APT_RETRY_ATTEMPTS attempts
 # Or source it and call apt_robust_setup / apt_update.
 #
 # Env:   UBUNTU_MIRROR   base URL of an Ubuntu archive mirror (for example
@@ -21,10 +21,13 @@
 #                        /etc/apt/sources.list.d/ubuntu.sources;
 #                        ports.ubuntu.com (arm64) and third-party sources are
 #                        never touched.
-#        APT_RETRY_DELAY seconds before the retry of apt-get update (default 20)
+#        APT_RETRY_ATTEMPTS  attempts of apt-get update (default 2)
+#        APT_RETRY_DELAY     seconds before each retry, as a space-separated
+#                            list used in order; the last value repeats
+#                            (default 20; for example "30 90 180")
 #
-# Runs as root or through sudo. Exit: 0 ok, 1 apt-get update failed twice,
-# 2 usage.
+# Runs as root or through sudo. Exit: 0 ok, 1 apt-get update failed on every
+# attempt, 2 usage.
 
 apt_robust_sudo() {
   if [ "$(id -u)" -eq 0 ]; then "$@"; else sudo "$@"; fi
@@ -54,8 +57,11 @@ apt_robust_setup() {
 # install fails later with a misleading "Unable to locate package". Treat a
 # failed index as a failure here, retry once, and show what failed.
 apt_update() {
-  local attempt out rc
-  for attempt in 1 2; do
+  local attempts="${APT_RETRY_ATTEMPTS:-2}" attempt out rc delay
+  local -a delays
+  read -r -a delays <<<"${APT_RETRY_DELAY:-20}"
+  [ "${#delays[@]}" -gt 0 ] || delays=(20)
+  for ((attempt = 1; attempt <= attempts; attempt++)); do
     rc=0
     out="$(apt_robust_sudo apt-get -qq -o DPkg::Lock::Timeout=120 update 2>&1)" || rc=$?
     if [ "${rc}" -eq 0 ] && ! printf '%s\n' "${out}" | grep -qE '^(W|E): (Failed to fetch|Some index files failed)'; then
@@ -63,12 +69,13 @@ apt_update() {
       return 0
     fi
     printf '%s\n' "${out}" | tail -n 12 >&2
-    if [ "${attempt}" -eq 1 ]; then
-      echo "apt-robust: apt-get update failed (exit ${rc} or a failed index); retrying in ${APT_RETRY_DELAY:-20}s" >&2
-      sleep "${APT_RETRY_DELAY:-20}"
+    if [ "${attempt}" -lt "${attempts}" ]; then
+      delay="${delays[attempt - 1]:-${delays[${#delays[@]} - 1]}}"
+      echo "apt-robust: apt-get update failed (exit ${rc} or a failed index), attempt ${attempt}/${attempts}; retrying in ${delay}s" >&2
+      sleep "${delay}"
     fi
   done
-  echo "::error::apt-get update failed twice: an index could not be downloaded (see above)" >&2
+  echo "::error::apt-get update failed after ${attempts} attempts: an index could not be downloaded (see above)" >&2
   return 1
 }
 
