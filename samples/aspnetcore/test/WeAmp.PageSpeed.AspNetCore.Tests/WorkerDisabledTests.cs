@@ -122,6 +122,8 @@ public class WorkerDisabledTests
                     && e.Message.Contains("PageSpeed is disabled")
                     && e.Message.Contains("no restart needed")),
                 "the host to report it is waiting for Enabled");
+            // Short settle so a regression that launches right after the log line is still caught.
+            await Task.Delay(300);
             Assert.False(fx.Endpoint.SocketPathReady.IsCompleted);
             Assert.False(File.Exists(fx.Sentinel));
 
