@@ -745,10 +745,10 @@ in-place resource) the wait is bounded by `NegativeDeadlineFetchWaitMs`
 original resource is served with `Cache-Control: private` and a lifetime of at
 most 5 minutes, and the optimization finishes in the background. Each
 stylesheet inside a combined stylesheet request is handled the same way. A
-combined script request cannot be answered with the originals, so it waits up
-to `FetcherTimeOutMs` and then answers `503 Service Unavailable` with
-`Retry-After` and `Cache-Control: no-store`; a retry is served once the
-optimization has finished. `NegativeDeadlineFetchWaitMs` can be set in the
+combined script request is handled the same way too: after the same wait it is
+answered with the combination of the original scripts, with
+`Cache-Control: private` for at most 5 minutes and not stored, and the next
+request is served the optimized file. `NegativeDeadlineFetchWaitMs` can be set in the
 server or virtual host configuration only, not in `.htaccess`, per request, in
 an `ExperimentSpec` or in remote configuration.
 
