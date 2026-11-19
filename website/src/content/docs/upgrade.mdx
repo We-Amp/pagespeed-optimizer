@@ -255,13 +255,13 @@ is unaffected; check the ones you leave unset.
   be set per directory; an experiment that names any other option is refused.
   An ExperimentSpec that sets an alternate origin domain is refused in
   `.htaccess` files (500 error) and in remote configuration; set it in the
-  server or virtual-host configuration. [IF MERGED: mod #809]
+  server or virtual-host configuration.
 - **Apache `.htaccess`.** Files with `MapOriginDomain`, `MapProxyDomain` or
   `CustomFetchHeader` now give a 500 error. Move these directives to the
-  server or virtual-host configuration. [IF MERGED: mod #809]
+  server or virtual-host configuration.
 - **`MapProxyDomain`** no longer forwards visitor cookies or credentials to
   the mapped host. If the mapped host relies on receiving them, change that
-  setup before upgrading. [IF MERGED: mod #807]
+  setup before upgrading.
 - In-place optimization and `MapProxyDomain`: a response fetched for a visitor
   whose request carried a cookie is shared only when the origin marks it
   shareable: `Cache-Control: public` or `s-maxage` for pages, a stated lifetime
@@ -269,11 +269,10 @@ is unaffected; check the ones you leave unset.
   Entries stored by earlier versions on these paths are fetched again once
   after the upgrade.
 - **`RequestOptionOverride`.** If you set it, rotate the token after
-  upgrading. [IF MERGED: mod #807]
+  upgrading.
 - **IIS `RequestOptionOverride`.** Do not send the token in a response header:
   IIS does not read it from responses, and `web.config` `customHeaders` send it
   to every client. If it was ever set there, choose a new token.
-  [IF MERGED: mod #808]
 - **ASP.NET Core.** On a cache miss, the page is re-fetched anonymously, so
   each cached response is requested twice. Set `RecordResponses` to `false` if
   your GET handlers have side effects; put rules that admit clients by address

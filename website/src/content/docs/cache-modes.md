@@ -667,8 +667,7 @@ Considerations when using IPRO:
 
 - Resources keep their original URLs, so they do not benefit from content-hash-based cache extension. Browser caches and CDNs follow the original `Cache-Control` headers.
 - IPRO cannot combine resources (CSS combining, JS combining) because each resource retains its own URL.
-- Responses with `Vary: Referer` (or any Vary beyond Accept-Encoding) are not recorded by in-place optimization.
-- An origin that answers differently by Referer must send `Vary: Referer`; such responses are then not recorded.
+- In-place optimization does not record resources (stylesheets, scripts, images) whose responses carry `Vary: Referer` or any Vary beyond Accept-Encoding. An origin that answers differently by Referer must send `Vary: Referer`, so that such resources are not recorded.
 
 ### Fetch and performance
 
