@@ -102,7 +102,9 @@ test.describe('Transform packs interest forms', () => {
     page,
   }) => {
     await page.goto('/platform/consent/');
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Does your site leak before consent?');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Does your site leak before consent?',
+    );
     const forms = page.locator('form[data-platform-form]');
     await expect(forms).toHaveCount(1);
     await expect(forms.first()).toHaveAttribute('data-wedge', 'consent-enforcement');
