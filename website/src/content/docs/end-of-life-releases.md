@@ -35,7 +35,8 @@ Google.
 
 It does not cover releases of the current mod_pagespeed. For those, see the
 [security updates](/docs/release-notes/#security-updates) in the release notes and the
-supported versions on the [security page](/security/).
+supported versions on the [security page](/security/). If we emailed you about one of
+these releases, see [how to confirm the notice](/security/#end-of-life-notices).
 
 ## How to check a server {#check}
 

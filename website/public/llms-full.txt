@@ -4310,7 +4310,8 @@ Google.
 
 It does not cover releases of the current mod_pagespeed. For those, see the
 [security updates](https://modpagespeed.com/docs/release-notes/#security-updates) in the release notes and the
-supported versions on the [security page](https://modpagespeed.com/security/).
+supported versions on the [security page](https://modpagespeed.com/security/). If we emailed you about one of
+these releases, see [how to confirm the notice](https://modpagespeed.com/security/#end-of-life-notices).
 
 ## How to check a server
 
