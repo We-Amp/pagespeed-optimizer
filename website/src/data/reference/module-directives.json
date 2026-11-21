@@ -279,6 +279,7 @@
         "iis": "pagespeed AdminPath value"
       },
       "default": "",
+      "defaultIis": "/pagespeed_admin",
       "context": {
         "apache": null,
         "nginx": [
@@ -1582,6 +1583,7 @@
         "iis": "pagespeed ConsolePath value"
       },
       "default": "",
+      "defaultIis": "/pagespeed_console",
       "context": {
         "apache": null,
         "nginx": [
@@ -4914,6 +4916,7 @@
         "iis": "pagespeed GlobalAdminPath value"
       },
       "default": "",
+      "defaultIis": "/pagespeed_global_admin",
       "context": {
         "apache": null,
         "nginx": [
@@ -4989,6 +4992,7 @@
         "iis": "pagespeed GlobalStatisticsPath value"
       },
       "default": "",
+      "defaultIis": "/pagespeed_global_statistics",
       "context": {
         "apache": null,
         "nginx": [
@@ -8450,6 +8454,7 @@
         "iis": "pagespeed MessagesPath value"
       },
       "default": "",
+      "defaultIis": "/pagespeed_message",
       "context": {
         "apache": null,
         "nginx": [
@@ -12072,6 +12077,7 @@
         "iis": "pagespeed StatisticsPath value"
       },
       "default": "",
+      "defaultIis": "/pagespeed_statistics",
       "context": {
         "apache": null,
         "nginx": [

@@ -775,6 +775,10 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     if (shared) {
       if (!shared.platforms.includes('iis')) shared.platforms.push('iis');
       shared.scopeIis = scope;
+      const { value: iisDef } = resolveDefaultTok(r.defaultTok, iisCc);
+      if (iisDef !== null && JSON.stringify(iisDef) !== JSON.stringify(shared.default)) {
+        shared.defaultIis = iisDef;
+      }
       continue;
     }
     const { value: def, type } = resolveDefaultTok(r.defaultTok, iisCc);
@@ -908,6 +912,7 @@ export function buildModuleDirectives(moduleSrc, warnings) {
         platforms: [...d.platforms].sort(),
         syntax,
         default: d.default,
+        defaultIis: d.defaultIis,
         context,
         since: null,
         description: d.description,

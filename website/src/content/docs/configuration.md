@@ -1455,7 +1455,7 @@ Access control for the per-host admin pages: Allow or Disallow a domain wildcard
 #### AdminPath {#adminpath}
 
 - **Syntax:** `pagespeed AdminPath value;` (nginx) · `pagespeed AdminPath value` (IIS)
-- **Default:** `(empty)`
+- **Default:** `(empty)`; IIS: `/pagespeed_admin`
 - **Context:** nginx: http, server · IIS: pagespeed.config, outside match rules
 
 Set the admin path. Ex: /pagespeed_admin
@@ -1480,7 +1480,7 @@ Access control for the console page: Allow or Disallow a domain wildcard. Defaul
 #### ConsolePath {#consolepath}
 
 - **Syntax:** `pagespeed ConsolePath value;` (nginx) · `pagespeed ConsolePath value` (IIS)
-- **Default:** `(empty)`
+- **Default:** `(empty)`; IIS: `/pagespeed_console`
 - **Context:** nginx: http, server · IIS: pagespeed.config, outside match rules
 
 Set the console path. Ex: /pagespeed_console
@@ -1496,7 +1496,7 @@ Access control for the global admin pages: Allow or Disallow a domain wildcard. 
 #### GlobalAdminPath {#globaladminpath}
 
 - **Syntax:** `pagespeed GlobalAdminPath value;` (nginx) · `pagespeed GlobalAdminPath value` (IIS)
-- **Default:** `(empty)`
+- **Default:** `(empty)`; IIS: `/pagespeed_global_admin`
 - **Context:** nginx: http · IIS: pagespeed.config, outside match rules
 
 Set the global admin path. Ex: /pagespeed_global_admin
@@ -1512,7 +1512,7 @@ Access control for the global statistics page: Allow or Disallow a domain wildca
 #### GlobalStatisticsPath {#globalstatisticspath}
 
 - **Syntax:** `pagespeed GlobalStatisticsPath value;` (nginx) · `pagespeed GlobalStatisticsPath value` (IIS)
-- **Default:** `(empty)`
+- **Default:** `(empty)`; IIS: `/pagespeed_global_statistics`
 - **Context:** nginx: http · IIS: pagespeed.config, outside match rules
 
 Set the global statistics path. Ex: /ngx_pagespeed_global_statistics
@@ -1607,7 +1607,7 @@ Access control for the message history page: Allow or Disallow a domain wildcard
 #### MessagesPath {#messagespath}
 
 - **Syntax:** `pagespeed MessagesPath value;` (nginx) · `pagespeed MessagesPath value` (IIS)
-- **Default:** `(empty)`
+- **Default:** `(empty)`; IIS: `/pagespeed_message`
 - **Context:** nginx: http, server · IIS: pagespeed.config, outside match rules
 
 Set the messages path. Ex: /ngx_pagespeed_message
@@ -1687,7 +1687,7 @@ Max size for statistics logging file.
 #### StatisticsPath {#statisticspath}
 
 - **Syntax:** `pagespeed StatisticsPath value;` (nginx) · `pagespeed StatisticsPath value` (IIS)
-- **Default:** `(empty)`
+- **Default:** `(empty)`; IIS: `/pagespeed_statistics`
 - **Context:** nginx: http, server · IIS: pagespeed.config, outside match rules
 
 Set the statistics path. Ex: /ngx_pagespeed_statistics
