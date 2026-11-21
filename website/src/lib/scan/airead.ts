@@ -239,9 +239,11 @@ function crawlerRow(
 ): Pick<CategoryRow, 'verdict' | 'note' | 'fromRules'> {
   if (name !== CRAWLER_CATEGORY) return { verdict, note: '', fromRules: false };
   const line = crawlerRulesLine(r);
-  return r.access?.crawlerRules?.parsed === true && line
+  // Whenever the scan has something to say about robots.txt, that line stands in for the
+  // older verdict sentence, so the row never shows two readings that disagree.
+  return line
     ? { verdict: line, note: '', fromRules: true }
-    : { verdict, note: line, fromRules: false };
+    : { verdict, note: '', fromRules: false };
 }
 
 export function formatAiread(r: Report): AireadModel {

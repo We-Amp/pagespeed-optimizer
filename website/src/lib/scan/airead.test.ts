@@ -345,12 +345,17 @@ describe('crawlerRulesLine', () => {
     }
   });
 
-  it('keeps the verdict and adds the line when the file could not be read', () => {
-    const report = fixture('full');
-    report.access.crawlerRules = { parsed: false, reason: 'missing' };
-    const row = formatAiread(report).categories.find((c) => c.name === 'Crawler access')!;
-    expect(row.fromRules).toBe(false);
-    expect(row.verdict).toBe(report.categories['Crawler access'].verdict);
-    expect(row.note).toBe('The scan could not read a robots.txt file for this site.');
+  it('replaces the verdict with the line when the file could not be read', () => {
+    for (const [reason, line] of [
+      ['missing', 'The scan could not read a robots.txt file for this site.'],
+      ['not-robots', 'The address /robots.txt does not return a robots.txt file.'],
+    ] as const) {
+      const report = fixture('full');
+      report.access.crawlerRules = { parsed: false, reason };
+      const row = formatAiread(report).categories.find((c) => c.name === 'Crawler access')!;
+      expect(row.fromRules).toBe(true);
+      expect(row.verdict).toBe(line);
+      expect(row.note).toBe('');
+    }
   });
 });
