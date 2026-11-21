@@ -76,13 +76,13 @@ test.describe('Risk & SEO panel', () => {
     await mock(page, fixture('full'));
     const panel = await scan(page);
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-value]')).toHaveText(
-      '4 need attention',
+      '4 checks need attention',
     );
     await expect(panel.locator('[data-risk-row] h3')).toHaveText([
-      'Pre-consent leak',
-      'Script inventory',
+      'Trackers before consent',
+      'Scripts on the page',
       'SEO defects',
-      'Response exposure',
+      'Errors and versions the server reveals',
     ]);
     for (const key of ['preConsentLeak', 'scriptInventory', 'seoDefects', 'responseExposure']) {
       await expect(row(panel, key).locator('.scan-risk-chip')).toHaveText('Attention');
@@ -90,16 +90,16 @@ test.describe('Risk & SEO panel', () => {
       await expect(row(panel, key).locator('a')).toHaveCount(1);
     }
     await expect(row(panel, 'preConsentLeak').locator('[data-risk-building]')).toHaveText(
-      'Consent enforcement at the origin is planned: third-party tags would stay inert at the server until the consent cookie grants them.',
+      'Consent enforcement on your server is planned as an add-on for mod_pagespeed: third-party tags would stay inactive at the server until the consent cookie grants them.',
     );
     await expect(row(panel, 'seoDefects').locator('[data-risk-building]')).toHaveText(
-      'Issues like these are the kind a rule on the server can correct in the HTML it serves, without a CMS release. The free edge-SEO pack for mod_pagespeed is a template for writing those rules, starting in report mode.',
+      'Issues like these are the kind a rule on the server can correct in the HTML it serves, without a CMS release. The free edge-SEO add-on for mod_pagespeed is a template for writing those rules, starting in report mode.',
     );
     await expect(row(panel, 'seoDefects').locator('[data-risk-sentence]')).toContainText(
       '3 issues: canonical 1, title 1, structured data 1.',
     );
     await expect(row(panel, 'responseExposure').locator('[data-risk-building]')).toContainText(
-      'A response-firewall pack for mod_pagespeed is planned.',
+      'A response-firewall add-on for mod_pagespeed is planned.',
     );
     // One verdict sentence per row: no counts, host lists, CSP or server lines.
     const text = await panel.locator('[data-risk-sentence]').allTextContents();
@@ -228,7 +228,7 @@ test.describe('Risk & SEO panel', () => {
     await expect(row(panel, 'scriptInventory')).toHaveCount(0);
     await expect(row(panel, 'responseExposure')).toHaveCount(0);
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-value]')).toHaveText(
-      '2 need attention',
+      '2 checks need attention',
     );
   });
 
@@ -244,7 +244,7 @@ test.describe('Risk & SEO panel', () => {
     );
     await expect(r.locator('a')).toHaveCount(0);
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-value]')).toHaveText(
-      '3 need attention',
+      '3 checks need attention',
     );
   });
 

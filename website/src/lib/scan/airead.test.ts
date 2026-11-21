@@ -135,7 +135,7 @@ describe('formatAiread extras', () => {
     unknown.agentSignals.markdown.negotiated = null;
     expect(formatAiread(unknown).alsoFound.map((f) => f.wedge)).not.toContain('markdown-origin');
   });
-  const IMPOSTOR = ', but your origin can’t tell a real signed agent from an impostor.';
+  const IMPOSTOR = ', but your server can’t tell a real signed agent from an impostor.';
   const first = (r: Parameters<typeof formatAiread>[0]) => formatAiread(r).alsoFound[0].text;
 
   it('names no count of allowed crawlers when the result has no robots.txt reading', () => {
@@ -211,7 +211,7 @@ describe('formatAiread extras', () => {
         (f) => f.text,
       ),
     );
-    expect(formatAiread(plain).alsoFound[0].text).toContain('your origin can’t tell');
+    expect(formatAiread(plain).alsoFound[0].text).toContain('your server can’t tell');
   });
   it('builds the token line from the report', () => {
     expect(formatAiread(fixture('full')).tokenLine).toBe(
