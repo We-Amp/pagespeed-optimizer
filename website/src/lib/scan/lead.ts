@@ -104,7 +104,7 @@ export const AUDIT = {
 export const SITES_WEDGES = ['edge-seo', 'response-firewall'];
 
 /** Shown on a chip whose check fired on the scanned page; part of its accessible name. */
-export const FOUND_MARKER = 'found in your scan';
+export const FOUND_MARKER = '(flagged by your scan)';
 
 /**
  * The chips for a result, in display order. Gated chips appear only when

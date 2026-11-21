@@ -133,7 +133,7 @@ describe('chipsFor', () => {
   });
 
   it('names the marker for a chip whose check fired', () => {
-    expect(FOUND_MARKER).toBe('found in your scan');
+    expect(FOUND_MARKER).toBe('(flagged by your scan)');
   });
 
   it('adds the speed-help chip only once Speed has settled; the agents chip is always there', () => {

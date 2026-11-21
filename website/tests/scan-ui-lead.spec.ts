@@ -106,16 +106,24 @@ test.describe('the one lead form', () => {
     // The nine chips whose check fired come first and say so; the marker is
     // part of the checkbox's accessible name.
     for (const id of ALL.slice(0, 9)) {
-      await expect(page.locator(`[data-scan-chip="${id}"]`)).toContainText('found in your scan');
+      await expect(page.locator(`[data-scan-chip="${id}"]`)).toContainText(
+        '(flagged by your scan)',
+      );
     }
     for (const id of ALL.slice(9)) {
       await expect(page.locator(`[data-scan-chip="${id}"]`)).not.toContainText(
-        'found in your scan',
+        'flagged by your scan',
       );
     }
     await expect(
-      form(page).getByRole('checkbox', { name: 'SEO fixes at the server found in your scan' }),
+      form(page).getByRole('checkbox', {
+        name: 'Accessibility remediation (flagged by your scan)',
+        exact: true,
+      }),
     ).toHaveCount(1);
+    await expect(form(page)).toContainText(
+      'Pick what you want to talk about, or leave the topics empty for a general question.',
+    );
     await expect(form(page)).not.toContainText('pre-selected');
     await expect(form(page).locator('input[type="checkbox"]')).toHaveCount(12);
     await expect(page.locator('[data-scan-live]')).toHaveCount(1);
@@ -224,9 +232,9 @@ test.describe('the one lead form', () => {
         { exact: true },
       ),
     ).toBeVisible();
-    await expect(page.getByText(/^Topics sent: /)).toHaveText(
-      'Topics sent: AI agents and crawlers.',
-    );
+    // The visitor ticked nothing, so the confirmation names no topic.
+    await expect(page.getByText('Your question was sent.', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Topics sent/)).toHaveCount(0);
     expect(posted).toHaveLength(1);
     expect(posted[0]).toMatchObject({
       topic: 'agents',
@@ -253,6 +261,57 @@ test.describe('the one lead form', () => {
     await expect(page.locator('[data-scan-lead-msg]')).toHaveText('');
     await expect(form(page)).toBeVisible();
     expect(posted).toHaveLength(0);
+  });
+
+  test('a general question that fails names no topic, and can be sent again', async ({ page }) => {
+    const mocked = await mock(page, { failTopics: ['agents'] });
+    await scanV2(page, '/analyze/?ui=v2');
+    await page.fill('input[name="email"]', 'ops@example.com');
+    await page.getByRole('button', { name: 'Talk to us' }).click();
+    await expect(page.locator('[data-scan-lead-msg]')).toHaveText(
+      'We could not send your question. Try again.',
+    );
+    await expect(form(page)).toBeVisible();
+    expect(await checkedIds(page)).toEqual([]);
+    mocked.failTopics.length = 0;
+    await page.getByRole('button', { name: 'Talk to us' }).click();
+    await expect(page.getByText('Your question was sent.', { exact: true })).toBeVisible();
+    expect(mocked.posted.map((p) => p.topic)).toEqual(['agents', 'agents']);
+  });
+
+  test('a ticked general topic is confirmed by name', async ({ page }) => {
+    const { posted } = await mock(page, { report: 'clean' });
+    await scanV2(page);
+    await chip(page, 'agents').check();
+    await page.fill('input[name="email"]', 'ops@example.com');
+    await page.getByRole('button', { name: 'Talk to us' }).click();
+    await expect(page.getByText(/^Topics sent: /)).toHaveText(
+      'Topics sent: AI agents and crawlers.',
+    );
+    expect(posted.map((p) => p.topic)).toEqual(['agents']);
+  });
+
+  test('clears the failure line once the failed topic is unticked', async ({ page }) => {
+    const mocked = await mock(page, { failTopics: ['agentpass'] });
+    await scanV2(page);
+    await chip(page, 'tollbooth').check();
+    await chip(page, 'agentpass').check();
+    await page.fill('input[name="email"]', 'ops@example.com');
+    await page.getByRole('button', { name: 'Talk to us' }).click();
+    const msg = page.locator('[data-scan-lead-msg]');
+    await expect(msg).toContainText('We could not send: Signed-agent verification');
+    // Another topic changing leaves the line alone while the failed one is ticked.
+    await chip(page, 'edge-seo').check();
+    await expect(msg).toContainText('We could not send: Signed-agent verification');
+    await chip(page, 'agentpass').uncheck();
+    await expect(msg).toHaveText('');
+    await chip(page, 'edge-seo').uncheck();
+    // Nothing is left to send: the confirmation lists what went through.
+    await page.getByRole('button', { name: 'Talk to us' }).click();
+    await expect(page.getByText(/^Topics sent: /)).toHaveText(
+      'Topics sent: Origin controls (who reads / verifies).',
+    );
+    expect(mocked.posted.map((p) => p.topic)).toEqual(['tollbooth', 'agentpass']);
   });
 
   test('asks for at most four topics', async ({ page }) => {
@@ -387,10 +446,8 @@ test.describe('the one lead form', () => {
     expect(events.filter((e) => e.name === 'airead-next-agentpass')).toHaveLength(1);
   });
 
-  test('adds the speed-help chip when the speed result arrives, keeping the visitor’s choices', async ({
-    page,
-  }) => {
-    await mock(page, { report: 'clean' });
+  // The speed result is held back until the test releases it.
+  async function scanWithLateSpeed(page: Page, score: number): Promise<() => void> {
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     await page.route('**/psi/v5/runPagespeed**', async (route) => {
@@ -398,7 +455,7 @@ test.describe('the one lead form', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ lighthouseResult: { categories: { performance: { score: 0.2 } } } }),
+        body: JSON.stringify({ lighthouseResult: { categories: { performance: { score } } } }),
       });
     });
     await stubUmami(page);
@@ -408,11 +465,47 @@ test.describe('the one lead form', () => {
     await page.click('#scan-submit');
     await expect(form(page)).toBeVisible({ timeout: 15000 });
     await expect.poll(() => chipIds(page)).toEqual(['agents', 'audit']);
-    await chip(page, 'agents').check();
+    return release;
+  }
+
+  test('a late Poor speed result adds the speed-help chip ticked while the topics are untouched', async ({
+    page,
+  }) => {
+    await mock(page, { report: 'clean' });
+    const release = await scanWithLateSpeed(page, 0.2);
     release();
     await expect(chip(page, 'consulting')).toBeChecked();
     expect(await chipIds(page)).toEqual(['consulting', 'agents', 'audit']);
+  });
+
+  test('a late Poor speed result adds the speed-help chip unticked once the visitor chose topics', async ({
+    page,
+  }) => {
+    await mock(page, { report: 'clean' });
+    const release = await scanWithLateSpeed(page, 0.2);
+    await chip(page, 'agents').check();
+    release();
+    await expect.poll(() => chipIds(page)).toEqual(['consulting', 'agents', 'audit']);
+    await expect(chip(page, 'consulting')).not.toBeChecked();
     await expect(chip(page, 'agents')).toBeChecked();
+  });
+
+  test('ticking and unticking everything still sends the general question after a late Poor speed result', async ({
+    page,
+  }) => {
+    const { posted } = await mock(page, { report: 'clean' });
+    const release = await scanWithLateSpeed(page, 0.2);
+    await chip(page, 'agents').check();
+    await chip(page, 'audit').check();
+    await chip(page, 'agents').uncheck();
+    await chip(page, 'audit').uncheck();
+    release();
+    await expect.poll(() => chipIds(page)).toEqual(['consulting', 'agents', 'audit']);
+    expect(await checkedIds(page)).toEqual([]);
+    await page.fill('input[name="email"]', 'ops@example.com');
+    await page.getByRole('button', { name: 'Talk to us' }).click();
+    await expect(page.getByText('Your question was sent.', { exact: true })).toBeVisible();
+    expect(posted.map((p) => p.topic)).toEqual(['agents']);
   });
 });
 
@@ -432,7 +525,7 @@ test.describe('next steps and share', () => {
     const audit = page.locator('[data-scan-audit]');
     await expect(audit).toBeVisible();
     await expect(audit).toContainText(
-      'Agent-readiness audit, €950 per site, excl. VAT: a written report and one review call. It lists the configuration change for each finding; applying them is not included. It does not measure visibility in AI answers.',
+      'Agent-readiness audit, €950 per site, excl. VAT: a written report and one review call. It lists the configuration change for each finding; applying the changes is not included. It does not measure visibility in AI answers.',
     );
     const auditLink = audit.getByRole('link', { name: 'Ask for an audit' });
     await expect(auditLink).toHaveAttribute('href', '/contact/?topic=audit');

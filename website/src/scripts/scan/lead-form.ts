@@ -89,6 +89,10 @@ export function initLeadForm(state: ScanState) {
   const fired = new Set<string>();
   // True once the visitor has changed a topic by hand: their choices are then left alone.
   let touched = false;
+  // True once a request with nothing ticked (a general question) went through.
+  let generalSent = false;
+  // The topics named in the "We could not send" line, while it is showing.
+  let failedIds: string[] = [];
 
   function announce(text: string) {
     live.textContent = '';
@@ -165,6 +169,11 @@ export function initLeadForm(state: ScanState) {
     const wantsSites = picked.some((c) => SITES_WEDGES.includes(c.wedge));
     sitesEl.hidden = !wantsSites;
     sitesLabel.hidden = !wantsSites;
+    // The failure line is stale once none of the topics it names is still ticked.
+    if (failedIds.length > 0 && !failedIds.some((id) => picked.some((c) => c.id === id))) {
+      failedIds = [];
+      message('', false);
+    }
     if (picked.length > MAX_TOPICS) message('Pick up to four topics.');
     else if (msgEl.textContent === 'Pick up to four topics.') message('', false);
   }
@@ -193,6 +202,8 @@ export function initLeadForm(state: ScanState) {
     fired.clear();
     permalink = '';
     touched = false;
+    generalSent = false;
+    failedIds = [];
     pending = true;
     auditEl.classList.add('invisible');
     downloadBtn.hidden = true;
@@ -233,6 +244,8 @@ export function initLeadForm(state: ScanState) {
       sent.clear();
       fired.clear();
       touched = false;
+      generalSent = false;
+      failedIds = [];
       chipsEl.replaceChildren();
       chips = chipsFor(scan.report, speed);
       chips.forEach(addChip);
@@ -255,8 +268,9 @@ export function initLeadForm(state: ScanState) {
       }
       for (const chip of next) {
         if (!chips.some((c) => c.id === chip.id)) {
-          // A late speed-help chip is pre-selected only while there is room under the cap.
-          if (chip.selected && selected().length >= MAX_TOPICS) chip.selected = false;
+          // A late speed-help chip is pre-selected only while the visitor has
+          // not touched the topics (and there is room under the cap).
+          if (chip.selected && (touched || selected().length >= MAX_TOPICS)) chip.selected = false;
           chips = next.map((c) => chips.find((o) => o.id === c.id) ?? c);
           addChip(chip);
         }
@@ -298,12 +312,14 @@ export function initLeadForm(state: ScanState) {
       return;
     }
     // With nothing ticked the form is a general question.
+    const general = ticked.length === 0;
     const picked = selectionFor(ticked).map((c) => chips.find((o) => o.id === c.id) ?? c);
     if (picked.length > MAX_TOPICS) {
       message('Pick up to four topics.');
       return;
     }
     if (!emailEl.reportValidity()) return;
+    failedIds = [];
     message('', false);
     busy = true;
     submitBtn.disabled = true;
@@ -347,16 +363,23 @@ export function initLeadForm(state: ScanState) {
         input.disabled = true;
       }
     }
-    const failed = outcomes.filter((o) => !o.ok).map((o) => o.chip.label);
+    const failed = outcomes.filter((o) => !o.ok).map((o) => o.chip);
     if (failed.length) {
+      if (general) {
+        // The visitor ticked nothing, so the line names no topic.
+        message('We could not send your question. Try again.');
+        return;
+      }
       const done = [...sent.values()];
       message(
         (done.length ? `Sent: ${done.join(', ')}. ` : '') +
-          `We could not send: ${failed.join(', ')}. Try again.`,
+          `We could not send: ${failed.map((c) => c.label).join(', ')}. Try again.`,
       );
+      failedIds = failed.map((c) => c.id);
       onTopicsChange();
       return;
     }
+    if (general) generalSent = true;
     showThanks();
   });
 
@@ -371,7 +394,11 @@ export function initLeadForm(state: ScanState) {
       'Thanks, your message is in. An engineer replies within one business day (CET).';
     const topics = document.createElement('p');
     topics.className = 'mt-1 text-sm text-text-muted';
-    topics.textContent = `Topics sent: ${[...sent.values()].join(', ')}.`;
+    // A general question names no topic: the visitor ticked none.
+    topics.textContent =
+      generalSent && sent.size === 1
+        ? 'Your question was sent.'
+        : `Topics sent: ${[...sent.values()].join(', ')}.`;
     thanks.append(line, topics);
     form.after(thanks);
     announce(`${line.textContent} ${topics.textContent}`);
