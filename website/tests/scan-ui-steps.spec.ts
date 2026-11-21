@@ -314,22 +314,30 @@ test.describe('the result on a phone', () => {
     for (const id of ['speed', 'airead', 'risk']) {
       const toggle = page.locator(`[data-scan-tile="${id}"] .scan-toggle-closed`);
       // Bring the control level with the fixed button, where it would be covered.
-      await toggle.evaluate(
-        (el, target) => {
+      // The page may still be scrolling to the result, so try until it holds.
+      const handle = await launcher.elementHandle();
+      const measure = async () => {
+        await toggle.evaluate((el, target) => {
           const box = el.getBoundingClientRect();
           const to = (target as Element).getBoundingClientRect();
           window.scrollBy({
             top: box.top + box.height / 2 - (to.top + to.height / 2),
             behavior: 'instant',
           });
-        },
-        await launcher.elementHandle(),
-      );
-      const a = (await toggle.boundingBox())!;
-      const b = (await launcher.boundingBox())!;
-      const level = a.y < b.y + b.height && b.y < a.y + a.height;
+        }, handle);
+        const a = (await toggle.boundingBox())!;
+        const b = (await launcher.boundingBox())!;
+        return { a, b, level: a.y < b.y + b.height && b.y < a.y + a.height };
+      };
       // The first tiles may sit too high on the page to scroll level with it.
-      if (id === 'risk') expect(level, 'the control is level with the button').toBe(true);
+      if (id === 'risk') {
+        await expect
+          .poll(async () => (await measure()).level, {
+            message: 'the control is level with the button',
+          })
+          .toBe(true);
+      }
+      const { a, b } = await measure();
       const apart = a.x + a.width <= b.x || b.x + b.width <= a.x;
       expect(apart, `${id}: the two boxes do not intersect`).toBe(true);
     }
