@@ -227,6 +227,7 @@ recommended mode while you validate your setup. See
   per deployment shape
 - [Monitoring](/docs/monitoring/): health, metrics and what to alert on
 - [Troubleshooting](/docs/troubleshooting/): common issues and diagnostics
+- [Support plans and pricing](/pricing/): the software is free; support is what We-Amp sells
 
 Since 2.5.0 every artifact of a release carries the release number (the Helm
 chart keeps its own chart version, and the Sidecar package is versioned on its
