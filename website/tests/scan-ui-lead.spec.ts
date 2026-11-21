@@ -412,7 +412,7 @@ test.describe('the one lead form', () => {
     await page.fill('input[name="email"]', 'ops@example.com');
     await page.getByRole('button', { name: 'Send request' }).click();
     await expect(page.getByText(/^Topics sent: /)).toHaveText(
-      'Topics sent: A question about this result.',
+      'Topics sent: AI agents and crawlers.',
     );
     expect(posted.map((p) => p.topic)).toEqual(['agents']);
     expect(topicsOf(posted[0])).toEqual([{ id: 'agents', wedge: null, chosen: true }]);

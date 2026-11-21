@@ -50,11 +50,6 @@ const pillars = [
     >
       Results for <span data-scan-host></span>
     </h2>
-    <p class="mt-2 min-h-10 text-sm text-text-muted sm:min-h-6">
-      <span data-scan-health>Checking 3 of 3 areas…</span>
-      <span class="tabular-nums" data-scan-elapsed></span>
-    </p>
-    <p class="mt-1 min-h-5 text-sm text-text-muted" data-scan-hint></p>
     <p
       class="mt-2 min-h-[3.75rem] text-sm text-text-muted sm:min-h-10 md:min-h-5"
       data-scan-fit-line
@@ -70,7 +65,7 @@ const pillars = [
       <p class="mt-2" data-scan-fit-links hidden></p>
       {
         hostedGuide && (
-          <p class="mt-2">
+          <p class="mt-2" data-scan-fit-guide-row>
             <a
               href="/ai-readability/hosted-builders/"
               class="font-medium text-interactive underline"
@@ -82,21 +77,11 @@ const pillars = [
         )
       }
     </div>
-    <div class="scan-steps mt-4" data-scan-steps data-state="pending">
-      <h3 id={`${idPrefix}-steps-heading`} class="text-base font-semibold text-text-body">
-        Your next steps
-      </h3>
-      <ol
-        class="scan-steps-list mt-2 text-sm text-text-body"
-        aria-labelledby={`${idPrefix}-steps-heading`}
-        data-scan-steps-list
-        hidden
-      >
-      </ol>
-      <p class="mt-2 text-sm text-text-muted" data-scan-steps-none>
-        <span class="scan-skeleton" aria-hidden="true"></span>
-      </p>
-    </div>
+    <p class="mt-2 min-h-10 text-sm text-text-muted sm:min-h-6">
+      <span data-scan-health>Checking 3 of 3 areas…</span>
+      <span class="tabular-nums" data-scan-elapsed></span>
+    </p>
+    <p class="mt-1 min-h-5 text-sm text-text-muted" data-scan-hint></p>
     <p class="mt-2 text-sm text-text-muted" data-server-offer>
       <span class="invisible" data-scan-audit>
         Agent-readiness audit, {formatEur(AUDIT_PRICE_EUR)} per site, excl. VAT: a written report
@@ -158,6 +143,36 @@ const pillars = [
         />
       </>
     ))}
+    <div class="scan-steps" data-scan-steps data-state="pending">
+      <h3 id={`${idPrefix}-steps-heading`} class="text-base font-semibold text-text-body">
+        Your next steps
+      </h3>
+      <p class="mt-2 text-sm text-text-body" data-scan-readable hidden>
+        <span data-scan-readable-text></span>
+        {
+          hostedGuide && (
+            <a
+              href="/ai-readability/hosted-builders/"
+              class="ml-1 font-medium text-interactive underline"
+              data-scan-readable-guide
+              data-hosted-only
+            >
+              What you can change on a hosted builder
+            </a>
+          )
+        }
+      </p>
+      <ol
+        class="scan-steps-list mt-2 text-sm text-text-body"
+        aria-labelledby={`${idPrefix}-steps-heading`}
+        data-scan-steps-list
+        hidden
+      >
+      </ol>
+      <p class="mt-2 text-sm text-text-muted" data-scan-steps-none>
+        <span class="scan-skeleton" aria-hidden="true"></span>
+      </p>
+    </div>
   </div>
 
   <form
@@ -306,15 +321,29 @@ const pillars = [
   .scan-results[data-server-offers='pending'] [data-server-offer] {
     visibility: hidden;
   }
-  /* The next steps keep room for three from the moment a scan starts, so the
-     tiles under them stay where they are when the steps arrive. */
+  /* The next steps sit under the tiles. From 640 px up the block keeps a
+     modest height from the moment a scan starts; on a phone it holds room only
+     while the scan is on its way and then takes the height of what it says. */
   .scan-steps {
-    min-height: 27rem;
+    min-width: 0;
+    padding: 1rem;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
   }
-  @media (min-width: 360px) {
-    .scan-steps {
-      min-height: 21rem;
-    }
+  .scan-steps[data-state='pending'] {
+    min-height: 12rem;
+  }
+  /* The guide is linked once: beside the statement when it is shown, in the
+     notice otherwise. */
+  .scan-results[data-readable='true'] [data-scan-fit-guide-row] {
+    display: none;
+  }
+  /* A step moves focus to a row or a panel: show where it landed. */
+  .scan-panel:focus,
+  .scan-panel [tabindex='-1']:focus {
+    outline: 2px solid var(--color-interactive);
+    outline-offset: 2px;
   }
   .scan-steps-list {
     list-style: decimal;
@@ -343,13 +372,15 @@ const pillars = [
     cursor: pointer;
   }
   @media (min-width: 640px) {
-    .scan-steps {
-      min-height: 13rem;
+    .scan-steps,
+    .scan-steps[data-state='pending'] {
+      min-height: 15rem;
     }
   }
   @media (min-width: 1024px) {
-    .scan-steps {
-      min-height: 12rem;
+    .scan-steps,
+    .scan-steps[data-state='pending'] {
+      min-height: 13rem;
     }
   }
   .scan-tiles {
@@ -467,8 +498,12 @@ const pillars = [
     .scan-tile:nth-of-type(3) {
       grid-column: 3;
     }
-    .scan-panel {
+    .scan-steps {
       grid-row: 2;
+      grid-column: 1 / -1;
+    }
+    .scan-panel {
+      grid-row: 3;
       grid-column: 1 / -1;
     }
   }

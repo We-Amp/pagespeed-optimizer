@@ -1,0 +1,591 @@
+{
+  "cached": false,
+  "id": "0123456789ab",
+  "permalink": "https://modpagespeed.com/ai-readability/api/r/0123456789ab",
+  "badge": "https://modpagespeed.com/ai-readability/api/badge/0123456789ab.svg",
+  "report": {
+    "url": "https://docs.example.net/",
+    "scannedAt": "2026-11-21T10:21:25.441Z",
+    "grade": "B",
+    "score": 69,
+    "categories": {
+      "Content fidelity": {
+        "score": 30,
+        "max": 30,
+        "verdict": "Content is fully present in the server HTML — readable by every AI tool, no rendering required.",
+        "flag": null,
+        "detail": {
+          "staticTextLen": 2780,
+          "renderedTextLen": 2800,
+          "fidelity": 0.99
+        }
+      },
+      "Token efficiency": {
+        "score": 20,
+        "max": 20,
+        "verdict": "Lean: ~2× HTML-to-content ratio — cheap for an agent to ingest.",
+        "detail": {
+          "bloatX": 2,
+          "rawHtmlTokens": 1872,
+          "cleanTokens": 851
+        }
+      },
+      "Structured data": {
+        "score": 0,
+        "max": 20,
+        "verdict": "No structured data — agents must guess at title, type, author, price, etc.",
+        "detail": {
+          "jsonLdTypes": []
+        }
+      },
+      "Crawler access": {
+        "score": 17,
+        "max": 20,
+        "verdict": "AI crawlers are allowed to fetch the page. robots.txt allows AI crawlers.",
+        "detail": {
+          "aiBotsBlocked": [],
+          "llmsTxt": false
+        }
+      },
+      "Citation readiness": {
+        "score": 2,
+        "max": 10,
+        "verdict": "Thin attribution metadata (title) — an LLM citing you may get the source/author/date wrong."
+      }
+    },
+    "agentActionability": {
+      "detected": false,
+      "label": "none detected",
+      "verdict": "No WebMCP tools detected. Agents can read this page but can't act on it via WebMCP, the emerging agent-tool interface now surfacing in Chrome and Lighthouse's \"agentic browsing\" audit. Early days, so optional today — but it's where agent traffic is heading.",
+      "detail": {
+        "imperative": 0,
+        "declarative": 0,
+        "manifest": false
+      }
+    },
+    "agentVerifiability": {
+      "verifiable": false,
+      "verdict": "Your origin cannot cryptographically verify signed AI agents, and allows 9 AI crawler(s) unrestricted access — 100% of your rendered content is already exposed in raw HTML, for free.",
+      "detail": {
+        "verifiable": false,
+        "aiCrawlersAllowed": [
+          "GPTBot",
+          "ClaudeBot",
+          "Claude-Web",
+          "anthropic-ai",
+          "PerplexityBot",
+          "Google-Extended",
+          "CCBot",
+          "Bytespider",
+          "Applebot-Extended"
+        ],
+        "aiCrawlersBlocked": [],
+        "exposurePct": 100,
+        "botAuthHeaders": [],
+        "renderOk": true
+      }
+    },
+    "accessibility": {
+      "available": true,
+      "verdict": "4 accessibility issues found by automated checks; 3 look addressable inline, server-side, with no app changes.",
+      "detail": {
+        "total": 4,
+        "nodeTotal": 6,
+        "byImpact": {
+          "critical": 0,
+          "serious": 1,
+          "moderate": 3,
+          "minor": 0
+        },
+        "fixableInline": 3,
+        "topRules": [
+          {
+            "id": "region",
+            "impact": "moderate",
+            "nodes": 3,
+            "help": "All page content should be contained by landmarks"
+          },
+          {
+            "id": "heading-order",
+            "impact": "moderate",
+            "nodes": 1,
+            "help": "Heading levels should only increase by one"
+          },
+          {
+            "id": "html-has-lang",
+            "impact": "serious",
+            "nodes": 1,
+            "help": "<html> element must have a lang attribute"
+          },
+          {
+            "id": "landmark-one-main",
+            "impact": "moderate",
+            "nodes": 1,
+            "help": "Document should have one main landmark"
+          }
+        ]
+      }
+    },
+    "agentVerificationPosture": {
+      "status": "ok",
+      "posture": "none",
+      "emitsSignatureHeaders": false,
+      "signatureHeaders": {
+        "signatureInput": null,
+        "signature": null,
+        "signatureAgent": null
+      },
+      "parsedSignatureInput": null,
+      "botUaProbe": {
+        "performed": true,
+        "status": 200,
+        "wwwAuthenticate": null,
+        "returns402": false
+      },
+      "note": "Posture observed from the scanner’s own HTTP exchange only; not a measure of how many inbound agents the origin verifies (invisible from outside). No signature is cryptographically verified."
+    },
+    "signedAgentVerification": {
+      "status": "ok",
+      "classification": "no-signal",
+      "probes": {
+        "signed": {
+          "status": 200,
+          "headers": {},
+          "bodyLength": 7427
+        },
+        "broken": {
+          "status": 200,
+          "headers": {},
+          "bodyLength": 7427
+        },
+        "unsigned": {
+          "status": 200,
+          "headers": {},
+          "bodyLength": 7427
+        }
+      },
+      "evidence": [],
+      "keyid": "GBxqWscB-GOkwNXEhmWQA4SY2gWRH2Hz4dAvzRcK1gw",
+      "signatureAgent": "https://modpagespeed.com/.well-known/http-message-signatures-directory",
+      "note": "Classification derived solely from the scanner’s own three probe exchanges (valid signature, corrupted signature, unsigned). “no-signal” does NOT mean the origin runs no verifier: observe-only verifiers are externally invisible, and an origin can only fully verify our probe if it trusts our key directory. The corrupted-signature probe is the strongest discriminator. We only report what our own three exchanges showed."
+    },
+    "provenanceSurvival": {
+      "status": "ok",
+      "imagesScanned": 5,
+      "withManifestServed": 0,
+      "strippedOnServe": 0,
+      "images": [
+        {
+          "url": "https://docs.example.net/images/sample-1.jpg",
+          "format": "other",
+          "servedHasManifest": false,
+          "servedMarkers": [],
+          "sourceFetched": false,
+          "sourceHasManifest": null,
+          "survival": "served-only"
+        },
+        {
+          "url": "https://docs.example.net/images/sample-2.jpg",
+          "format": "other",
+          "servedHasManifest": false,
+          "servedMarkers": [],
+          "sourceFetched": false,
+          "sourceHasManifest": null,
+          "survival": "served-only"
+        },
+        {
+          "url": "https://docs.example.net/images/sample-3.jpg",
+          "format": "png",
+          "servedHasManifest": false,
+          "servedMarkers": [],
+          "sourceFetched": false,
+          "sourceHasManifest": null,
+          "survival": "served-only"
+        },
+        {
+          "url": "https://docs.example.net/images/sample-4.jpg",
+          "format": "png",
+          "servedHasManifest": false,
+          "servedMarkers": [],
+          "sourceFetched": false,
+          "sourceHasManifest": null,
+          "survival": "served-only"
+        },
+        {
+          "url": "https://docs.example.net/images/sample-5.jpg",
+          "format": "png",
+          "servedHasManifest": false,
+          "servedMarkers": [],
+          "sourceFetched": false,
+          "sourceHasManifest": null,
+          "survival": "served-only"
+        }
+      ],
+      "note": "Detection only (JUMBF/XMP byte-scan); no manifest is validated, re-signed, or authored."
+    },
+    "sovereigntyExposure": {
+      "status": "ok",
+      "exposedFeatureCount": 0,
+      "findings": [],
+      "classifierVersion": "ws4-1",
+      "note": "Heuristic, passive observation of features that phone home to US-jurisdiction endpoints. Not legal advice or a compliance certificate."
+    },
+    "platform": {
+      "status": "ok",
+      "id": null,
+      "name": null,
+      "kind": "unknown",
+      "originControl": "unknown",
+      "confidence": "low",
+      "evidence": [
+        {
+          "signal": "header",
+          "id": "server-nginx"
+        }
+      ],
+      "firstPartyHosts": [],
+      "siteAssetHosts": [],
+      "platformListVersion": "pl-1"
+    },
+    "preConsentLeak": {
+      "status": "ok",
+      "verdict": "clean",
+      "blockedBy": [],
+      "thirdPartyHosts": [],
+      "thirdPartyCount": 0,
+      "trackerCount": 0,
+      "cmpDetected": {
+        "detected": false,
+        "vendor": null
+      },
+      "firstParty": ["docs.example.net"],
+      "requestsObserved": 7,
+      "httpStatus": 200,
+      "trackerListVersion": "pcl-2",
+      "note": "Passive observation of the requests this page issued in a fresh browser (no cookies, no storage, no interaction) up to network idle. Host categories come from a maintained heuristic list; not legal advice or a compliance certificate."
+    },
+    "scriptInventory": {
+      "status": "ok",
+      "verdict": "clean",
+      "reasons": [],
+      "blockedBy": [],
+      "totals": {
+        "scripts": 0,
+        "inline": 0,
+        "inlineBytes": 0,
+        "external": 0,
+        "firstPartyExternal": 0,
+        "thirdPartyExternal": 0,
+        "thirdPartyHosts": 0,
+        "thirdPartyWithIntegrity": 0,
+        "nonExecutable": 0
+      },
+      "scriptHosts": [],
+      "sriMissing": [],
+      "floating": [],
+      "duplicates": [],
+      "integrityWithoutCors": 0,
+      "csp": {
+        "enforced": false,
+        "reportOnly": false,
+        "scriptSrc": false,
+        "reporting": false
+      },
+      "firstParty": ["docs.example.net"],
+      "requestsObserved": 7,
+      "httpStatus": 200,
+      "scriptListVersion": "si-1",
+      "note": "Inventory of the script elements in this page's rendered HTML, from one fresh browser load. Scripts inside cross-origin frames and scripts that leave no element behind are not seen. Host categories come from a maintained heuristic list; not an assessment against any standard."
+    },
+    "seoDefects": {
+      "status": "ok",
+      "verdict": "attention",
+      "defects": ["canonical-missing", "description-missing"],
+      "counts": {
+        "total": 2,
+        "canonical": 1,
+        "hreflang": 0,
+        "title": 0,
+        "description": 1,
+        "jsonld": 0
+      },
+      "blockedBy": [],
+      "staticCompared": true,
+      "notMeasured": [],
+      "canonical": {
+        "static": {
+          "count": 0,
+          "href": null
+        },
+        "rendered": {
+          "count": 0,
+          "href": null
+        },
+        "header": null
+      },
+      "hreflang": {
+        "static": 0,
+        "rendered": 0,
+        "header": 0,
+        "selfReference": null,
+        "invalid": 0,
+        "xDefault": false
+      },
+      "title": {
+        "static": {
+          "count": 1,
+          "text": "Example project"
+        },
+        "rendered": {
+          "count": 1,
+          "text": "Example project"
+        }
+      },
+      "description": {
+        "static": {
+          "count": 0,
+          "text": null
+        },
+        "rendered": {
+          "count": 0,
+          "text": null
+        }
+      },
+      "jsonLd": {
+        "static": {
+          "blocks": 0,
+          "invalid": 0,
+          "types": []
+        },
+        "rendered": {
+          "blocks": 0,
+          "invalid": 0,
+          "types": []
+        },
+        "renderOnlyTypes": []
+      },
+      "robots": {
+        "static": {
+          "noindex": false,
+          "nofollow": false
+        },
+        "rendered": {
+          "noindex": false,
+          "nofollow": false
+        },
+        "header": {
+          "noindex": false,
+          "nofollow": false
+        },
+        "mismatch": false
+      },
+      "delivery": {
+        "cdn": null,
+        "server": "nginx"
+      },
+      "firstParty": ["docs.example.net"],
+      "requestsObserved": 7,
+      "httpStatus": 200,
+      "seoRulesVersion": "seo-1",
+      "note": "Compares the head of this page as served without JavaScript with the same page after one fresh browser load. One page only: links, other language versions and titles on other pages are not checked. Not a ranking assessment."
+    },
+    "responseExposure": {
+      "status": "ok",
+      "verdict": "clean",
+      "reasons": ["version-tell", "missing-headers"],
+      "blockedBy": [],
+      "staticScanned": true,
+      "notMeasured": [],
+      "leaks": [],
+      "tells": [
+        {
+          "product": "nginx",
+          "source": "server",
+          "version": "1.31.8"
+        }
+      ],
+      "endOfLife": [],
+      "pagespeed": null,
+      "headers": {
+        "https": true,
+        "present": ["hsts"],
+        "missing": ["nosniff", "framing"],
+        "csp": "none",
+        "referrerPolicy": false,
+        "permissionsPolicy": false
+      },
+      "delivery": {
+        "cdn": null,
+        "server": "nginx"
+      },
+      "firstParty": ["docs.example.net"],
+      "requestsObserved": 7,
+      "httpStatus": 200,
+      "responseRulesVersion": "rx-1",
+      "note": "Reads the response headers and the HTML of this page as served, without and with JavaScript, from one fresh load. One page only. Error output is matched by fixed patterns and not shown. End-of-life dates are the upstream projects' published dates; a distribution or host may still patch older versions. Not a security assessment."
+    },
+    "agentSignals": {
+      "status": "ok",
+      "rulesVersion": "as-1",
+      "verdict": "attention",
+      "markdown": {
+        "probed": true,
+        "httpStatus": 200,
+        "contentType": "text/html",
+        "negotiated": false,
+        "vary": null,
+        "varyAccept": null,
+        "xMarkdownTokens": null
+      },
+      "contentSignals": {
+        "robotsFetched": true,
+        "present": false,
+        "lines": 0,
+        "signals": {},
+        "unknown": 0
+      },
+      "link": {
+        "present": false,
+        "rels": [],
+        "markdownAlternate": false
+      },
+      "note": "Asks this page once for Markdown (Accept: text/markdown) and reads only the response headers, reads the Content-Signal lines in robots.txt and the Link response header of the page. One page only; nothing is scored. Not an assessment of how AI agents treat your site."
+    },
+    "ghostLayer": {
+      "detected": true,
+      "count": 2,
+      "byTechnique": {
+        "clipped": 1,
+        "off-viewport": 1
+      },
+      "verdict": "Found 5 elements that a person effectively cannot see but an AI agent still reads (clipped to nothing, pushed off-screen). On your own site this is usually leftover, mis-styled, or third-party-injected content worth reviewing — agents weight it the same as visible copy.",
+      "viewport": {
+        "width": 1280,
+        "height": 720,
+        "dpr": 1
+      },
+      "truncated": false,
+      "nodes": [
+        {
+          "technique": "clipped",
+          "label": "Clipped to nothing",
+          "gloss": "A clip / clip-path / zero-size overflow crops the text out of view while it stays in the DOM for agents.",
+          "selector": "html#html-root > body.min-h-screen.flex > a.sr-only.focus:not-sr-only",
+          "rect": {
+            "x": -1,
+            "y": -1,
+            "width": 1,
+            "height": 1
+          },
+          "textSample": "Skip to main content",
+          "computed": {
+            "reason": "clip-path collapses painted area to ~0"
+          }
+        },
+        {
+          "technique": "clipped",
+          "label": "Clipped to nothing",
+          "gloss": "A clip / clip-path / zero-size overflow crops the text out of view while it stays in the DOM for agents.",
+          "selector": "div.readout > div.readout-row > p.readout-value.display-num > span.sr-only",
+          "rect": {
+            "x": 808.8,
+            "y": 213,
+            "width": 1,
+            "height": 1
+          },
+          "textSample": "to",
+          "computed": {
+            "reason": "clip-path collapses painted area to ~0"
+          }
+        }
+      ]
+    },
+    "metrics": {
+      "staticTextLen": 2780,
+      "renderedTextLen": 2800,
+      "rawHtmlTokens": 1872,
+      "cleanTokens": 851,
+      "httpOk": true
+    },
+    "signals": {
+      "jsonLdTypes": [],
+      "hasJsonLd": false,
+      "hasOG": false,
+      "canonical": false,
+      "title": "Example project",
+      "metaDescription": false,
+      "author": false,
+      "published": false,
+      "modified": false
+    },
+    "access": {
+      "robotsFound": true,
+      "llmsTxt": false,
+      "aiBotsBlocked": [],
+      "webmcpManifest": false,
+      "webmcpManifestTools": 0,
+      "crawlerRules": {
+        "parsed": true,
+        "reason": null,
+        "truncated": false,
+        "training": {
+          "allowed": [
+            "GPTBot",
+            "ClaudeBot",
+            "Google-Extended",
+            "Applebot-Extended",
+            "CCBot",
+            "meta-externalagent",
+            "Amazonbot",
+            "MistralAI-Training"
+          ],
+          "blocked": []
+        },
+        "answer": {
+          "allowed": [
+            "OAI-SearchBot",
+            "ChatGPT-User",
+            "Claude-SearchBot",
+            "Claude-User",
+            "PerplexityBot",
+            "Perplexity-User",
+            "meta-webindexer",
+            "meta-externalfetcher",
+            "Amzn-SearchBot",
+            "Amzn-User",
+            "DuckAssistBot",
+            "MistralAI-Index",
+            "MistralAI-User"
+          ],
+          "blocked": []
+        },
+        "wildcardBlocksAll": false,
+        "sitemaps": ["http://docs.example.net/sitemap.xml"]
+      }
+    },
+    "webmcp": {
+      "status": "ok",
+      "declarative": 0,
+      "imperative": false,
+      "present": false,
+      "forms": {
+        "total": 0,
+        "annotated": 0
+      },
+      "schema": {
+        "valid": 0,
+        "invalid": 0,
+        "reasons": []
+      }
+    },
+    "webmcpBucket": "none",
+    "diff": {
+      "staticMarkdown": "# Example project\n\nA short page of sample text.\n\n## Services\n\n- First item\n- Second item\n\n[Contact](https://docs.example.net/contact)\n",
+      "renderedMarkdown": "# Example project\n\nA short page of sample text.\n\n## Services\n\n- First item\n- Second item\n\n[Contact](https://docs.example.net/contact)\n",
+      "staticCleanTokens": 851,
+      "renderedCleanTokens": 851
+    },
+    "renderError": null,
+    "staticError": null
+  }
+}

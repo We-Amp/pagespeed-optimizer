@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 import { test, expect, type Page } from '@playwright/test';
-import { mockScan, startScan } from './helpers/scan-mock';
+import { mockScan, startScan, type Fixture } from './helpers/scan-mock';
+import { trackedEvents } from './helpers/umami';
 
 // The "Your next steps" list at the top of a scan result, the summary line
 // above it, the note under the topics and the seconds counter of the wait.
@@ -11,10 +12,12 @@ const CONTENT =
   'Put this page’s main text in the HTML the server sends, so it does not depend on JavaScript.';
 const TITLE =
   'JavaScript changes this page’s title after it loads. Put the final one in the HTML the server sends.';
-const SPEED =
-  'Speed is poor on mobile: open the Speed panel for the audits PageSpeed Insights flagged.';
 const A11Y =
-  'Fix 7 accessibility issues the scan found: Images must have alternative text. These are automated checks, not an accessibility audit.';
+  'The scan found 7 accessibility issues: Images must have alternative text; Elements must meet minimum color contrast ratio thresholds; <html> element must have a lang attribute; and 4 more. These are automated checks, not an accessibility audit.';
+const A11Y_BUILDER =
+  'The scan found 2 accessibility issues: Elements must meet minimum color contrast ratio thresholds; Heading levels should only increase by one. These are automated checks, not an accessibility audit.';
+const READABLE =
+  'AI crawlers can read this page: the text is in the HTML and robots.txt blocks none of them.';
 
 const steps = (page: Page) =>
   page.locator('[data-scan-step]').evaluateAll((items) =>
@@ -26,7 +29,9 @@ const steps = (page: Page) =>
   );
 
 test.describe('next steps on a scan result', () => {
-  test('a result with gaps lists three steps, each with who can do it', async ({ page }) => {
+  test('a result with gaps lists three steps under the tiles, each with who can do it', async ({
+    page,
+  }) => {
     await mockScan(page, 'full');
     await startScan(page);
     const block = page.locator('[data-scan-steps]');
@@ -34,25 +39,28 @@ test.describe('next steps on a scan result', () => {
     expect(await steps(page)).toEqual([
       { text: CONTENT, tag: 'needs a developer', show: 'Show in AI readability' },
       { text: TITLE, tag: 'needs a developer', show: 'Show in Risk & SEO' },
-      { text: SPEED, tag: 'needs a developer', show: 'Show in Speed' },
+      { text: A11Y, tag: 'in your CMS or page template', show: 'Show in AI readability' },
     ]);
-    // The line above never says nothing needs attention over a list of steps.
+    // Four qualify (Speed is poor too) and three are listed: the line says so.
     await expect(page.locator('[data-scan-health]')).toHaveText(
-      '4 things to improve. Start with the steps below.',
+      '4 things to improve. The first three are below.',
     );
-    // The list sits under the summary and before the tiles.
-    expect(
-      await block.evaluate(
-        (el) =>
-          !!(
-            el.compareDocumentPosition(document.querySelector('[data-scan-tiles]')!) &
-            Node.DOCUMENT_POSITION_FOLLOWING
-          ),
-      ),
-    ).toBe(true);
+    await expect(page.locator('[data-scan-readable]')).toBeHidden();
+    // The order on the page: summary line, tiles, steps, form.
+    const tops = await page.evaluate(() =>
+      [
+        '[data-scan-health]',
+        '[data-scan-tile="risk"]',
+        '[data-scan-steps]',
+        '[data-scan-lead]',
+      ].map((q) => document.querySelector(q)!.getBoundingClientRect().top),
+    );
+    expect([...tops].sort((a, b) => a - b)).toEqual(tops);
   });
 
-  test('a step opens its panel and puts focus on the row it is about', async ({ page }) => {
+  test('a step opens its panel, focuses its row visibly and counts as one event', async ({
+    page,
+  }) => {
     await mockScan(page, 'full');
     await startScan(page);
     await page.locator('[data-scan-step="content"] button').click();
@@ -63,16 +71,50 @@ test.describe('next steps on a scan result', () => {
     const row = page.locator('[data-scan-panel="airead"] [data-scan-cat="Content fidelity"]');
     await expect(row).toBeVisible();
     await expect(row).toBeFocused();
+    expect(await row.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+    // The accessibility step lands on the row that lists the rules it names.
+    await page.locator('[data-scan-step="accessibility"] button').click();
+    const a11y = page.locator('[data-scan-panel="airead"] [data-scan-a11y]');
+    await expect(a11y).toBeFocused();
+    await expect(a11y.getByRole('heading', { level: 3 })).toHaveText(
+      'Accessibility: 7 issues found by automated checks',
+    );
+    await expect(a11y.locator('li')).toHaveText([
+      'Images must have alternative text (12 elements)',
+      'Elements must meet minimum color contrast ratio thresholds (9 elements)',
+      '<html> element must have a lang attribute (1 element)',
+    ]);
     await page.locator('[data-scan-step="seo"] button').click();
     await expect(page.locator('[data-scan-panel="airead"]')).toBeHidden();
     await expect(
       page.locator('[data-scan-panel="risk"] [data-risk-row="seoDefects"]'),
     ).toBeFocused();
-    await page.locator('[data-scan-step="speed"] button').click();
-    await expect(page.locator('[data-scan-panel="speed"]')).toBeFocused();
+    // Three clicks: three step events and no tile event, whether the panel
+    // was closed (first and third) or already open (second).
+    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'scan-step-open').map((e) => e.data)).toEqual([
+      { step: 'content' },
+      { step: 'accessibility' },
+      { step: 'seo' },
+    ]);
+    expect(events.filter((e) => e.name === 'scan-tile-open')).toEqual([]);
+    // A tile opened by hand still counts as a tile.
+    await page.click('[data-scan-tile="speed"]');
+    expect(
+      (await trackedEvents(page)).filter((e) => e.name === 'scan-tile-open').map((e) => e.data),
+    ).toEqual([{ pillar: 'speed' }]);
   });
 
-  test('the list follows the results as they land and never takes focus', async ({ page }) => {
+  test('a panel with no row for the step takes the focus itself, visibly', async ({ page }) => {
+    await mockScan(page, 'clean');
+    await startScan(page);
+    await page.locator('[data-scan-step="speed"] button').click();
+    const panel = page.locator('[data-scan-panel="speed"]');
+    await expect(panel).toBeFocused();
+    expect(await panel.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
+  });
+
+  test('a late speed result changes the count, not the steps being read', async ({ page }) => {
     await mockScan(page, 'full', { psiDelay: 1500 });
     await startScan(page, false);
     await expect(page.locator('[data-scan-tile="airead"]')).not.toHaveAttribute(
@@ -80,36 +122,122 @@ test.describe('next steps on a scan result', () => {
       'checking',
       { timeout: 15000 },
     );
-    // Speed is still on its way: the third place goes to the next finding.
-    expect((await steps(page)).map((s) => s.text)).toEqual([CONTENT, TITLE, A11Y]);
+    const before = await steps(page);
+    expect(before.map((s) => s.text)).toEqual([CONTENT, TITLE, A11Y]);
     await expect(page.locator('[data-scan-health]')).toHaveText('Checking 1 of 3 areas…');
     await page.locator('#scan-lead-email').focus();
-    await expect(page.locator('[data-scan-step="speed"]')).toBeVisible({ timeout: 15000 });
-    expect((await steps(page)).map((s) => s.text)).toEqual([CONTENT, TITLE, SPEED]);
+    await expect(page.locator('[data-scan-health]')).toHaveText(
+      '4 things to improve. The first three are below.',
+      { timeout: 15000 },
+    );
+    expect(await steps(page)).toEqual(before);
     await expect(page.locator('#scan-lead-email')).toBeFocused();
     await expect(page.locator('[data-scan-live]')).not.toContainText('next steps');
   });
 
-  test('a hosted result keeps its steps and shortens the notice', async ({ page }) => {
+  test('a late speed result is added after the steps shown when there is room', async ({
+    page,
+  }) => {
+    await mockScan(page, 'sample-builder', { psiDelay: 1500 });
+    await startScan(page, false);
+    await expect(page.locator('[data-scan-step]')).toHaveCount(1, { timeout: 15000 });
+    await expect(page.locator('[data-scan-step]')).toHaveCount(2, { timeout: 15000 });
+    expect(await steps(page)).toEqual([
+      { text: A11Y_BUILDER, tag: 'in your site editor', show: 'Show in AI readability' },
+      {
+        text: 'Speed is poor on mobile. On Wix the parts you control are images, fonts and added apps.',
+        tag: 'in your site editor',
+        show: 'Show in Speed',
+      },
+    ]);
+    await expect(page.locator('[data-scan-health]')).toHaveText(
+      '2 things to improve. Start with the steps below.',
+    );
+  });
+
+  test('a hosted result asks for nothing the owner cannot do there', async ({ page }) => {
     await mockScan(page, 'hosted');
     await startScan(page);
     const list = await steps(page);
-    expect(list.map((s) => s.text)).toEqual([CONTENT, TITLE, SPEED]);
-    expect(list.some((s) => s.tag === 'needs server access')).toBe(false);
+    expect(list).toEqual([
+      {
+        text: 'Most of this page’s text only appears after JavaScript runs. On Wix you cannot change how pages are served; check that the main text is in standard text blocks, not in an embedded app or widget.',
+        tag: 'in your site editor',
+        show: 'Show in AI readability',
+      },
+      {
+        text: 'An app or script changes this page’s title after it loads. Set the title in the page’s SEO settings and remove the script that overwrites it.',
+        tag: 'in your site settings',
+        show: 'Show in Risk & SEO',
+      },
+      { text: A11Y, tag: 'in your site editor', show: 'Show in AI readability' },
+    ]);
+    await expect(page.locator('[data-scan-steps]')).not.toContainText(
+      /needs a developer|needs server access|the server sends/,
+    );
     await expect(page.locator('[data-scan-fit-text]')).toHaveText(
       'This site runs on Wix, a hosted platform. mod_pagespeed installs on a web server you run yourself, so it cannot be used for this site. The findings below still apply.',
     );
     await expect(page.locator('[data-scan-fit-links]')).toHaveText(
-      'Where to change this in Wix: Wix help: page SEO settings, Wix help: robots.txt.',
+      'Wix help pages: Wix help: page SEO settings, Wix help: robots.txt.',
     );
-    // Only the general question is offered, so no status note is shown.
+    // Only the agents topic is offered, so no status note is shown.
     await expect(page.locator('[data-scan-topics-note]')).toBeHidden();
   });
 
+  test('a readable page on a hosted builder says so, above its one step', async ({ page }) => {
+    await mockScan(page, 'sample-builder', { speed: 'good' });
+    await startScan(page);
+    const readable = page.locator('[data-scan-readable]');
+    await expect(readable.locator('[data-scan-readable-text]')).toHaveText(READABLE);
+    expect(await steps(page)).toEqual([
+      { text: A11Y_BUILDER, tag: 'in your site editor', show: 'Show in AI readability' },
+    ]);
+    // The statement is not a step and is not counted.
+    await expect(page.locator('[data-scan-health]')).toHaveText(
+      '1 thing to improve. Start with the step below.',
+    );
+    await expect(page.locator('[data-scan-steps]')).not.toContainText(/cite|rank|mention/i);
+    // The guide is linked once: beside the statement when it is part of the build.
+    const guide = readable.locator('[data-scan-readable-guide]');
+    if ((await guide.count()) > 0) {
+      await expect(guide).toBeVisible();
+      await expect(guide).toHaveText('What you can change on a hosted builder');
+      await expect(guide).toHaveAttribute('href', '/ai-readability/hosted-builders/');
+      await expect(page.locator('[data-scan-fit-guide]')).toBeHidden();
+    }
+    // The step leads to a row that lists both rules.
+    await page.locator('[data-scan-step="accessibility"] button').click();
+    await expect(page.locator('[data-scan-a11y] li')).toHaveText([
+      'Elements must meet minimum color contrast ratio thresholds (2 elements)',
+      'Heading levels should only increase by one (3 elements)',
+    ]);
+  });
+
+  test('a hand-built site gets one step for its missing head tags, tagged for a CMS', async ({
+    page,
+  }) => {
+    await mockScan(page, 'sample-static', { speed: 'good' });
+    await startScan(page);
+    const list = await steps(page);
+    expect(list[0]).toEqual({
+      text: 'This page has no meta description and no canonical link. Add them.',
+      tag: 'in your CMS or page template',
+      show: 'Show in Risk & SEO',
+    });
+    expect(list.map((s) => s.tag)).toEqual(Array(3).fill('in your CMS or page template'));
+    await expect(page.locator('[data-scan-readable-text]')).toHaveText(READABLE);
+    await expect(page.locator('[data-scan-readable-guide]')).toBeHidden();
+    await expect(page.locator('[data-scan-health]')).toHaveText(
+      '3 things to improve. Start with the steps below.',
+    );
+  });
+
   test('a clean result says nothing is urgent and keeps the areas sentence', async ({ page }) => {
-    await mockScan(page, 'clean', { speed: 'good' });
+    await mockScan(page, 'sample-product', { speed: 'good' });
     await startScan(page);
     await expect(page.locator('[data-scan-step]')).toHaveCount(0);
+    await expect(page.locator('[data-scan-readable-text]')).toHaveText(READABLE);
     await expect(page.locator('[data-scan-steps-none]')).toHaveText(
       'Nothing urgent on this page. Open a panel for the details.',
     );
@@ -118,19 +246,27 @@ test.describe('next steps on a scan result', () => {
     );
   });
 
-  test('the topics carry plain labels and a note about what is not available yet', async ({
-    page,
-  }) => {
+  test('a page the scan could not read gets a plain summary, not a count', async ({ page }) => {
+    await mockScan(page, 'blocked', { speed: 'good' });
+    await startScan(page);
+    await expect(page.locator('[data-scan-health]')).toHaveText(
+      'We could read almost nothing on this page.',
+    );
+    expect((await steps(page)).map((s) => s.text)).toEqual([
+      'The scan found almost no text on this page, even after running JavaScript. Check that the page is public and does not block automated visitors, then scan it again.',
+      'Your robots.txt blocks 9 AI crawlers. Remove those rules if you want AI crawlers to read the site.',
+    ]);
+  });
+
+  test('the topics carry plain labels and a note about what the marks mean', async ({ page }) => {
     await mockScan(page, 'full');
     await startScan(page);
     await expect(page.locator('[data-scan-chip="tollbooth"]')).toHaveText(
-      'Deciding which AI crawlers may read the site (experimental) (flagged by your scan)',
+      'Requiring a license token from AI crawlers (experimental) (flagged by your scan)',
     );
-    await expect(page.locator('[data-scan-chip="agents"]')).toHaveText(
-      'A question about this result',
-    );
+    await expect(page.locator('[data-scan-chip="agents"]')).toHaveText('AI agents and crawlers');
     await expect(page.locator('[data-scan-topics-note]')).toHaveText(
-      'Topics marked planned or not offered yet are not available today; we will tell you where they stand.',
+      'Experimental features are off by default and may change. Planned and not offered yet mean not available today. We will tell you where each one stands.',
     );
   });
 });
@@ -186,4 +322,35 @@ test.describe('the result on a phone', () => {
       expect(apart, `${id}: the two boxes do not intersect`).toBe(true);
     }
   });
+
+  // The grade must not be pushed off the first screen by what sits above the tiles.
+  for (const fixture of [
+    'full',
+    'hosted',
+    'clean',
+    'blocked',
+    'sample-builder',
+    'sample-static',
+    'sample-product',
+  ] as Fixture[]) {
+    test(`the first tile is on the first screen at 390x844 (${fixture})`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await mockScan(page, fixture);
+      await startScan(page);
+      // Measured from the top of the result, where the page scrolls to when a scan starts.
+      const { tile, steps, tiles } = await page.evaluate(() => {
+        const top = document.querySelector('[data-scan-results]')!.getBoundingClientRect().top;
+        const box = (q: string) => document.querySelector(q)!.getBoundingClientRect();
+        return {
+          tile: box('[data-scan-tile="speed"]').bottom - top,
+          tiles: box('[data-scan-tile="risk"]').bottom - top,
+          steps: box('[data-scan-steps]').top - top,
+        };
+      });
+      expect(tile).toBeLessThanOrEqual(844 * 0.75);
+      // The steps come right after the last tile.
+      expect(steps).toBeGreaterThanOrEqual(tiles);
+      expect(steps - tiles).toBeLessThanOrEqual(16);
+    });
+  }
 });

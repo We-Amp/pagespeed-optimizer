@@ -59,9 +59,7 @@ for (const fixture of ['full', 'hosted'] as const) {
 
       // The confirmation.
       await page.click('[data-scan-lead] button[type="submit"]');
-      await expect(page.locator('[data-scan-results]')).toContainText(
-        'A question about this result.',
-      );
+      await expect(page.locator('[data-scan-results]')).toContainText('AI agents and crawlers.');
       await expect(page.locator('[data-scan-lead]')).toBeHidden();
       expect(await findings(page), 'confirmation').toEqual([]);
       expect(

@@ -138,6 +138,20 @@ describe('healthLine', () => {
     expect(healthLine([poor, poor, NOT_MEASURED], 5)).toBe(
       '5 things to improve. Start with the steps below.',
     );
+    // More qualify than are listed: the line says which ones are shown.
+    expect(healthLine([poor, good, good], 4, { shown: 3 })).toBe(
+      '4 things to improve. The first three are below.',
+    );
+    expect(healthLine([poor, good, good], 3, { shown: 3 })).toBe(
+      '3 things to improve. Start with the steps below.',
+    );
+    // A page the scan could read next to nothing of gets no count.
+    expect(healthLine([poor, poor, NOT_MEASURED], 2, { shown: 2, unreadable: true })).toBe(
+      'We could read almost nothing on this page.',
+    );
+    expect(healthLine([CHECKING, poor, poor], 2, { unreadable: true })).toBe(
+      'Checking 1 of 3 areas…',
+    );
     // Never "nothing needs attention" above a list of steps.
     expect(healthLine([good, good, good], 2)).not.toMatch(/needs attention|need attention/);
     // Without steps the sentence about the areas stays.

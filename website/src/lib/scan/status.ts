@@ -93,15 +93,27 @@ export function riskStatus(report: ReportLike | null | undefined): TileStatus {
 
 const NEEDS_ATTENTION: ReadonlySet<TileState> = new Set(['needs-work', 'poor', 'flagged']);
 
+export const UNREADABLE_LINE = 'We could read almost nothing on this page.';
+const COUNT: Record<number, string> = { 1: 'one', 2: 'two', 3: 'three' };
+
 /**
  * The line above the tiles. `improve` is how many next steps the result has:
  * with any, the line counts them and points at the list, so it never says
  * nothing needs attention above a list of things to do.
  */
-export function healthLine(statuses: readonly TileStatus[], improve = 0): string {
+export function healthLine(
+  statuses: readonly TileStatus[],
+  improve = 0,
+  opts: { shown?: number; unreadable?: boolean } = {},
+): string {
   const pending = statuses.filter((s) => s.state === 'checking').length;
   if (pending > 0) return `Checking ${pending} of 3 areas…`;
+  // The scan read next to nothing: a count of things to improve would be about an empty page.
+  if (opts.unreadable) return UNREADABLE_LINE;
   if (improve === 1) return '1 thing to improve. Start with the step below.';
+  if (improve > 1 && improve > (opts.shown ?? improve)) {
+    return `${improve} things to improve. The first ${COUNT[opts.shown ?? 0] ?? opts.shown} are below.`;
+  }
   if (improve > 1) return `${improve} things to improve. Start with the steps below.`;
   const measured = statuses.filter((s) => s.state !== 'none');
   if (measured.length === 0) return 'We could not check this page.';

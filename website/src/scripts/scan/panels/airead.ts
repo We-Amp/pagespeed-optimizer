@@ -5,6 +5,7 @@
 // textContent; the only dynamic style is the bar width, a number.
 
 import { formatAiread, TOKEN_CAPTION } from '../../../lib/scan/airead';
+import { plural } from '../../../lib/scan/plural';
 import type { PanelContext, ScanReport } from '../app';
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -113,6 +114,39 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
   }
   tokens.append(details);
   panel.append(tokens);
+
+  if (m.accessibility) {
+    const a11y = el('div', 'mt-6');
+    a11y.setAttribute('data-scan-a11y', '');
+    a11y.append(
+      el(
+        'h3',
+        'text-sm font-semibold text-text-body',
+        `Accessibility: ${plural(m.accessibility.total, 'issue')} found by automated checks`,
+      ),
+    );
+    if (m.accessibility.rules.length) {
+      const list = el('ul', 'mt-2 list-disc space-y-1 pl-5 text-sm text-text-muted');
+      for (const rule of m.accessibility.rules) {
+        list.append(
+          el(
+            'li',
+            '',
+            rule.nodes > 0 ? `${rule.help} (${plural(rule.nodes, 'element')})` : rule.help,
+          ),
+        );
+      }
+      a11y.append(list);
+    }
+    a11y.append(
+      el(
+        'p',
+        'mt-2 text-sm text-text-muted',
+        'These are automated checks, not an accessibility audit.',
+      ),
+    );
+    panel.append(a11y);
+  }
 
   if (m.alsoFound.length) {
     const found = el('div', 'mt-6');

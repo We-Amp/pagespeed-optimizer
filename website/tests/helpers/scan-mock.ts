@@ -8,7 +8,15 @@ import { stubUmami } from './umami';
 export const readFixture = (name: string) =>
   readFileSync(new URL(`../fixtures/scan/${name}.json`, import.meta.url), 'utf8');
 
-export type Fixture = 'full' | 'hosted' | 'unknown' | 'clean' | 'blocked';
+export type Fixture =
+  | 'full'
+  | 'hosted'
+  | 'unknown'
+  | 'clean'
+  | 'blocked'
+  | 'sample-builder'
+  | 'sample-static'
+  | 'sample-product';
 
 const GOOD_PSI = JSON.stringify({
   lighthouseResult: { categories: { performance: { score: 0.96 } }, audits: {} },

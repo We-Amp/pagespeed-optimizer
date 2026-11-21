@@ -102,7 +102,7 @@ test.describe('scan result on a hosted platform', () => {
     await expect(notice.locator('[data-scan-fit-text]')).toHaveText(NOTICE);
     // The general advice moved to the next steps; the note keeps the help links.
     await expect(notice.locator('[data-scan-fit-links]')).toHaveText(
-      'Where to change this in Wix: Wix help: page SEO settings, Wix help: robots.txt.',
+      'Wix help pages: Wix help: page SEO settings, Wix help: robots.txt.',
     );
     await expect(notice).not.toContainText('Three things');
     // The vendor help opens in a new tab and says so.

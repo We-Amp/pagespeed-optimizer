@@ -61,7 +61,7 @@ interface ChipDef {
 const GATED: ChipDef[] = [
   {
     id: 'tollbooth',
-    label: 'Deciding which AI crawlers may read the site (experimental)',
+    label: 'Requiring a license token from AI crawlers (experimental)',
     fires: (r, p) => tollboothCtaApplies(r.agentVerifiability, p),
   },
   {
@@ -107,7 +107,7 @@ const GATED: ChipDef[] = [
 ];
 
 export const CONSULTING = { id: 'consulting', label: 'Help applying the speed fixes' };
-export const AGENTS = { id: 'agents', label: 'A question about this result' };
+export const AGENTS = { id: 'agents', label: 'AI agents and crawlers' };
 /** The topic of a request with nothing ticked. It has no chip. */
 export const GENERAL_TOPIC = 'general';
 export const AUDIT = {
@@ -117,7 +117,7 @@ export const AUDIT = {
 
 /** Shown under the chips when a label says a topic is planned, not offered yet or experimental. */
 export const STATUS_NOTE =
-  'Topics marked planned or not offered yet are not available today; we will tell you where they stand.';
+  'Experimental features are off by default and may change. Planned and not offered yet mean not available today. We will tell you where each one stands.';
 /** Whether any of the chips carries one of those marks. */
 export function statusNoteApplies(chips: readonly Pick<Chip, 'label'>[]): boolean {
   return chips.some((c) => /\((planned|not offered yet|experimental)\)$/.test(c.label));

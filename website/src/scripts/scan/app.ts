@@ -29,6 +29,7 @@ import {
 import { resolveApiBase } from '../../lib/scan/api-base';
 import { fitFor, type Fit } from '../../lib/scan/fit';
 import {
+  READABLE_LINE,
   emptyLine,
   nextSteps,
   showLabel,
@@ -274,6 +275,8 @@ export function init() {
   const stepsEl = root.querySelector<HTMLElement>('[data-scan-steps]');
   const stepsList = root.querySelector<HTMLElement>('[data-scan-steps-list]');
   const stepsNone = root.querySelector<HTMLElement>('[data-scan-steps-none]');
+  const readableEl = root.querySelector<HTMLElement>('[data-scan-readable]');
+  const readableText = root.querySelector<HTMLElement>('[data-scan-readable-text]');
   const tiles = new Map<Pillar, HTMLButtonElement>();
   const panels = new Map<Pillar, HTMLElement>();
   for (const p of PILLARS) {
@@ -337,8 +340,10 @@ export function init() {
   // Open a step's panel and put focus on the row the step is about (the panel
   // itself when the row is not there).
   function showStep(step: Step) {
-    setOpen(step.pillar);
+    // One event per action: a step that opens its panel counts as a step, not
+    // as a tile opened by hand, and a panel that is already open stays as it is.
     const panel = panels.get(step.pillar)!;
+    if (panel.hidden) setOpen(step.pillar, false);
     const row = (step.target && panel.querySelector<HTMLElement>(step.target)) || panel;
     row.tabIndex = -1;
     row.focus({ preventScroll: true });
@@ -350,13 +355,18 @@ export function init() {
   }
 
   // The steps list follows the results as they land: it is rewritten in place
-  // and never takes focus or speaks. Returns how many steps the result has.
+  // and never takes focus or speaks.
   let paintedSteps = '';
-  function paintSteps(): number {
+  let lastSteps = { total: 0, shown: 0, unreadable: false };
+  function paintSteps(): typeof lastSteps {
     const scanPending = statuses.airead.state === 'checking';
     const anyPending = PILLARS.some((p) => statuses[p].state === 'checking');
-    const { steps, total } = nextSteps(scanPending ? null : state.lastReport, speedScores());
-    if (!stepsEl || !stepsList || !stepsNone) return total;
+    const { steps, total, unreadable, readable } = nextSteps(
+      scanPending ? null : state.lastReport,
+      speedScores(),
+    );
+    lastSteps = { total, shown: steps.length, unreadable };
+    if (!stepsEl || !stepsList || !stepsNone) return lastSteps;
     const attention = PILLARS.filter((p) =>
       ['needs-work', 'poor', 'flagged'].includes(statuses[p].state),
     ) as StepPillar[];
@@ -366,10 +376,15 @@ export function init() {
         : anyPending
           ? 'pending'
           : emptyLine(attention, PILLARS.filter((p) => statuses[p].state !== 'none').length);
-    const key = JSON.stringify([steps, none]);
-    if (key === paintedSteps) return total;
+    const key = JSON.stringify([steps, none, readable, anyPending]);
+    if (key === paintedSteps) return lastSteps;
     paintedSteps = key;
-    stepsEl.dataset.state = steps.length ? 'steps' : anyPending ? 'pending' : 'none';
+    stepsEl.dataset.state = anyPending ? 'pending' : steps.length ? 'steps' : 'none';
+    root!.dataset.readable = String(readable);
+    if (readableEl && readableText) {
+      readableText.textContent = readable ? READABLE_LINE : '';
+      readableEl.hidden = !readable;
+    }
     stepsList.replaceChildren();
     for (const step of steps) {
       const li = document.createElement('li');
@@ -399,7 +414,7 @@ export function init() {
     } else {
       stepsNone.textContent = none;
     }
-    return total;
+    return lastSteps;
   }
 
   // The hosted-platform sentence is read out once, with the last of the two
@@ -438,9 +453,14 @@ export function init() {
       value.textContent = status.value || '—';
       value.removeAttribute('title');
     }
+    const painted = paintSteps();
     healthEl.textContent = healthLine(
       PILLARS.map((p) => statuses[p]),
-      paintSteps(),
+      painted.total,
+      {
+        shown: painted.shown,
+        unreadable: painted.unreadable,
+      },
     );
   }
 
@@ -464,14 +484,14 @@ export function init() {
     });
   }
 
-  function setOpen(open: Pillar | null) {
+  function setOpen(open: Pillar | null, tracked = true) {
     for (const p of PILLARS) {
       const isOpen = p === open;
       const tile = tiles.get(p)!;
       tile.setAttribute('aria-expanded', String(isOpen));
       panels.get(p)!.hidden = !isOpen;
     }
-    if (open) track('scan-tile-open', { pillar: open });
+    if (open && tracked) track('scan-tile-open', { pillar: open });
   }
 
   for (const p of PILLARS) {

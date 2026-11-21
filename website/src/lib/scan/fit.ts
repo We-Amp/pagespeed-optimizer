@@ -83,9 +83,7 @@ export function fitFor(report: Report): Fit {
   return {
     offers: false,
     text,
-    linksLead: links.length
-      ? `Where to change this ${name ? `in ${name}` : 'on the platform'}:`
-      : '',
+    linksLead: links.length ? `${name || 'Platform'} help pages:` : '',
     links,
     spoken,
   };

@@ -67,7 +67,7 @@ describe('fitFor', () => {
     const fit = fitFor(fixture('hosted'));
     expect(fit.offers).toBe(false);
     expect(fit.text).toBe(HEAD('Wix, a hosted platform'));
-    expect(fit.linksLead).toBe('Where to change this in Wix:');
+    expect(fit.linksLead).toBe('Wix help pages:');
     expect(fit.links).toEqual(
       PLATFORM_GUIDANCE.wix.actions.map((a) => ({ label: a.sourceLabel, href: a.source })),
     );

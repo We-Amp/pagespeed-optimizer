@@ -648,7 +648,7 @@ describe('report risk states match the panel', () => {
 describe('topic labels', () => {
   it('are plain, carry the status of what they name, and keep their ids', () => {
     expect(chipsFor(full, 'poor').map((c) => [c.id, c.label])).toEqual([
-      ['tollbooth', 'Deciding which AI crawlers may read the site (experimental)'],
+      ['tollbooth', 'Requiring a license token from AI crawlers (experimental)'],
       ['agentpass', 'Checking that a crawler is who it says it is (experimental)'],
       ['compliancefix', 'Accessibility issues found (not offered yet)'],
       ['consent-enforcement', 'Trackers that load before consent (planned)'],
@@ -658,7 +658,7 @@ describe('topic labels', () => {
       ['response-firewall', 'Leaked errors and outdated software (planned)'],
       ['markdown-origin', 'Serving AI agents a Markdown version of the page (experimental)'],
       ['consulting', 'Help applying the speed fixes'],
-      ['agents', 'A question about this result'],
+      ['agents', 'AI agents and crawlers'],
       ['audit', 'Agent-readiness audit (\u20ac950 per site, excl. VAT)'],
     ]);
     // The wedge of a gated chip is still its id.
@@ -667,7 +667,7 @@ describe('topic labels', () => {
 
   it('shows the status note only when a shown label carries a status mark', () => {
     expect(STATUS_NOTE).toBe(
-      'Topics marked planned or not offered yet are not available today; we will tell you where they stand.',
+      'Experimental features are off by default and may change. Planned and not offered yet mean not available today. We will tell you where each one stands.',
     );
     expect(statusNoteApplies(chipsFor(full, 'poor'))).toBe(true);
     expect(statusNoteApplies(chipsFor(null, 'poor'))).toBe(false);

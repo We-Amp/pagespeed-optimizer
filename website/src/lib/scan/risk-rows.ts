@@ -353,7 +353,7 @@ function buildingFor(
             building,
             link: {
               href: '/platform/',
-              label: 'Add-ons for mod_pagespeed (planned) →',
+              label: 'Transform packs (add-ons for mod_pagespeed) →',
               event: 'airead-cta-page-integrity',
             },
           }
@@ -378,7 +378,7 @@ function buildingFor(
             building: [RX_BUILDING],
             link: {
               href: '/platform/#pack-response-firewall',
-              label: 'Add-ons for mod_pagespeed: tell me when it ships →',
+              label: 'Transform packs (add-ons for mod_pagespeed): tell me when it ships →',
               event: 'airead-cta-response-firewall',
             },
           }
