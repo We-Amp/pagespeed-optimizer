@@ -204,7 +204,7 @@ First published 17 November 2026; the date at the top of the page shows the late
 change. No severity is assigned here: the library CVE has its own score, and whether it
 can be reached through the module depends on the site.
 
-We-Amp develops the current mod_pagespeed and earns its income from support for it, so
+We-Amp develops the current mod_pagespeed and earns its income from support and consulting, so
 we are not a neutral party. Removing the module is a complete fix, and any build that
 still receives security fixes will do; the migration guides above cover ours.
 
