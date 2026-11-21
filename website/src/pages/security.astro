@@ -67,9 +67,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <li class="flex items-start gap-3">
             <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
             <span>
-              It comes from <code>otto@modpagespeed.com</code>, DKIM-signed for modpagespeed.com, as
-              plain text without attachments, to an address published for security reports, normally
-              your organization's own.
+              By email it comes from <code>otto@modpagespeed.com</code>, DKIM-signed for
+              modpagespeed.com, as plain text without attachments, to an address published for
+              security reports, normally your organization's own.
             </span>
           </li>
           <li class="flex items-start gap-3">
@@ -83,7 +83,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
             <span>
               It is sent once. It makes no offer and asks for no payment or bounty; one sentence
-              states that we earn our income from support. We do not write again unless you reply.
+              states that we earn our income from support and consulting. We do not write again
+              unless you reply.
             </span>
           </li>
           <li class="flex items-start gap-3">
@@ -107,7 +108,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           sending. We request the homepage again after 30 days and after 90 days, to see whether the
           header has changed. These requests carry the User-Agent
           <code class="break-all">weamp-notice-check/1 (+https://modpagespeed.com/security/)</code>.
-          We do not log in, scan or test for vulnerabilities, and we do not publish host names.
+          If a site refuses our checker, we look at its home page once in an ordinary browser, and
+          later follow-ups use a public web crawl archive rather than a request from us. The notice
+          lists every request we made, including any others to public pages. We do not log in, scan
+          or test for vulnerabilities, and we do not publish host names.
         </p>
         <p class="mt-4 text-text-muted">
           If you would rather not hear from us, reply and say so: we stop the follow-up requests too
