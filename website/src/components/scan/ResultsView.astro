@@ -17,8 +17,9 @@ interface Props {
 
 const { idPrefix = 'scan' } = Astro.props;
 
-// The guide for owners of a site on a hosted builder is linked from the hosted
-// notice only when that page is part of this build.
+// The guide for owners of a site on a hosted builder is linked from a hosted
+// result only when that page is part of this build. The scan controller adds
+// the link when a result calls for it, so the page itself carries none.
 const hostedGuide =
   Object.keys(import.meta.glob('../../pages/ai-readability/hosted-builders.astro')).length > 0;
 
@@ -33,6 +34,7 @@ const pillars = [
   id={`${idPrefix}-results`}
   class="scan-results mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16"
   data-server-offers="pending"
+  data-hosted-guide={hostedGuide ? '/ai-readability/hosted-builders/' : undefined}
   aria-labelledby={`${idPrefix}-summary-heading`}
   data-scan-results
   data-pagefind-ignore
@@ -63,19 +65,7 @@ const pillars = [
     >
       <p data-scan-fit-text></p>
       <p class="mt-2" data-scan-fit-links hidden></p>
-      {
-        hostedGuide && (
-          <p class="mt-2" data-scan-fit-guide-row>
-            <a
-              href="/ai-readability/hosted-builders/"
-              class="font-medium text-interactive underline"
-              data-scan-fit-guide
-            >
-              What you can change on a hosted builder
-            </a>
-          </p>
-        )
-      }
+      <p class="mt-2" data-scan-fit-guide-row hidden></p>
     </div>
     <p class="mt-2 min-h-10 text-sm text-text-muted sm:min-h-6">
       <span data-scan-health>Checking 3 of 3 areas…</span>
@@ -149,18 +139,7 @@ const pillars = [
       </h3>
       <p class="mt-2 text-sm text-text-body" data-scan-readable hidden>
         <span data-scan-readable-text></span>
-        {
-          hostedGuide && (
-            <a
-              href="/ai-readability/hosted-builders/"
-              class="ml-1 font-medium text-interactive underline"
-              data-scan-readable-guide
-              data-hosted-only
-            >
-              What you can change on a hosted builder
-            </a>
-          )
-        }
+        <span data-scan-readable-guide-slot></span>
       </p>
       <ol
         class="scan-steps-list mt-2 text-sm text-text-body"

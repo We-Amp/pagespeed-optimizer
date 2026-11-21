@@ -181,6 +181,9 @@ test.describe('next steps on a scan result', () => {
     await expect(page.locator('[data-scan-fit-links]')).toHaveText(
       'Wix help pages: Wix help: page SEO settings, Wix help: robots.txt.',
     );
+    // Without the statement the guide is linked from the notice.
+    await expect(page.locator('[data-scan-fit-guide]')).toBeVisible();
+    await expect(page.locator('[data-scan-readable-guide]')).toHaveCount(0);
     // Only the agents topic is offered, so no status note is shown.
     await expect(page.locator('[data-scan-topics-note]')).toBeHidden();
   });
@@ -198,14 +201,15 @@ test.describe('next steps on a scan result', () => {
       '1 thing to improve. Start with the step below.',
     );
     await expect(page.locator('[data-scan-steps]')).not.toContainText(/cite|rank|mention/i);
-    // The guide is linked once: beside the statement when it is part of the build.
+    // The guide is linked once: beside the statement, not in the notice as well.
     const guide = readable.locator('[data-scan-readable-guide]');
-    if ((await guide.count()) > 0) {
-      await expect(guide).toBeVisible();
-      await expect(guide).toHaveText('What you can change on a hosted builder');
-      await expect(guide).toHaveAttribute('href', '/ai-readability/hosted-builders/');
-      await expect(page.locator('[data-scan-fit-guide]')).toBeHidden();
-    }
+    await expect(guide).toBeVisible();
+    await expect(guide).toHaveText('What you can change on a hosted builder');
+    await expect(guide).toHaveAttribute('href', '/ai-readability/hosted-builders/');
+    await expect(page.locator('[data-scan-fit-guide]')).toBeHidden();
+    await expect(
+      page.locator('[data-scan-results] a[href="/ai-readability/hosted-builders/"]:visible'),
+    ).toHaveCount(1);
     // The step leads to a row that lists both rules.
     await page.locator('[data-scan-step="accessibility"] button').click();
     await expect(page.locator('[data-scan-a11y] li')).toHaveText([

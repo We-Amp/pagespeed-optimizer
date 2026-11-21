@@ -277,6 +277,8 @@ export function init() {
   const stepsNone = root.querySelector<HTMLElement>('[data-scan-steps-none]');
   const readableEl = root.querySelector<HTMLElement>('[data-scan-readable]');
   const readableText = root.querySelector<HTMLElement>('[data-scan-readable-text]');
+  const readableGuide = root.querySelector<HTMLElement>('[data-scan-readable-guide-slot]');
+  const fitGuide = root.querySelector<HTMLElement>('[data-scan-fit-guide-row]');
   const tiles = new Map<Pillar, HTMLButtonElement>();
   const panels = new Map<Pillar, HTMLElement>();
   for (const p of PILLARS) {
@@ -326,6 +328,23 @@ export function init() {
       if (links.length) fitLinks.append('.');
       fitLinks.hidden = links.length === 0;
     }
+    if (fitGuide) {
+      fitGuide.replaceChildren();
+      const hosted = !!fit && !fit.offers;
+      if (hosted && guideHref) fitGuide.append(guideLink('scanFitGuide'));
+      fitGuide.hidden = fitGuide.childElementCount === 0;
+    }
+  }
+
+  // The link to the guide for sites on a hosted builder, when this build has that page.
+  const guideHref = root.dataset.hostedGuide ?? '';
+  function guideLink(marker: 'scanFitGuide' | 'scanReadableGuide'): HTMLAnchorElement {
+    const a = document.createElement('a');
+    a.className = 'font-medium text-interactive underline';
+    a.href = guideHref;
+    a.dataset[marker] = '';
+    a.textContent = 'What you can change on a hosted builder';
+    return a;
   }
 
   function speedScores() {
@@ -384,6 +403,11 @@ export function init() {
     if (readableEl && readableText) {
       readableText.textContent = readable ? READABLE_LINE : '';
       readableEl.hidden = !readable;
+      // On a hosted result the guide follows the statement.
+      readableGuide?.replaceChildren();
+      if (readable && guideHref && root!.dataset.serverOffers === 'off') {
+        readableGuide?.append(' ', guideLink('scanReadableGuide'));
+      }
     }
     stepsList.replaceChildren();
     for (const step of steps) {
