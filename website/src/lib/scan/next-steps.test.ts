@@ -10,6 +10,7 @@ import {
   NOTHING_URGENT,
   NOTHING_URGENT_PARTIAL,
   READABLE_LINE,
+  READABLE_LINE_SUBPAGE,
   TAG,
   emptyLine,
   nextSteps,
@@ -24,8 +25,8 @@ const fixture = (name: string) =>
     ),
   ).report;
 
-// The hand-made fixtures and three scans of real pages (a site on a hosted
-// builder, a hand-built site and a product site) with their names replaced.
+// The hand-made fixtures and three samples shaped like real scan results: a
+// site on a hosted builder, a hand-built site and a product site.
 const FIXTURES = [
   'full',
   'hosted',
@@ -180,14 +181,14 @@ describe('nextSteps over the fixtures', () => {
     expect(r.readable).toBe(false);
   });
 
-  it('site on a hosted builder (real scan): readable, with one accessibility step', () => {
+  it('site on a hosted builder (sample): readable, with one accessibility step', () => {
     const r = nextSteps(fixture('sample-builder'), GOOD);
     expect(pairs(r)).toEqual([[A11Y_BUILDER, 'in your site editor']]);
     expect(r.readable).toBe(true);
     expect(r.unreadable).toBe(false);
   });
 
-  it('hand-built site (real scan): one step for the missing head tags', () => {
+  it('hand-built site (sample): one step for the missing head tags', () => {
     const r = nextSteps(fixture('sample-static'), GOOD);
     expect(pairs(r)).toEqual([
       [
@@ -205,12 +206,13 @@ describe('nextSteps over the fixtures', () => {
     expect(r.steps[0]).toMatchObject({ id: 'head', pillar: 'risk' });
   });
 
-  it('product site (real scan): readable and nothing to do', () => {
+  it('product site (sample): readable and nothing to do', () => {
     expect(nextSteps(fixture('sample-product'), GOOD)).toEqual({
       steps: [],
       total: 0,
       unreadable: false,
       readable: true,
+      readableLine: READABLE_LINE,
     });
   });
 
@@ -248,6 +250,41 @@ describe('the statement that AI crawlers can read the page', () => {
     delete r.access.crawlerRules;
     expect(nextSteps(r).readable).toBe(false);
     expect(nextSteps(null, GOOD).readable).toBe(false);
+    expect(nextSteps(null, GOOD).readableLine).toBe('');
+  });
+
+  it('is not made when robots.txt blocks a crawler only the older list checks', () => {
+    const r = fixture('sample-product');
+    r.access.aiBotsBlocked = ['Bytespider'];
+    const steps = nextSteps(r);
+    expect(steps.readable).toBe(false);
+    expect(steps.readableLine).toBe('');
+  });
+
+  it('is not made when part of robots.txt was not read', () => {
+    const r = fixture('sample-product');
+    r.access.crawlerRules.truncated = true;
+    expect(nextSteps(r).readable).toBe(false);
+    expect(nextSteps(r).readableLine).toBe('');
+  });
+
+  it('speaks of robots.txt for this page only when the home page was scanned', () => {
+    const r = fixture('sample-product');
+    expect(new URL(r.url).pathname).toBe('/');
+    expect(nextSteps(r).readableLine).toBe(
+      'AI crawlers can read this page: the text is in the HTML and robots.txt blocks none of them.',
+    );
+    for (const url of [`${r.url}docs/install/`, `${r.url}pricing`, 'not a url', undefined]) {
+      r.url = url;
+      const steps = nextSteps(r);
+      expect(steps.readable).toBe(true);
+      expect(steps.readableLine).toBe(
+        'AI crawlers can read this page’s text: it is in the HTML, and robots.txt lets them fetch the site’s home page.',
+      );
+      expect(steps.readableLine).toBe(READABLE_LINE_SUBPAGE);
+    }
+    r.url = 'https://www.example.com/?utm=1';
+    expect(nextSteps(r).readableLine).toBe(READABLE_LINE);
   });
 });
 
@@ -269,6 +306,16 @@ describe('nextSteps conditions', () => {
     expect(nextSteps(r).steps[0]).toMatchObject({ id: 'content', text: CONTENT });
     r.categories['Content fidelity'] = { score: 15, max: 30, flag: null };
     expect(nextSteps(r).total).toBe(0);
+  });
+
+  it('tags missing head tags for the site settings on a hosted platform', () => {
+    const r = fixture('sample-static');
+    r.platform = { id: 'wix', name: 'Wix', originControl: 'none' };
+    expect(nextSteps(r, GOOD).steps[0]).toMatchObject({
+      id: 'head',
+      text: 'This page has no meta description and no canonical link. Add them.',
+      tag: 'in your site settings',
+    });
   });
 
   it('names a hosted platform without a name as "this platform"', () => {

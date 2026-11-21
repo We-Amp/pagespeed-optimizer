@@ -43,8 +43,10 @@ export interface NextSteps {
   total: number;
   /** True when the scan could read next to nothing of the page. */
   unreadable: boolean;
-  /** True when the report supports the READABLE_LINE statement. */
+  /** True when the report supports the statement that AI crawlers can read the page. */
   readable: boolean;
+  /** That statement, worded for the page that was scanned; empty when it does not apply. */
+  readableLine: string;
 }
 
 /** The most steps listed. */
@@ -54,6 +56,20 @@ export const NOTHING_URGENT = 'Nothing urgent on this page. Open a panel for the
 /** A statement, not a step: shown above the list when the report supports it. */
 export const READABLE_LINE =
   'AI crawlers can read this page: the text is in the HTML and robots.txt blocks none of them.';
+/**
+ * The same for a page other than the home page: the scan reads robots.txt for
+ * the home page only, so the statement says no more than that.
+ */
+export const READABLE_LINE_SUBPAGE =
+  'AI crawlers can read this page’s text: it is in the HTML, and robots.txt lets them fetch the site’s home page.';
+
+function isHomePage(url: unknown): boolean {
+  try {
+    return typeof url === 'string' && new URL(url).pathname === '/';
+  } catch {
+    return false;
+  }
+}
 
 const PILLAR_NAME: Record<StepPillar, string> = {
   speed: 'Speed',
@@ -274,7 +290,8 @@ function headStep(r: Record<string, any>, site: Site): Step | null {
     text: `This page has ${listOf(items.map((t) => `no ${t}`))}. Add ${
       items.length === 1 ? 'it' : 'them'
     }.`,
-    tag: site.edit,
+    // On a hosted platform these fields are in the page's SEO settings.
+    tag: site.hosted ? TAG.settings : TAG.cms,
     pillar: fromSeo ? 'risk' : 'airead',
     target: fromSeo ? SEO_ROW : cat('Citation readiness'),
   };
@@ -322,7 +339,11 @@ function readableBy(r: Record<string, any>): boolean {
     !!cr &&
     typeof cr === 'object' &&
     cr.parsed === true &&
+    // Part of the file was not read: it may hold a rule the scan did not see.
+    cr.truncated !== true &&
     cr.wildcardBlocksAll !== true &&
+    // The older list checks a few more crawlers; the statement holds for both.
+    strings(r.access?.aiBotsBlocked).length === 0 &&
     strings(cr.training?.blocked).length + strings(cr.answer?.blocked).length === 0
   );
 }
@@ -395,5 +416,16 @@ export function nextSteps(report: Report, speed?: SpeedScores | null): NextSteps
   add(speedStep(speed, site));
   // Belt and braces: nothing a hosted owner cannot do is ever listed.
   const kept = all.filter((s) => !hosted || (s.tag !== TAG.server && s.tag !== TAG.developer));
-  return { steps: kept.slice(0, MAX_STEPS), total: kept.length, unreadable, readable };
+  const readableLine = !readable
+    ? ''
+    : isHomePage(report?.url)
+      ? READABLE_LINE
+      : READABLE_LINE_SUBPAGE;
+  return {
+    steps: kept.slice(0, MAX_STEPS),
+    total: kept.length,
+    unreadable,
+    readable,
+    readableLine,
+  };
 }

@@ -29,7 +29,6 @@ import {
 import { resolveApiBase } from '../../lib/scan/api-base';
 import { fitFor, type Fit } from '../../lib/scan/fit';
 import {
-  READABLE_LINE,
   emptyLine,
   nextSteps,
   showLabel,
@@ -366,9 +365,10 @@ export function init() {
     const row = (step.target && panel.querySelector<HTMLElement>(step.target)) || panel;
     row.tabIndex = -1;
     row.focus({ preventScroll: true });
+    // A row is centred; a whole panel is shown from its top.
     row.scrollIntoView({
       behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-      block: 'center',
+      block: row === panel ? 'start' : 'center',
     });
     track('scan-step-open', { step: step.id });
   }
@@ -380,7 +380,7 @@ export function init() {
   function paintSteps(): typeof lastSteps {
     const scanPending = statuses.airead.state === 'checking';
     const anyPending = PILLARS.some((p) => statuses[p].state === 'checking');
-    const { steps, total, unreadable, readable } = nextSteps(
+    const { steps, total, unreadable, readable, readableLine } = nextSteps(
       scanPending ? null : state.lastReport,
       speedScores(),
     );
@@ -395,13 +395,13 @@ export function init() {
         : anyPending
           ? 'pending'
           : emptyLine(attention, PILLARS.filter((p) => statuses[p].state !== 'none').length);
-    const key = JSON.stringify([steps, none, readable, anyPending]);
+    const key = JSON.stringify([steps, none, readableLine, anyPending]);
     if (key === paintedSteps) return lastSteps;
     paintedSteps = key;
     stepsEl.dataset.state = anyPending ? 'pending' : steps.length ? 'steps' : 'none';
     root!.dataset.readable = String(readable);
     if (readableEl && readableText) {
-      readableText.textContent = readable ? READABLE_LINE : '';
+      readableText.textContent = readableLine;
       readableEl.hidden = !readable;
       // On a hosted result the guide follows the statement.
       readableGuide?.replaceChildren();

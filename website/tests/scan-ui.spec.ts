@@ -465,6 +465,43 @@ test.describe('v2 layout', () => {
     });
   }
 
+  // Three steps are the tallest list: it must fit the room kept for it between
+  // 640 and 1023 px as well, where the sentences wrap more.
+  for (const fixture of ['full', 'sample-static'] as const) {
+    test(`/ai-readability/: three steps shift the layout by at most 0.02 at 768 px (${fixture})`, async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        const w = window as unknown as { __cls: number };
+        w.__cls = 0;
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            const shift = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+            if (!shift.hadRecentInput) w.__cls += shift.value ?? 0;
+          }
+        }).observe({ type: 'layout-shift', buffered: true });
+      });
+      // 800 px high: the steps and the top of the form are on screen. A taller
+      // screen also shows the form's topic list filling in, which this test is
+      // not about.
+      await page.setViewportSize({ width: 768, height: 800 });
+      await mockScan(page, fixture, { scanDelay: 1500, psiDelay: 1500 });
+      await warm(page, '/ai-readability/?ui=v2');
+      await page.goto('/ai-readability/?ui=v2');
+      await page.fill('#scan-url', 'https://example.com');
+      await page.click('#scan-submit');
+      const block = page.locator('[data-scan-steps]');
+      const reserved = (await block.boundingBox())!.height;
+      await expect(page.locator('[data-scan-step]')).toHaveCount(3, { timeout: 15000 });
+      await expect(page.locator('[data-scan-tile="speed"] [data-scan-status]')).toHaveText('Poor');
+      // The list fits the room kept for it: the block did not grow.
+      expect((await block.boundingBox())!.height).toBeLessThanOrEqual(reserved + 1);
+      await page.waitForTimeout(500);
+      const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+      expect(cls).toBeLessThanOrEqual(0.02);
+    });
+  }
+
   // A hosted result shows its notice only once the scan says so, which moves
   // the page once; it has its own ceiling.
   test('/ai-readability/: a hosted result shifts the layout by at most 0.1', async ({ page }) => {

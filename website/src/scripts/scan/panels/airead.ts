@@ -136,6 +136,8 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
           ),
         );
       }
+      const more = m.accessibility.total - m.accessibility.rules.length;
+      if (more > 0) list.append(el('li', '', `and ${more} more`));
       a11y.append(list);
     }
     a11y.append(

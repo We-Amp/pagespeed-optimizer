@@ -353,7 +353,7 @@ const pillars = [
   @media (min-width: 640px) {
     .scan-steps,
     .scan-steps[data-state='pending'] {
-      min-height: 15rem;
+      min-height: 18.5rem;
     }
   }
   @media (min-width: 1024px) {
@@ -481,6 +481,15 @@ const pillars = [
       grid-row: 2;
       grid-column: 1 / -1;
     }
+  }
+  /* Three narrow columns: a value such as "4 checks need attention" takes two
+     lines, so the tile keeps room for two from the start. */
+  @media (min-width: 640px) and (max-width: 1023px) {
+    .scan-tile-value {
+      min-height: 3.5rem;
+    }
+  }
+  @media (min-width: 640px) {
     .scan-panel {
       grid-row: 3;
       grid-column: 1 / -1;

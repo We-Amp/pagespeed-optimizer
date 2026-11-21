@@ -83,6 +83,7 @@ test.describe('next steps on a scan result', () => {
       'Images must have alternative text (12 elements)',
       'Elements must meet minimum color contrast ratio thresholds (9 elements)',
       '<html> element must have a lang attribute (1 element)',
+      'and 4 more',
     ]);
     await page.locator('[data-scan-step="seo"] button').click();
     await expect(page.locator('[data-scan-panel="airead"]')).toBeHidden();
@@ -111,6 +112,13 @@ test.describe('next steps on a scan result', () => {
     await page.locator('[data-scan-step="speed"] button').click();
     const panel = page.locator('[data-scan-panel="speed"]');
     await expect(panel).toBeFocused();
+    // A whole panel is shown from its top, not from its middle.
+    await expect
+      .poll(async () => {
+        const box = await panel.boundingBox();
+        return box!.y >= 0 && box!.y < page.viewportSize()!.height / 2;
+      })
+      .toBe(true);
     expect(await panel.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid');
   });
 

@@ -5,7 +5,7 @@
   "badge": "https://www.example.com/ai-readability/api/badge/0123456789ab.svg",
   "report": {
     "url": "https://www.example.com/",
-    "scannedAt": "2026-11-21T10:21:16.336Z",
+    "scannedAt": "2026-01-15T12:00:00.000Z",
     "grade": "A",
     "score": 92,
     "categories": {
@@ -15,8 +15,8 @@
         "verdict": "Content is fully present in the server HTML — readable by every AI tool, no rendering required.",
         "flag": null,
         "detail": {
-          "staticTextLen": 15624,
-          "renderedTextLen": 12388,
+          "staticTextLen": 15600,
+          "renderedTextLen": 12400,
           "fidelity": 1
         }
       },
@@ -26,8 +26,8 @@
         "verdict": "Lean: ~17× HTML-to-content ratio — cheap for an agent to ingest.",
         "detail": {
           "bloatX": 17,
-          "rawHtmlTokens": 51904,
-          "cleanTokens": 3097
+          "rawHtmlTokens": 52000,
+          "cleanTokens": 3100
         }
       },
       "Structured data": {
@@ -51,16 +51,6 @@
         "score": 5,
         "max": 10,
         "verdict": "Thin attribution metadata (canonical URL, title) — an LLM citing you may get the source/author/date wrong."
-      }
-    },
-    "agentActionability": {
-      "detected": false,
-      "label": "none detected",
-      "verdict": "No WebMCP tools detected. Agents can read this page but can't act on it via WebMCP, the emerging agent-tool interface now surfacing in Chrome and Lighthouse's \"agentic browsing\" audit. Early days, so optional today — but it's where agent traffic is heading.",
-      "detail": {
-        "imperative": 0,
-        "declarative": 0,
-        "manifest": false
       }
     },
     "agentVerifiability": {
@@ -101,24 +91,6 @@
         "topRules": []
       }
     },
-    "agentVerificationPosture": {
-      "status": "ok",
-      "posture": "none",
-      "emitsSignatureHeaders": false,
-      "signatureHeaders": {
-        "signatureInput": null,
-        "signature": null,
-        "signatureAgent": null
-      },
-      "parsedSignatureInput": null,
-      "botUaProbe": {
-        "performed": true,
-        "status": 200,
-        "wwwAuthenticate": null,
-        "returns402": false
-      },
-      "note": "Posture observed from the scanner’s own HTTP exchange only; not a measure of how many inbound agents the origin verifies (invisible from outside). No signature is cryptographically verified."
-    },
     "signedAgentVerification": {
       "status": "ok",
       "classification": "no-signal",
@@ -126,48 +98,23 @@
         "signed": {
           "status": 200,
           "headers": {},
-          "bodyLength": 205688
+          "bodyLength": 206000
         },
         "broken": {
           "status": 200,
           "headers": {},
-          "bodyLength": 205688
+          "bodyLength": 206000
         },
         "unsigned": {
           "status": 200,
           "headers": {},
-          "bodyLength": 205688
+          "bodyLength": 206000
         }
       },
       "evidence": [],
       "keyid": "GBxqWscB-GOkwNXEhmWQA4SY2gWRH2Hz4dAvzRcK1gw",
       "signatureAgent": "https://www.example.com/.well-known/http-message-signatures-directory",
       "note": "Classification derived solely from the scanner’s own three probe exchanges (valid signature, corrupted signature, unsigned). “no-signal” does NOT mean the origin runs no verifier: observe-only verifiers are externally invisible, and an origin can only fully verify our probe if it trusts our key directory. The corrupted-signature probe is the strongest discriminator. We only report what our own three exchanges showed."
-    },
-    "provenanceSurvival": {
-      "status": "ok",
-      "imagesScanned": 1,
-      "withManifestServed": 0,
-      "strippedOnServe": 0,
-      "images": [
-        {
-          "url": "https://www.example.com/images/sample-1.jpg",
-          "format": "webp",
-          "servedHasManifest": false,
-          "servedMarkers": [],
-          "sourceFetched": false,
-          "sourceHasManifest": null,
-          "survival": "served-only"
-        }
-      ],
-      "note": "Detection only (JUMBF/XMP byte-scan); no manifest is validated, re-signed, or authored."
-    },
-    "sovereigntyExposure": {
-      "status": "ok",
-      "exposedFeatureCount": 0,
-      "findings": [],
-      "classifierVersion": "ws4-1",
-      "note": "Heuristic, passive observation of features that phone home to US-jurisdiction endpoints. Not legal advice or a compliance certificate."
     },
     "platform": {
       "status": "ok",
@@ -192,7 +139,7 @@
       "blockedBy": [],
       "thirdPartyHosts": [
         {
-          "host": "umami.we-amp.com",
+          "host": "stats.example.com",
           "requests": 1,
           "category": "other",
           "tracker": false
@@ -205,7 +152,7 @@
         "vendor": null
       },
       "firstParty": ["www.example.com"],
-      "requestsObserved": 11,
+      "requestsObserved": 10,
       "httpStatus": 200,
       "trackerListVersion": "pcl-2",
       "note": "Passive observation of the requests this page issued in a fresh browser (no cookies, no storage, no interaction) up to network idle. Host categories come from a maintained heuristic list; not legal advice or a compliance certificate."
@@ -218,7 +165,7 @@
       "totals": {
         "scripts": 15,
         "inline": 13,
-        "inlineBytes": 18379,
+        "inlineBytes": 18000,
         "external": 2,
         "firstPartyExternal": 1,
         "thirdPartyExternal": 1,
@@ -228,7 +175,7 @@
       },
       "scriptHosts": [
         {
-          "host": "umami.we-amp.com",
+          "host": "stats.example.com",
           "party": "third",
           "scripts": 1,
           "withIntegrity": 0,
@@ -255,7 +202,7 @@
         "reporting": false
       },
       "firstParty": ["www.example.com"],
-      "requestsObserved": 11,
+      "requestsObserved": 10,
       "httpStatus": 200,
       "scriptListVersion": "si-1",
       "note": "Inventory of the script elements in this page's rendered HTML, from one fresh browser load. Scripts inside cross-origin frames and scripts that leave no element behind are not seen. Host categories come from a maintained heuristic list; not an assessment against any standard."
@@ -347,7 +294,7 @@
         "server": "nginx"
       },
       "firstParty": ["www.example.com"],
-      "requestsObserved": 11,
+      "requestsObserved": 10,
       "httpStatus": 200,
       "seoRulesVersion": "seo-1",
       "note": "Compares the head of this page as served without JavaScript with the same page after one fresh browser load. One page only: links, other language versions and titles on other pages are not checked. Not a ranking assessment."
@@ -390,7 +337,7 @@
         "server": "nginx"
       },
       "firstParty": ["www.example.com"],
-      "requestsObserved": 11,
+      "requestsObserved": 10,
       "httpStatus": 200,
       "responseRulesVersion": "rx-1",
       "note": "Reads the response headers and the HTML of this page as served, without and with JavaScript, from one fresh load. One page only. Error output is matched by fixed patterns and not shown. End-of-life dates are the upstream projects' published dates; a distribution or host may still patch older versions. Not a security assessment."
@@ -426,60 +373,11 @@
       },
       "note": "Asks this page once for Markdown (Accept: text/markdown) and reads only the response headers, reads the Content-Signal lines in robots.txt and the Link response header of the page. One page only; nothing is scored. Not an assessment of how AI agents treat your site."
     },
-    "ghostLayer": {
-      "detected": true,
-      "count": 2,
-      "byTechnique": {
-        "clipped": 1,
-        "off-viewport": 1
-      },
-      "verdict": "Found 5 elements that a person effectively cannot see but an AI agent still reads (clipped to nothing, pushed off-screen). On your own site this is usually leftover, mis-styled, or third-party-injected content worth reviewing — agents weight it the same as visible copy.",
-      "viewport": {
-        "width": 1280,
-        "height": 720,
-        "dpr": 1
-      },
-      "truncated": false,
-      "nodes": [
-        {
-          "technique": "clipped",
-          "label": "Clipped to nothing",
-          "gloss": "A clip / clip-path / zero-size overflow crops the text out of view while it stays in the DOM for agents.",
-          "selector": "html#html-root > body.min-h-screen.flex > a.sr-only.focus:not-sr-only",
-          "rect": {
-            "x": -1,
-            "y": -1,
-            "width": 1,
-            "height": 1
-          },
-          "textSample": "Skip to main content",
-          "computed": {
-            "reason": "clip-path collapses painted area to ~0"
-          }
-        },
-        {
-          "technique": "clipped",
-          "label": "Clipped to nothing",
-          "gloss": "A clip / clip-path / zero-size overflow crops the text out of view while it stays in the DOM for agents.",
-          "selector": "div.readout > div.readout-row > p.readout-value.display-num > span.sr-only",
-          "rect": {
-            "x": 808.8,
-            "y": 213,
-            "width": 1,
-            "height": 1
-          },
-          "textSample": "to",
-          "computed": {
-            "reason": "clip-path collapses painted area to ~0"
-          }
-        }
-      ]
-    },
     "metrics": {
-      "staticTextLen": 15624,
-      "renderedTextLen": 12388,
-      "rawHtmlTokens": 51904,
-      "cleanTokens": 3097,
+      "staticTextLen": 15600,
+      "renderedTextLen": 12400,
+      "rawHtmlTokens": 52000,
+      "cleanTokens": 3100,
       "httpOk": true
     },
     "signals": {
@@ -538,29 +436,10 @@
         "sitemaps": ["https://www.example.com/sitemap-index.xml"]
       }
     },
-    "webmcp": {
-      "status": "ok",
-      "declarative": 0,
-      "imperative": false,
-      "present": false,
-      "forms": {
-        "total": 2,
-        "annotated": 0
-      },
-      "schema": {
-        "valid": 0,
-        "invalid": 0,
-        "reasons": []
-      }
-    },
-    "webmcpBucket": "none",
     "diff": {
       "staticMarkdown": "# Example product\n\nA short page of sample text.\n\n## Services\n\n- First item\n- Second item\n\n[Contact](https://www.example.com/contact)\n",
-      "renderedMarkdown": "# Example product\n\nA short page of sample text.\n\n## Services\n\n- First item\n- Second item\n\n[Contact](https://www.example.com/contact)\n",
-      "staticCleanTokens": 2873,
-      "renderedCleanTokens": 2873
-    },
-    "renderError": null,
-    "staticError": null
+      "staticCleanTokens": 3100,
+      "renderedCleanTokens": 3100
+    }
   }
 }
