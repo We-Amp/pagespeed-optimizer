@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { stubUmami } from './helpers/umami';
 
-// The Speed pillar of the v2 scan interface. PageSpeed Insights and the
+// The Speed pillar of the scan interface. PageSpeed Insights and the
 // scanner are always mocked; nothing here reaches a real service.
 
 const fixture = (name: string) =>
@@ -62,12 +62,12 @@ async function mock(page: Page, mocks: Mocks, scanDelayMs = 0): Promise<Calls> {
 }
 
 async function warm(page: Page) {
-  await page.goto('/analyze/?ui=v2');
+  await page.goto('/analyze/');
   await page.waitForLoadState('networkidle');
 }
 
 async function scan(page: Page) {
-  await page.goto('/analyze/?ui=v2');
+  await page.goto('/analyze/');
   await page.locator('form[data-scan-box] input[name="url"]').fill('https://example.com');
   await page.locator('form[data-scan-box] button[type="submit"]').click();
 }
@@ -80,7 +80,7 @@ async function openSpeed(page: Page) {
   await expect(panel(page)).toBeVisible();
 }
 
-test.describe('v2 Speed panel', () => {
+test.describe('Speed panel', () => {
   test.beforeEach(async ({ page }) => {
     await stubUmami(page);
   });
