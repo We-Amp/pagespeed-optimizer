@@ -21,7 +21,7 @@ Most proposals put the decision somewhere upstream: a CDN edge, a marketplace, a
 
 The standard tools for crawler control are advisory. `robots.txt` lists what you would prefer bots not fetch. RSL (Really Simple Licensing) and similar declarations state your terms. Both are signs on the lawn. A well-behaved crawler reads them. A crawler with an incentive to ignore them ignores them, and your origin serves the bytes anyway.
 
-An advisory layer is still useful. It tells honest agents the rules. The free [AI readability check](/ai-readability/) reports which AI crawlers your robots.txt blocks today. But it is not an access control, because nothing at the origin checks compliance before the response goes out. If you want a request refused unless it carries proof of permission, that check has to run in the request path.
+An advisory layer is still useful. It tells honest agents the rules. But it is not an access control, because nothing at the origin checks compliance before the response goes out. If you want a request refused unless it carries proof of permission, that check has to run in the request path.
 
 ## What the module ships: pay-per-crawl as an RSL-CAP gate {#what-115-ships-pay-per-crawl-as-an-rsl-cap-gate}
 
