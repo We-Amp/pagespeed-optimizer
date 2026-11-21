@@ -44,7 +44,7 @@ test.describe('/ai-readability/ landing', () => {
     const nodes = blocks.flatMap((b) => [JSON.parse(b)].flat());
     const faq = nodes.find((n) => n['@type'] === 'FAQPage');
     expect(faq).toBeTruthy();
-    expect(faq.mainEntity.length).toBeGreaterThanOrEqual(8);
+    expect(faq.mainEntity.length).toBe(10);
     const visible = (await page.locator('main details').allTextContents()).map((t) =>
       t.replace(/\s+/g, ' ').trim(),
     );

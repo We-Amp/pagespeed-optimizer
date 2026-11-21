@@ -117,7 +117,7 @@ const PAGE_CARDS = [
   },
   {
     slug: 'ai-readability',
-    eyebrow: 'RenderPeek · a free tool',
+    eyebrow: 'AI readability checker · a free tool',
     title: 'Can AI crawlers read your page?',
   },
 ];
