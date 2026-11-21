@@ -3,6 +3,7 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { PLATFORM_GUIDANCE } from '../../data/platform-guidance';
 import { FIT_LINE, fitFor, fitSpoken, platformName, serverOffersApply } from './fit';
 
 const fixture = (name: string) =>
@@ -47,17 +48,28 @@ describe('serverOffersApply', () => {
 
 describe('fitFor', () => {
   it('gives the muted line when the server topics may apply', () => {
-    for (const report of [fixture('unknown'), fixture('full'), null, { platform: null }]) {
+    for (const report of [fixture('unknown'), fixture('full'), { platform: null }]) {
       expect(fitFor(report)).toEqual({ offers: true, text: FIT_LINE, actions: [] });
     }
     expect(FIT_LINE).toBe('The server topics below apply only if you run the web server yourself.');
   });
 
-  it('names the platform and lists its own actions when there is checked guidance', () => {
+  it('says nothing without a result', () => {
+    for (const report of [null, undefined]) {
+      expect(fitFor(report)).toEqual({ offers: true, text: '', actions: [] });
+    }
+  });
+
+  it('lists the page-text action first, then two of the platform’s own', () => {
     const fit = fitFor(fixture('hosted'));
     expect(fit.offers).toBe(false);
     expect(fit.text).toBe(`${HEAD('Wix, a hosted platform.')} Three things you can do in Wix:`);
     expect(fit.actions).toHaveLength(3);
+    expect(fit.actions[0]).toEqual({
+      text: 'Put your services, location and contact details in page text, not in images.',
+    });
+    expect(fit.actions.slice(1)).toEqual(PLATFORM_GUIDANCE.wix.actions.slice(0, 2));
+    expect(fit.actions.slice(1).every((a) => a.source?.startsWith('https://'))).toBe(true);
     expect(fitSpoken(fit)).toBe([fit.text, ...fit.actions.map((a) => a.text)].join(' '));
   });
 

@@ -293,13 +293,15 @@ export function init() {
       fitActions.replaceChildren();
       for (const action of fit && !fit.offers ? fit.actions : []) {
         const li = document.createElement('li');
-        li.textContent = action.text + ' ';
-        const a = document.createElement('a');
-        a.className = 'font-medium text-interactive underline';
-        a.href = action.source;
-        a.rel = 'noopener';
-        a.textContent = action.sourceLabel;
-        li.append(a);
+        li.textContent = action.text;
+        if (action.source && action.sourceLabel) {
+          const a = document.createElement('a');
+          a.className = 'font-medium text-interactive underline';
+          a.href = action.source;
+          a.rel = 'noopener';
+          a.textContent = action.sourceLabel;
+          li.append(' ', a);
+        }
         fitActions.append(li);
       }
       fitActions.hidden = fitActions.childElementCount === 0;

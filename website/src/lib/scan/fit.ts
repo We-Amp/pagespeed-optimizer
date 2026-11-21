@@ -41,19 +41,33 @@ export const FIT_LINE = 'The server topics below apply only if you run the web s
 const GENERIC_ACTIONS =
   'put your services, location and contact details in page text, not in images; fill in each page’s title and description; check that the SEO settings do not block AI crawlers.';
 
+/** The first action on every hosted platform; it needs no platform setting. */
+export const PAGE_TEXT_ACTION =
+  'Put your services, location and contact details in page text, not in images.';
+/** How many of a platform's own actions follow it. */
+const MAX_PLATFORM_ACTIONS = 2;
+
 const COUNT_WORD = ['', 'One thing', 'Two things', 'Three things'];
+
+/** One listed action; a platform's own action links the help page it was checked against. */
+export type FitAction = Pick<PlatformAction, 'text'> & Partial<PlatformAction>;
 
 export interface Fit {
   /** False for a hosted platform: nothing server-side is offered. */
   offers: boolean;
-  /** The notice paragraph (hosted) or the muted line (everything else). */
+  /** The notice paragraph (hosted) or the muted line; empty when there is nothing to say. */
   text: string;
-  /** Platform-specific actions shown as a list under the notice; empty otherwise. */
-  actions: PlatformAction[];
+  /** The actions listed under the notice; empty when the notice names them itself. */
+  actions: FitAction[];
 }
 
-/** What the top of a result says about fit. */
+/**
+ * What the top of a result says about fit. Without a report (the scan failed)
+ * it says nothing: the muted line belongs to a result, whose audit line and
+ * topics are the server offers it is about.
+ */
 export function fitFor(report: Report): Fit {
+  if (!report) return { offers: true, text: '', actions: [] };
   if (serverOffersApply(report)) return { offers: true, text: FIT_LINE, actions: [] };
   const name = platformName(report);
   const head =
@@ -62,10 +76,14 @@ export function fitFor(report: Report): Fit {
       : 'This site runs on a hosted platform.') +
     ' mod_pagespeed installs on a web server you run yourself, so it cannot be used here, and the server topics do not apply.';
   const where = name ? `in ${name}` : 'on the platform';
-  const actions = (guidanceFor(platformOf(report)?.id)?.actions ?? []).slice(0, 3);
-  if (actions.length) {
-    const lead = `${COUNT_WORD[actions.length]} you can do ${where}:`;
-    return { offers: false, text: `${head} ${lead}`, actions };
+  const own = (guidanceFor(platformOf(report)?.id)?.actions ?? []).slice(0, MAX_PLATFORM_ACTIONS);
+  if (own.length) {
+    const actions: FitAction[] = [{ text: PAGE_TEXT_ACTION }, ...own];
+    return {
+      offers: false,
+      text: `${head} ${COUNT_WORD[actions.length]} you can do ${where}:`,
+      actions,
+    };
   }
   return {
     offers: false,

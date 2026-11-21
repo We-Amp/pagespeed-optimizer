@@ -92,6 +92,10 @@ test.describe('scan result on a hosted platform', () => {
     await expect(notice.locator('[data-scan-fit-text]')).toHaveText(NOTICE);
     const actions = notice.locator('[data-scan-fit-actions] li');
     await expect(actions).toHaveCount(3);
+    await expect(actions.first()).toHaveText(
+      'Put your services, location and contact details in page text, not in images.',
+    );
+    await expect(notice.locator('a')).toHaveCount(2);
     for (const link of await notice.locator('a').all()) {
       expect(await link.getAttribute('href')).toMatch(/^https:\/\/support\.wix\.com\//);
     }
@@ -232,6 +236,23 @@ test.describe('scan result on a hosted platform', () => {
 });
 
 test.describe('scan result without a hosted platform', () => {
+  test('a failed scan shows neither the line nor the note', async ({ page }) => {
+    await mock(page, 'full');
+    await page.unroute('**/ai-readability/api/scan**');
+    await page.route('**/ai-readability/api/scan**', (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'scanner unavailable' }),
+      }),
+    );
+    await scanV2(page);
+    await expect(page.locator('[data-scan-fit-line]')).toHaveText('');
+    await expect(page.locator('[data-scan-fit-notice]')).toBeHidden();
+    await expect(page.locator('[data-scan-audit]')).toBeHidden();
+    expect(await chipIds(page)).toEqual(['consulting', 'agents']);
+  });
+
   for (const [label, report] of [
     ['an unknown platform', 'unknown'],
     ['no platform reading', 'full'],

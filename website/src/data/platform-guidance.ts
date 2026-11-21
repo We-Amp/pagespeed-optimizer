@@ -21,7 +21,7 @@ export interface PlatformGuidance {
   vendorDomain: string;
   /** The date the statements were last checked, YYYY-MM-DD. */
   checked: string;
-  /** One to three actions. */
+  /** One to three actions; a scan result lists the first two. */
   actions: PlatformAction[];
 }
 
@@ -40,11 +40,6 @@ export const PLATFORM_GUIDANCE: Record<string, PlatformGuidance> = {
         text: 'Open the Robots.txt Editor under Tools and settings in the SEO & GEO dashboard and check that the file does not block AI crawlers.',
         source: 'https://support.wix.com/en/article/editing-your-sites-robotstxt-file',
         sourceLabel: 'Wix help: robots.txt',
-      },
-      {
-        text: 'Add structured data to your static pages as JSON-LD markup.',
-        source: 'https://support.wix.com/en/article/add-structured-data-markup-to-your-sites-pages',
-        sourceLabel: 'Wix help: structured data',
       },
     ],
   },
