@@ -193,6 +193,7 @@ function editionToggle(edition: Edition, set: (e: Edition) => void): HTMLElement
 
 function configBlock(snippet: string, view: View, redraw: (focus?: string) => void): HTMLElement {
   const wrap = el('div', 'mt-4');
+  wrap.dataset.serverOffer = '';
   const id = 'scan-speed-config';
   const toggle = disclosure(
     view.configOpen ? 'Hide the configuration' : 'Show the configuration',
@@ -388,11 +389,18 @@ function drawResults(
   if (fixable.length > 0) {
     const ms = fixable.reduce((s, i) => s + i.overallSavingsMs, 0);
     const bytes = fixable.reduce((s, i) => s + i.overallSavingsBytes, 0);
-    rest.appendChild(el('p', 'mt-2 text-sm text-text-muted', savingsSentence(ms, bytes)));
+    // The savings sentence, the heading and the configuration are about a
+    // server the visitor runs: the results section hides every element marked
+    // data-server-offer for a hosted platform, and shows the plain heading.
+    const savings = el('p', 'mt-2 text-sm text-text-muted', savingsSentence(ms, bytes));
+    savings.dataset.serverOffer = '';
+    rest.appendChild(savings);
 
-    rest.appendChild(
-      el('h3', 'mt-6 text-base font-semibold text-text-body', 'Fixes on your server'),
-    );
+    const heading = el('h3', 'mt-6 text-base font-semibold text-text-body', 'Fixes on your server');
+    heading.dataset.serverOffer = '';
+    const plain = el('h3', 'mt-6 text-base font-semibold text-text-body', 'Flagged audits');
+    plain.dataset.hostedOnly = '';
+    rest.append(heading, plain);
     const list = el('ul', 'mt-1 divide-y divide-border');
     list.id = 'scan-speed-fixes';
     const shown = view.showAll ? fixable : fixable.slice(0, TOP_N);

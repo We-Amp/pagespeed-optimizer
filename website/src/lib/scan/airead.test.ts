@@ -10,7 +10,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { formatAiread } from './airead';
+import { crawlerRulesLine, formatAiread } from './airead';
 
 const PAGE = fileURLToPath(new URL('../../pages/ai-readability/index.astro', import.meta.url));
 const fixture = (name: string) =>
@@ -138,13 +138,126 @@ describe('formatAiread extras', () => {
   it('pluralises the AI crawler count from the number', () => {
     const full = fixture('full');
     const text = (r: Parameters<typeof formatAiread>[0]) => formatAiread(r).alsoFound[0].text;
-    expect(text(full)).toContain('9 AI crawlers can read');
+    expect(text(full)).toBe(
+      'About 38% of this page’s content is in the raw HTML, and 9 AI crawlers are allowed to read it, but your origin can’t tell a real signed agent from an impostor.',
+    );
     full.agentVerifiability.detail.aiCrawlersAllowed = ['GPTBot'];
-    expect(text(full)).toContain('1 AI crawler can read');
+    expect(text(full)).toContain('and 1 AI crawler is allowed to read it');
+  });
+  it('keeps the findings and drops the server sentences on a hosted platform', () => {
+    const found = formatAiread(fixture('hosted')).alsoFound;
+    expect(found.map((f) => f.wedge)).toEqual([
+      'tollbooth',
+      'agentpass',
+      'compliancefix',
+      'markdown-origin',
+    ]);
+    expect(found[0].text).toBe(
+      'AI crawlers are allowed and can read about 38% of this page’s content in the raw HTML.',
+    );
+    expect(found[2].text).toMatch(
+      /^Automated checks flagged \d+ accessibility issues? on this page\. We don’t issue compliance certificates\.$/,
+    );
+    expect(found[3]).toEqual({
+      wedge: 'markdown-origin',
+      text: 'This page did not return Markdown when asked for it (Accept: text/markdown).',
+    });
+    for (const f of found) {
+      expect(f.text).not.toMatch(/your own server|self-hosted|mod_pagespeed|impostor/);
+      expect(f.link).toBeUndefined();
+    }
+    // The same report without the platform reading words them as before.
+    const plain = fixture('hosted');
+    delete plain.platform;
+    expect(formatAiread(plain).alsoFound.map((f) => f.text)).toEqual(
+      formatAiread({ ...fixture('hosted'), platform: fixture('unknown').platform }).alsoFound.map(
+        (f) => f.text,
+      ),
+    );
+    expect(formatAiread(plain).alsoFound[0].text).toContain('your origin can’t tell');
   });
   it('builds the token line from the report', () => {
     expect(formatAiread(fixture('full')).tokenLine).toBe(
       'Readable text in raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
     );
+  });
+});
+
+describe('crawlerRulesLine', () => {
+  const rules = (patch: Record<string, unknown> = {}) => ({
+    access: {
+      crawlerRules: {
+        parsed: true,
+        reason: null,
+        truncated: false,
+        training: { allowed: ['GPTBot', 'ClaudeBot', 'CCBot'], blocked: [] },
+        answer: { allowed: ['OAI-SearchBot', 'PerplexityBot'], blocked: [] },
+        wildcardBlocksAll: false,
+        sitemaps: [],
+        ...patch,
+      },
+    },
+  });
+
+  it('says nothing when the result has no reading', () => {
+    expect(crawlerRulesLine({})).toBe('');
+    expect(crawlerRulesLine({ access: {} })).toBe('');
+    expect(crawlerRulesLine({ access: { crawlerRules: null } })).toBe('');
+    expect(crawlerRulesLine(fixture('full'))).toBe('');
+    expect(formatAiread(fixture('full')).categories.every((c) => c.note === '')).toBe(true);
+  });
+
+  it('says why there are no rules', () => {
+    for (const reason of ['missing', 'empty']) {
+      expect(crawlerRulesLine(rules({ parsed: false, reason }))).toBe(
+        'No robots.txt rules found: every crawler may fetch this site.',
+      );
+    }
+    expect(crawlerRulesLine(rules({ parsed: false, reason: 'not-robots' }))).toBe(
+      'The address /robots.txt does not return a robots.txt file.',
+    );
+    expect(crawlerRulesLine(rules({ parsed: false, reason: 'other' }))).toBe('');
+  });
+
+  it('reports a wildcard block', () => {
+    expect(crawlerRulesLine(rules({ wildcardBlocksAll: true }))).toBe(
+      'robots.txt blocks every crawler that has no rule of its own.',
+    );
+  });
+
+  it('counts the crawlers when none is blocked', () => {
+    expect(crawlerRulesLine(rules())).toBe('robots.txt blocks none of the 5 AI crawlers we check.');
+    expect(crawlerRulesLine(fixture('hosted'))).toBe(
+      'robots.txt blocks none of the 21 AI crawlers we check.',
+    );
+  });
+
+  it('counts and names the blocked crawlers', () => {
+    expect(crawlerRulesLine(fixture('unknown'))).toBe(
+      'robots.txt blocks 2 of 8 AI crawlers we check for training data and 1 of 13 that fetch pages to answer questions: GPTBot, ClaudeBot, OAI-SearchBot.',
+    );
+  });
+
+  it('names at most six crawlers, then counts the rest', () => {
+    const line = crawlerRulesLine(
+      rules({
+        training: { allowed: [], blocked: ['A', 'B', 'C', 'D'] },
+        answer: { allowed: ['X'], blocked: ['E', 'F', 'G', 'H'] },
+      }),
+    );
+    expect(line).toBe(
+      'robots.txt blocks 4 of 4 AI crawlers we check for training data and 4 of 5 that fetch pages to answer questions: A, B, C, D, E, F and 2 more.',
+    );
+  });
+
+  it('says when only part of the file was read', () => {
+    expect(crawlerRulesLine(rules({ truncated: true }))).toBe(
+      'robots.txt blocks none of the 5 AI crawlers we check. The file is long; only the first part was read.',
+    );
+  });
+
+  it('puts the line on the crawler access row only', () => {
+    const notes = formatAiread(fixture('unknown')).categories.filter((c) => c.note);
+    expect(notes.map((c) => c.name)).toEqual(['Crawler access']);
   });
 });

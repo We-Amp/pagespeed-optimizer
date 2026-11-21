@@ -69,6 +69,11 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
     fill.style.width = `${c.pct}%`;
     bar.append(fill);
     row.append(top, bar, el('div', 'mt-1 text-sm text-text-muted', c.verdict));
+    if (c.note) {
+      const note = el('p', 'mt-1 text-sm text-text-muted', c.note);
+      note.dataset.scanCrawlerRules = '';
+      row.append(note);
+    }
     cats.append(row);
   }
   panel.append(cats);

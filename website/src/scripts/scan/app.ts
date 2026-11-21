@@ -27,6 +27,7 @@ import {
   reloadError,
 } from '../../lib/scan/psi';
 import { resolveApiBase } from '../../lib/scan/api-base';
+import { fitFor, fitSpoken, type Fit } from '../../lib/scan/fit';
 import { proxyErrorText, scanErrorCopy } from '../../lib/scan/scan-errors';
 import { renderSpeedPanel } from './panels/speed';
 
@@ -257,6 +258,9 @@ export function init() {
   const hostEl = root.querySelector<HTMLElement>('[data-scan-host]')!;
   const healthEl = root.querySelector<HTMLElement>('[data-scan-health]')!;
   const hintEl = root.querySelector<HTMLElement>('[data-scan-hint]');
+  const fitLine = root.querySelector<HTMLElement>('[data-scan-fit-line]');
+  const fitText = root.querySelector<HTMLElement>('[data-scan-fit-text]');
+  const fitActions = root.querySelector<HTMLElement>('[data-scan-fit-actions]');
   const tiles = new Map<Pillar, HTMLButtonElement>();
   const panels = new Map<Pillar, HTMLElement>();
   for (const p of PILLARS) {
@@ -275,6 +279,31 @@ export function init() {
 
   function announce(text: string) {
     live.textContent = text;
+  }
+
+  // The line under the heading: for a hosted platform a notice with what the
+  // owner can do there, otherwise one muted line. `data-server-offers` on the
+  // section is what hides or shows everything that needs the visitor's own
+  // server; null clears the line for a new run.
+  function paintFit(fit: Fit | null) {
+    root!.dataset.serverOffers = fit && !fit.offers ? 'off' : 'on';
+    if (fitLine) fitLine.textContent = fit && fit.offers ? fit.text : '';
+    if (fitText) fitText.textContent = fit && !fit.offers ? fit.text : '';
+    if (fitActions) {
+      fitActions.replaceChildren();
+      for (const action of fit && !fit.offers ? fit.actions : []) {
+        const li = document.createElement('li');
+        li.textContent = action.text + ' ';
+        const a = document.createElement('a');
+        a.className = 'font-medium text-interactive underline';
+        a.href = action.source;
+        a.rel = 'noopener';
+        a.textContent = action.sourceLabel;
+        li.append(a);
+        fitActions.append(li);
+      }
+      fitActions.hidden = fitActions.childElementCount === 0;
+    }
   }
 
   // The tile value stays one line in every state, so a failing source never
@@ -455,7 +484,10 @@ export function init() {
     if (!report && !reason) reason = 'The scanner returned no result.';
     state.lastReport = report;
     state.lastScan = { report, error, reason: report ? '' : reason, permalink };
+    const fit = fitFor(report);
+    paintFit(fit);
     if (report) {
+      const platform = report.platform as { id?: unknown; originControl?: unknown } | undefined;
       track('ai-scan', {
         domain: hostOf(url),
         grade: report.grade,
@@ -463,6 +495,9 @@ export function init() {
         csr_gap:
           (report.categories as Record<string, { flag?: string }> | undefined)?.['Content fidelity']
             ?.flag === 'csr-gap',
+        platform: typeof platform?.id === 'string' && platform.id ? platform.id : 'unknown',
+        origin_control:
+          typeof platform?.originControl === 'string' ? platform.originControl : 'unknown',
       });
     }
     const ai = report ? aireadStatus(report) : NOT_MEASURED;
@@ -473,7 +508,9 @@ export function init() {
     arrival(
       ai.state === 'none'
         ? `AI readability not measured. ${reason}`
-        : `AI readability ready: grade ${report!.grade}, ${report!.score} of 100.`,
+        : `AI readability ready: grade ${report!.grade}, ${report!.score} of 100.` +
+            // The hosted-platform notice is read once, with the result it belongs to.
+            (fit.offers ? '' : ` ${fitSpoken(fit)}`),
     );
   }
 
@@ -531,6 +568,7 @@ export function init() {
     state.lastPsi = null;
     state.lastScan = null;
     state.lastReport = null;
+    paintFit(null);
     for (const p of PILLARS) {
       paintTile(p, CHECKING);
       panels.get(p)!.replaceChildren();
