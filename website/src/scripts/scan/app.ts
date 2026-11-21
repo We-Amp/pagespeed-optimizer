@@ -28,6 +28,13 @@ import {
 } from '../../lib/scan/psi';
 import { resolveApiBase } from '../../lib/scan/api-base';
 import { fitFor, type Fit } from '../../lib/scan/fit';
+import {
+  emptyLine,
+  nextSteps,
+  showLabel,
+  type Step,
+  type StepPillar,
+} from '../../lib/scan/next-steps';
 import { proxyErrorText, scanErrorCopy } from '../../lib/scan/scan-errors';
 import { renderSpeedPanel } from './panels/speed';
 
@@ -262,7 +269,11 @@ export function init() {
   const hintEl = root.querySelector<HTMLElement>('[data-scan-hint]');
   const fitLine = root.querySelector<HTMLElement>('[data-scan-fit-line]');
   const fitText = root.querySelector<HTMLElement>('[data-scan-fit-text]');
-  const fitActions = root.querySelector<HTMLElement>('[data-scan-fit-actions]');
+  const fitLinks = root.querySelector<HTMLElement>('[data-scan-fit-links]');
+  const elapsedEl = root.querySelector<HTMLElement>('[data-scan-elapsed]');
+  const stepsEl = root.querySelector<HTMLElement>('[data-scan-steps]');
+  const stepsList = root.querySelector<HTMLElement>('[data-scan-steps-list]');
+  const stepsNone = root.querySelector<HTMLElement>('[data-scan-steps-none]');
   const tiles = new Map<Pillar, HTMLButtonElement>();
   const panels = new Map<Pillar, HTMLElement>();
   for (const p of PILLARS) {
@@ -278,6 +289,7 @@ export function init() {
   let runId = 0;
   let running = false;
   let announcedFirst = false;
+  let elapsedTimer = 0;
 
   function announce(text: string) {
     live.textContent = text;
@@ -293,26 +305,101 @@ export function init() {
     root!.dataset.serverOffers = !fit ? 'pending' : fit.offers ? 'on' : 'off';
     if (fitLine) fitLine.textContent = fit && fit.offers ? fit.text : '';
     if (fitText) fitText.textContent = fit && !fit.offers ? fit.text : '';
-    if (fitActions) {
-      fitActions.replaceChildren();
-      for (const action of fit && !fit.offers ? fit.actions : []) {
-        const li = document.createElement('li');
-        li.textContent = action.text;
-        if (action.source && action.sourceLabel) {
-          const a = document.createElement('a');
-          a.className = 'font-medium text-interactive underline';
-          a.href = action.source;
-          a.target = '_blank';
-          a.rel = 'noopener noreferrer';
-          a.textContent = action.sourceLabel;
-          a.setAttribute('aria-label', `${action.sourceLabel} (opens in new tab)`);
-          a.title = `${action.sourceLabel} (opens in new tab)`;
-          li.append(' ', a);
-        }
-        fitActions.append(li);
-      }
-      fitActions.hidden = fitActions.childElementCount === 0;
+    if (fitLinks) {
+      fitLinks.replaceChildren();
+      const links = fit && !fit.offers ? fit.links : [];
+      if (links.length) fitLinks.append(fit!.linksLead);
+      links.forEach((link, i) => {
+        const a = document.createElement('a');
+        a.className = 'font-medium text-interactive underline';
+        a.href = link.href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = link.label;
+        a.setAttribute('aria-label', `${link.label} (opens in new tab)`);
+        a.title = `${link.label} (opens in new tab)`;
+        fitLinks.append(i === 0 ? ' ' : ', ', a);
+      });
+      if (links.length) fitLinks.append('.');
+      fitLinks.hidden = links.length === 0;
     }
+  }
+
+  function speedScores() {
+    const psi = state.lastPsi;
+    if (!psi || statuses.speed.state === 'checking') return null;
+    return {
+      mobile: psi.mobile ? perfScore(psi.mobile) : null,
+      desktop: psi.desktop ? perfScore(psi.desktop) : null,
+    };
+  }
+
+  // Open a step's panel and put focus on the row the step is about (the panel
+  // itself when the row is not there).
+  function showStep(step: Step) {
+    setOpen(step.pillar);
+    const panel = panels.get(step.pillar)!;
+    const row = (step.target && panel.querySelector<HTMLElement>(step.target)) || panel;
+    row.tabIndex = -1;
+    row.focus({ preventScroll: true });
+    row.scrollIntoView({
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'center',
+    });
+    track('scan-step-open', { step: step.id });
+  }
+
+  // The steps list follows the results as they land: it is rewritten in place
+  // and never takes focus or speaks. Returns how many steps the result has.
+  let paintedSteps = '';
+  function paintSteps(): number {
+    const scanPending = statuses.airead.state === 'checking';
+    const anyPending = PILLARS.some((p) => statuses[p].state === 'checking');
+    const { steps, total } = nextSteps(scanPending ? null : state.lastReport, speedScores());
+    if (!stepsEl || !stepsList || !stepsNone) return total;
+    const attention = PILLARS.filter((p) =>
+      ['needs-work', 'poor', 'flagged'].includes(statuses[p].state),
+    ) as StepPillar[];
+    const none =
+      steps.length > 0
+        ? ''
+        : anyPending
+          ? 'pending'
+          : emptyLine(attention, PILLARS.filter((p) => statuses[p].state !== 'none').length);
+    const key = JSON.stringify([steps, none]);
+    if (key === paintedSteps) return total;
+    paintedSteps = key;
+    stepsEl.dataset.state = steps.length ? 'steps' : anyPending ? 'pending' : 'none';
+    stepsList.replaceChildren();
+    for (const step of steps) {
+      const li = document.createElement('li');
+      li.dataset.scanStep = step.id;
+      const text = document.createElement('span');
+      text.textContent = step.text;
+      const tag = document.createElement('span');
+      tag.className = 'scan-step-tag';
+      tag.dataset.scanStepTag = '';
+      tag.textContent = step.tag;
+      const show = document.createElement('button');
+      show.type = 'button';
+      show.className = 'scan-step-show';
+      show.dataset.scanStepShow = step.pillar;
+      show.textContent = showLabel(step.pillar);
+      show.addEventListener('click', () => showStep(step));
+      li.append(text, ' ', tag, ' ', show);
+      stepsList.append(li);
+    }
+    stepsList.hidden = steps.length === 0;
+    stepsNone.hidden = steps.length > 0;
+    if (none === 'pending') {
+      const bar = document.createElement('span');
+      bar.className = 'scan-skeleton';
+      bar.setAttribute('aria-hidden', 'true');
+      stepsNone.replaceChildren(bar);
+    } else {
+      stepsNone.textContent = none;
+    }
+    return total;
   }
 
   // The hosted-platform sentence is read out once, with the last of the two
@@ -351,7 +438,10 @@ export function init() {
       value.textContent = status.value || '—';
       value.removeAttribute('title');
     }
-    healthEl.textContent = healthLine(PILLARS.map((p) => statuses[p]));
+    healthEl.textContent = healthLine(
+      PILLARS.map((p) => statuses[p]),
+      paintSteps(),
+    );
   }
 
   // Paint the tile, then hand the panel to the pillar's renderer.
@@ -379,7 +469,6 @@ export function init() {
       const isOpen = p === open;
       const tile = tiles.get(p)!;
       tile.setAttribute('aria-expanded', String(isOpen));
-      tile.setAttribute('aria-label', `${isOpen ? 'Hide' : 'Show'} ${PILLAR_NAME[p]} details`);
       panels.get(p)!.hidden = !isOpen;
     }
     if (open) track('scan-tile-open', { pillar: open });
@@ -560,6 +649,17 @@ export function init() {
     // never moves what is below it.
     if (hintEl) {
       hintEl.textContent = busy ? WAIT_HINT : '';
+    }
+    // A plain count of the seconds waited, next to the "Checking" line. It is
+    // text, so it also shows with reduced motion, and it sits outside the live
+    // region, so it is not read out each second.
+    clearInterval(elapsedTimer);
+    if (elapsedEl) elapsedEl.textContent = busy ? '0 s' : '';
+    if (busy && elapsedEl) {
+      const since = Date.now();
+      elapsedTimer = window.setInterval(() => {
+        elapsedEl.textContent = `${Math.round((Date.now() - since) / 1000)} s`;
+      }, 1000);
     }
   }
 
