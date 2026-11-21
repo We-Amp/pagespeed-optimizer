@@ -7,8 +7,7 @@ import { stubUmami } from './helpers/umami';
 
 // Where focus goes, and what the live region says, while a scan runs. Focus
 // moves to the results heading when the scan starts. A result that lands later
-// is announced, and moves focus only when the visitor has not moved it
-// elsewhere. The scanner and PageSpeed Insights are mocked and held back by
+// is announced, and moves focus to the heading only when focus is on nothing. The scanner and PageSpeed Insights are mocked and held back by
 // the test; the real services are never called.
 
 const report = readFileSync(new URL('./fixtures/scan/report-full.json', import.meta.url), 'utf8');
@@ -101,15 +100,57 @@ test.describe('focus and announcements during a scan', () => {
     gates.releaseSpeed();
   });
 
-  test('the first result moves focus to the heading when it is still on the submit button', async ({
-    page,
-  }) => {
+  test('focus stays on the scan button when the visitor went back to it', async ({ page }) => {
     const gates = await start(page);
+    await expect(heading(page)).toBeFocused();
     await page.locator('#scan-submit').focus();
+    gates.releaseScan();
+    await expect(aiStatus(page)).not.toHaveText('Checking…', { timeout: 15000 });
     await expect(page.locator('#scan-submit')).toBeFocused();
+    gates.releaseSpeed();
+  });
+
+  test('the first result moves focus to the heading when focus is on nothing', async ({ page }) => {
+    const gates = await start(page);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
     gates.releaseScan();
     await expect(aiStatus(page)).not.toHaveText('Checking…', { timeout: 15000 });
     await expect(heading(page)).toBeFocused();
+    gates.releaseSpeed();
+  });
+
+  test('the live region is filled after the results are shown, not in the same step', async ({
+    page,
+  }) => {
+    // Record what the live region held at each change, from before the scan.
+    await page.addInitScript(() => {
+      const seen: string[] = [];
+      Object.defineProperty(window, '__live', { value: seen });
+      document.addEventListener('DOMContentLoaded', () => {
+        const region = document.querySelector('[data-scan-live]')!;
+        const results = document.querySelector<HTMLElement>('[data-scan-results]')!;
+        new MutationObserver(() => {
+          if (!results.hidden) seen.push(region.textContent ?? '');
+        }).observe(results, { attributes: true, attributeFilter: ['hidden'] });
+        new MutationObserver(() => seen.push(region.textContent ?? '')).observe(region, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      });
+    });
+    const gates = await start(page);
+    await expect(live(page)).toHaveText(
+      'Checking shop.example.com. Usually takes 20 to 40 seconds.',
+    );
+    const seen = await page.evaluate(() => (window as unknown as { __live: string[] }).__live);
+    // Empty when the section appeared; the text came in a later step.
+    expect(seen[0]).toBe('');
+    expect(seen[seen.length - 1]).toBe(
+      'Checking shop.example.com. Usually takes 20 to 40 seconds.',
+    );
+    gates.releaseScan();
     gates.releaseSpeed();
   });
 });
