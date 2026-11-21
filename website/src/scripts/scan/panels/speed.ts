@@ -16,6 +16,7 @@ import {
   describePsiError,
   collectFlaggedAuditIds,
   coverageSentence,
+  flaggedAudits,
   formatBytes,
   formatMs,
   isMappingFailed,
@@ -103,7 +104,9 @@ function plate(label: string, score: number | null, err: RequestError | null): H
   return box;
 }
 
-function savingsText(item: AggregatedAudit): string {
+function savingsText(
+  item: Pick<AggregatedAudit, 'overallSavingsMs' | 'overallSavingsBytes'>,
+): string {
   const parts: string[] = [];
   if (item.overallSavingsMs > 0) parts.push(formatMs(item.overallSavingsMs));
   if (item.overallSavingsBytes > 0) parts.push(formatBytes(item.overallSavingsBytes));
@@ -193,7 +196,6 @@ function editionToggle(edition: Edition, set: (e: Edition) => void): HTMLElement
 
 function configBlock(snippet: string, view: View, redraw: (focus?: string) => void): HTMLElement {
   const wrap = el('div', 'mt-4');
-  wrap.dataset.serverOffer = '';
   const id = 'scan-speed-config';
   const toggle = disclosure(
     view.configOpen ? 'Hide the configuration' : 'Show the configuration',
@@ -383,24 +385,47 @@ function drawResults(
     rest.appendChild(el('p', 'text-sm text-text-body', ALL_CLEAN));
     return;
   }
+
+  // Two versions of the same result. What mod_pagespeed would do about the
+  // audits needs a server the visitor runs, so it is marked data-server-offer;
+  // the plain version, marked data-hosted-only, lists what PageSpeed Insights
+  // flagged and nothing else. The results section shows one of the two.
+  const plain = el('div', '');
+  plain.dataset.hostedOnly = '';
+  plain.appendChild(
+    el(
+      'p',
+      'text-sm text-text-body',
+      `PageSpeed Insights flagged ${totalFlagged} performance ${totalFlagged === 1 ? 'audit' : 'audits'} on this page.`,
+    ),
+  );
+  plain.appendChild(el('h3', 'mt-6 text-base font-semibold text-text-body', 'Flagged audits'));
+  const all = el('ul', 'mt-1 divide-y divide-border');
+  all.dataset.speedFlagged = '';
+  for (const audit of flaggedAudits(m, d)) {
+    const li = el('li', 'flex flex-wrap items-center gap-x-3 gap-y-2 py-3');
+    li.appendChild(el('span', 'text-sm font-semibold text-text-body', audit.title));
+    const saved = savingsText(audit);
+    if (saved) li.appendChild(el('span', 'text-xs text-text-annotation', `est. ${saved}`));
+    all.appendChild(li);
+  }
+  plain.appendChild(all);
+  const outer = rest;
+  outer.appendChild(plain);
+  rest = el('div', '');
+  rest.dataset.serverOffer = '';
+  outer.appendChild(rest);
   rest.appendChild(
     el('p', 'text-sm text-text-body', coverageSentence(totalFlagged, fixable.length, items.length)),
   );
   if (fixable.length > 0) {
     const ms = fixable.reduce((s, i) => s + i.overallSavingsMs, 0);
     const bytes = fixable.reduce((s, i) => s + i.overallSavingsBytes, 0);
-    // The savings sentence, the heading and the configuration are about a
-    // server the visitor runs: the results section hides every element marked
-    // data-server-offer for a hosted platform, and shows the plain heading.
-    const savings = el('p', 'mt-2 text-sm text-text-muted', savingsSentence(ms, bytes));
-    savings.dataset.serverOffer = '';
-    rest.appendChild(savings);
+    rest.appendChild(el('p', 'mt-2 text-sm text-text-muted', savingsSentence(ms, bytes)));
 
-    const heading = el('h3', 'mt-6 text-base font-semibold text-text-body', 'Fixes on your server');
-    heading.dataset.serverOffer = '';
-    const plain = el('h3', 'mt-6 text-base font-semibold text-text-body', 'Flagged audits');
-    plain.dataset.hostedOnly = '';
-    rest.append(heading, plain);
+    rest.appendChild(
+      el('h3', 'mt-6 text-base font-semibold text-text-body', 'Fixes on your server'),
+    );
     const list = el('ul', 'mt-1 divide-y divide-border');
     list.id = 'scan-speed-fixes';
     const shown = view.showAll ? fixable : fixable.slice(0, TOP_N);

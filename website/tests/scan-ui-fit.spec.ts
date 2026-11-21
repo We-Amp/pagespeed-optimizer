@@ -28,27 +28,37 @@ const GATED = [
 ];
 
 const NOTICE =
-  'This site runs on Wix, a hosted platform. mod_pagespeed installs on a web server you run yourself, so it cannot be used here, and the server topics do not apply. Three things you can do in Wix:';
-const LINE = 'The server topics below apply only if you run the web server yourself.';
+  'This site runs on Wix, a hosted platform. mod_pagespeed installs on a web server you run yourself, so it cannot be used for this site. The findings below still apply. Three things you can do in Wix:';
+const SPOKEN =
+  'This site runs on Wix, a hosted platform; mod_pagespeed cannot be used here. A note under the heading says what you can do.';
+const LINE =
+  'The fixes and offers below that use mod_pagespeed apply only if you run the web server yourself.';
 
 type Posted = Array<Record<string, unknown>>;
 
-async function mock(page: Page, report: 'hosted' | 'unknown' | 'full' | object): Promise<Posted> {
+async function mock(
+  page: Page,
+  report: 'hosted' | 'unknown' | 'full' | object,
+  delay: { psi?: number; scan?: number } = {},
+): Promise<Posted> {
   const posted: Posted = [];
-  await page.route('**/psi/v5/runPagespeed**', (route) =>
-    route.fulfill({
+  const wait = (ms?: number) => (ms ? new Promise((done) => setTimeout(done, ms)) : null);
+  await page.route('**/psi/v5/runPagespeed**', async (route) => {
+    await wait(delay.psi);
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: read(route.request().url().includes('strategy=desktop') ? 'psi-desktop' : 'psi-mobile'),
-    }),
-  );
-  await page.route('**/ai-readability/api/scan**', (route) =>
-    route.fulfill({
+    });
+  });
+  await page.route('**/ai-readability/api/scan**', async (route) => {
+    await wait(delay.scan);
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: typeof report === 'string' ? read(`report-${report}`) : JSON.stringify(report),
-    }),
-  );
+    });
+  });
   await page.route('**/ai-readability/api/contact', async (route) => {
     posted.push(route.request().postDataJSON() as Record<string, unknown>);
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
@@ -95,9 +105,17 @@ test.describe('scan result on a hosted platform', () => {
     await expect(actions.first()).toHaveText(
       'Put your services, location and contact details in page text, not in images.',
     );
-    await expect(notice.locator('a')).toHaveCount(2);
-    for (const link of await notice.locator('a').all()) {
+    await expect(actions.nth(2)).toContainText(
+      'Open the robots.txt editor in the SEO section of your Wix dashboard and check that the file does not block AI crawlers.',
+    );
+    // The vendor help opens in a new tab and says so.
+    const links = notice.locator('a');
+    await expect(links).toHaveCount(2);
+    for (const link of await links.all()) {
       expect(await link.getAttribute('href')).toMatch(/^https:\/\/support\.wix\.com\//);
+      await expect(link).toHaveAttribute('target', '_blank');
+      await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      await expect(link).toHaveAccessibleName(/^Wix help: .+ \(opens in new tab\)$/);
     }
     // It is a note, not an alert, and it sits before the tiles.
     await expect(notice).not.toHaveAttribute('role', /.+/);
@@ -111,9 +129,62 @@ test.describe('scan result on a hosted platform', () => {
       ),
     ).toBe(true);
     await expect(page.locator('[data-scan-fit-line]')).toBeHidden();
-    // The one live region carried it with the result it belongs to.
-    const spoken = await page.locator('[data-scan-live]').textContent();
-    if (spoken?.startsWith('AI readability ready')) expect(spoken).toContain(NOTICE);
+  });
+
+  for (const [label, delay] of [
+    ['the scan lands last', { scan: 600 }],
+    ['Speed lands last', { psi: 600 }],
+  ] as const) {
+    test(`reads one short sentence out, once, when ${label}`, async ({ page }) => {
+      await mock(page, 'hosted', delay);
+      await page.addInitScript(() => {
+        const w = window as unknown as { __said: string[] };
+        w.__said = [];
+        document.addEventListener('DOMContentLoaded', () => {
+          const live = document.querySelector('[data-scan-live]');
+          if (!live) return;
+          new MutationObserver(() => {
+            const text = live.textContent ?? '';
+            if (text && w.__said.at(-1) !== text) w.__said.push(text);
+          }).observe(live, { childList: true, characterData: true, subtree: true });
+        });
+      });
+      await scanV2(page);
+      // It is the last thing said, so no later result replaced it unread.
+      await expect(page.locator('[data-scan-live]')).toContainText(SPOKEN);
+      const said = await page.evaluate(() => (window as unknown as { __said: string[] }).__said);
+      expect(said.filter((t) => t.includes(SPOKEN))).toHaveLength(1);
+      expect(said.some((t) => t.includes('Three things'))).toBe(false);
+    });
+  }
+
+  test('shows no server offer while the scan is on its way', async ({ page }) => {
+    await mock(page, 'hosted', { scan: 1500 });
+    await stubUmami(page);
+    await page.goto('/ai-readability/?ui=v2');
+    await page.waitForLoadState('networkidle');
+    await page.fill('#scan-url', 'studio.example.org');
+    await page.click('#scan-submit');
+    await expect(page.locator('[data-scan-tile="speed"] [data-scan-status]')).not.toHaveText(
+      'Checking…',
+      { timeout: 15000 },
+    );
+    // Speed is in, the scan is not: nothing that may have to vanish is shown.
+    await expect(page.locator('[data-scan-results]')).toHaveAttribute(
+      'data-server-offers',
+      'pending',
+    );
+    await expect(page.locator('[data-scan-cta="download"]')).toBeHidden();
+    await expect(page.locator('[data-scan-cta="support"]')).toBeHidden();
+    await expect(page.locator('[data-scan-fit-notice]')).toBeHidden();
+    const speed = await open(page, 'speed');
+    await expect(speed.getByRole('heading', { name: 'Flagged audits' })).toBeVisible();
+    await expect(speed.getByRole('heading', { name: 'Fixes on your server' })).toBeHidden();
+    await expect(speed.getByRole('button', { name: 'Show the configuration' })).toBeHidden();
+    await expect(page.locator('[data-scan-results]')).toHaveAttribute('data-server-offers', 'off', {
+      timeout: 15000,
+    });
+    await expect(page.locator('[data-scan-cta="download"]')).toBeHidden();
   });
 
   test('offers nothing that needs a server the visitor runs', async ({ page }) => {
@@ -124,9 +195,8 @@ test.describe('scan result on a hosted platform', () => {
     await expect(page.locator('[data-scan-next]')).toBeHidden();
     await expect(page.locator('[data-scan-cta="download"]')).toBeHidden();
     await expect(page.locator('[data-scan-cta="support"]')).toBeHidden();
-    const ids = await chipIds(page);
-    expect(ids).toEqual(['consulting', 'agents']);
-    for (const id of [...GATED, 'audit']) expect(ids).not.toContain(id);
+    // Not the speed-help topic either: the speed fixes are server fixes.
+    expect(await chipIds(page)).toEqual(['agents']);
     // The share row is not an offer: it stays.
     await expect(page.locator('[data-scan-download]')).toBeVisible();
   });
@@ -144,12 +214,15 @@ test.describe('scan result on a hosted platform', () => {
     );
 
     const airead = await open(page, 'airead');
-    await expect(airead.locator('[data-scan-crawler-rules]')).toHaveText(
-      'robots.txt blocks none of the 21 AI crawlers we check.',
+    const access = airead.locator('.scan-airead-cat', { hasText: 'Crawler access' });
+    await expect(access.locator('[data-scan-crawler-rules]')).toHaveText(
+      'robots.txt lets all 21 AI crawlers we check fetch the home page (/). Rules for other paths are not read.',
     );
+    // The row says one thing about robots.txt.
+    await expect(access).not.toContainText('robots.txt allows AI crawlers');
     const found = airead.locator('[data-scan-also-found] li');
     await expect(found.first()).toHaveText(
-      'AI crawlers are allowed and can read about 38% of this page’s content in the raw HTML.',
+      'About 38% of this page’s content is in the raw HTML, and robots.txt lets AI crawlers fetch it.',
     );
     await expect(airead.locator('[data-scan-also-found]')).not.toContainText(
       /your own server|self-hosted|impostor|mod_pagespeed/,
@@ -157,16 +230,30 @@ test.describe('scan result on a hosted platform', () => {
     await expect(airead.locator('[data-scan-also-found] a')).toHaveCount(0);
 
     const speed = await open(page, 'speed');
+    // Speed shows what PageSpeed Insights measured and nothing about the product.
     await expect(speed.getByRole('heading', { name: 'Flagged audits' })).toBeVisible();
     await expect(speed.getByRole('heading', { name: 'Fixes on your server' })).toBeHidden();
     await expect(speed.getByRole('button', { name: 'Show the configuration' })).toBeHidden();
-    await expect(speed.locator('#scan-speed-fixes li').first()).toBeVisible();
+    const flagged = Number(
+      /flagged (\d+) performance audits? on this page\./.exec(await speed.innerText())?.[1],
+    );
+    expect(flagged).toBeGreaterThan(0);
+    await expect(speed.locator('[data-speed-flagged] li')).toHaveCount(flagged);
+    const shown = await speed.innerText();
+    for (const word of ['mod_pagespeed', 'addressed', 'address', 'Partial fix', 'Test first']) {
+      expect(shown).not.toContain(word);
+    }
+    // No filter-name button is reachable.
+    expect(
+      await speed
+        .locator('button')
+        .evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).length),
+    ).toBe(0);
   });
 
   test('a general question can still be sent, with no flagged topics', async ({ page }) => {
     const posted = await mock(page, 'hosted');
     await scanV2(page);
-    await page.locator('[data-scan-chip="consulting"] input').uncheck();
     await page.fill('form[data-scan-lead] input[name="email"]', 'owner@example.org');
     await page.click('form[data-scan-lead] button[type="submit"]');
     await expect(page.getByText('Your question was sent.', { exact: true })).toBeVisible();
@@ -276,21 +363,59 @@ test.describe('scan result without a hosted platform', () => {
       expect(await risk.locator('a').count()).toBeGreaterThan(0);
 
       const airead = await open(page, 'airead');
-      await expect(airead.locator('[data-scan-also-found] li').first()).toHaveText(
-        'About 38% of this page’s content is in the raw HTML, and 9 AI crawlers are allowed to read it, but your origin can’t tell a real signed agent from an impostor.',
-      );
+      const access = airead.locator('.scan-airead-cat', { hasText: 'Crawler access' });
+      const first = airead.locator('[data-scan-also-found] li').first();
       if (report === 'unknown') {
-        await expect(airead.locator('[data-scan-crawler-rules]')).toHaveText(
-          'robots.txt blocks 2 of 8 AI crawlers we check for training data and 1 of 13 that fetch pages to answer questions: GPTBot, ClaudeBot, OAI-SearchBot.',
+        // robots.txt blocks some crawlers: every line on the page agrees.
+        await expect(access.locator('[data-scan-crawler-rules]')).toHaveText(
+          'robots.txt blocks 2 of 8 AI crawlers we check for training data and 1 of 13 that fetch pages to answer questions from the home page (/): GPTBot, ClaudeBot, OAI-SearchBot.',
         );
+        await expect(access).not.toContainText('robots.txt allows AI crawlers');
+        await expect(first).toHaveText(
+          'About 38% of this page’s content is in the raw HTML, but your origin can’t tell a real signed agent from an impostor.',
+        );
+        await expect(airead).not.toContainText(/crawlers? (is|are) allowed/);
       } else {
+        // No robots.txt reading in the result: the row is the scanner's own.
         await expect(airead.locator('[data-scan-crawler-rules]')).toHaveCount(0);
+        await expect(first).toHaveText(
+          'About 38% of this page’s content is in the raw HTML, and AI crawlers are allowed to read it, but your origin can’t tell a real signed agent from an impostor.',
+        );
       }
 
       const speed = await open(page, 'speed');
       await expect(speed.getByRole('heading', { name: 'Fixes on your server' })).toBeVisible();
       await expect(speed.getByRole('heading', { name: 'Flagged audits' })).toBeHidden();
       await expect(speed.getByRole('button', { name: 'Show the configuration' })).toBeVisible();
+      await expect(speed).toContainText(/mod_pagespeed addresses \d+ of \d+ flagged audits/);
+      await expect(speed.locator('[data-speed-flagged]')).toBeHidden();
+    });
+  }
+
+  for (const width of [320, 390, 640, 768, 1280]) {
+    test(`the tiles do not move when the result lands at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mock(page, 'unknown', { scan: 1200 });
+      await stubUmami(page);
+      await page.goto('/ai-readability/?ui=v2');
+      await page.waitForLoadState('networkidle');
+      await page.fill('#scan-url', 'shop.example.com');
+      await page.click('#scan-submit');
+      await expect(page.locator('[data-scan-tile="speed"] [data-scan-status]')).not.toHaveText(
+        'Checking…',
+        { timeout: 15000 },
+      );
+      const top = () =>
+        page.evaluate(
+          () => document.querySelector('[data-scan-tiles]')!.getBoundingClientRect().top + scrollY,
+        );
+      const before = await top();
+      // The offers are out of sight until the result says they apply.
+      await expect(page.locator('[data-scan-cta="download"]')).toBeHidden();
+      await expect(page.locator('[data-scan-fit-line]')).toHaveText(LINE, { timeout: 15000 });
+      await expect(page.locator('[data-scan-cta="download"]')).toBeVisible();
+      // Within two pixels: the line has its space before it has its text.
+      expect(Math.abs((await top()) - before)).toBeLessThanOrEqual(2);
     });
   }
 

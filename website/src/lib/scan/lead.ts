@@ -125,8 +125,9 @@ export const FOUND_MARKER = '(flagged by your scan)';
  * is null while it is still checking) and is pre-selected only when Speed is
  * Poor; the agents chip is always offered and the audit chip with every
  * report, unselected. With no report only the ungated chips remain. A report
- * for a hosted platform (the owner has no control of the server) offers no
- * gated chip and no audit chip.
+ * for a hosted platform (the owner has no control of the server) offers only
+ * the agents chip: the speed fixes, the gated topics and the audit all need a
+ * server the visitor runs.
  */
 export function chipsFor(
   report: Report | null | undefined,
@@ -148,7 +149,7 @@ export function chipsFor(
       }
     }
   }
-  if (speed) {
+  if (speed && offers) {
     chips.push({ ...CONSULTING, wedge: '', gated: false, selected: speed === 'poor' });
   }
   chips.push({ ...AGENTS, wedge: '', gated: false, selected: false });

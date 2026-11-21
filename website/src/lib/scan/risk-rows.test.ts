@@ -367,6 +367,13 @@ describe('siPlatformSplit', () => {
     ).toBe(
       '6 external scripts: 1 from the platform’s own hosts, 3 from third parties, 2 from this site’s own host.',
     );
+    // The head is the sum of the listed parts, whatever the scan's own total says.
+    expect(
+      siPlatformSplit(
+        { totals: { external: 9, platformExternal: 5, thirdPartyExternal: 1 } },
+        'Shop',
+      ),
+    ).toBe('6 external scripts: 5 from Shop’s own hosts, 1 from third parties.');
     expect(siPlatformSplit({ totals: { platformExternal: 1 } }, 'Shop')).toBe(
       '1 external script: 1 from Shop’s own hosts, 0 from third parties.',
     );

@@ -37,7 +37,7 @@ export const PLATFORM_GUIDANCE: Record<string, PlatformGuidance> = {
         sourceLabel: 'Wix help: page SEO settings',
       },
       {
-        text: 'Open the Robots.txt Editor under Tools and settings in the SEO & GEO dashboard and check that the file does not block AI crawlers.',
+        text: 'Open the robots.txt editor in the SEO section of your Wix dashboard and check that the file does not block AI crawlers.',
         source: 'https://support.wix.com/en/article/editing-your-sites-robotstxt-file',
         sourceLabel: 'Wix help: robots.txt',
       },

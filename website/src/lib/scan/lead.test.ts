@@ -65,9 +65,12 @@ describe('chipsFor', () => {
     expect(chips.filter((c) => !c.gated).every((c) => c.wedge === '')).toBe(true);
   });
 
-  it('offers no gated chip and no audit chip on a hosted platform', () => {
+  it('offers only the agents chip on a hosted platform', () => {
     const hosted = fixture('hosted');
-    expect(chipsFor(hosted, 'poor').map((c) => c.id)).toEqual(['consulting', 'agents']);
+    // Not the speed-help chip either: the speed fixes are server fixes.
+    for (const speed of ['poor', 'needs-work', 'good', 'none'] as const) {
+      expect(chipsFor(hosted, speed).map((c) => c.id)).toEqual(['agents']);
+    }
     expect(chipsFor(hosted, null).map((c) => c.id)).toEqual(['agents']);
     // The same result without the platform reading offers all of them.
     delete hosted.platform;

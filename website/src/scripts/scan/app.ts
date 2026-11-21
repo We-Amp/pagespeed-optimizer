@@ -27,7 +27,7 @@ import {
   reloadError,
 } from '../../lib/scan/psi';
 import { resolveApiBase } from '../../lib/scan/api-base';
-import { fitFor, fitSpoken, type Fit } from '../../lib/scan/fit';
+import { fitFor, type Fit } from '../../lib/scan/fit';
 import { proxyErrorText, scanErrorCopy } from '../../lib/scan/scan-errors';
 import { renderSpeedPanel } from './panels/speed';
 
@@ -59,6 +59,8 @@ const PSI_TIMEOUT_REASON = 'PageSpeed Insights did not answer within a minute.';
 const WAIT_HINT = 'Usually takes 20 to 40 seconds.';
 // How long after the results section is shown its live region is first filled.
 const ANNOUNCE_DELAY_MS = 100;
+// The origin-control readings a scan can report.
+const ORIGIN_CONTROL = ['none', 'limited', 'full', 'unknown'];
 
 export interface PsiBody {
   lighthouseResult?: { categories?: { performance?: { score?: number | null } } };
@@ -283,10 +285,12 @@ export function init() {
 
   // The line under the heading: for a hosted platform a notice with what the
   // owner can do there, otherwise one muted line. `data-server-offers` on the
-  // section is what hides or shows everything that needs the visitor's own
-  // server; null clears the line for a new run.
+  // section decides what is shown of everything that needs the visitor's own
+  // server: "on" shows it, "off" (a hosted platform) hides it, and "pending"
+  // (null: a scan is on its way) keeps it out of sight until the result says
+  // which of the two it is.
   function paintFit(fit: Fit | null) {
-    root!.dataset.serverOffers = fit && !fit.offers ? 'off' : 'on';
+    root!.dataset.serverOffers = !fit ? 'pending' : fit.offers ? 'on' : 'off';
     if (fitLine) fitLine.textContent = fit && fit.offers ? fit.text : '';
     if (fitText) fitText.textContent = fit && !fit.offers ? fit.text : '';
     if (fitActions) {
@@ -298,14 +302,26 @@ export function init() {
           const a = document.createElement('a');
           a.className = 'font-medium text-interactive underline';
           a.href = action.source;
-          a.rel = 'noopener';
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
           a.textContent = action.sourceLabel;
+          a.setAttribute('aria-label', `${action.sourceLabel} (opens in new tab)`);
+          a.title = `${action.sourceLabel} (opens in new tab)`;
           li.append(' ', a);
         }
         fitActions.append(li);
       }
       fitActions.hidden = fitActions.childElementCount === 0;
     }
+  }
+
+  // The hosted-platform sentence is read out once, with the last of the two
+  // results to land, so a later result never replaces it unread.
+  let heldNote = '';
+  function withNote(text: string): string {
+    const note = heldNote;
+    heldNote = '';
+    return note ? `${text} ${note}` : text;
   }
 
   // The tile value stays one line in every state, so a failing source never
@@ -395,7 +411,7 @@ export function init() {
     const { title } = classifyError(reloadError());
     state.lastPsi = null;
     settle('speed', NOT_MEASURED, title);
-    arrival(`Speed not measured. ${title}`);
+    arrival(withNote(`Speed not measured. ${title}`));
   }
 
   async function runSpeed(id: number, url: string) {
@@ -442,10 +458,10 @@ export function init() {
       const err = state.lastPsi.errors.mobile ?? state.lastPsi.errors.desktop;
       const reason = err ? describePsiError(err).title : 'No result.';
       settle('speed', status, reason);
-      arrival(`Speed not measured. ${reason}`);
+      arrival(withNote(`Speed not measured. ${reason}`));
     } else {
       settle('speed', status);
-      arrival(`Speed ready: ${status.word.toLowerCase()}. ${status.value}.`);
+      arrival(withNote(`Speed ready: ${status.word.toLowerCase()}. ${status.value}.`));
     }
   }
 
@@ -490,6 +506,8 @@ export function init() {
     paintFit(fit);
     if (report) {
       const platform = report.platform as { id?: unknown; originControl?: unknown } | undefined;
+      const id = platform?.id;
+      const control = platform?.originControl;
       track('ai-scan', {
         domain: hostOf(url),
         grade: report.grade,
@@ -497,9 +515,10 @@ export function init() {
         csr_gap:
           (report.categories as Record<string, { flag?: string }> | undefined)?.['Content fidelity']
             ?.flag === 'csr-gap',
-        platform: typeof platform?.id === 'string' && platform.id ? platform.id : 'unknown',
+        // Only a short id and the known words leave the page.
+        platform: typeof id === 'string' && /^[a-z0-9-]{1,40}$/.test(id) ? id : 'unknown',
         origin_control:
-          typeof platform?.originControl === 'string' ? platform.originControl : 'unknown',
+          typeof control === 'string' && ORIGIN_CONTROL.includes(control) ? control : 'unknown',
       });
     }
     const ai = report ? aireadStatus(report) : NOT_MEASURED;
@@ -507,13 +526,13 @@ export function init() {
     if (ai.state === 'none' && !reason) reason = 'The scanner returned no result.';
     settle('airead', ai, ai.state === 'none' ? reason : '');
     settle('risk', risk, risk.state === 'none' ? reason : '');
-    arrival(
+    // While Speed is still on its way the sentence waits for it.
+    heldNote = fit.spoken;
+    const text =
       ai.state === 'none'
         ? `AI readability not measured. ${reason}`
-        : `AI readability ready: grade ${report!.grade}, ${report!.score} of 100.` +
-            // The hosted-platform notice is read once, with the result it belongs to.
-            (fit.offers ? '' : ` ${fitSpoken(fit)}`),
-    );
+        : `AI readability ready: grade ${report!.grade}, ${report!.score} of 100.`;
+    arrival(statuses.speed.state === 'checking' ? text : withNote(text));
   }
 
   function hostOf(url: string) {
@@ -570,6 +589,7 @@ export function init() {
     state.lastPsi = null;
     state.lastScan = null;
     state.lastReport = null;
+    heldNote = '';
     paintFit(null);
     for (const p of PILLARS) {
       paintTile(p, CHECKING);
@@ -591,6 +611,7 @@ export function init() {
     rerun(pillar) {
       if (!state.url) return;
       const redo: Pillar[] = pillar === 'speed' ? ['speed'] : ['airead', 'risk'];
+      if (pillar !== 'speed') paintFit(null);
       for (const p of redo) {
         paintTile(p, CHECKING);
         panels.get(p)!.replaceChildren();

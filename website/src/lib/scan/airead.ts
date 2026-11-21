@@ -47,8 +47,10 @@ export interface CategoryRow {
   /** The flag chip text, or an empty string. */
   flag: string;
   verdict: string;
-  /** A factual line under the verdict; empty when there is none. */
+  /** A factual line under the verdict; empty when there is none or it replaced the verdict. */
   note: string;
+  /** True when the verdict is the scan's reading of robots.txt. */
+  fromRules: boolean;
 }
 
 export interface AireadModel {
@@ -93,33 +95,63 @@ const names = (v: unknown): string[] =>
 export function crawlerRulesLine(r: Report): string {
   const cr = r.access?.crawlerRules;
   if (!cr || typeof cr !== 'object') return '';
-  const tail = cr.truncated === true ? ' The file is long; only the first part was read.' : '';
+  const tail = cr.truncated === true ? ' Part of the file was not read.' : '';
   if (cr.parsed !== true) {
-    if (cr.reason === 'missing' || cr.reason === 'empty') {
-      return 'No robots.txt rules found: every crawler may fetch this site.' + tail;
+    if (cr.reason === 'missing') {
+      return 'The scan could not read a robots.txt file for this site.' + tail;
     }
+    if (cr.reason === 'empty') return 'robots.txt holds no rules, so it blocks no crawler.' + tail;
     if (cr.reason === 'not-robots') {
       return 'The address /robots.txt does not return a robots.txt file.' + tail;
     }
     return '';
   }
-  if (cr.wildcardBlocksAll === true) {
-    return 'robots.txt blocks every crawler that has no rule of its own.' + tail;
-  }
   const trainingBlocked = names(cr.training?.blocked);
   const answerBlocked = names(cr.answer?.blocked);
+  const allowed = names(cr.training?.allowed).length + names(cr.answer?.allowed).length;
   const training = trainingBlocked.length + names(cr.training?.allowed).length;
   const answer = answerBlocked.length + names(cr.answer?.allowed).length;
+  if (cr.wildcardBlocksAll === true) {
+    // A crawler allowed here has a rule of its own that lets it in.
+    return (
+      'robots.txt blocks every crawler that has no rule of its own' +
+      (allowed > 0
+        ? '; ' +
+          (allowed === 1
+            ? '1 AI crawler has its own rule and may'
+            : allowed + ' AI crawlers have their own rule and may') +
+          ' fetch the home page (/).'
+        : '.') +
+      tail
+    );
+  }
   if (training + answer === 0) return '';
   const blocked = [...new Set([...trainingBlocked, ...answerBlocked])];
   if (blocked.length === 0) {
-    return `robots.txt blocks none of the ${training + answer} AI crawlers we check.` + tail;
+    return (
+      `robots.txt lets all ${training + answer} AI crawlers we check fetch the home page (/). Rules for other paths are not read.` +
+      tail
+    );
   }
   const shown = blocked.slice(0, MAX_NAMED_CRAWLERS).join(', ');
   const more = blocked.length - MAX_NAMED_CRAWLERS;
   return (
-    `robots.txt blocks ${trainingBlocked.length} of ${training} AI crawlers we check for training data and ${answerBlocked.length} of ${answer} that fetch pages to answer questions: ${shown}${more > 0 ? ` and ${more} more` : ''}.` +
+    `robots.txt blocks ${trainingBlocked.length} of ${training} AI crawlers we check for training data and ${answerBlocked.length} of ${answer} that fetch pages to answer questions from the home page (/): ${shown}${more > 0 ? ` and ${more} more` : ''}.` +
     tail
+  );
+}
+
+/**
+ * Whether robots.txt keeps any AI crawler the scan checks from the home page:
+ * true or false from the scan's reading of the file, null when the result has
+ * no such reading.
+ */
+export function crawlersBlocked(r: Report): boolean | null {
+  const cr = r.access?.crawlerRules;
+  if (!cr || typeof cr !== 'object' || cr.parsed !== true) return null;
+  return (
+    cr.wildcardBlocksAll === true ||
+    names(cr.training?.blocked).length + names(cr.answer?.blocked).length > 0
   );
 }
 
@@ -135,19 +167,22 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
   const ax = r.accessibility;
   const sa = r.signedAgentVerification;
   if (tollboothCtaApplies(av)) {
-    const crawlers = av.detail.aiCrawlersAllowed.length;
-    out.push({
-      wedge: 'tollbooth',
-      text: offers
-        ? 'About ' +
-          av.detail.exposurePct +
-          '% of this page’s content is in the raw HTML, and ' +
-          (crawlers === 1 ? '1 AI crawler is' : crawlers + ' AI crawlers are') +
-          ' allowed to read it, but your origin can’t tell a real signed agent from an impostor.'
-        : 'AI crawlers are allowed and can read about ' +
-          av.detail.exposurePct +
-          '% of this page’s content in the raw HTML.',
-    });
+    // How much of the page is in the raw HTML, then who may fetch it. The
+    // crawler clause comes from the scan's reading of robots.txt, the same
+    // source as the line on the crawler access row; a result without that
+    // reading says AI crawlers are allowed and names no count.
+    const pct = Number(av.detail.exposurePct);
+    const blocked = crawlersBlocked(r);
+    const text =
+      (pct >= 100 ? 'All' : 'About ' + av.detail.exposurePct + '%') +
+      ' of this page’s content is in the raw HTML' +
+      (blocked === null
+        ? ', and AI crawlers are allowed to read it'
+        : blocked
+          ? ''
+          : ', and robots.txt lets AI crawlers fetch it') +
+      (offers ? ', but your origin can’t tell a real signed agent from an impostor.' : '.');
+    out.push({ wedge: 'tollbooth', text });
   }
   if (agentPassCtaApplies(sa)) {
     out.push({
@@ -197,6 +232,18 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
   return out;
 }
 
+function crawlerRow(
+  name: string,
+  verdict: string,
+  r: Report,
+): Pick<CategoryRow, 'verdict' | 'note' | 'fromRules'> {
+  if (name !== CRAWLER_CATEGORY) return { verdict, note: '', fromRules: false };
+  const line = crawlerRulesLine(r);
+  return r.access?.crawlerRules?.parsed === true && line
+    ? { verdict: line, note: '', fromRules: true }
+    : { verdict, note: line, fromRules: false };
+}
+
 export function formatAiread(r: Report): AireadModel {
   const categories = Object.entries(r.categories ?? {}).map(([name, c]) => ({
     name,
@@ -205,8 +252,10 @@ export function formatAiread(r: Report): AireadModel {
     pct: Math.round((c.score / c.max) * 100),
     flag:
       c.flag === 'csr-gap' ? 'invisible without JS' : c.flag === 'thin' ? 'no content found' : '',
-    verdict: c.verdict ?? '',
-    note: name === CRAWLER_CATEGORY ? crawlerRulesLine(r) : '',
+    // On the crawler access row the scan's reading of robots.txt, when there
+    // is one, takes the place of the verdict sentence, so the row says one
+    // thing about robots.txt. The score is not touched.
+    ...crawlerRow(name, c.verdict ?? '', r),
   }));
   const d = r.diff ?? {};
   const tokens = (n: number | undefined) => '~' + (n ?? 0).toLocaleString();

@@ -104,7 +104,8 @@ export function siPlatformSplit(si: Lens, platformName: string): string {
   if (platform <= 0) return '';
   const third = Number(t.thirdPartyExternal) || 0;
   const first = Number(t.firstPartyExternal) || 0;
-  const external = typeof t.external === 'number' ? t.external : platform + third + first;
+  // The head is the sum of the parts it lists, so the sentence always adds up.
+  const external = platform + third + first;
   const owner = platformName ? platformName + '’s' : 'the platform’s';
   return (
     plural(external, 'external script') +
