@@ -27,6 +27,16 @@ export const MAX_TOPICS = 4;
 export const MAX_LISTED_TOPICS = 6;
 /** The endpoint's limit for one request body, in UTF-8 bytes. */
 export const MAX_BODY_BYTES = 8192;
+/** The endpoint keeps a signal only when its JSON has at most this many characters. */
+export const MAX_SIGNAL_CHARS = 2000;
+/** Text values inside a signal are cut to the first of these lengths that makes it fit. */
+export const SIGNAL_TEXT_CUTS = [200, 100, 50];
+/** The endpoint keeps this many characters of the scanned address. */
+export const MAX_URL_CHARS = 500;
+
+/** The endpoint's rule for an email address: something@something.tld, no spaces. */
+export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+export const emailOk = (value: string): boolean => EMAIL_RE.test(value.trim());
 
 export interface Chip {
   /** The contact topic; for gated chips it is also the wedge. */
@@ -97,6 +107,8 @@ const GATED: ChipDef[] = [
 
 export const CONSULTING = { id: 'consulting', label: 'Help applying the speed fixes' };
 export const AGENTS = { id: 'agents', label: 'AI agents and crawlers' };
+/** The topic of a request with nothing ticked. It has no chip. */
+export const GENERAL_TOPIC = 'general';
 export const AUDIT = {
   id: 'audit',
   label: `Agent-readiness audit (${formatEur(AUDIT_PRICE_EUR)} per site, excl. VAT)`,
@@ -182,7 +194,7 @@ export function newSubmissionId(): string {
 
 /**
  * The topics of a request. First every ticked chip, in display order; with
- * nothing ticked, the general question takes that place. Then every chip whose
+ * nothing ticked, the general topic takes that place. Then every chip whose
  * check fired and that the visitor left unticked. The list holds at most
  * MAX_LISTED_TOPICS entries, and a ticked chip is never the one left out.
  */
@@ -191,7 +203,7 @@ export function topicsFor(chips: Chip[], ticked: readonly string[]): Topic[] {
   const chosen: Topic[] =
     picked.length > 0
       ? picked.map((c) => ({ id: c.id, wedge: c.gated ? c.wedge : null, chosen: true }))
-      : [{ id: AGENTS.id, wedge: null, chosen: true }];
+      : [{ id: GENERAL_TOPIC, wedge: null, chosen: true }];
   const found: Topic[] = chips
     .filter((c) => c.gated && !ticked.includes(c.id))
     .map((c) => ({ id: c.id, wedge: c.wedge, chosen: false }));
@@ -226,7 +238,41 @@ export function factsFor(form: LeadForm, report: Report | null): Record<string, 
       .find((id): id is string => typeof id === 'string' && id.startsWith('server-'));
     if (server && server.length > 'server-'.length) facts.server = server.slice('server-'.length);
   }
+  const cdn = [report?.seoDefects, report?.responseExposure]
+    .map((lens) => (lens as { delivery?: { cdn?: unknown } } | null | undefined)?.delivery?.cdn)
+    .find((v): v is string => present(v) && v !== 'none');
+  if (cdn) facts.cdn = cdn;
   return facts;
+}
+
+// Cut text without splitting a character pair.
+function cut(text: string, max: number): string {
+  if (text.length <= max) return text;
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+}
+
+function shortenText(value: unknown, max: number): unknown {
+  if (typeof value === 'string') return cut(value, max);
+  if (Array.isArray(value)) return value.map((v) => shortenText(v, max));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, shortenText(v, max)]));
+  }
+  return value;
+}
+
+/**
+ * A signal as it may be sent: long text values inside it (a header echo, for
+ * one) are cut until it fits, and a signal the endpoint would still not keep
+ * (over MAX_SIGNAL_CHARS as JSON) is null.
+ */
+export function boundSignal(signal: unknown): unknown {
+  if (!signal || typeof signal !== 'object') return null;
+  for (const max of SIGNAL_TEXT_CUTS) {
+    const bounded = shortenText(signal, max);
+    if (JSON.stringify(bounded).length <= MAX_SIGNAL_CHARS) return bounded;
+  }
+  return null;
 }
 
 const encoder = new TextEncoder();
@@ -238,7 +284,7 @@ export function bodyBytes(payload: unknown): number {
 /**
  * The one request for a submission. `ticked` holds the ids of the ticked
  * chips. The message is the visitor's note and nothing else. Signals are sent
- * for the ticked topics that have one. A body over MAX_BODY_BYTES loses its
+ * for the ticked topics that have one the endpoint will keep. A body over MAX_BODY_BYTES loses its
  * signals, largest first, and then the unticked topics; the email address, the
  * note and the ticked topics always stay.
  */
@@ -256,7 +302,7 @@ export function payloadForSubmission(
       if (!topic.chosen || !topic.wedge) continue;
       let signal: unknown = null;
       try {
-        signal = lensSignalFor(topic.wedge, report);
+        signal = boundSignal(lensSignalFor(topic.wedge, report));
       } catch {
         // The result lacks the part this signal is read from: send none.
       }
@@ -266,7 +312,7 @@ export function payloadForSubmission(
   const payload: LeadPayload = {
     email: form.email,
     name: '',
-    url: (report && report.url) || form.url,
+    url: cut(String((report && report.url) || form.url || ''), MAX_URL_CHARS),
     ...(form.t === undefined ? {} : { t: form.t }),
     origin: 'scan-result',
     submissionId: form.submissionId,

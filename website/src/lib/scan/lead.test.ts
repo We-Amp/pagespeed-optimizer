@@ -7,8 +7,11 @@ import { buildLeadPayload, lensSignalFor } from './demand.mjs';
 import {
   FOUND_MARKER,
   MAX_BODY_BYTES,
+  MAX_SIGNAL_CHARS,
   bodyBytes,
+  boundSignal,
   chipsFor,
+  emailOk,
   factsFor,
   newSubmissionId,
   payloadForSubmission,
@@ -234,7 +237,14 @@ describe('payloadForSubmission', () => {
         agentpass: lensSignalFor('agentpass', full),
         'edge-seo': lensSignalFor('edge-seo', full),
       },
-      facts: { grade: 'C', score: 64, speedMobile: 41, speedDesktop: 88, sites: 7 },
+      facts: {
+        grade: 'C',
+        score: 64,
+        speedMobile: 41,
+        speedDesktop: 88,
+        sites: 7,
+        cdn: 'cloudflare',
+      },
     });
   });
 
@@ -263,17 +273,21 @@ describe('payloadForSubmission', () => {
 
   it('an untouched form sends the general question as the only chosen topic', () => {
     const p = payloadForSubmission(chips, [], form, full);
-    expect(p.topics[0]).toEqual({ id: 'agents', wedge: null, chosen: true });
+    // The general topic is its own id, so it is not mistaken for a ticked chip.
+    expect(p.topics[0]).toEqual({ id: 'general', wedge: null, chosen: true });
     expect(p.topics.filter((t) => t.chosen)).toHaveLength(1);
     expect(p.topics.slice(1).map((t) => [t.id, t.chosen])).toEqual(
       GATED_ORDER.slice(0, 5).map((id) => [id, false]),
     );
-    expect(p.topic).toBe('agents');
+    expect(p.topic).toBe('general');
     expect(p.wedge).toBe('');
+    const tickedAgents = payloadForSubmission(chips, ['agents'], form, full);
+    expect(tickedAgents.topic).toBe('agents');
+    expect(tickedAgents.topics[0]).toEqual({ id: 'agents', wedge: null, chosen: true });
     expect(p.lensSignals).toEqual({});
     // With no report at all the general question is the whole list.
     const bare = payloadForSubmission(chipsFor(null, null), [], form, null);
-    expect(bare.topics).toEqual([{ id: 'agents', wedge: null, chosen: true }]);
+    expect(bare.topics).toEqual([{ id: 'general', wedge: null, chosen: true }]);
     expect(bare.url).toBe('https://typed.example/');
     expect(bare.facts).toEqual({ speedMobile: 41, speedDesktop: 88, sites: 7 });
   });
@@ -353,6 +367,7 @@ describe('payloadForSubmission', () => {
       platformName: 'Wix',
       originControl: 'none',
       server: 'pepyaka',
+      cdn: 'cloudflare',
     });
 
     // No platform named: only the server software from the evidence.
@@ -372,6 +387,7 @@ describe('payloadForSubmission', () => {
       speedDesktop: 88,
       sites: 7,
       server: 'nginx',
+      cdn: 'cloudflare',
     });
 
     // A cached or failed result has no platform reading; unmeasured values are left out.
@@ -379,10 +395,116 @@ describe('payloadForSubmission', () => {
       const report = structuredClone(full);
       report.platform = platform;
       expect(factsFor({ ...form, sites: 'abc', mobile: null, desktop: undefined }, report)).toEqual(
-        { grade: 'C', score: 64 },
+        { grade: 'C', score: 64, cdn: 'cloudflare' },
       );
     }
     expect(factsFor({ ...form, sites: '0' }, null)).toEqual({ speedMobile: 41, speedDesktop: 88 });
+  });
+
+  it('facts carry the CDN when the report names one', () => {
+    const cdnOf = (r: Record<string, unknown>) => factsFor(form, r).cdn;
+    expect(cdnOf(full)).toBe('cloudflare');
+    // The second place a report names it, when the first has none.
+    const other = structuredClone(full);
+    other.seoDefects.delivery.cdn = null;
+    other.responseExposure.delivery.cdn = 'fastly';
+    expect(cdnOf(other)).toBe('fastly');
+    for (const none of [null, '', 'none', undefined]) {
+      const r = structuredClone(full);
+      r.seoDefects.delivery.cdn = none;
+      r.responseExposure.delivery.cdn = none;
+      expect('cdn' in factsFor(form, r)).toBe(false);
+    }
+    const missing = structuredClone(full);
+    delete missing.seoDefects;
+    delete missing.responseExposure;
+    expect('cdn' in factsFor(form, missing)).toBe(false);
+  });
+
+  it('cuts the scanned address to the 500 characters the endpoint keeps', () => {
+    const url = 'https://example.com/' + '\u00e9'.repeat(1500);
+    const long = { ...form, url, note: '\u6f22'.repeat(1000) };
+    const p = payloadForSubmission(chipsFor(null, null), [], long, null);
+    expect(p.url).toBe(url.slice(0, 500));
+    expect(bodyBytes(p)).toBeLessThanOrEqual(MAX_BODY_BYTES);
+    const fromReport = payloadForSubmission(chips, ['edge-seo'], long, { ...full, url });
+    expect(fromReport.url).toHaveLength(500);
+    expect(bodyBytes(fromReport)).toBeLessThanOrEqual(MAX_BODY_BYTES);
+    expect(payloadForSubmission(chips, [], form, full).url).toBe('https://shop.example.com/');
+  });
+
+  it('never sends a signal the endpoint would drop', () => {
+    // Long header echoes are cut, and the signal is then small enough to keep.
+    const echo = structuredClone(full);
+    for (const probe of Object.values(echo.signedAgentVerification.probes) as Array<{
+      headers: Record<string, string>;
+    }>) {
+      for (const h of [
+        'www-authenticate',
+        'signature-input',
+        'accept-signature',
+        'server',
+        'via',
+      ]) {
+        probe.headers[h] = 'x'.repeat(300);
+      }
+    }
+    expect(JSON.stringify(lensSignalFor('agentpass', echo)).length).toBeGreaterThan(
+      MAX_SIGNAL_CHARS,
+    );
+    const kept = payloadForSubmission(chipsFor(echo, 'good'), ['agentpass'], form, echo);
+    const signal = kept.lensSignals.agentpass as {
+      classification: string;
+      probes: { signed: { status: number; headers: Record<string, string> } };
+    };
+    expect(JSON.stringify(signal).length).toBeLessThanOrEqual(MAX_SIGNAL_CHARS);
+    expect(signal.classification).toBe('signature-aware');
+    expect(signal.probes.signed.status).toBe(200);
+    expect(signal.probes.signed.headers['www-authenticate']).toBe('x'.repeat(50));
+    // A single long value is cut to 200 characters.
+    expect(boundSignal({ a: 'y'.repeat(5000), n: 1 })).toEqual({ a: 'y'.repeat(200), n: 1 });
+
+    // Many evidence entries: still too large after the cut, so it is left out.
+    const big = structuredClone(full);
+    big.signedAgentVerification.evidence = Array.from({ length: 30 }, (_, i) => ({
+      id: `evidence-item-${i}`,
+      detail: 'x'.repeat(60),
+    }));
+    big.seoDefects.defects = Array.from({ length: 200 }, (_, i) => `defect-${i}`);
+    const ticked = ['agentpass', 'edge-seo', 'tollbooth'];
+    const p = payloadForSubmission(chipsFor(big, 'good'), ticked, form, big);
+    expect(Object.keys(p.lensSignals)).toEqual(['tollbooth']);
+    expect(p.topics.filter((t) => t.chosen).map((t) => t.id)).toEqual([
+      'tollbooth',
+      'agentpass',
+      'edge-seo',
+    ]);
+    for (const s of Object.values(p.lensSignals)) {
+      expect(JSON.stringify(s).length).toBeLessThanOrEqual(MAX_SIGNAL_CHARS);
+    }
+
+    // A signal that fits is sent as it is; a cut never splits a character pair.
+    const plain = lensSignalFor('edge-seo', full);
+    expect(boundSignal(plain)).toEqual(plain);
+    expect(boundSignal(null)).toBeNull();
+    const pair = boundSignal({ text: 'a'.repeat(199) + '\u{1F600}' }) as { text: string };
+    expect(pair.text).toBe('a'.repeat(199));
+  });
+
+  it('accepts an address only when the endpoint would', () => {
+    for (const good of ['name@example.com', ' name@example.com ', 'a.b+c@sub.example.co']) {
+      expect(emailOk(good)).toBe(true);
+    }
+    for (const bad of [
+      '',
+      'name',
+      'name@gmail',
+      'name@@example.com',
+      'na me@example.com',
+      '@a.b',
+    ]) {
+      expect(emailOk(bad), bad).toBe(false);
+    }
   });
 
   it('carries the platform script count in the script signals when the scan reports it', () => {
