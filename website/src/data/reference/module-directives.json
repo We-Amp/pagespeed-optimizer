@@ -270,11 +270,13 @@
       "kind": "option",
       "area": "Statistics, console and logging",
       "platforms": [
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": null,
-        "nginx": "pagespeed AdminPath value;"
+        "nginx": "pagespeed AdminPath value;",
+        "iis": "pagespeed AdminPath value"
       },
       "default": "",
       "context": {
@@ -283,7 +285,10 @@
           "http",
           "server"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Set the admin path. Ex: /pagespeed_admin",
@@ -1568,11 +1573,13 @@
       "kind": "option",
       "area": "Statistics, console and logging",
       "platforms": [
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": null,
-        "nginx": "pagespeed ConsolePath value;"
+        "nginx": "pagespeed ConsolePath value;",
+        "iis": "pagespeed ConsolePath value"
       },
       "default": "",
       "context": {
@@ -1581,7 +1588,10 @@
           "http",
           "server"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Set the console path. Ex: /pagespeed_console",
@@ -2294,11 +2304,13 @@
       "area": "Optimizer worker",
       "platforms": [
         "apache",
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": "ModPagespeedDaemonServeHonorRequestFreshness on|off",
-        "nginx": "pagespeed DaemonServeHonorRequestFreshness on|off;"
+        "nginx": "pagespeed DaemonServeHonorRequestFreshness on|off;",
+        "iis": "pagespeed DaemonServeHonorRequestFreshness on|off"
       },
       "default": "off",
       "context": {
@@ -2310,7 +2322,10 @@
           "http",
           "server"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Let a client's reload headers (Cache-Control: no-cache or max-age=0, or Pragma: no-cache without a Cache-Control) bypass the optimizer daemon's cached copy of a resource, so the origin's own bytes are sent. Default off: a reload is served from the cache.",
@@ -2362,11 +2377,13 @@
       "area": "Optimizer worker",
       "platforms": [
         "apache",
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": "ModPagespeedDaemonSocketPath value",
-        "nginx": "pagespeed DaemonSocketPath value;"
+        "nginx": "pagespeed DaemonSocketPath value;",
+        "iis": "pagespeed DaemonSocketPath value"
       },
       "default": "",
       "context": {
@@ -2378,7 +2395,10 @@
           "http",
           "server"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Path of the optimizer worker's notification socket. Set this together with DaemonVolumePath to hand in-place optimization to the worker; leave both unset to keep the classic in-place path.",
@@ -2399,11 +2419,13 @@
       "area": "Optimizer worker",
       "platforms": [
         "apache",
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": "ModPagespeedDaemonVolumePath value",
-        "nginx": "pagespeed DaemonVolumePath value;"
+        "nginx": "pagespeed DaemonVolumePath value;",
+        "iis": "pagespeed DaemonVolumePath value"
       },
       "default": "",
       "context": {
@@ -2415,7 +2437,10 @@
           "http",
           "server"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Path of the optimizer worker's shared cache volume. Keep this on a DIFFERENT path from FileCachePath. Set this together with DaemonSocketPath; leave both unset to keep the classic in-place path.",
@@ -4880,11 +4905,13 @@
       "kind": "option",
       "area": "Statistics, console and logging",
       "platforms": [
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": null,
-        "nginx": "pagespeed GlobalAdminPath value;"
+        "nginx": "pagespeed GlobalAdminPath value;",
+        "iis": "pagespeed GlobalAdminPath value"
       },
       "default": "",
       "context": {
@@ -4892,7 +4919,10 @@
         "nginx": [
           "http"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Set the global admin path. Ex: /pagespeed_global_admin",
@@ -4950,11 +4980,13 @@
       "kind": "option",
       "area": "Statistics, console and logging",
       "platforms": [
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": null,
-        "nginx": "pagespeed GlobalStatisticsPath value;"
+        "nginx": "pagespeed GlobalStatisticsPath value;",
+        "iis": "pagespeed GlobalStatisticsPath value"
       },
       "default": "",
       "context": {
@@ -4962,7 +4994,10 @@
         "nginx": [
           "http"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Set the global statistics path. Ex: /ngx_pagespeed_global_statistics",
@@ -8406,11 +8441,13 @@
       "kind": "option",
       "area": "Statistics, console and logging",
       "platforms": [
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": null,
-        "nginx": "pagespeed MessagesPath value;"
+        "nginx": "pagespeed MessagesPath value;",
+        "iis": "pagespeed MessagesPath value"
       },
       "default": "",
       "context": {
@@ -8419,7 +8456,10 @@
           "http",
           "server"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Set the messages path. Ex: /ngx_pagespeed_message",
@@ -12023,11 +12063,13 @@
       "kind": "option",
       "area": "Statistics, console and logging",
       "platforms": [
+        "iis",
         "nginx"
       ],
       "syntax": {
         "apache": null,
-        "nginx": "pagespeed StatisticsPath value;"
+        "nginx": "pagespeed StatisticsPath value;",
+        "iis": "pagespeed StatisticsPath value"
       },
       "default": "",
       "context": {
@@ -12036,7 +12078,10 @@
           "http",
           "server"
         ],
-        "query": false
+        "query": false,
+        "iis": [
+          "pagespeed.config, outside match rules"
+        ]
       },
       "since": null,
       "description": "Set the statistics path. Ex: /ngx_pagespeed_statistics",

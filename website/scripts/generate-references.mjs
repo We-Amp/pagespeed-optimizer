@@ -759,14 +759,24 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     });
   }
 
-  // IIS-only options and directives. Only names no other port accepts are
-  // added: the reference does not mark IIS on the options it shares with
-  // Apache and nginx (the IIS module reads the same directives).
+  // IIS-only options and directives. A name no other port accepts is added;
+  // a name that IisRewriteOptions registers and another port registers too
+  // gets IIS marked on it. Options shared through RewriteOptions and
+  // SystemRewriteOptions are marked further down.
   for (const r of parsePropertyCalls(iisCc, 'add_iis_option', 'iis')) {
     const name = resolveName(r.nameTok);
-    if (!name || byName.has(name)) continue;
+    if (!name) continue;
     const scope = SCOPE_BY_TOKEN[r.scopeTok?.trim().replace(/^(?:\w+::)+/, '')] ?? null;
     if (!scope) warnings.push(`unresolved scope ${r.scopeTok} for ${name}`);
+    // A name another port also registers (AdminPath, StatisticsPath,
+    // DaemonSocketPath ...) is the same directive: mark IIS on it, with the
+    // scope IisRewriteOptions registers it under.
+    const shared = byName.get(name);
+    if (shared) {
+      if (!shared.platforms.includes('iis')) shared.platforms.push('iis');
+      shared.scopeIis = scope;
+      continue;
+    }
     const { value: def, type } = resolveDefaultTok(r.defaultTok, iisCc);
     if (def === null) warnings.push(`unresolved default for ${name}: ${r.defaultTok}`);
     const help = normalizeHelp(r.help);
@@ -887,7 +897,7 @@ export function buildModuleDirectives(moduleSrc, warnings) {
         query: base.query,
       };
       if (d.platforms.includes('iis')) {
-        context.iis = d.contextIis ?? IIS_CONTEXT_BY_SCOPE[d.scope] ?? null;
+        context.iis = d.contextIis ?? IIS_CONTEXT_BY_SCOPE[d.scopeIis ?? d.scope] ?? null;
       }
       const syntax = syntaxFor(d.name, d.args, d.platforms, d.master === true);
       if (d.apacheName) syntax.apache = `${d.apacheName} ${d.args}>`;
