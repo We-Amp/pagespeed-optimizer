@@ -36,7 +36,7 @@ test.describe('/ai-readability/hosted-builders/', () => {
   }) => {
     await page.goto(PATH);
     const scope = page.locator('[data-hosted-scope]');
-    await expect(scope).toContainText('We sell nothing for sites on a hosted builder');
+    await expect(scope).toContainText('This page sells nothing.');
     await expect(scope).toContainText('cannot be installed on Wix, Squarespace or Shopify');
   });
 
@@ -65,6 +65,14 @@ test.describe('/ai-readability/hosted-builders/', () => {
     const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
     const nodes = blocks.flatMap((b) => [JSON.parse(b)].flat());
     const crumbs = nodes.find((n) => n['@type'] === 'BreadcrumbList');
+    expect(crumbs.itemListElement.map((i: { name: string }) => i.name)).toEqual([
+      'Home',
+      'AI readability checker',
+      'Hosted builders',
+    ]);
+    await expect(page.locator('main nav[aria-label="Breadcrumb"]')).toHaveText(
+      /^\s*AI readability checker\s*\/\s*Hosted builders\s*$/,
+    );
     expect(crumbs.itemListElement.map((i: { item: string }) => i.item)).toEqual([
       'https://modpagespeed.com/',
       'https://modpagespeed.com/ai-readability/',
@@ -110,6 +118,9 @@ test.describe('/ai-readability/hosted-builders/', () => {
     page,
   }) => {
     await page.goto(PATH);
+    // No underlined space at the end of a link in the running text.
+    const texts = await page.locator('main article p a, main article nav a').allTextContents();
+    for (const text of texts) expect(text, text).toBe(text.trim());
     await expect(page.locator('main p a[href="/ai-readability/"]')).toHaveCount(1);
     await expect(page.locator('main p a[href="/download/"]')).toHaveCount(1);
     await page.goto('/ai-readability/');

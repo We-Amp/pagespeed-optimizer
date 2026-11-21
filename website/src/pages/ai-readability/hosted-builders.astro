@@ -5,7 +5,7 @@
 // Guide for owners of sites on a hosted builder who ran the check at
 // /ai-readability/ and want to know what they can change. Static copy only:
 // no scan runs here. mod_pagespeed cannot be installed on a hosted builder and
-// the page says so; it sells nothing.
+// the page says so. The page itself sells nothing.
 //
 // Every platform statement below was read on the vendor's own help or
 // developer page on the date in VENDOR_DOCS_CHECKED, and links to that page.
@@ -64,9 +64,9 @@ const platforms: Platform[] = [
       },
       {
         topic: 'Structured data',
-        text: 'You can add your own structured data to a page in JSON-LD format, under Structured Data Markup in the page’s SEO settings. Wix allows up to five markups per page.',
+        text: 'You can add your own structured data to a page in JSON-LD format. In the Wix Editor it is under Structured Data Markup, on the Advanced SEO tab of the same panel that holds the title tag. Wix allows up to five markups per page and says its support team cannot help with changes to your markup.',
         source: {
-          href: 'https://support.wix.com/en/article/adding-structured-data-markup-to-your-sites-pages',
+          href: 'https://support.wix.com/en/article/adding-structured-data-markup-to-your-sites-pages-2546962',
           label: 'Wix Help: add structured data markup to your site’s pages',
         },
       },
@@ -78,7 +78,7 @@ const platforms: Platform[] = [
     statements: [
       {
         topic: 'Crawler rules',
-        text: 'Open the Settings panel and click Crawlers. The checkbox “Block known artificial intelligence crawlers” updates your robots.txt file to tell a list of AI crawlers, GPTBot and ClaudeBot among them, not to crawl your site. Leave it unchecked if you want those crawlers to read your pages. Squarespace notes that a robots.txt rule is only a request.',
+        text: 'Open the Settings panel and click Crawlers. The checkbox “Block known artificial intelligence crawlers” updates your robots.txt file to tell a list of AI crawlers, GPTBot and ClaudeBot among them, not to crawl your site. It is unchecked by default. Leave it that way if you want those crawlers to read your pages. Squarespace notes that a robots.txt rule is only a request.',
         source: {
           href: 'https://support.squarespace.com/hc/en-us/articles/360022347072-Request-that-AI-models-exclude-your-site',
           label: 'Squarespace Help: request that AI models exclude your site',
@@ -124,7 +124,7 @@ const platforms: Platform[] = [
       },
       {
         topic: 'Structured data',
-        text: 'Shopify has a Liquid filter, structured_data, that turns a product or an article into schema.org structured data. It is used in theme code, so whether your pages carry it depends on your theme.',
+        text: 'Shopify has a Liquid filter, structured_data, that turns a product or an article into schema.org structured data. It is used in theme code, so it is on your pages only if your theme uses it.',
         source: {
           href: 'https://shopify.dev/docs/api/liquid/filters/structured_data',
           label: 'Shopify developer documentation: the structured_data filter',
@@ -168,7 +168,7 @@ const checklist = [
 const faqEntries = [
   {
     q: 'Can ChatGPT read my Wix site?',
-    a: 'A crawler that does not run JavaScript can read the text that is in the HTML Wix serves, unless your robots.txt file blocks that crawler. Wix states that its sites use server-side rendering. To see how much of a page’s text is in the HTML, run the free check on that page.',
+    a: 'A crawler that does not run JavaScript can read the text that is in the HTML Wix serves, unless your robots.txt file tells that crawler to stay away. Wix states that its sites use server-side rendering. To see how much of a page’s text is in the HTML, run the free check on that page.',
   },
   {
     q: 'Can I edit robots.txt on Wix, Squarespace or Shopify?',
@@ -180,7 +180,7 @@ const faqEntries = [
   },
   {
     q: 'Can I install mod_pagespeed on Wix, Squarespace or Shopify?',
-    a: 'No. mod_pagespeed is server software for sites that run their own web server, such as Apache, nginx or IIS. A hosted builder runs the server for you, so you cannot install software on it. We sell nothing for sites on a hosted builder.',
+    a: 'No. mod_pagespeed is server software for sites that run their own web server, such as Apache, nginx or IIS. A hosted builder runs the server for you, so you cannot install software on it.',
   },
 ];
 const faqPage = {
@@ -207,9 +207,7 @@ const body = 'mt-3 text-base text-text-muted leading-relaxed';
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-16 sm:pb-20">
     <nav aria-label="Breadcrumb" class="text-sm text-text-annotation">
-      <a href="/ai-readability/" class={link}>
-        AI readability checker
-      </a>
+      <a href="/ai-readability/" class={link} set:text="AI readability checker" />
       <span aria-hidden="true" class="mx-1">
         /
       </span>
@@ -224,17 +222,17 @@ const body = 'mt-3 text-base text-text-muted leading-relaxed';
         as="h1"
         titleClass="text-3xl sm:text-4xl font-bold tracking-tight text-balance"
       >
-        Two things decide whether an AI crawler can read a page on a hosted builder: the text has to
-        be in the HTML the platform serves, and the platform must not block the crawler. You control
-        the content, each page’s title and description, structured data where the builder offers it,
-        and crawler rules where the builder offers them.
+        For most AI crawlers, two things decide whether they can read a page on a hosted builder:
+        the text has to be in the HTML the platform serves, and the platform must not block the
+        crawler. You control the content, each page’s title and description, structured data where
+        the builder offers it, and crawler rules where the builder offers them.
       </SectionHeader>
     </div>
 
     <p class="mt-6 max-w-2xl text-sm text-text-muted leading-relaxed" data-hosted-scope>
-      We sell nothing for sites on a hosted builder. mod_pagespeed is server software for sites that
-      run their own web server, and it cannot be installed on Wix, Squarespace or Shopify. This page
-      lists what you can do without it.
+      This page sells nothing. mod_pagespeed is server software for sites that run their own web
+      server, and it cannot be installed on Wix, Squarespace or Shopify. This page lists what you
+      can do without it.
     </p>
 
     <section class="mt-12 max-w-2xl" aria-labelledby="hosted-check">
@@ -243,9 +241,7 @@ const body = 'mt-3 text-base text-text-muted leading-relaxed';
       </h2>
       <p class={body}>
         The
-        <a href="/ai-readability/" class={link}>
-          AI readability check
-        </a>
+        <a href="/ai-readability/" class={link} set:text="AI readability check" />
         reads one page the way a crawler that does not run JavaScript does. It reports how much of
         the page’s text is in the HTML, which structured data it found, and which AI crawlers your
         robots.txt file blocks by name.
@@ -253,7 +249,7 @@ const body = 'mt-3 text-base text-text-muted leading-relaxed';
       <p class={body}>
         It does not ask ChatGPT or any other assistant a question, so it cannot tell you whether
         assistants mention or cite your site. AEO and GEO are names for the work of getting cited in
-        AI answers. The check covers the first condition only: that a crawler can read the page.
+        AI answers. The check covers one precondition only: that a crawler can read the page.
       </p>
     </section>
 
@@ -262,10 +258,11 @@ const body = 'mt-3 text-base text-text-muted leading-relaxed';
         What you cannot change on a hosted builder
       </h2>
       <p class={body}>
-        The builder runs the web server for you. You cannot install software on that server. The
-        builder also decides which response headers it sends, how its own scripts and markup are
-        delivered, and whether a Markdown version of a page is served. If the check flags one of
-        these, there is nothing for you to fix. Spend your time on the list below.
+        The builder runs the web server for you, so you cannot install software on it. The builder
+        also sets the response headers, adds its own scripts and markup to every page, and decides
+        whether a Markdown version of a page is served. A theme or custom code can change part of
+        the markup, and that is work for a developer. If the check flags one of these, leave it and
+        spend your time on the list below.
       </p>
     </section>
 
@@ -347,10 +344,7 @@ const body = 'mt-3 text-base text-text-muted leading-relaxed';
       </h2>
       <p class={body}>
         For a site on your own Apache, nginx or IIS server, mod_pagespeed is on the
-        <a href="/download/" class={link}>
-          download page
-        </a>
-        .
+        <a href="/download/" class={link} set:text="download page" />.
       </p>
     </section>
 
