@@ -240,7 +240,7 @@ test.describe('the one lead form', () => {
     await expect(page.getByText(/Topics sent/)).toHaveCount(0);
     expect(posted).toHaveLength(1);
     expect(posted[0]).toMatchObject({
-      topic: 'agents',
+      topic: 'general',
       wedge: '',
       name: '',
       email: 'ops@example.com',
@@ -251,14 +251,20 @@ test.describe('the one lead form', () => {
     });
     // The general question is the one chosen topic; what the scan flagged follows.
     expect(topicsOf(posted[0])).toEqual([
-      { id: 'agents', wedge: null, chosen: true },
+      { id: 'general', wedge: null, chosen: true },
       ...ALL.slice(0, 5).map((id) => ({ id, wedge: id, chosen: false })),
     ]);
     expect(posted[0].lensSignal).toBeUndefined();
 
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'lead_submit').map((e) => e.data)).toEqual([
-      { channel: 'scan', topic: 'agents', wedge: '', source_path: '/ai-readability/', topics_n: 1 },
+      {
+        channel: 'scan',
+        topic: 'general',
+        wedge: '',
+        source_path: '/ai-readability/',
+        topics_n: 1,
+      },
     ]);
     expect(events.filter((e) => e.name.startsWith('airead-next-'))).toHaveLength(0);
   });
@@ -380,7 +386,7 @@ test.describe('the one lead form', () => {
     offline = false;
     await page.getByRole('button', { name: 'Send request' }).click();
     await expect(page.getByText('Your question was sent.', { exact: true })).toBeVisible();
-    expect(posted.map((p) => p.topic)).toEqual(['agents']);
+    expect(posted.map((p) => p.topic)).toEqual(['general']);
   });
 
   test('a new submission after a sent one gets a new submission id', async ({ page }) => {
@@ -570,7 +576,12 @@ test.describe('the one lead form', () => {
     await page.fill('input[name="email"]', 'ops@example.com');
     const button = page.getByRole('button', { name: 'Send request' });
     await button.dblclick();
-    await expect(button).toBeDisabled();
+    // The button says it is busy but stays focusable.
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    await expect(button).toHaveAttribute('aria-busy', 'true');
+    await expect(button).not.toHaveAttribute('disabled');
+    await button.click({ force: true });
+    await button.press('Enter');
     // A submit that does not come from the button is ignored as well.
     await form(page).evaluate((f) => (f as HTMLFormElement).requestSubmit());
     release();
@@ -580,6 +591,87 @@ test.describe('the one lead form', () => {
     expect(events.filter((e) => e.name === 'lead_submit')).toHaveLength(1);
     expect(events.filter((e) => e.name === 'airead-next-tollbooth')).toHaveLength(1);
   });
+
+  test('a failed send from the keyboard leaves focus on the button', async ({ page }) => {
+    const mocked = await mock(page, { failTopics: ['general'] });
+    await scanV2(page);
+    await page.fill('form[data-scan-lead] input[name="email"]', 'ops@example.com');
+    const button = page.getByRole('button', { name: 'Send request' });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-scan-lead-msg]')).toHaveText(
+      'We could not send your request. Try again.',
+    );
+    await expect(button).toBeFocused();
+    await expect(button).not.toHaveAttribute('aria-disabled');
+    await expect(button).not.toHaveAttribute('aria-busy');
+    // The retry needs no tabbing back.
+    mocked.failTopics.length = 0;
+    await page.keyboard.press('Enter');
+    await expect(page.getByText('Your question was sent.', { exact: true })).toBeVisible();
+    expect(mocked.posted).toHaveLength(2);
+  });
+
+  test('Enter in the email field announces the email error', async ({ page }) => {
+    const { posted } = await mock(page);
+    await scanV2(page);
+    const email = page.locator('form[data-scan-lead] input[name="email"]');
+    const live = page.locator('[data-scan-live]');
+    await email.fill('not-an-email');
+    await email.press('Enter');
+    // Focus was already in the field, so the error goes through the live region.
+    await expect(page.locator('[data-scan-lead-email-error]')).toHaveText(
+      'Enter a valid email address, like name@example.com.',
+    );
+    await expect(live).toHaveText('Enter a valid email address, like name@example.com.');
+    await expect(email).toBeFocused();
+    await email.fill('');
+    await email.press('Enter');
+    await expect(live).toHaveText('Enter your email address.');
+    expect(posted).toHaveLength(0);
+  });
+
+  test('an address the service would refuse is caught before sending', async ({ page }) => {
+    const { posted } = await mock(page);
+    await scanV2(page);
+    const email = page.locator('form[data-scan-lead] input[name="email"]');
+    const error = page.locator('[data-scan-lead-email-error]');
+    // The browser's own check accepts an address without a dot after the @.
+    await email.fill('name@gmail');
+    await page.getByRole('button', { name: 'Send request' }).click();
+    await expect(error).toHaveText('Enter a valid email address, like name@example.com.');
+    await expect(email).toHaveAttribute('aria-invalid', 'true');
+    await expect(email).toBeFocused();
+    expect(posted).toHaveLength(0);
+    await email.fill('name@gmail.com');
+    await expect(error).toBeHidden();
+    await page.getByRole('button', { name: 'Send request' }).click();
+    await expect(sentLine(page, 'name@gmail.com')).toBeVisible();
+    expect(posted).toHaveLength(1);
+  });
+
+  for (const [status, line] of [
+    [400, 'We could not send your request. Check the email address and try again.'],
+    [429, 'Too many requests from this connection. Try again in a minute.'],
+    [503, 'We could not send your request. Try again.'],
+  ] as const) {
+    test(`an answer of ${status} gets its own line and keeps the form`, async ({ page }) => {
+      await mock(page);
+      await scanV2(page);
+      await page.route('**/ai-readability/api/contact', (route) =>
+        route.fulfill({ status, contentType: 'application/json', body: '{"error":"x"}' }),
+      );
+      await chip(page, 'edge-seo').check();
+      await page.fill('form[data-scan-lead] input[name="email"]', 'ops@example.com');
+      await page.getByRole('button', { name: 'Send request' }).click();
+      await expect(page.locator('[data-scan-lead-msg]')).toHaveText(line);
+      await expect(page.locator('[data-scan-live]')).toHaveText(line);
+      await expect(form(page)).toBeVisible();
+      expect(await checkedIds(page)).toEqual(['edge-seo']);
+      const events = await trackedEvents(page);
+      expect(events.filter((e) => e.name === 'lead_submit')).toHaveLength(0);
+    });
+  }
 
   test('carries the platform the scan named in the facts', async ({ page }) => {
     const report = JSON.parse(fixture('full'));
@@ -665,8 +757,8 @@ test.describe('the one lead form', () => {
     await page.getByRole('button', { name: 'Send request' }).click();
     await expect(page.getByText('Your question was sent.', { exact: true })).toBeVisible();
     expect(posted).toHaveLength(1);
-    expect(posted.map((p) => p.topic)).toEqual(['agents']);
-    expect(topicsOf(posted[0])).toEqual([{ id: 'agents', wedge: null, chosen: true }]);
+    expect(posted.map((p) => p.topic)).toEqual(['general']);
+    expect(topicsOf(posted[0])).toEqual([{ id: 'general', wedge: null, chosen: true }]);
   });
 });
 

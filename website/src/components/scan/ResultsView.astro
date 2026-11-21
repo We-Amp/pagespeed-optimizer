@@ -181,7 +181,7 @@ const pillars = [
       it and to see what visitors ask for; the
       <a href="https://we-amp.com/privacy/" class="underline">privacy policy</a> says for how long.
     </p>
-    <button type="submit" class="btn-primary mt-4 min-h-11">Send request</button>
+    <button type="submit" class="btn-primary scan-lead-submit mt-4 min-h-11">Send request</button>
     <p id={`${idPrefix}-lead-msg`} class="mt-2 text-sm text-accent" data-scan-lead-msg></p>
   </form>
 
@@ -229,6 +229,14 @@ const pillars = [
 </script>
 
 <style is:global>
+  /* Sending: the button stays focusable and keeps its label at full contrast. */
+  .scan-lead-submit[aria-disabled='true'],
+  .scan-lead-submit[aria-disabled='true']:hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-body);
+    border: 1px solid var(--color-control-border);
+    cursor: wait;
+  }
   .scan-tiles {
     display: grid;
     grid-template-columns: minmax(0, 1fr);

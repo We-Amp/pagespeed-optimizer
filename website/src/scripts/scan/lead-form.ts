@@ -15,6 +15,7 @@ import {
   FOUND_MARKER,
   MAX_TOPICS,
   chipsFor,
+  emailOk,
   newSubmissionId,
   payloadForSubmission,
   type Chip,
@@ -103,7 +104,7 @@ export function initLeadForm(state: ScanState) {
     emailEl.setAttribute('aria-invalid', text ? 'true' : 'false');
   }
   emailEl.addEventListener('input', () => {
-    if (!emailErr.hidden && emailEl.checkValidity()) emailError('');
+    if (!emailErr.hidden && emailOk(emailEl.value)) emailError('');
   });
 
   function setPermalink(value: string) {
@@ -208,7 +209,7 @@ export function initLeadForm(state: ScanState) {
     thanks = null;
     message('', false);
     submitBtn.disabled = true;
-    busy = false;
+    setBusy(false);
   }
 
   function sync() {
@@ -271,16 +272,30 @@ export function initLeadForm(state: ScanState) {
   });
 
   const apiBase = () => resolveApiBase(location.search, location.hostname);
-  async function post(payload: LeadPayload): Promise<boolean> {
+  // The HTTP status of the answer; 0 when the request did not get one.
+  async function post(payload: LeadPayload): Promise<number> {
     try {
       const res = await fetch(`${apiBase()}/contact`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      return res.ok;
+      return res.status;
     } catch {
-      return false;
+      return 0;
+    }
+  }
+
+  // While a request is on its way the button says so but stays focusable, so
+  // focus is still on it when the answer comes back.
+  function setBusy(on: boolean) {
+    busy = on;
+    if (on) {
+      submitBtn.setAttribute('aria-disabled', 'true');
+      submitBtn.setAttribute('aria-busy', 'true');
+    } else {
+      submitBtn.removeAttribute('aria-disabled');
+      submitBtn.removeAttribute('aria-busy');
     }
   }
 
@@ -293,22 +308,22 @@ export function initLeadForm(state: ScanState) {
       message('Pick up to four topics.');
       return;
     }
-    if (!emailEl.checkValidity()) {
-      emailError(
-        emailEl.validity.valueMissing
-          ? 'Enter your email address.'
-          : 'Enter a valid email address, like name@example.com.',
-      );
-      emailEl.focus();
+    const email = emailEl.value.trim();
+    if (!emailOk(email)) {
+      const text = email
+        ? 'Enter a valid email address, like name@example.com.'
+        : 'Enter your email address.';
+      emailError(text);
+      // Moving focus to the field reads its error out. When focus is already
+      // there (Enter in the field) nothing moves, so the error is announced.
+      if (document.activeElement === emailEl) announce(text);
+      else emailEl.focus();
       return;
     }
     emailError('');
     message('', false);
-    busy = true;
-    submitBtn.disabled = true;
-    submitBtn.setAttribute('aria-busy', 'true');
+    setBusy(true);
     submissionId ||= newSubmissionId();
-    const email = emailEl.value.trim();
     const { mobile, desktop } = psiNumbers();
     const payload = payloadForSubmission(
       chips,
@@ -325,13 +340,17 @@ export function initLeadForm(state: ScanState) {
       },
       (state.lastScan?.report as ScanReport | null) ?? null,
     );
-    const ok = await post(payload);
-    busy = false;
-    submitBtn.disabled = false;
-    submitBtn.removeAttribute('aria-busy');
-    if (!ok) {
+    const status = await post(payload);
+    setBusy(false);
+    if (status < 200 || status > 299) {
       // Everything the visitor filled in stays as it is, ready to send again.
-      message('We could not send your request. Try again.');
+      message(
+        status === 400
+          ? 'We could not send your request. Check the email address and try again.'
+          : status === 429
+            ? 'Too many requests from this connection. Try again in a minute.'
+            : 'We could not send your request. Try again.',
+      );
       return;
     }
     submissionId = '';
