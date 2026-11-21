@@ -432,7 +432,7 @@ test.describe('next steps and share', () => {
     const audit = page.locator('[data-scan-audit]');
     await expect(audit).toBeVisible();
     await expect(audit).toContainText(
-      'Want a full check of this site? Agent-readiness audit, €950 per site, excl. VAT',
+      'Agent-readiness audit, €950 per site, excl. VAT: a written report and one review call. It lists the configuration change for each finding; applying them is not included. It does not measure visibility in AI answers.',
     );
     const auditLink = audit.getByRole('link', { name: 'Ask for an audit' });
     await expect(auditLink).toHaveAttribute('href', '/contact/?topic=audit');
