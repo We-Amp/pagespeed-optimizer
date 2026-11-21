@@ -181,7 +181,7 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
         : blocked
           ? ''
           : ', and robots.txt lets AI crawlers fetch it') +
-      (offers ? ', but your origin can’t tell a real signed agent from an impostor.' : '.');
+      (offers ? ', but your server can’t tell a real signed agent from an impostor.' : '.');
     out.push({ wedge: 'tollbooth', text });
   }
   if (agentPassCtaApplies(sa)) {
@@ -189,8 +189,8 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
       wedge: 'agentpass',
       text:
         sa.classification === 'verifying'
-          ? 'Your origin answered our signed test request differently from one with a corrupted signature, which is consistent with checking agent signatures.'
-          : 'Your origin already treats signed-agent requests differently from unsigned ones.',
+          ? 'Your server answered our signed test request differently from one with a corrupted signature, which is consistent with checking agent signatures.'
+          : 'Your server already treats signed-agent requests differently from unsigned ones.',
     });
   }
   if (complianceFixCtaApplies(ax)) {

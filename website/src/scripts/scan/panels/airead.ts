@@ -60,6 +60,7 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
   const cats = el('div', 'mt-4 space-y-4');
   for (const c of m.categories) {
     const row = el('div', 'scan-airead-cat');
+    row.dataset.scanCat = c.name;
     const top = el('div', 'flex justify-between gap-3 text-sm font-medium text-text-body');
     const name = el('span', 'min-w-0', c.name);
     if (c.flag) name.append(' ', el('span', 'badge-accent ml-2', c.flag));

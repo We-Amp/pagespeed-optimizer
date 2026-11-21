@@ -61,59 +61,67 @@ interface ChipDef {
 const GATED: ChipDef[] = [
   {
     id: 'tollbooth',
-    label: 'Origin controls (who reads / verifies)',
+    label: 'Deciding which AI crawlers may read the site (experimental)',
     fires: (r, p) => tollboothCtaApplies(r.agentVerifiability, p),
   },
   {
     id: 'agentpass',
-    label: 'Signed-agent verification (prove which agent is which)',
+    label: 'Checking that a crawler is who it says it is (experimental)',
     fires: (r, p) => agentPassCtaApplies(r.signedAgentVerification, p),
   },
   {
     id: 'compliancefix',
-    label: 'Accessibility remediation',
+    label: 'Accessibility issues found (not offered yet)',
     fires: (r, p) => complianceFixCtaApplies(r.accessibility, p),
   },
   {
     id: 'consent-enforcement',
-    label: 'Consent enforcement',
+    label: 'Trackers that load before consent (planned)',
     fires: (r, p) => consentEnforcementCtaApplies(r.preConsentLeak, p),
   },
   {
     id: 'page-integrity',
-    label: 'Script control',
+    label: 'Allowing only approved scripts (planned)',
     fires: (r, p) => pageIntegrityCtaApplies(r.scriptInventory, p),
   },
   {
     id: 'third-party-freeze',
-    label: 'Pinning third-party scripts',
+    label: 'Locking third-party scripts to an approved version (planned)',
     fires: (r, p) => thirdPartyFreezeCtaApplies(r.scriptInventory, p),
   },
   {
     id: 'edge-seo',
-    label: 'SEO fixes at the server',
+    label: 'Fixing the flagged SEO tags on the server',
     fires: (r, p) => edgeSeoCtaApplies(r.seoDefects, p),
   },
   {
     id: 'response-firewall',
-    label: 'Leaked errors and outdated software',
+    label: 'Leaked errors and outdated software (planned)',
     fires: (r, p) => responseFirewallCtaApplies(r.responseExposure, p),
   },
   {
     id: 'markdown-origin',
-    label: 'Serving AI agents a Markdown copy at the origin',
+    label: 'Serving AI agents a Markdown version of the page (experimental)',
     fires: (r, p) => markdownOriginCtaApplies(r.agentSignals, p),
   },
 ];
 
 export const CONSULTING = { id: 'consulting', label: 'Help applying the speed fixes' };
-export const AGENTS = { id: 'agents', label: 'AI agents and crawlers' };
+export const AGENTS = { id: 'agents', label: 'A question about this result' };
 /** The topic of a request with nothing ticked. It has no chip. */
 export const GENERAL_TOPIC = 'general';
 export const AUDIT = {
   id: 'audit',
   label: `Agent-readiness audit (${formatEur(AUDIT_PRICE_EUR)} per site, excl. VAT)`,
 };
+
+/** Shown under the chips when a label says a topic is planned, not offered yet or experimental. */
+export const STATUS_NOTE =
+  'Topics marked planned or not offered yet are not available today; we will tell you where they stand.';
+/** Whether any of the chips carries one of those marks. */
+export function statusNoteApplies(chips: readonly Pick<Chip, 'label'>[]): boolean {
+  return chips.some((c) => /\((planned|not offered yet|experimental)\)$/.test(c.label));
+}
 
 /** Shown on a chip whose check fired on the scanned page; part of its accessible name. */
 export const FOUND_MARKER = '(flagged by your scan)';
