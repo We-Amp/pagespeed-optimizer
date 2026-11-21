@@ -491,6 +491,7 @@ test.describe('v2 layout', () => {
       await page.fill('#scan-url', 'https://example.com');
       await page.click('#scan-submit');
       const block = page.locator('[data-scan-steps]');
+      await expect(block).toBeVisible();
       const reserved = (await block.boundingBox())!.height;
       await expect(page.locator('[data-scan-step]')).toHaveCount(3, { timeout: 15000 });
       await expect(page.locator('[data-scan-tile="speed"] [data-scan-status]')).toHaveText('Poor');
