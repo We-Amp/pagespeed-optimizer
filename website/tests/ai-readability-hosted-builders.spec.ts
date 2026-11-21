@@ -89,7 +89,8 @@ test.describe('/ai-readability/hosted-builders/', () => {
         href: a.getAttribute('href') ?? '',
         target: a.getAttribute('target'),
         rel: a.getAttribute('rel'),
-        text: (a.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        // Not trimmed: a space at either end of a link would be underlined.
+        text: a.textContent ?? '',
       })),
     );
     expect(links.length).toBe(10);
@@ -97,7 +98,7 @@ test.describe('/ai-readability/hosted-builders/', () => {
       expect(VENDOR_HOSTS, link.href).toContain(new URL(link.href).host);
       expect(link.target, link.href).toBe('_blank');
       expect(link.rel, link.href).toBe('noopener noreferrer');
-      expect(link.text, link.href).toMatch(/ \(opens in new tab\)$/);
+      expect(link.text, link.href).toMatch(/^\S.*\S \(opens in new tab\)$/);
     }
   });
 

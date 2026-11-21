@@ -306,16 +306,8 @@ const body = 'mt-3 text-base text-text-muted leading-relaxed';
               <div class="mt-4">
                 <dt class="text-sm font-semibold text-text-body">{statement.topic}</dt>
                 <dd class="mt-1 text-sm text-text-muted leading-relaxed">
-                  {statement.text}{' '}
-                  <a
-                    href={statement.source.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class={link}
-                  >
-                    {statement.source.label}
-                    <span class="sr-only"> (opens in new tab)</span>
-                  </a>
+                  {statement.text} {/* prettier-ignore */}
+                  <a href={statement.source.href} target="_blank" rel="noopener noreferrer" class={link}>{statement.source.label}<span class="sr-only"> (opens in new tab)</span></a>
                 </dd>
               </div>
             ))}
