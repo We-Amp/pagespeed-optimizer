@@ -11,6 +11,11 @@ import { mockScan, startScan } from './helpers/scan-mock';
 // whatever its impact, and no rule or element is left out.
 
 async function findings(page: Page): Promise<string[]> {
+  // A colour that is still in a transition (a button leaving its disabled
+  // state) is not the colour the visitor reads: let transitions finish first.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().map((a) => a.finished.catch(() => null))),
+  );
   const results = await new AxeBuilder({ page })
     .include('[data-scan-results]')
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
