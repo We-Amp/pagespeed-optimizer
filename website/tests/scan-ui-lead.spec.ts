@@ -807,6 +807,50 @@ test.describe('next steps and share', () => {
     expect(events.filter((e) => e.name === 'analyze_report_download')).toHaveLength(1);
   });
 
+  test('Copy link to this result copies the permalink, says so and keeps focus', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await mock(page);
+    await runScan(page);
+    const link = page.locator('[data-scan-permalink]');
+    await expect(link).toHaveText('https://modpagespeed.com/ai-readability/api/r/a1b2c3d4e5f6');
+    const copy = page.getByRole('button', { name: 'Copy link to this result' });
+    await copy.click();
+    await expect(page.locator('[data-scan-live]')).toHaveText('Link copied');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'https://modpagespeed.com/ai-readability/api/r/a1b2c3d4e5f6',
+    );
+    await expect(copy).toBeFocused();
+    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'airead-copy-link')).toHaveLength(1);
+  });
+
+  test('when the clipboard refuses, the permalink text is selected and no event is sent', async ({
+    page,
+  }) => {
+    await mock(page);
+    await runScan(page);
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: () => Promise.reject(new Error('refused')) },
+      });
+    });
+    const link = page.locator('[data-scan-permalink]');
+    await expect(link).toHaveText('https://modpagespeed.com/ai-readability/api/r/a1b2c3d4e5f6');
+    await page.getByRole('button', { name: 'Copy link to this result' }).click();
+    await expect(page.locator('[data-scan-live]')).toHaveText(
+      'Link selected — press Ctrl/Cmd+C to copy it',
+    );
+    expect(await page.evaluate(() => String(window.getSelection()))).toBe(
+      'https://modpagespeed.com/ai-readability/api/r/a1b2c3d4e5f6',
+    );
+    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'airead-copy-link')).toHaveLength(0);
+  });
+
   test('use the analyzer’s events on the analyzer page', async ({ page }) => {
     await mock(page);
     await runScan(page, '/analyze/');

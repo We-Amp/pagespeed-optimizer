@@ -31,6 +31,8 @@ const GRADING = {
         max: 30,
         pct: 40,
         flag: 'invisible without JS',
+        note: '',
+        fromRules: false,
         verdict:
           "Only ~38% of your content exists without JavaScript — AI tools that don't render (and free CDN markdown features) see an almost-empty page. THIS is the big one.",
       },
@@ -40,6 +42,8 @@ const GRADING = {
         max: 20,
         pct: 40,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict:
           'Bloated: the page is ~98× more HTML than actual content (52,300 tokens raw vs ~534 clean). Agents pay for — and choke on — the difference.',
       },
@@ -49,6 +53,8 @@ const GRADING = {
         max: 20,
         pct: 100,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict:
           'Strong machine-readable metadata (JSON-LD (Organization, WebSite, Product), Open Graph, canonical, meta description).',
       },
@@ -58,6 +64,8 @@ const GRADING = {
         max: 20,
         pct: 90,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict: 'AI crawlers are allowed to fetch the page. robots.txt allows AI crawlers.',
       },
       {
@@ -66,6 +74,8 @@ const GRADING = {
         max: 10,
         pct: 60,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict:
           'Thin attribution metadata (canonical URL, title, date) — an LLM citing you may get the source/author/date wrong.',
       },
@@ -82,6 +92,8 @@ const GRADING = {
         max: 30,
         pct: 100,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict:
           'Content is fully present in the server HTML — readable by every AI tool, no rendering required.',
       },
@@ -91,6 +103,8 @@ const GRADING = {
         max: 20,
         pct: 100,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict: 'Lean: ~14× HTML-to-content ratio — cheap for an agent to ingest.',
       },
       {
@@ -99,6 +113,8 @@ const GRADING = {
         max: 20,
         pct: 100,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict:
           'Strong machine-readable metadata (JSON-LD (Organization, WebSite, Article), Open Graph, canonical, meta description).',
       },
@@ -108,6 +124,8 @@ const GRADING = {
         max: 20,
         pct: 100,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict:
           'AI crawlers are allowed to fetch the page. robots.txt allows AI crawlers; llms.txt present.',
       },
@@ -117,6 +135,8 @@ const GRADING = {
         max: 10,
         pct: 100,
         flag: '',
+        note: '',
+        fromRules: false,
         verdict: 'Attributable: canonical URL, title, author, date.',
       },
     ],

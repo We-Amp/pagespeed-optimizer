@@ -206,17 +206,23 @@ test.describe('Speed panel', () => {
       };
     });
     await expect(copy).toHaveAccessibleName('Copy');
-    await copy.click();
+    // From the keyboard: focus the button and press Enter.
+    await copy.focus();
+    await page.keyboard.press('Enter');
     // Spoken once by the page's status message; the visible text says
     // "Copied" while the accessible name stays "Copy".
     await expect(copy).toHaveText('Copied');
     await expect(copy).toHaveAccessibleName('Copy');
+    await expect(copy).toBeFocused();
     await expect
       .poll(() => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls))
       .toEqual(['Copied to clipboard']);
     await expect(page.locator('#copy-status')).toHaveText('Copied to clipboard');
     const clip = await page.evaluate(() => navigator.clipboard.readText());
     expect(clip).toContain('pagespeed EnableFilters');
+    // Focus stays on the button after the label goes back to "Copy".
+    await expect(copy).toHaveText('Copy', { timeout: 4000 });
+    await expect(copy).toBeFocused();
 
     await panel(page).getByRole('button', { name: 'Hide the configuration' }).click();
     await expect(panel(page).locator('[data-speed-snippet]')).toHaveCount(0);

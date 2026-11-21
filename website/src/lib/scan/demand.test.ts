@@ -439,6 +439,42 @@ describe('lensSignalFor', () => {
     });
   });
 
+  it('markdown-origin: the verdict and the negotiation facts, no page text', () => {
+    const report = {
+      url: 'https://docs.example/guide',
+      agentSignals: {
+        status: 'ok',
+        verdict: 'attention',
+        markdown: {
+          negotiated: false,
+          httpStatus: 200,
+          contentType: 'text/html; charset=utf-8',
+          varyAccept: false,
+          sample: 'Secret page text',
+        },
+      },
+    };
+    const signal = lensSignalFor('markdown-origin', report);
+    expect(signal).toEqual({
+      verdict: 'attention',
+      negotiated: false,
+      httpStatus: 200,
+      contentType: 'text/html; charset=utf-8',
+      varyAccept: false,
+    });
+    expect(JSON.stringify(signal)).not.toContain('Secret');
+  });
+
+  it('markdown-origin: null status and type and no Vary when the lens is absent', () => {
+    expect(lensSignalFor('markdown-origin', { url: 'https://docs.example/' })).toEqual({
+      verdict: undefined,
+      negotiated: undefined,
+      httpStatus: null,
+      contentType: null,
+      varyAccept: false,
+    });
+  });
+
   it('response-firewall: ids, counts, product and line tokens and no versions', () => {
     const responseExposure = {
       status: 'ok',
