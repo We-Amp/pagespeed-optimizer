@@ -2,7 +2,10 @@
 // /privacy/ — We-Amp keeps one privacy notice for all its websites, this one
 // included, at https://we-amp.com/privacy/. Production answers /privacy/ with a
 // 301 to it from the server's redirect map; this page is what dev, preview and
-// any server without that map serve, with its canonical on we-amp.com.
+// any server without that map serve, with its canonical on we-amp.com. The
+// section on scan-result requests states what that form sends and how long the
+// stored record is kept; keep it in step with the form in
+// src/components/scan/ResultsView.astro and with the notice.
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PageHero from '../components/PageHero.astro';
 import { VENDOR } from '../data/product-facts.mjs';
@@ -15,7 +18,7 @@ const NOTICE = 'https://we-amp.com/privacy/';
   description={`${VENDOR} keeps one privacy notice for all its websites, modpagespeed.com included, at we-amp.com/privacy/.`}
   canonical={NOTICE}
 >
-  <PageHero title="Privacy" size="utility" width="prose" class="pb-16">
+  <PageHero title="Privacy" size="utility" width="prose">
     <Fragment slot="lede">
       {VENDOR} keeps one privacy notice for all its websites, modpagespeed.com included. It covers
       what this site and its tools do with personal data, how we handle support mail from
@@ -26,4 +29,20 @@ const NOTICE = 'https://we-amp.com/privacy/';
       .
     </Fragment>
   </PageHero>
+
+  <section class="container-prose pb-16">
+    <h2 class="text-2xl font-bold text-text-body">Requests from a scan result</h2>
+    <p class="mt-4 text-text-muted">
+      When you send the form under a scan result, the request contains your email address, your note
+      if you wrote one, the address of the page you scanned, the number of sites if you filled it
+      in, the topics you ticked and the topics the scan flagged, and the findings of the scan for
+      that page: its grade and score, its speed scores, the platform the scan detected, and the
+      detail of the checks behind the topics you ticked.
+    </p>
+    <p class="mt-4 text-text-muted">
+      The request is sent to {VENDOR} as an email and stored as a record in our database on Google
+      Cloud. The record is kept for 24 months and then deleted automatically. The notice on
+      we-amp.com says how long the copy in our mailbox and the application log are kept.
+    </p>
+  </section>
 </BaseLayout>
