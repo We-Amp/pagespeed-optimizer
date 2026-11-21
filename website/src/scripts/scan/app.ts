@@ -54,6 +54,8 @@ const TONE: Record<TileStatus['state'], string> = {
 
 const SCAN_TIMEOUT_REASON = 'The scanner did not answer in time.';
 const PSI_TIMEOUT_REASON = 'PageSpeed Insights did not answer within a minute.';
+// The one wait-time figure; the scan box states the same duration.
+const WAIT_HINT = 'Usually takes 20 to 40 seconds.';
 
 export interface PsiBody {
   lighthouseResult?: { categories?: { performance?: { score?: number | null } } };
@@ -341,11 +343,18 @@ export function init() {
     });
   }
 
+  // A result landed: say so. Focus went to the heading when the scan started;
+  // by now the visitor may be reading a panel or typing in the form, so the
+  // first result moves focus back to the heading only when focus is still on
+  // the submit button or on nothing.
   function arrival(text: string) {
     announce(text);
     if (!announcedFirst) {
       announcedFirst = true;
-      heading.focus({ preventScroll: true });
+      const active = document.activeElement;
+      if (!active || active === document.body || active === submit) {
+        heading.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -492,7 +501,7 @@ export function init() {
     // The line keeps its height (CSS min-height) so its text coming and going
     // never moves what is below it.
     if (hintEl) {
-      hintEl.textContent = busy ? 'Usually takes 20 to 40 seconds.' : '';
+      hintEl.textContent = busy ? WAIT_HINT : '';
     }
   }
 
@@ -508,6 +517,10 @@ export function init() {
     setBusy(true);
     hostEl.textContent = hostOf(url);
     root!.hidden = false;
+    // The results are now on the page: put focus on their heading and say
+    // what is happening, so the wait is not silent for a screen reader.
+    heading.focus({ preventScroll: true });
+    announce(`Checking ${hostOf(url)}. ${WAIT_HINT}`);
     state.url = url;
     state.lastPsi = null;
     state.lastScan = null;
