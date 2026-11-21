@@ -66,7 +66,7 @@ const faqEntries = [
   },
   {
     q: 'How do I see whether AI crawlers are blocked on my site?',
-    a: 'Your robots.txt file can allow or block each crawler by name. The scan reads it and lists the AI crawlers it blocks by name, such as GPTBot or ClaudeBot. Some crawlers collect pages to train models and others fetch a page when a person asks an assistant a question. They use different names, and some of the second kind state that they do not follow robots.txt.',
+    a: 'Your robots.txt file can allow or block each crawler by name. The scan reads it and lists the AI crawlers it blocks by name, such as GPTBot or ClaudeBot. Some crawlers collect pages to train models and others fetch a page when a person asks an assistant a question. They use different names, and some of the second kind state that they may not follow robots.txt.',
   },
   {
     q: 'Does llms.txt make my site AI-readable?',
@@ -346,7 +346,7 @@ const jsonLd = [webApp, faqPage];
                   {row.rendersJs ? (
                     <span class="font-medium text-success">Yes, documented by Google</span>
                   ) : (
-                    <span class="font-medium text-text-annotation">Not seen in the 2024 study</span>
+                    <span class="font-medium text-text-annotation">No, in the 2024 study</span>
                   )}
                 </td>
               </tr>
