@@ -82,3 +82,33 @@ for (const route of ['/analyze/', '/ai-readability/']) {
     await context.close();
   });
 }
+
+// Without JavaScript, /analyze/ keeps no control that needs a script: the only
+// visible controls in <main> belong to the inquiry form, which posts natively.
+// The highlight cards all show (the default view), and the copy that used to
+// point at the hidden analyzer reads right on its own.
+test('/analyze/ keeps no script-only control without JavaScript', async ({ browser }) => {
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto('/analyze/');
+  const controls = page.locator(
+    'main :is(button, input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"]):visible',
+  );
+  const outside = await controls.evaluateAll((els) =>
+    els
+      .filter((el) => !el.closest('form[data-ui="noscript-lead"]'))
+      .map((el) => el.outerHTML.slice(0, 120)),
+  );
+  expect(outside).toEqual([]);
+  await expect(page.locator('#psi-highlights-toggle')).toBeHidden();
+  const cards = page.locator('#psi-highlights-list > li');
+  expect(await cards.count()).toBeGreaterThan(0);
+  for (const card of await cards.all()) await expect(card).toBeVisible();
+  await expect(page.locator('main')).toContainText(
+    'No account, no upload. Test a page, get the fixes.',
+  );
+  await expect(page.locator('main')).toContainText(
+    'The report from this test labels every one of these.',
+  );
+  await context.close();
+});
