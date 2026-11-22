@@ -80,7 +80,7 @@ const WORDS: Record<string, string> = {
 };
 
 export const TOKEN_CAPTION =
-  'Most AI crawlers read only the raw HTML. When the raw count is far below the count after JavaScript, those crawlers see little of your content.';
+  'As far as published measurements show, most AI crawlers read only the raw HTML. When the raw count is far below the count after JavaScript, those crawlers see little of your content.';
 
 /** The category the robots.txt reading belongs to. */
 export const CRAWLER_CATEGORY = 'Crawler access';
@@ -236,7 +236,9 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
         : blocked
           ? ''
           : ', and robots.txt lets AI crawlers fetch it') +
-      (offers ? ', but your server can’t tell a real signed agent from an impostor.' : '.');
+      (offers
+        ? ', and the scan saw no sign that your server checks agent signatures or license tokens.'
+        : '.');
     out.push({ wedge: 'tollbooth', text });
   }
   if (agentPassCtaApplies(sa)) {
