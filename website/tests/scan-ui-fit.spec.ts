@@ -365,14 +365,14 @@ test.describe('scan result without a hosted platform', () => {
         );
         await expect(access).not.toContainText('robots.txt allows AI crawlers');
         await expect(first).toHaveText(
-          'About 38% of this page’s content is in the raw HTML, and the scan saw no sign that your server checks agent signatures or license tokens.',
+          'About 38% of this page’s content is in the raw HTML. The scan saw no sign that your server checks agent signatures or license tokens.',
         );
         await expect(airead).not.toContainText(/crawlers? (is|are) allowed/);
       } else {
         // No robots.txt reading in the result: the row is the scanner's own.
         await expect(airead.locator('[data-scan-crawler-rules]')).toHaveCount(0);
         await expect(first).toHaveText(
-          'About 38% of this page’s content is in the raw HTML, and AI crawlers are allowed to read it, and the scan saw no sign that your server checks agent signatures or license tokens.',
+          'About 38% of this page’s content is in the raw HTML, and AI crawlers are allowed to read it. The scan saw no sign that your server checks agent signatures or license tokens.',
         );
       }
 

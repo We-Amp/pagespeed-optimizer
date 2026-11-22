@@ -112,3 +112,20 @@ test('/analyze/ keeps no script-only control without JavaScript', async ({ brows
   );
   await context.close();
 });
+
+// The scan box is hidden without JavaScript, so no visible text may point at
+// it: no "analyzer", and no "above" in the sense of the box above
+// ("above-the-fold" is a different word).
+for (const route of ['/analyze/', '/ai-readability/']) {
+  test(`${route} has no visible text pointing at the hidden scan box without JavaScript`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto(route);
+    const text = await page.locator('main').innerText();
+    expect(text).not.toMatch(/analy[sz]er/i);
+    expect(text).not.toMatch(/\babove\b(?!-the-fold)/i);
+    await context.close();
+  });
+}

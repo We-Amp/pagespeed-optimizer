@@ -189,7 +189,7 @@ test.describe('AI readability panel', () => {
     const found = panel(page).locator('[data-scan-also-found] li');
     await expect(found).toHaveCount(4);
     await expect(found.nth(0)).toContainText(
-      'the scan saw no sign that your server checks agent signatures or license tokens',
+      'The scan saw no sign that your server checks agent signatures or license tokens.',
     );
     await expect(found.nth(1)).toContainText('signed-agent requests differently');
     await expect(found.nth(2)).toContainText(

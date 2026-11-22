@@ -205,7 +205,7 @@ describe('formatAiread extras', () => {
     expect(formatAiread(unknown).alsoFound.map((f) => f.wedge)).not.toContain('markdown-origin');
   });
   const NO_CHECK =
-    ', and the scan saw no sign that your server checks agent signatures or license tokens.';
+    '. The scan saw no sign that your server checks agent signatures or license tokens.';
   const first = (r: Parameters<typeof formatAiread>[0]) => formatAiread(r).alsoFound[0].text;
 
   it('names no count of allowed crawlers when the result has no robots.txt reading', () => {

@@ -72,7 +72,7 @@ const faqEntries: { q: string; a: string }[] = [
   },
   {
     q: 'Can mod_pagespeed fix every PageSpeed Insights issue?',
-    a: 'No. mod_pagespeed handles byte-level work: image transcoding, CSS/JS minification, critical-CSS inlining, cache extension, dimension inference. It cannot reduce DOM size, tree-shake legacy JavaScript bundles, or rewrite third-party scripts. Origin TTFB on the first request stays out of reach too. The optimizer worker caches HTML in shared memory when the origin allows it, so repeat visits skip the origin; the first hit always reaches it. The analyzer above labels each audit accordingly.',
+    a: 'No. mod_pagespeed handles byte-level work: image transcoding, CSS/JS minification, critical-CSS inlining, cache extension, dimension inference. It cannot reduce DOM size, tree-shake legacy JavaScript bundles, or rewrite third-party scripts. Origin TTFB on the first request stays out of reach too. The optimizer worker caches HTML in shared memory when the origin allows it, so repeat visits skip the origin; the first hit always reaches it. The report from a test labels each audit accordingly.',
   },
   {
     q: 'Is this a PageSpeed Insights API alternative?',
@@ -204,7 +204,7 @@ const jsonLd = [
       These are the PageSpeed Insights findings mod_pagespeed addresses on every request, with no
       code changes on the origin. Most filters below have been production-tested in the upstream
       <code class="text-sm">mod_pagespeed</code> codebase since 2010. A few are still marked
-      &ldquo;test first&rdquo;; the analyzer flags those per-page in the live results.
+      &ldquo;test first&rdquo;; the report from a test flags those per page.
     </p>
 
     {/* Toggle for the highlights cards; it changes only these cards (the
