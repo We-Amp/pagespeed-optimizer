@@ -10,26 +10,39 @@ const title = 'Rate-limit traffic that claims to be an AI crawler';
 const description =
   'An nginx recipe that refuses requests above a limit when they claim to be a known AI crawler but come from outside the operator’s published address ranges.';
 const code0 = [
+  '#!/bin/sh',
+  'set -eu',
+  '',
+  'out=${1:-/etc/nginx/crawler-nets.conf}',
+  'tmp=$(mktemp -d)',
+  'trap \'rm -rf "$tmp"\' EXIT',
+  '',
+  'for pair in \\',
+  '  openai=https://openai.com/gptbot.json \\',
+  '  openai=https://openai.com/searchbot.json \\',
+  '  openai=https://openai.com/chatgpt-user.json \\',
+  '  anthropic=https://claude.com/crawling/bots.json \\',
+  '  perplexity=https://www.perplexity.ai/perplexitybot.json \\',
+  '  perplexity=https://www.perplexity.ai/perplexity-user.json \\',
+  '  google=https://developers.google.com/static/crawling/ipranges/common-crawlers.json \\',
+  '  microsoft=https://www.bing.com/toolbox/bingbot.json',
+  'do',
+  '  label=${pair%%=*}',
+  '  url=${pair#*=}',
+  '  curl -fsSL "$url" -o "$tmp/list.json"',
+  '  jq -e \'(.prefixes | length) > 0\' "$tmp/list.json" > /dev/null',
+  '  jq -r --arg l "$label" \\',
+  '    \'.prefixes[] | "    " + (.ipv4Prefix // .ipv6Prefix) + " " + $l + ";"\' \\',
+  '    "$tmp/list.json" >> "$tmp/lines"',
+  'done',
+  '',
   '{',
   "  echo 'geo $crawler_net {'",
   '  echo \'    default "";\'',
-  '  for pair in \\',
-  '    openai=https://openai.com/gptbot.json \\',
-  '    openai=https://openai.com/searchbot.json \\',
-  '    openai=https://openai.com/chatgpt-user.json \\',
-  '    anthropic=https://claude.com/crawling/bots.json \\',
-  '    perplexity=https://www.perplexity.ai/perplexitybot.json \\',
-  '    perplexity=https://www.perplexity.com/perplexity-user.json \\',
-  '    google=https://developers.google.com/static/crawling/ipranges/common-crawlers.json \\',
-  '    microsoft=https://www.bing.com/toolbox/bingbot.json',
-  '  do',
-  '    label=${pair%%=*}; url=${pair#*=}',
-  '    curl -fsS "$url" \\',
-  '      | jq -r --arg l "$label" \'.prefixes[] | "    " + (.ipv4Prefix // .ipv6Prefix) + " " + $l + ";"\' \\',
-  '      || { echo "failed: $url" >&2; exit 1; }',
-  '  done',
+  '  sort -u "$tmp/lines"',
   "  echo '}'",
-  '} > /etc/nginx/crawler-nets.conf.new && mv /etc/nginx/crawler-nets.conf.new /etc/nginx/crawler-nets.conf',
+  '} > "$out.new"',
+  'mv "$out.new" "$out"',
 ].join('\n');
 const code1 = [
   'geo $crawler_net {',
@@ -123,15 +136,18 @@ const code4 = [
     <p class="mt-4 text-text-muted leading-relaxed">
       Each operator publishes a JSON file of prefixes. Build the list for every operator in the map
       below, or delete that operator's lines from the map: an operator that is in the map but
-      missing from this file has all its real traffic counted as impostors. This writes the complete
-      file:
+      missing from this file has all its real traffic counted as impostors. Save this as
+      <code class="text-text-body">build-crawler-nets.sh</code> and run it as root; it needs
+      <code class="text-text-body">curl</code> and <code class="text-text-body">jq</code>. It writes
+      the complete file, or the path you pass as its first argument:
     </p>
     <pre
       tabindex="0"
       class="mt-4 overflow-x-auto rounded-lg bg-bg-recessed p-4 text-xs text-text-body"
     ><code>{code0}</code></pre>
     <p class="mt-4 text-text-muted leading-relaxed">
-      If any list fails to download, the old file stays in place.
+      The script stops at the first list that fails to download, is not valid JSON or has no
+      prefixes, and then leaves the old file in place.
     </p>
     <p class="mt-4 text-text-muted leading-relaxed">Published lists, as of 2026-11-22:</p>
     <div class="mt-4 overflow-x-auto">
@@ -178,7 +194,7 @@ const code4 = [
             </td>
             <td class="py-2 pr-4">
               <code class="text-text-body">https://www.perplexity.ai/perplexitybot.json</code>,{' '}
-              <code class="text-text-body">https://www.perplexity.com/perplexity-user.json</code>
+              <code class="text-text-body">https://www.perplexity.ai/perplexity-user.json</code>
             </td>
           </tr>
           <tr class="border-t border-border align-top">
