@@ -261,7 +261,7 @@ const STATES: State[] = [
       await page.click('form[data-scan-lead] button[type="submit"]');
       await expect(
         page.getByText(
-          'Sent. An engineer at We-Amp replies to reviewer@example.com within one business day.',
+          'Sent. We usually reply to reviewer@example.com within one business day (CET).',
           { exact: true },
         ),
       ).toBeVisible();
