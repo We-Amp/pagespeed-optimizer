@@ -277,9 +277,21 @@ bool IsTchar(unsigned char c) {
     return true;
   }
   switch (c) {
-    case '!': case '#': case '$': case '%': case '&': case '\'':
-    case '*': case '+': case '-': case '.': case '^': case '_':
-    case '`': case '|': case '~':
+    case '!':
+    case '#':
+    case '$':
+    case '%':
+    case '&':
+    case '\'':
+    case '*':
+    case '+':
+    case '-':
+    case '.':
+    case '^':
+    case '_':
+    case '`':
+    case '|':
+    case '~':
       return true;
     default:
       return false;

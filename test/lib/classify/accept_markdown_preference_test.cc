@@ -138,8 +138,8 @@ TEST(AcceptMarkdownPreferenceTest, CombinedValueMatchesLines) {
 TEST(AcceptMarkdownPreferenceTest, QuotedParametersAndEmptyElements) {
   EXPECT_TRUE(WantsAgentMarkdown(
       "text/markdown;variant=\"GFM, strict\";q=0.9, text/html;q=0.5"));
-  EXPECT_TRUE(WantsAgentMarkdown(
-      "text/markdown;x=\"a\\\"b\";q=0.9, text/html;q=0.5"));
+  EXPECT_TRUE(
+      WantsAgentMarkdown("text/markdown;x=\"a\\\"b\";q=0.9, text/html;q=0.5"));
   EXPECT_TRUE(WantsAgentMarkdown(", ,text/markdown,, text/html;q=0.5,"));
   // Unterminated quote, quoted weight, a range without a subtype.
   EXPECT_FALSE(WantsAgentMarkdown("text/markdown;x=\"open"));
@@ -157,8 +157,8 @@ TEST(AcceptMarkdownPreferenceTest, QuotedParametersAndEmptyElements) {
 // Every truncation of every vector line and every single-byte overwrite of it
 // parses without fault; the result is only required to be deterministic.
 TEST(AcceptMarkdownPreferenceTest, MutatedVectorsParse) {
-  const char kBytes[] = {',', ';', '=', '"', '\\', ' ', '\t', '/', '*',
-                         'q', '0', '1', '.', '\0', '\x7f', '\xff'};
+  const char kBytes[] = {',', ';', '=', '"', '\\', ' ',  '\t',   '/',
+                         '*', 'q', '0', '1', '.',  '\0', '\x7f', '\xff'};
   for (const Vector& v : LoadVectors()) {
     for (const std::string& line : v.lines) {
       for (size_t n = 0; n <= line.size(); ++n) {

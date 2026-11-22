@@ -80,6 +80,7 @@ extern "C" {
 #include "src/worker/async_css_loader.h"
 #include "src/worker/serve_stats.h"
 
+using pagespeed::AcceptMarkdownPreference;
 using pagespeed::AlternateId;
 using pagespeed::AlternateMetadata;
 using pagespeed::BuildCacheControlHeader;
@@ -100,7 +101,6 @@ using pagespeed::ReadResult;
 using pagespeed::ResetPersistentConnection;
 using pagespeed::SendNotificationPersistent;
 using pagespeed::SentinelId;
-using pagespeed::AcceptMarkdownPreference;
 
 // Saved next filters in the body/header filter chains
 static ngx_http_output_body_filter_pt ngx_http_next_body_filter;
