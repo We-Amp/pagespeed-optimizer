@@ -236,7 +236,7 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
         ? ', and AI crawlers are allowed to read it'
         : blocked
           ? ''
-          : ', and robots.txt lets AI crawlers fetch it') +
+          : ', and robots.txt lets the AI crawlers this scan checks fetch it') +
       '.' +
       (offers ? ' ' + NO_SIGNATURE_CHECK : '');
     out.push({ wedge: 'tollbooth', text });

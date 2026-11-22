@@ -219,7 +219,7 @@ test.describe('scan result on a hosted platform', () => {
     await expect(access).not.toContainText('robots.txt allows AI crawlers');
     const found = airead.locator('[data-scan-also-found] li');
     await expect(found.first()).toHaveText(
-      'About 38% of this page’s content is in the raw HTML, and robots.txt lets AI crawlers fetch it.',
+      'About 38% of this page’s content is in the raw HTML, and robots.txt lets the AI crawlers this scan checks fetch it.',
     );
     await expect(airead.locator('[data-scan-also-found]')).not.toContainText(
       /your own server|self-hosted|agent signatures|mod_pagespeed/,

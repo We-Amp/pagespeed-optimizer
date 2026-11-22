@@ -108,7 +108,7 @@ test('/analyze/ keeps no script-only control without JavaScript', async ({ brows
     'No account, no upload. Test a page, get the fixes.',
   );
   await expect(page.locator('main')).toContainText(
-    'The report from this test labels every one of these.',
+    'The report from a test labels every one of these.',
   );
   await context.close();
 });

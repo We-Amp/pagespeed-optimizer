@@ -236,27 +236,12 @@ const jsonLd = [webApp, faqPage];
          there). -->
     <div class="mt-14 max-w-2xl">
       <h2 class="text-xl font-semibold text-text-body">Can AI crawlers execute JavaScript?</h2>
+      <!-- prettier-ignore -->
       <p class="mt-2 text-sm text-text-annotation leading-relaxed">
         Most do not, as far as published measurements show.
-        <a
-          href="https://vercel.com/blog/the-rise-of-the-ai-crawler"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-interactive underline underline-offset-2"
-        >
-          A December 2024 study by Vercel and MERJ<span class="sr-only"> (opens in new tab)</span>
-        </a>
-        of crawler traffic found that the crawlers of OpenAI, Anthropic and Perplexity fetched HTML
+        <a href="https://vercel.com/blog/the-rise-of-the-ai-crawler" target="_blank" rel="noopener noreferrer" class="text-interactive underline underline-offset-2">A December 2024 study by Vercel and MERJ<span class="sr-only"> (opens in new tab)</span></a> of crawler traffic found that the crawlers of OpenAI, Anthropic and Perplexity fetched HTML
         without running the scripts in it. Googlebot does run JavaScript, and
-        <a
-          href="https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers#google-extended"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-interactive underline underline-offset-2"
-        >
-          Gemini draws on the pages it fetches<span class="sr-only"> (opens in new tab)</span>
-        </a>
-        . When we rendered the top 1,000 sites on 28 May 2026, 403 of them showed a non-rendering
+        <a href="https://developers.google.com/crawling/docs/crawlers-fetchers/google-common-crawlers#google-extended" target="_blank" rel="noopener noreferrer" class="text-interactive underline underline-offset-2">Gemini draws on the pages it fetches<span class="sr-only"> (opens in new tab)</span></a>. When we rendered the top 1,000 sites on 28 May 2026, 403 of them showed a non-rendering
         agent a nearly empty page, with content that appeared only after JavaScript ran: that is 40%
         of all 1,000 sites, and 57% of the 711 we could read at all, because the other 289 returned
         little even after rendering. Read
@@ -265,8 +250,7 @@ const jsonLd = [webApp, faqPage];
           class="text-interactive underline underline-offset-2"
         >
           the full results
-        </a>
-        .
+        </a>.
       </p>
     </div>
 

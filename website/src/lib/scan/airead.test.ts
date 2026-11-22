@@ -229,13 +229,13 @@ describe('formatAiread extras', () => {
     const open = fixture('unknown');
     open.access.crawlerRules = fixture('hosted').access.crawlerRules;
     expect(first(open)).toBe(
-      'About 38% of this page’s content is in the raw HTML, and robots.txt lets AI crawlers fetch it' +
+      'About 38% of this page’s content is in the raw HTML, and robots.txt lets the AI crawlers this scan checks fetch it' +
         NO_CHECK,
     );
     // Hosted: the same two, without the part about the origin.
     const hosted = fixture('hosted');
     expect(first(hosted)).toBe(
-      'About 38% of this page’s content is in the raw HTML, and robots.txt lets AI crawlers fetch it.',
+      'About 38% of this page’s content is in the raw HTML, and robots.txt lets the AI crawlers this scan checks fetch it.',
     );
     hosted.access.crawlerRules.wildcardBlocksAll = true;
     expect(first(hosted)).toBe('About 38% of this page’s content is in the raw HTML.');
@@ -247,7 +247,7 @@ describe('formatAiread extras', () => {
     const hosted = fixture('hosted');
     hosted.agentVerifiability.detail.exposurePct = 100;
     expect(first(hosted)).toBe(
-      'All of this page’s content is in the raw HTML, and robots.txt lets AI crawlers fetch it.',
+      'All of this page’s content is in the raw HTML, and robots.txt lets the AI crawlers this scan checks fetch it.',
     );
     const unknown = fixture('unknown');
     unknown.agentVerifiability.detail.exposurePct = 100;
