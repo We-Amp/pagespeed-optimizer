@@ -175,9 +175,9 @@ class CapabilityMask {
 //
 //   - `text/markdown` must be named explicitly; `*/*` and `text/*` never
 //     select it, at any q;
-//   - its q must be above 0 and strictly above the q `text/html` resolves to
+//   - its q must be above 0 and at least the q `text/html` resolves to
 //     (the most specific of `text/html`, `text/*`, `*/*`, else 0);
-//   - equal q selects HTML;
+//   - equal q selects Markdown, whatever the order;
 //   - a malformed header selects HTML: a q outside [0, 1] or with more than
 //     three decimals, an unparseable media range, or `text/markdown` listed
 //     twice with different q-values.

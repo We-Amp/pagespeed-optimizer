@@ -28,8 +28,8 @@ constexpr std::string_view kVectorPath =
 // constant is in mod_pagespeed's
 // test/net/instaweb/rewriter/accept_markdown_preference_test.cc. When the
 // vectors change, change both copies of the file and both pins together.
-constexpr uint64_t kVectorFileHash = 0xffced6346df2fffaULL;
-constexpr int kVectorCount = 35;
+constexpr uint64_t kVectorFileHash = 0x9f65b6ac7e2ed602ULL;
+constexpr int kVectorCount = 42;
 
 struct Vector {
   int id = 0;

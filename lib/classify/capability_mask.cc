@@ -445,7 +445,7 @@ bool AcceptMarkdownPreference::PrefersMarkdown() const {
   } else if (any_q_ >= 0) {
     html_q = any_q_;
   }
-  return markdown_q_ > html_q;
+  return markdown_q_ >= html_q;
 }
 
 bool AcceptPrefersMarkdown(std::span<const std::string_view> accept_lines) {

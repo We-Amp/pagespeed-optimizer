@@ -196,18 +196,17 @@ Vary: Accept-Encoding, User-Agent, Accept
 x-markdown-tokens:
 
 
-=== TEST 10: Accept with text/markdown and text/html at equal q gets the HTML
+=== TEST 10: Accept with text/markdown and text/html at equal q gets the Markdown copy
 --- config eval: $::config
 --- more_headers
-Accept: text/markdown, text/html
+Accept: text/markdown, text/html, */*
 --- request
 GET /md
 --- response_body chomp
-<html><body>stored parent</body></html>
+# markdown copy for agents
 --- response_headers
-X-PageSpeed: HIT
-Vary: Accept-Encoding, User-Agent, Accept
-x-markdown-tokens:
+Content-Type: text/markdown
+Vary: Accept
 
 
 === TEST 11: text/markdown at q=0 is not overridden by */*
