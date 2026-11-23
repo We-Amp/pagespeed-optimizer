@@ -981,6 +981,7 @@ TEST(UnsharedAnswerReason, ReasonsAndVary) {
   using R = UnsharedReason;
   auto h = [](std::vector<std::pair<std::string, std::string>> v) {
     std::vector<HttpHeader> out;
+    out.reserve(v.size());
     for (auto& [n, val] : v) out.push_back({n, val});
     return out;
   };
