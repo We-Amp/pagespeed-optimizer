@@ -21,6 +21,9 @@
   "/docs/release-notes-2-3/": {
     "term-drift-daemon": "the release note for the packaged unit description names the compatibility names that keep the word daemon (pagespeed_daemon.conf, command-line flags, API paths, metric names)"
   },
+  "/docs/release-notes-2-10/": {
+    "term-drift-daemon": "the release note keeps the approved wording \"optimizer daemon\" for the in-place resource serving path that the InPlaceCorsGuard directive guards (text approved verbatim; a CI-time exemption in place of editing approved text)"
+  },
   "/docs/release-notes-2-6/": {
     "term-drift-daemon": "the release note quotes the module's old log wording (\"daemon\") that 2.6.0 renames to \"optimizer\", and names the compatibility names that keep the word (ipro_daemon_served statistics, /v1/daemon/* endpoints, daemon-unavailable)"
   },
