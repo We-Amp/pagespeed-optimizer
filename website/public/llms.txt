@@ -148,7 +148,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Release notes by line
 
-- [Release notes: 2.10](https://modpagespeed.com/docs/release-notes-2-10/): mod_pagespeed 2.10 release notes: 2.10.0 adds pagespeed lint for Apache configurations and honors q-values for Markdown.
+- [Release notes: 2.10](https://modpagespeed.com/docs/release-notes-2-10/): mod_pagespeed 2.10 release notes: 2.10.0 has security fixes and adds pagespeed lint for Apache configurations.
 - [Release notes: 2.9](https://modpagespeed.com/docs/release-notes-2-9/): mod_pagespeed 2.9 release notes: 2.9.2 updates the bundled nginx to 1.30.7 (security); 2.9.0 has security fixes and adds pagespeed-doctor.
 - [Release notes: 2.8](https://modpagespeed.com/docs/release-notes-2-8/): mod_pagespeed 2.8 release notes: 2.8.2, critical CSS and admin console fixes; 2.8.1, critical CSS, cache flush, IIS, sidecar fixes; 2.8.0, security fixes.
 - [Release notes: 2.7](https://modpagespeed.com/docs/release-notes-2-7/): mod_pagespeed 2.7.0 release notes: security fixes, including issues found by Anthropic's OSS Scanner, and no version in response headers by default.

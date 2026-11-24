@@ -1,6 +1,6 @@
 ---
 title: 'Release notes: 2.10'
-description: 'mod_pagespeed 2.10 release notes: 2.10.0 adds pagespeed lint for Apache configurations and honors q-values for Markdown.'
+description: 'mod_pagespeed 2.10 release notes: 2.10.0 has security fixes and adds pagespeed lint for Apache configurations.'
 order: 72
 group: 'Release notes by line'
 lastUpdated: 2026-11-26
@@ -31,8 +31,24 @@ as well.
 
 ## Highlights
 
+- **Security: this release fixes four security issues.** See Security
+  below. Update recommended.
 - **New `pagespeed lint` checks an Apache configuration without starting Apache.**
 - **Markdown for AI agents now follows the `Accept` header's q-values.**
+
+## Security
+
+- **pagespeed-optimizer: content not meant to be shared could reach optimized pages served
+  to other visitors.** Affected: 2.9.2 and earlier. **Update recommended.**
+- **pagespeed-optimizer: in the experimental agent optimization (off by default), content
+  not meant to be shared could reach the stored Markdown copy and `/llms.txt`.** Affected:
+  2.9.2 and earlier releases that include agent optimization. **Update recommended.**
+- **pagespeed-optimizer: in browser analysis (off by default), an analysed page could
+  reach network destinations it should not.** Affected: 2.9.2 and earlier releases that
+  include browser analysis. **Update recommended.**
+- **mod_pagespeed: a cross-site scripting issue in HTML rewriting.** Affected: 2.9.2 and earlier. **Update recommended.**
+- The pagespeed-optimizer fixes reach the container images and the NuGet packages with
+  their 2.10.0 release.
 
 ## Action required when upgrading
 
