@@ -527,16 +527,73 @@ export function parseDeprecatedProperties(src, origin) {
     .map((c) => ({ origin, name: literalString(c.args[0]), scopeTok: c.args[1] }));
 }
 
-/**
- * The Apache static command table in mod_instaweb.cc:
- * APACHE_CONFIG_(DIR_)OPTION[2|3|23](kModPagespeedX | "literal", "help").
- */
-export function parseApacheCommandTable(modInstawebSrc) {
-  const clean = stripComments(modInstawebSrc);
+// Kinds of the PAGESPEED_APACHE_DIRECTIVE_TABLE(X) macro (apache_directive_table.h,
+// mod_pagespeed 2.10.0 and later), as the APACHE_* macro each replaced in
+// mod_instaweb.cc. The fetch kinds (APACHE_CONFIG_FETCH_OPTION2/23) were never
+// part of the mod_instaweb.cc parse below, so they are left out here too.
+const DIRECTIVE_TABLE_KINDS = {
+  kScope: { directoryOk: false, arity: 1 },
+  kDir1: { directoryOk: true, arity: 1 },
+  kServer1: { directoryOk: false, arity: 1 },
+  kDir2: { directoryOk: true, arity: 2 },
+  kServer2: { directoryOk: false, arity: 2 },
+  kDir3: { directoryOk: true, arity: 3 },
+};
+
+/** `const char kModPagespeedX[] = "..."` and `inline constexpr char` names. */
+function apacheNameConstants(clean) {
   const consts = new Map();
-  const cre = /const char (kModPagespeed\w+)\[\] =\s*"([^"]+)";/g;
+  const cre = /(?:const|constexpr)\s+char\s+(kModPagespeed\w+)\[\]\s*=\s*"([^"]+)";/g;
   let cm;
   while ((cm = cre.exec(clean)) !== null) consts.set(cm[1], cm[2]);
+  return consts;
+}
+
+function apacheCommandName(nameTok, consts) {
+  return (
+    literalString(nameTok) ??
+    consts.get(nameTok.trim()) ??
+    (nameTok.trim() === 'RewriteQuery::kModPagespeed' ? 'ModPagespeed' : null)
+  );
+}
+
+/**
+ * The Apache command table, in either source layout:
+ * - mod_pagespeed 2.10.0 and later: the PAGESPEED_APACHE_DIRECTIVE_TABLE(X)
+ *   macro of X(kKind, kModPagespeedX, "help") rows in apache_directive_table.h;
+ * - earlier: the static mod_pagespeed_filter_cmds table in mod_instaweb.cc,
+ *   APACHE_CONFIG_(DIR_)OPTION[2|3|23](kModPagespeedX | "literal", "help").
+ */
+export function parseApacheCommandTable(src) {
+  const clean = stripComments(src);
+  const consts = apacheNameConstants(clean);
+  const macro = clean.indexOf('#define PAGESPEED_APACHE_DIRECTIVE_TABLE(X)');
+  if (macro !== -1) {
+    // The macro body is one logical line: drop the line continuations.
+    const bodyStart = clean.indexOf('\n', macro) + 1;
+    let body = '';
+    for (const line of clean.slice(bodyStart).split('\n')) {
+      const cont = /\\\s*$/.test(line);
+      body += `${line.replace(/\\\s*$/, '')}\n`;
+      if (!cont) break;
+    }
+    const out = [];
+    for (const call of findCalls(body, 'X')) {
+      const [kindTok, nameTok, ...helpParts] = call.args;
+      const kind = DIRECTIVE_TABLE_KINDS[kindTok.trim()];
+      if (!kind) continue;
+      const full = apacheCommandName(nameTok, consts);
+      if (!full) continue;
+      out.push({
+        name: full.replace(/^<?ModPagespeed/, ''),
+        apacheName: full,
+        directoryOk: kind.directoryOk,
+        arity: kind.arity,
+        help: literalString(helpParts.join(',')),
+      });
+    }
+    return out;
+  }
   const start = clean.indexOf('mod_pagespeed_filter_cmds[] = {');
   const end = clean.indexOf('};', start);
   const table = clean.slice(start, end);
@@ -548,11 +605,7 @@ export function parseApacheCommandTable(modInstawebSrc) {
     const call = findCalls(table.slice(callStart), `APACHE_${m[1]}${m[2]}`)[0];
     if (!call) continue;
     const [nameTok, ...helpParts] = call.args;
-    const nameLit = literalString(nameTok);
-    const full =
-      nameLit ??
-      consts.get(nameTok.trim()) ??
-      (nameTok.trim() === 'RewriteQuery::kModPagespeed' ? 'ModPagespeed' : null);
+    const full = apacheCommandName(nameTok, consts);
     if (!full) continue;
     out.push({
       name: full.replace(/^<?ModPagespeed/, ''),
@@ -581,6 +634,35 @@ export function parseNamedStrings(src) {
   let m;
   while ((m = re.exec(clean)) !== null) map.set(m[1], literalString(m[2]));
   return map;
+}
+
+/**
+ * The process-scope option names of SystemProcessOptions
+ * (pagespeed/system/system_process_options.cc, mod_pagespeed 2.10.0 and later):
+ * the names of its kOptions table, which Parse1 looks up, plus the names Parse2
+ * compares with `StringCaseEqual(option, kX)`. Returns a Set in source order.
+ */
+export function parseProcessOptionNames(src) {
+  const clean = stripComments(src);
+  const consts = parseNamedStrings(src);
+  const names = new Set();
+  const table = /\bkOptions\[\]\s*=\s*\{([\s\S]*?)\n\};/.exec(clean);
+  if (table) {
+    for (const m of table[1].matchAll(/\{\s*(k[A-Z]\w*)\s*,/g)) {
+      const v = consts.get(m[1]);
+      if (v) names.add(v);
+    }
+  }
+  for (const sig of ['SystemProcessOptions::Parse1(', 'SystemProcessOptions::Parse2(']) {
+    const start = clean.indexOf(sig);
+    if (start === -1) continue;
+    const body = clean.slice(start, clean.indexOf('\n}', start));
+    for (const m of body.matchAll(/StringCaseEqual\(\s*option\s*,\s*(k[A-Z]\w*)\s*\)/g)) {
+      const v = consts.get(m[1]);
+      if (v) names.add(v);
+    }
+  }
+  return names;
 }
 
 /** The string literals a `StringCaseEqual(in, "X")` parser function accepts. */
