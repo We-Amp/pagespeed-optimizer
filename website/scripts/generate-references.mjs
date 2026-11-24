@@ -659,7 +659,9 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     'process-scope directive names',
   );
 
-  const apacheCommands = parseApacheCommandTable(directiveTable.src);
+  const tableProblems = [];
+  const apacheCommands = parseApacheCommandTable(directiveTable.src, tableProblems);
+  requireNoProblems(tableProblems, directiveTable.rel);
   requireEntries(apacheCommands, directiveTable.rel, 'Apache command-table entries');
 
   // GetOptionScope compares these lists case-insensitively (the list spells
@@ -1159,6 +1161,19 @@ export function requireEntries(entries, file, what) {
   );
 }
 
+/**
+ * Throws when a registration table had rows the parser could not read (an
+ * unknown kind or a name that does not resolve): each one would otherwise drop
+ * a directive from the reference without a word.
+ */
+export function requireNoProblems(problems, file) {
+  if (problems.length === 0) return;
+  throw new Error(
+    `${problems.length} unreadable row(s) in ${file}: ${problems.join('; ')}; ` +
+      'teach scripts/lib/reference-parsers.mjs to read them',
+  );
+}
+
 /** Generating fewer than this share of the committed directives is refused. */
 export const MIN_DIRECTIVE_SHARE = 0.9;
 
@@ -1200,14 +1215,25 @@ function main(argv) {
     process.exit(2);
   }
   const outDir = resolve(typeof args.get('--out') === 'string' ? args.get('--out') : REFERENCE_DIR);
-  const { files, warnings } = generate({
-    moduleSrc: resolve(moduleSrc),
-    tag: typeof args.get('--tag') === 'string' ? args.get('--tag') : undefined,
-  });
+  // Every guard reports the same way: one `error:` line and exit 1.
+  let generated;
+  try {
+    generated = generate({
+      moduleSrc: resolve(moduleSrc),
+      tag: typeof args.get('--tag') === 'string' ? args.get('--tag') : undefined,
+    });
+  } catch (e) {
+    console.error(`error: ${e.message}`);
+    process.exit(1);
+  }
+  const { files, warnings } = generated;
   for (const w of warnings) console.error(`warning: ${w}`);
 
   if (!args.get('--allow-shrink')) {
     const committedPath = join(REFERENCE_DIR, 'module-directives.json');
+    if (!existsSync(committedPath)) {
+      console.error(`warning: no committed ${committedPath}; the directive count is not checked`);
+    }
     const committed = existsSync(committedPath)
       ? JSON.parse(read(committedPath)).directives.length
       : null;
