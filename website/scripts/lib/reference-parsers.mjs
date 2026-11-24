@@ -531,6 +531,8 @@ export function parseDeprecatedProperties(src, origin) {
 // mod_pagespeed 2.10.0 and later), as the APACHE_* macro each replaced in
 // mod_instaweb.cc. The fetch kinds (APACHE_CONFIG_FETCH_OPTION2/23) were never
 // part of the mod_instaweb.cc parse below, so they are left out here too.
+// The fetch kinds, deliberately not parsed (see above).
+const DIRECTIVE_TABLE_SKIPPED_KINDS = new Set(['kFetch2', 'kFetch23']);
 const DIRECTIVE_TABLE_KINDS = {
   kScope: { directoryOk: false, arity: 1 },
   kDir1: { directoryOk: true, arity: 1 },
@@ -563,8 +565,11 @@ function apacheCommandName(nameTok, consts) {
  *   macro of X(kKind, kModPagespeedX, "help") rows in apache_directive_table.h;
  * - earlier: the static mod_pagespeed_filter_cmds table in mod_instaweb.cc,
  *   APACHE_CONFIG_(DIR_)OPTION[2|3|23](kModPagespeedX | "literal", "help").
+ * A row of the X-macro table with a kind this parser does not know (other than
+ * the skipped fetch kinds), or a name it cannot resolve, is reported in
+ * `problems` instead of being dropped silently; the generator refuses those.
  */
-export function parseApacheCommandTable(src) {
+export function parseApacheCommandTable(src, problems = []) {
   const clean = stripComments(src);
   const consts = apacheNameConstants(clean);
   const macro = clean.indexOf('#define PAGESPEED_APACHE_DIRECTIVE_TABLE(X)');
@@ -580,10 +585,18 @@ export function parseApacheCommandTable(src) {
     const out = [];
     for (const call of findCalls(body, 'X')) {
       const [kindTok, nameTok, ...helpParts] = call.args;
-      const kind = DIRECTIVE_TABLE_KINDS[kindTok.trim()];
-      if (!kind) continue;
+      const kindName = kindTok.trim();
+      if (DIRECTIVE_TABLE_SKIPPED_KINDS.has(kindName)) continue;
+      const kind = DIRECTIVE_TABLE_KINDS[kindName];
+      if (!kind) {
+        problems.push(`unknown directive table kind ${kindName} (name ${nameTok.trim()})`);
+        continue;
+      }
       const full = apacheCommandName(nameTok, consts);
-      if (!full) continue;
+      if (!full) {
+        problems.push(`unresolved directive table name ${nameTok.trim()}`);
+        continue;
+      }
       out.push({
         name: full.replace(/^<?ModPagespeed/, ''),
         apacheName: full,
@@ -606,7 +619,10 @@ export function parseApacheCommandTable(src) {
     if (!call) continue;
     const [nameTok, ...helpParts] = call.args;
     const full = apacheCommandName(nameTok, consts);
-    if (!full) continue;
+    if (!full) {
+      problems.push(`unresolved command table name ${nameTok.trim()}`);
+      continue;
+    }
     out.push({
       name: full.replace(/^<?ModPagespeed/, ''),
       apacheName: full,
@@ -641,17 +657,27 @@ export function parseNamedStrings(src) {
  * (pagespeed/system/system_process_options.cc, mod_pagespeed 2.10.0 and later):
  * the names of its kOptions table, which Parse1 looks up, plus the names Parse2
  * compares with `StringCaseEqual(option, kX)`. Returns a Set in source order.
+ * Throws when the kOptions table is missing or empty, or when a row's name
+ * constant does not resolve: Parse1 finds most of the names only through that
+ * table, so a partial parse would silently move them out of process scope.
  */
 export function parseProcessOptionNames(src) {
   const clean = stripComments(src);
   const consts = parseNamedStrings(src);
   const names = new Set();
   const table = /\bkOptions\[\]\s*=\s*\{([\s\S]*?)\n\};/.exec(clean);
-  if (table) {
-    for (const m of table[1].matchAll(/\{\s*(k[A-Z]\w*)\s*,/g)) {
-      const v = consts.get(m[1]);
-      if (v) names.add(v);
+  const rows = table ? [...table[1].matchAll(/\{\s*(k[A-Z]\w*)\s*,/g)] : [];
+  if (rows.length === 0) {
+    throw new Error(
+      'no rows parsed from the kOptions table of SystemProcessOptions; teach parseProcessOptionNames the new layout',
+    );
+  }
+  for (const m of rows) {
+    const v = consts.get(m[1]);
+    if (!v) {
+      throw new Error(`kOptions row ${m[1]} does not resolve to a name constant`);
     }
+    names.add(v);
   }
   for (const sig of ['SystemProcessOptions::Parse1(', 'SystemProcessOptions::Parse2(']) {
     const start = clean.indexOf(sig);

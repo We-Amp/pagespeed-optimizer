@@ -18,7 +18,11 @@ import {
   parseApacheCommandTable,
   parseProcessOptionNames,
 } from '../../scripts/lib/reference-parsers.mjs';
-import { checkDirectiveCount, requireEntries } from '../../scripts/generate-references.mjs';
+import {
+  checkDirectiveCount,
+  requireEntries,
+  requireNoProblems,
+} from '../../scripts/generate-references.mjs';
 
 // The 2.9.2 layout: the table and its constants in mod_instaweb.cc.
 const OLD_MOD_INSTAWEB = `
@@ -127,6 +131,44 @@ RewriteOptions::OptionSettingResult SystemProcessOptions::Parse2(
 }
 `;
 
+describe('parseApacheCommandTable reports rows it cannot read', () => {
+  it('reports a table kind it does not know, but not the skipped fetch kinds', () => {
+    const problems: string[] = [];
+    const src = NEW_DIRECTIVE_TABLE_H.replace(
+      'X(kServer1, kModPagespeedFileCachePath',
+      'X(kServer9, kModPagespeedFileCachePath',
+    );
+    const names = parseApacheCommandTable(src, problems).map((c) => c.name);
+    expect(names).not.toContain('FileCachePath');
+    expect(problems).toEqual([
+      'unknown directive table kind kServer9 (name kModPagespeedFileCachePath)',
+    ]);
+    const clean: string[] = [];
+    parseApacheCommandTable(NEW_DIRECTIVE_TABLE_H, clean);
+    expect(clean).toEqual([]);
+  });
+
+  it('reports a name it cannot resolve', () => {
+    const problems: string[] = [];
+    const src = NEW_DIRECTIVE_TABLE_H.replace(
+      'X(kDir1, kModPagespeedAllow,',
+      'X(kDir1, kModPagespeedNoSuchName,',
+    );
+    parseApacheCommandTable(src, problems);
+    expect(problems).toEqual(['unresolved directive table name kModPagespeedNoSuchName']);
+  });
+
+  it('makes the generator refuse a table with unreadable rows, naming the file', () => {
+    expect(() =>
+      requireNoProblems(
+        ['unknown directive table kind kServer9'],
+        'pagespeed/apache/apache_directive_table.h',
+      ),
+    ).toThrow(/apache_directive_table\.h.*kServer9/);
+    expect(() => requireNoProblems([], 'any.h')).not.toThrow();
+  });
+});
+
 describe('parseProcessOptionNames', () => {
   it('reads the process-scope option names of system_process_options.cc', () => {
     expect([...parseProcessOptionNames(NEW_PROCESS_OPTIONS_CC)]).toEqual([
@@ -135,6 +177,19 @@ describe('parseProcessOptionNames', () => {
       'ForceCaching',
       'CreateSharedMemoryMetadataCache',
     ]);
+  });
+
+  it('refuses a renamed or reformatted kOptions table instead of keeping only Parse2', () => {
+    const renamed = NEW_PROCESS_OPTIONS_CC.replace('kOptions[] = {', 'kProcessOptions[] = {');
+    expect(() => parseProcessOptionNames(renamed)).toThrow(/kOptions/);
+  });
+
+  it('refuses a kOptions row whose name constant does not resolve', () => {
+    const broken = NEW_PROCESS_OPTIONS_CC.replace(
+      '{kForceCaching, SystemProcessOptions',
+      '{kNoSuchConstant, SystemProcessOptions',
+    );
+    expect(() => parseProcessOptionNames(broken)).toThrow(/kNoSuchConstant/);
   });
 
   it('does not count argument literals as option names', () => {
