@@ -3,21 +3,21 @@ title: 'Release notes: 2.10'
 description: 'mod_pagespeed 2.10 release notes: 2.10.0 has security fixes and adds pagespeed lint for Apache configurations.'
 order: 72
 group: 'Release notes by line'
-lastUpdated: 2026-11-26
+lastUpdated: 2026-11-23
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 
 <ReleaseNotesDeepLink />
 
-mod_pagespeed 2.10.0 is the current release: the module and the optimizer worker, released together on 2026-11-26 and installed as a matching pair. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+mod_pagespeed 2.10.0 is the current release: the module and the optimizer worker, released together on 2026-11-23 and installed as a matching pair. The packages in the signed apt and yum repositories, the container images, the NuGet packages (including the ASP.NET Core sidecar packages) and the Helm chart's application version all carry the product version. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
 
 <span id="v2-10-0" class="rn-alias" aria-hidden="true"></span>
 <div class="rn-entry rn-entry-current">
 
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.10.0</span> <span class="rn-date">2026-11-26</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.10.0</span> <span class="rn-date">2026-11-23</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
 
-**Release date:** 2026-11-26
+**Release date:** 2026-11-23
 
 **Status:** Stable
 
@@ -46,7 +46,8 @@ as well.
 - **pagespeed-optimizer: in browser analysis (off by default), an analysed page could
   reach network destinations it should not.** Affected: 2.9.2 and earlier releases that
   include browser analysis. **Update recommended.**
-- **mod_pagespeed: a cross-site scripting issue in HTML rewriting.** Affected: 2.9.2 and earlier. **Update recommended.**
+- **mod_pagespeed: a cross-site scripting issue in HTML rewriting.** Affected:
+  2.9.2 and earlier. **Update recommended.** Reported by Inanna (@inanna-malick).
 - The pagespeed-optimizer fixes reach the container images and the NuGet packages with
   their 2.10.0 release.
 

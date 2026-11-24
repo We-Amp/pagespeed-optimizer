@@ -39,7 +39,7 @@ import { PKG_ASPNETCORE, PKG_SIDECAR, SIDECAR_VERSION } from './product-facts.mj
 export const VERSION_MAP = [
   {
     release: '2.10.0',
-    date: '2026-11-26',
+    date: '2026-11-23',
     packages: '2.10.0',
     images: '2.10.0',
     helmChart: '0.3.18',
