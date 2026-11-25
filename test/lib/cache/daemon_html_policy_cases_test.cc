@@ -296,9 +296,9 @@ void CheckServe(Checker& c, const std::string& w, const json& in,
   c.Bool(w + " expect", ex, "wants_markdown");
   c.Uint(w + " expect", ex, "age_s");
   c.OneOf(w + " expect", ex, "outcome", kOutcomes);
-  if (ex.contains("outcome") &&
+  if (ex.value("outcome", "") == "markdown_304" &&
       !(in.contains("request") && in["request"].contains("if_none_match"))) {
-    c.Fail(w, "outcome is asserted without an if_none_match");
+    c.Fail(w, "a 304 outcome is asserted without an if_none_match");
   }
 }
 
