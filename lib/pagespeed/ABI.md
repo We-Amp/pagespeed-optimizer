@@ -182,24 +182,36 @@ is reserved for the optimizer's own writer and may never be reused.
 
 **The per-site purge epoch is a max-merge, clamped to the present, and it
 lives outside the volume.** It is one file per site,
-`<volume_path>.purge-epoch.<site>` (64 lowercase hex), holding the single
-line `pspe1 <seconds>\n`, with a `<…>.lock` file beside it that writers hold
-an exclusive OS advisory lock on (`fcntl(F_SETLKW)` on POSIX, `LockFileEx` on
-Windows; a process-wide mutex covers threads, since POSIX record locks belong
-to the process). A write reads the current value under the lock and replaces
-the file only with a larger value, through a temp file that is flushed and
-renamed over it (`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING |
-MOVEFILE_WRITE_THROUGH` on Windows), so a crash leaves the previous value. A
-value more than 5 seconds in the future is refused. Reads take no lock:
-the file is only ever replaced whole.
+`<volume_path>.purge-epoch.<site>` (64 lowercase hex), holding one
+fixed-width record: `pspe1 ` plus 20 zero-padded decimal digits plus `\n`,
+27 bytes. The file is updated in place, never renamed or replaced:
+
+- A writer opens it, creating it 0660 if absent. The setgid cache directory
+  gives it the cache group.
+- It takes an exclusive advisory lock on one byte far past the record:
+  `fcntl(F_SETLK)` on POSIX, `LockFileEx` on Windows. On Windows, byte-range
+  locks are mandatory, so a lock on the record's own bytes would block its
+  own reads and writes. The wait is bounded at about 2 seconds and then the
+  write is `PS_ERR_IO`.
+- It reads the record and, only for a larger value, writes the whole record
+  at offset 0 and flushes it.
+- Readers take a shared lock on the same byte. A process-wide mutex covers
+  threads, since POSIX record locks belong to the process.
+
+Because no directory entry changes after the first write, any user of the
+cache group can update the file, also in the sticky cache directory where a
+rename over another user's file would be refused. A writer that dies
+mid-write leaves a record that does not parse. A value more than 5 seconds in
+the future is refused.
 
 Three guarantees a caller builds on:
 
-- a lower value never replaces a higher one, across threads and processes;
-- a missing file reads 0, and a file that does not parse is
-  `PS_ERR_CORRUPTED`, never 0, so the caller fences the whole site rather
-  than un-purge anything (the next write replaces it with the larger of its
-  value and the current time);
+- a lower value never replaces a higher one, across threads, processes and
+  users of the cache group;
+- a missing file reads 0, and any other read result than `PS_OK`
+  (`PS_ERR_CORRUPTED`, `PS_ERR_IO`, anything) means "treat the whole site as
+  purged", with the out-parameter left untouched. The next write replaces a
+  corrupted record with the larger of its value and the current time;
 - the record cannot be reclaimed. It is outside the volume because the
   volume's reclamation (per-stripe logs, full directory buckets, chain
   carry-forward) has no ordering against the entries the epoch fences, so a

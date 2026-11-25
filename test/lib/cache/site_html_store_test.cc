@@ -347,7 +347,9 @@ TEST_F(SiteHtmlStoreTest, TheEpochIsAFileBesideTheVolume) {
   std::ifstream in(path, std::ios::binary);
   std::string content((std::istreambuf_iterator<char>(in)),
                       std::istreambuf_iterator<char>());
-  EXPECT_EQ(content, "pspe1 " + std::to_string(kNow - 3) + "\n");
+  EXPECT_EQ(content, RenderSitePurgeEpoch(kNow - 3));
+  EXPECT_EQ(content.size(), 27u);
+  EXPECT_EQ(content.substr(0, 6), "pspe1 ");
 }
 
 TEST_F(SiteHtmlStoreTest, RemovingTheUrlLeavesTheEpoch) {
@@ -357,19 +359,63 @@ TEST_F(SiteHtmlStoreTest, RemovingTheUrlLeavesTheEpoch) {
   EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 1);
 }
 
-TEST_F(SiteHtmlStoreTest, ACrashBeforeTheRenameLeavesTheOldValue) {
+TEST_F(SiteHtmlStoreTest, ATornRecordFailsClosedAndTheNextWriteRepairs) {
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 100, kNow));
   const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
-  // A writer that died after writing its temp file and before the rename.
-  {
-    std::ofstream tmp(path + ".tmp", std::ios::binary | std::ios::trunc);
-    tmp << "pspe1 " << (kNow - 10) << "\n";
+  const std::string whole = RenderSitePurgeEpoch(kNow - 10);
+  // A writer that died part way through its in-place write: every prefix of
+  // the record reads as an error, never as a value.
+  for (size_t cut = 0; cut < whole.size(); ++cut) {
+    SCOPED_TRACE(cut);
+    {
+      std::ofstream out(path, std::ios::binary | std::ios::trunc);
+      out << whole.substr(0, cut);
+    }
+    auto read = cache_->ReadSitePurgeEpoch(kSiteA);
+    ASSERT_FALSE(read.has_value());
+    EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
   }
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 100);
-  // The next writer replaces the stale temp file and lands its own value.
-  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 50, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 50);
-  EXPECT_FALSE(std::filesystem::exists(path + ".tmp"));
+  // The next write, even of a lower value, repairs it fail-closed.
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 500, kNow));
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow);
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow + 2, kNow + 2));
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow + 2);
+}
+
+TEST_F(SiteHtmlStoreTest, AnUnreadableFileIsAnErrorNeverZero) {
+  // A directory where the file should be: the open or the read fails.
+  const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
+  std::filesystem::create_directories(path);
+  auto read = cache_->ReadSitePurgeEpoch(kSiteA);
+  ASSERT_FALSE(read.has_value());
+  EXPECT_FALSE(cache_->WriteSitePurgeEpoch(kSiteA, kNow, kNow).has_value());
+}
+
+TEST_F(SiteHtmlStoreTest, AReaderHoldingTheFileOpenDoesNotBlockAWriter) {
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 100, kNow));
+  const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
+  std::ifstream held(path, std::ios::binary);
+  ASSERT_TRUE(held.is_open());
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 5, kNow));
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 5);
+  // The open handle sees the same, updated file (it was written in place).
+  std::string content((std::istreambuf_iterator<char>(held)),
+                      std::istreambuf_iterator<char>());
+  EXPECT_EQ(content, RenderSitePurgeEpoch(kNow - 5));
+}
+
+TEST_F(SiteHtmlStoreTest, ANonAsciiVolumePathWorks) {
+  // UTF-8 bytes for "caché-ñ": the path the API takes is UTF-8.
+  const std::filesystem::path dir =
+      std::filesystem::path(temp_dir_) / std::filesystem::path(u8"cach\u00e9-\u00f1");
+  std::filesystem::create_directories(dir);
+  const std::string volume = temp_dir_ + "/cach\xc3\xa9-\xc3\xb1/cache.vol";
+  ASSERT_EQ(ReadSitePurgeEpochFile(volume, kSiteA).value(), 0u);
+  ASSERT_TRUE(WriteSitePurgeEpochFile(volume, kSiteA, kNow - 9, kNow));
+  ASSERT_TRUE(WriteSitePurgeEpochFile(volume, kSiteA, kNow - 99, kNow));
+  EXPECT_EQ(ReadSitePurgeEpochFile(volume, kSiteA).value(), kNow - 9);
+  EXPECT_TRUE(std::filesystem::exists(
+      dir / std::filesystem::path(std::string("cache.vol.purge-epoch.") + kSiteA)));
 }
 
 TEST_F(SiteHtmlStoreTest, AnUnparseableFileIsAnErrorNeverZero) {
@@ -378,7 +424,9 @@ TEST_F(SiteHtmlStoreTest, AnUnparseableFileIsAnErrorNeverZero) {
        {std::string_view(""), std::string_view("pspe1 123"),
         std::string_view("pspe1 \n"), std::string_view("pspe1 12x\n"),
         std::string_view("pspe1 012\n"), std::string_view("pspe2 12\n"),
-        std::string_view("pspe1 12\nextra")}) {
+        std::string_view("pspe1 12\nextra"),
+        std::string_view("pspe1 0000000000000000001x\n"),
+        std::string_view("pspe1 00000000000000000001\nx")}) {
     SCOPED_TRACE(std::string(content));
     {
       std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -623,8 +671,6 @@ TEST_F(SitePurgeEpochChildProcessTest, ManyProcessesOfRandomValuesLeaveTheMax) {
   }
   RunChildren(values, 0);
   EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), max);
-  EXPECT_FALSE(
-      std::filesystem::exists(SitePurgeEpochPath(volume_, kSiteA) + ".tmp"));
 }
 
 #ifndef _WIN32

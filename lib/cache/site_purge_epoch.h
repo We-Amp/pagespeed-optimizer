@@ -22,27 +22,41 @@ namespace pagespeed {
 // can be reclaimed while older entries survive.  A file is not reclaimed,
 // and it outlives a front end's own caches and processes.
 //
-//   <volume_path>.purge-epoch.<site>       the value
-//   <volume_path>.purge-epoch.<site>.lock  the writers' lock (never renamed)
-//   <volume_path>.purge-epoch.<site>.tmp   a write in progress
+//   <volume_path>.purge-epoch.<site>
 //
 // `site` is exactly 64 lowercase hex characters (it becomes part of a file
 // name; anything else is refused before any path is built).
 //
-// FORMAT: the ASCII line "pspe1 <decimal seconds>\n" and nothing else.  Any
-// other content — truncated, extra bytes, a format this build does not know —
-// is kCorrupted, never 0: a reader that cannot tell what the epoch is must
-// fence everything rather than un-purge anything.
+// FORMAT: one fixed-width ASCII record, "pspe1 " + 20 zero-padded decimal
+// digits + "\n" (27 bytes), and nothing else.  Any other content — empty,
+// torn, short, longer, a format this build does not know — is kCorrupted,
+// never 0.
 //
-// WRITE: a max-merge under an exclusive OS advisory lock on the .lock file
-// (fcntl F_SETLKW on POSIX, LockFileEx on Windows) plus a process-wide mutex
-// (fcntl locks are per process, so threads of one process are serialised
-// here): read the current value, and only when the new one is larger write it
-// to the .tmp file, flush it to disk, and rename it over the value file.  A
-// crash before the rename leaves the old value in place; the next writer
-// overwrites the stale .tmp.  A value at or below the stored one is a
-// successful no-op.  A value later than `now_seconds` +
-// kSitePurgeEpochSkewSeconds is kInvalidArgument.
+// THE FILE IS UPDATED IN PLACE, never replaced.  A writer opens it (creating
+// it 0660 if absent; the setgid cache directory gives it the cache group),
+// takes an exclusive OS advisory lock (fcntl F_SETLK on POSIX, LockFileEx on
+// Windows, on one byte far past the record so Windows' mandatory byte-range
+// locks never block the record's own I/O), reads the record, and only for a
+// larger value writes the whole fixed-width record at offset 0 and flushes
+// it.  No directory entry is created, renamed or removed after the first
+// write, so any user with write access to the file — any user of the cache
+// group — can update it, including in a sticky directory owned by another
+// user.  A reader takes a shared lock on the same byte, so it never sees a
+// half-written record from a live writer; a writer that crashed mid-write
+// leaves a record that reads kCorrupted (fail closed), and the next write
+// repairs it with the larger of its value and the current time.  A
+// process-wide mutex serialises this process's own uses of the file (fcntl
+// locks belong to the process, and closing any descriptor drops them).
+//
+// Lock waits are bounded (about 2 s, retried every 5 ms); a lock that cannot
+// be taken in time is kIo.
+//
+// A value at or below the stored one is a successful no-op.  A value later
+// than `now_seconds` + kSitePurgeEpochSkewSeconds is kInvalidArgument.
+//
+// ANY error from a read — kCorrupted, kIo, anything — means the caller must
+// treat every entry of the site as purged.  Only a successful read is a
+// value; a missing file is the successful value 0.
 //
 // THE VOLUME GENERATION.  The file is not keyed by the volume's generation,
 // on purpose.  When the volume is recreated it holds no entry from before,
@@ -76,7 +90,8 @@ std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
     std::string_view volume_path, std::string_view site, uint64_t epoch_seconds,
     uint64_t now_seconds);
 
-// Parse the file's content; exposed for tests.
+// The record for `epoch_seconds`, and the parser of one; exposed for tests.
+std::string RenderSitePurgeEpoch(uint64_t epoch_seconds);
 std::expected<uint64_t, SitePurgeEpochError> ParseSitePurgeEpoch(
     std::string_view content);
 

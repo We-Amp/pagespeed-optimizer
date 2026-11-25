@@ -1446,26 +1446,31 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_remove_site(ps_cache_t* cache,
  * PS_ERR_INVALID_ARG.
  *
  * WHERE IT LIVES: one small file per site beside the cache volume,
- * `<volume_path>.purge-epoch.<site>` (plus a `.lock` file writers lock and a
- * transient `.tmp`), where `volume_path` is the path this cache was opened
- * with. It is NOT in the volume, so the volume's own reclamation cannot drop
- * it, and a wipe of a front end's own caches leaves it. ps_cache_remove and
- * ps_cache_remove_site never touch it. Every process that opens the volume
- * must be able to read and write files in its directory.
+ * `<volume_path>.purge-epoch.<site>`, where `volume_path` is the path this
+ * cache was opened with. It is NOT in the volume, so the volume's own
+ * reclamation cannot drop it, and a wipe of a front end's own caches leaves
+ * it. ps_cache_remove and ps_cache_remove_site never touch it. It is created
+ * 0660 and updated in place (never renamed or replaced), so every user of the
+ * cache group can update it once it exists; the volume's directory must let
+ * them create it the first time.
  *
  * WRITE IS A MAX-MERGE. Under an OS advisory lock the current value is read,
- * and only a larger value is written (to a temp file, flushed, then renamed
- * over), so racing writers — threads or processes — end at the largest
- * value, and a crash mid-write leaves the previous value. A value at or below
- * the stored epoch is a successful no-op. A value later than the current time
- * plus 5 seconds is PS_ERR_INVALID_ARG, so a clock step or a file touched
- * with a future time cannot become a permanent epoch: pass min(observed,
- * now). PS_ERR_IO when the file or its lock cannot be used.
+ * and only a larger value is written, as one fixed-width record at the start
+ * of the file, then flushed, so racing writers — threads or processes — end
+ * at the largest value. A value at or below the stored epoch is a successful
+ * no-op. A value later than the current time plus 5 seconds is
+ * PS_ERR_INVALID_ARG, so a clock step or a file touched with a future time
+ * cannot become a permanent epoch: pass min(observed, now). PS_ERR_IO when
+ * the file cannot be opened or written, or its lock is not free within about
+ * 2 seconds.
  *
- * READ gives 0 when the site has no epoch file. A file that exists but does
- * not hold a value this library wrote is PS_ERR_CORRUPTED, never 0: the
- * caller must then treat every entry of the site as purged. The next write
- * replaces such a file with the larger of its value and the current time.
+ * READ gives PS_OK and 0 when the site has no epoch file. ANY OTHER RESULT
+ * THAN PS_OK — PS_ERR_CORRUPTED for a file that does not hold a whole record
+ * (a writer died mid-write, or the file is foreign), PS_ERR_IO, anything —
+ * means the caller must treat every entry of the site as purged; the
+ * out-parameter is left untouched then and must not be used. The next write
+ * replaces a corrupted record with the larger of its value and the current
+ * time.
  *
  * The file is not tied to the volume's generation: a recreated volume holds
  * no entry from before, so an epoch that outlives the recreate can only

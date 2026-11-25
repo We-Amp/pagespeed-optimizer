@@ -1036,11 +1036,11 @@ class PageSpeedCache {
   // WRITE is a max-merge across threads and processes: a value at or below
   // the stored one is a successful no-op.  A value later than `now_seconds`
   // + kSitePurgeEpochSkewSeconds is InvalidArgument.  IoError when the file
-  // or its lock cannot be used.
+  // cannot be used or its lock is not free within about 2 seconds.
   //
-  // READ is 0 when the site has no epoch file.  A file that exists and
-  // cannot be parsed is Corrupted, never 0: the caller must then treat every
-  // entry as purged.
+  // READ is 0 when the site has no epoch file.  ANY error (Corrupted for a
+  // file that does not hold a whole record, IoError, anything) means the
+  // caller must treat every entry of the site as purged; it is never 0.
   //
   // `site` must be a site id (64 lowercase hex); anything else, empty
   // included, is InvalidArgument.

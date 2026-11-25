@@ -576,6 +576,20 @@ TEST_F(AbiSitedHtmlTest, TheEpochFileIsBesideTheVolumeAndFailsClosed) {
   EXPECT_NE(ps_last_error_message(), nullptr);
 }
 
+TEST_F(AbiSitedHtmlTest, AnyFailedEpochReadLeavesTheOutParamAlone) {
+  // An I/O failure (a directory where the file should be), not only a
+  // corrupted record: non-OK, and the out-parameter untouched, so a caller
+  // that fences on any non-OK cannot be handed a 0.
+  std::filesystem::create_directories(path_ + ".purge-epoch." + kSiteA);
+  uint64_t e = 4242;
+  const ps_error_t err =
+      ps_cache_read_site_purge_epoch(cache_, kSiteA.c_str(), &e);
+  EXPECT_NE(err, PS_OK);
+  EXPECT_EQ(e, 4242u);
+  EXPECT_NE(PS_OK,
+            ps_cache_write_site_purge_epoch(cache_, kSiteA.c_str(), Now()));
+}
+
 // ------------------------------------------------------------ RAM tier
 
 TEST_F(AbiSitedHtmlTest, WithTheRamTierOnRemovalAndReStoreAreVisible) {

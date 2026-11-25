@@ -26,6 +26,7 @@ inline int chmod(const char*, int) { return 0; }
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -1219,12 +1220,22 @@ std::expected<uint64_t, cyclone::CacheError> PageSpeedCache::ReadSitePurgeEpoch(
     std::string_view site) {
   auto read = ReadSitePurgeEpochFile(config_.volume_path, site);
   if (!read.has_value()) {
-    if (read.error() == SitePurgeEpochError::kCorrupted &&
-        handler_ != nullptr) {
+    // Rate-limited: a caller may read on every tick, and one line a minute
+    // says as much as one per read.
+    static std::atomic<int64_t> last_warning_s{0};
+    const auto now_s = static_cast<int64_t>(std::time(nullptr));
+    int64_t last = last_warning_s.load(std::memory_order_relaxed);
+    if (handler_ != nullptr &&
+        read.error() != SitePurgeEpochError::kInvalidArgument &&
+        now_s - last >= 60 &&
+        last_warning_s.compare_exchange_strong(last, now_s,
+                                               std::memory_order_relaxed)) {
       handler_->Warning(
-          "Purge epoch file for a site of %s is unreadable; every entry of "
-          "that site counts as purged until the next epoch write",
-          config_.volume_path.c_str());
+          "Purge epoch file for a site of %s could not be read (%s); every "
+          "entry of that site counts as purged until it can",
+          config_.volume_path.c_str(),
+          read.error() == SitePurgeEpochError::kCorrupted ? "unparseable"
+                                                          : "I/O error");
     }
     return std::unexpected(FromEpochError(read.error()));
   }
