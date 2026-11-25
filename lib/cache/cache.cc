@@ -1219,7 +1219,8 @@ std::expected<uint64_t, cyclone::CacheError> PageSpeedCache::ReadSitePurgeEpoch(
     std::string_view site) {
   auto read = ReadSitePurgeEpochFile(config_.volume_path, site);
   if (!read.has_value()) {
-    if (read.error() == SitePurgeEpochError::kCorrupted && handler_ != nullptr) {
+    if (read.error() == SitePurgeEpochError::kCorrupted &&
+        handler_ != nullptr) {
       handler_->Warning(
           "Purge epoch file for a site of %s is unreadable; every entry of "
           "that site counts as purged until the next epoch write",

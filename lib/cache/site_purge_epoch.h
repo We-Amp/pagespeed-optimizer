@@ -73,8 +73,8 @@ std::expected<uint64_t, SitePurgeEpochError> ReadSitePurgeEpochFile(
     std::string_view volume_path, std::string_view site);
 
 std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
-    std::string_view volume_path, std::string_view site,
-    uint64_t epoch_seconds, uint64_t now_seconds);
+    std::string_view volume_path, std::string_view site, uint64_t epoch_seconds,
+    uint64_t now_seconds);
 
 // Parse the file's content; exposed for tests.
 std::expected<uint64_t, SitePurgeEpochError> ParseSitePurgeEpoch(

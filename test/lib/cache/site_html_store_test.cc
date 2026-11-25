@@ -15,8 +15,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <random>
 #include <memory>
+#include <random>
 #include <span>
 #include <string>
 #include <string_view>
@@ -425,7 +425,8 @@ TEST_F(SiteHtmlStoreTest, RemoveEvictsThisProcesssRamCopies) {
   }
   ASSERT_TRUE(cache_->Remove(kUrl, kHost, kScheme, kSiteA));
   EXPECT_FALSE(cache_->ReadOriginalAlternate(kUrl, kHost, kScheme, kSiteA));
-  EXPECT_FALSE(cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkdownId, kSiteA));
+  EXPECT_FALSE(
+      cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkdownId, kSiteA));
   EXPECT_FALSE(cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkerId, kSiteA));
 }
 
@@ -433,8 +434,8 @@ TEST_F(SiteHtmlStoreTest, StampPairingAndMarkerHoldThroughTheRamTier) {
   const auto h1 = Hash(7);
   const auto h2 = Hash(8);
   const std::vector<HeaderField> headers = {{"Referrer-Policy", "x"}};
-  ASSERT_TRUE(cache_->WriteHeadersSidecar(kUrl, kHost, kScheme, headers,
-                                          kSiteA, h1));
+  ASSERT_TRUE(
+      cache_->WriteHeadersSidecar(kUrl, kHost, kScheme, headers, kSiteA, h1));
   WriteOriginal(kSiteA, "<html>1</html>", &h1);
   WriteMarker(kSiteA);
   for (int i = 0; i < 3; ++i) {  // the later reads come from RAM
@@ -452,8 +453,8 @@ TEST_F(SiteHtmlStoreTest, StampPairingAndMarkerHoldThroughTheRamTier) {
   }
   // Re-store on the same handle: the RAM copies of the old sidecar, the old
   // original and the marker must not answer afterwards.
-  ASSERT_TRUE(cache_->WriteHeadersSidecar(kUrl, kHost, kScheme, headers,
-                                          kSiteA, h2));
+  ASSERT_TRUE(
+      cache_->WriteHeadersSidecar(kUrl, kHost, kScheme, headers, kSiteA, h2));
   WriteOriginal(kSiteA, "<html>2</html>", &h2);
   auto orig = cache_->ReadOriginalAlternate(kUrl, kHost, kScheme, kSiteA);
   ASSERT_TRUE(orig.has_value());

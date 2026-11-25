@@ -60,11 +60,11 @@ std::expected<std::string, SitePurgeEpochError> ReadAll(const std::string& path,
   const std::wstring wpath = Wide(path);
   if (wpath.empty()) return std::unexpected(SitePurgeEpochError::kIo);
   // FILE_SHARE_DELETE so a writer's rename over the file is not blocked.
-  HANDLE h = CreateFileW(
-      wpath.c_str(), GENERIC_READ,
-      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
-      nullptr);
+  HANDLE h = CreateFileW(wpath.c_str(), GENERIC_READ,
+                         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                         nullptr, OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
+                         nullptr);
   if (h == INVALID_HANDLE_VALUE) {
     const DWORD err = GetLastError();
     if (err == ERROR_FILE_NOT_FOUND || err == ERROR_PATH_NOT_FOUND) {
@@ -122,8 +122,7 @@ bool WriteTempAndReplace(const std::string& tmp, const std::string& path,
   const std::wstring wtmp = Wide(tmp);
   const std::wstring wpath = Wide(path);
   if (wtmp.empty() || wpath.empty()) return false;
-  HANDLE h = CreateFileW(wtmp.c_str(), GENERIC_WRITE, 0, nullptr,
-                         CREATE_ALWAYS,
+  HANDLE h = CreateFileW(wtmp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT,
                          nullptr);
   if (h == INVALID_HANDLE_VALUE) return false;
@@ -185,8 +184,7 @@ std::expected<std::string, SitePurgeEpochError> ReadAll(const std::string& path,
 class FileLock {
  public:
   explicit FileLock(const std::string& path) {
-    fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC,
-                 0660);
+    fd_ = ::open(path.c_str(), O_RDWR | O_CREAT | O_NOFOLLOW | O_CLOEXEC, 0660);
     if (fd_ < 0) return;
     // Exact mode for a peer in the cache group; fails harmlessly when this
     // process did not create the file.
@@ -224,9 +222,8 @@ bool WriteTempAndReplace(const std::string& tmp, const std::string& path,
                          const std::string& content) {
   // A stale .tmp is a crashed writer's; we hold the lock, so it is not live.
   ::unlink(tmp.c_str());
-  const int fd = ::open(tmp.c_str(),
-                        O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC,
-                        0660);
+  const int fd = ::open(
+      tmp.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0660);
   if (fd < 0) return false;
   bool ok = ::fchmod(fd, 0660) == 0;
   size_t written = 0;
@@ -320,8 +317,8 @@ std::expected<uint64_t, SitePurgeEpochError> ReadSitePurgeEpochFile(
 }
 
 std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
-    std::string_view volume_path, std::string_view site,
-    uint64_t epoch_seconds, uint64_t now_seconds) {
+    std::string_view volume_path, std::string_view site, uint64_t epoch_seconds,
+    uint64_t now_seconds) {
   const std::string path = SitePurgeEpochPath(volume_path, site);
   if (path.empty()) {
     return std::unexpected(SitePurgeEpochError::kInvalidArgument);

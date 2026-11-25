@@ -1046,8 +1046,8 @@ class PageSpeedCache {
   // included, is InvalidArgument.
   [[nodiscard]] std::expected<void, cyclone::CacheError> WriteSitePurgeEpoch(
       std::string_view site, uint64_t epoch_seconds, uint64_t now_seconds);
-  [[nodiscard]] std::expected<uint64_t, cyclone::CacheError>
-  ReadSitePurgeEpoch(std::string_view site);
+  [[nodiscard]] std::expected<uint64_t, cyclone::CacheError> ReadSitePurgeEpoch(
+      std::string_view site);
 
   // Remove all alternates for a URL.
   [[nodiscard]] std::expected<void, cyclone::CacheError> Remove(
