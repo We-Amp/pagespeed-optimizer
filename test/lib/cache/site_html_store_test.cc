@@ -8,12 +8,12 @@
 // racing writers on separate handles of one volume).
 
 #include <algorithm>
-#include <chrono>
-#include <cstdlib>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -547,8 +547,7 @@ class SitePurgeEpochChildProcessTest : public ::testing::Test {
   // must exit 0.
   void RunChildren(const std::vector<std::vector<uint64_t>>& values,
                    int round) {
-    const std::string go =
-        temp_dir_ + "/go-" + std::to_string(round);
+    const std::string go = temp_dir_ + "/go-" + std::to_string(round);
     std::vector<std::string> commands;
     for (size_t i = 0; i < values.size(); ++i) {
       const std::string spec = temp_dir_ + "/spec-" + std::to_string(round) +
@@ -560,25 +559,33 @@ class SitePurgeEpochChildProcessTest : public ::testing::Test {
       }
 #ifdef _WIN32
       // std::system runs cmd.exe /c; `set X=y&& cmd` sets the variable for
-      // that one child only.
-      commands.push_back(std::string("set ") + kChildSpecVar + "=" + spec +
-                         "&& \"" + self_ +
-                         "\" --gtest_filter=SitePurgeEpochChild.Write");
+      // that one child only. The test runner's own variables are cleared so a
+      // child neither writes the parent's result file nor removes its
+      // premature-exit marker.
+      commands.push_back(std::string("set TEST_PREMATURE_EXIT_FILE=&& ") +
+                         "set XML_OUTPUT_FILE=&& set GTEST_OUTPUT=&& set " +
+                         kChildSpecVar + "=" + spec + "&& \"" + self_ +
+                         "\" --gtest_filter=SitePurgeEpochChild.Write" +
+                         " >nul 2>&1");
 #else
-      commands.push_back(std::string(kChildSpecVar) + "='" + spec + "' '" +
-                         self_ + "' --gtest_filter=SitePurgeEpochChild.Write" +
-                         " >/dev/null 2>&1");
+      commands.push_back(
+          std::string("env -u TEST_PREMATURE_EXIT_FILE -u XML_OUTPUT_FILE ") +
+          "-u GTEST_OUTPUT " + kChildSpecVar + "='" + spec + "' '" + self_ +
+          "' --gtest_filter=SitePurgeEpochChild.Write >/dev/null 2>&1");
 #endif
     }
     std::vector<int> results(commands.size(), -1);
     std::vector<std::thread> threads;
     for (size_t i = 0; i < commands.size(); ++i) {
-      threads.emplace_back(
-          [&results, &commands, i] { results[i] = std::system(commands[i].c_str()); });
+      threads.emplace_back([&results, &commands, i] {
+        results[i] = std::system(commands[i].c_str());
+      });
     }
     // Give every child time to start and reach the gate, then open it.
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    { std::ofstream(go) << "go"; }
+    {
+      std::ofstream(go) << "go";
+    }
     for (auto& t : threads) t.join();
     for (size_t i = 0; i < results.size(); ++i) {
       EXPECT_EQ(results[i], 0) << "child " << i << " failed: " << commands[i];
@@ -616,8 +623,8 @@ TEST_F(SitePurgeEpochChildProcessTest, ManyProcessesOfRandomValuesLeaveTheMax) {
   }
   RunChildren(values, 0);
   EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), max);
-  EXPECT_FALSE(std::filesystem::exists(
-      SitePurgeEpochPath(volume_, kSiteA) + ".tmp"));
+  EXPECT_FALSE(
+      std::filesystem::exists(SitePurgeEpochPath(volume_, kSiteA) + ".tmp"));
 }
 
 #ifndef _WIN32
