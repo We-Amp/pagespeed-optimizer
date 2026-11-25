@@ -38,9 +38,9 @@
 #include "lib/cache/html_withheld_marker.h"
 #include "lib/pagespeed/pagespeed_internal.h"
 #include "nlohmann/json.hpp"
-#include "test/lib/cache/daemon_html_policy_cases.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
+#include "test/lib/cache/daemon_html_policy_cases.h"
 #include "test/test_util/temp_dir.h"
 
 // ================================================================
@@ -5571,10 +5571,9 @@ const BitTable kCcBits = {
     {"no_cache_qualified", PS_CC_ORIGIN_NO_CACHE_QUALIFIED},
     {"no_cache_bare", PS_CC_ORIGIN_NO_CACHE_BARE},
     {"s_maxage_repeated", PS_CC_ORIGIN_S_MAXAGE_REPEATED}};
-const BitTable kNotifyBits = {
-    {"host_vouched", PS_NOTIFY_FLAG_HOST_VOUCHED},
-    {"from_module", PS_NOTIFY_FLAG_FROM_MODULE},
-    {"html_stored", PS_NOTIFY_FLAG_HTML_STORED}};
+const BitTable kNotifyBits = {{"host_vouched", PS_NOTIFY_FLAG_HOST_VOUCHED},
+                              {"from_module", PS_NOTIFY_FLAG_FROM_MODULE},
+                              {"html_stored", PS_NOTIFY_FLAG_HTML_STORED}};
 // The stored-facts booleans of a serve row, by the struct's own names.
 const BitTable kFactBits = {
     {"present", PS_HTML_FACTS_PRESENT},
@@ -5857,9 +5856,9 @@ constexpr char kPolicySite[] =
 bool WriteBytes(std::expected<pagespeed::WriteResult, cyclone::CacheError> wh,
                 std::string_view bytes) {
   if (!wh.has_value()) return false;
-  if (!wh->write_sync(std::span<const std::byte>(
-                          reinterpret_cast<const std::byte*>(bytes.data()),
-                          bytes.size()))
+  if (!wh
+           ->write_sync(std::span<const std::byte>(
+               reinterpret_cast<const std::byte*>(bytes.data()), bytes.size()))
            .has_value()) {
     return false;
   }
@@ -5994,11 +5993,11 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
   if (has_sidecar) {
     // A version byte and one header line; only its presence matters here.
     const std::string block("\x01X-Policy: case\r\n", 18);
-    if (!WriteBytes(cache->cache->WriteSentinel(
-                        kUrl, kHost, kScheme,
-                        pagespeed::SentinelId::kHeadersSidecar, block.size(),
-                        site),
-                    block)) {
+    if (!WriteBytes(
+            cache->cache->WriteSentinel(kUrl, kHost, kScheme,
+                                        pagespeed::SentinelId::kHeadersSidecar,
+                                        block.size(), site),
+            block)) {
       run->Fail("sidecar write failed");
     }
   }
@@ -6054,8 +6053,8 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
                                 {"now_s", in.at("now_s")}};
     ServeRequestStrings strings;
     ps_html_serve_request_t request;
-    if (BuildServeRequest(PS_HTML_CACHE_SERVE_VARIANTS, req, &strings,
-                          &request, run)) {
+    if (BuildServeRequest(PS_HTML_CACHE_SERVE_VARIANTS, req, &strings, &request,
+                          run)) {
       CheckServeVerdict(request, facts, expect["serve"], run);
     }
   }
@@ -6093,8 +6092,8 @@ void RunInmRow(const nlohmann::json& in, const nlohmann::json& expect,
     if (!in.contains(key) || in[key].is_null()) return nullptr;
     return in[key].get_ref<const std::string&>().c_str();
   };
-  const int rc = ps_if_none_match_matches_weak(str("if_none_match"),
-                                               str("etag"));
+  const int rc =
+      ps_if_none_match_matches_weak(str("if_none_match"), str("etag"));
   if (rc < 0) {
     run->Fail("ps_if_none_match_matches_weak refused the call");
     return;

@@ -630,7 +630,8 @@ TEST(HtmlCacheDecisionTest, CApiGateAdmitsServeLinesAndKeepsReportLinesNarrow) {
         << mode;
   }
   // The C++ store-side gate itself is unchanged.
-  EXPECT_FALSE(HtmlCacheDecisionIsStoreSide(Fields{{"request", "accept_markdown"}}));
+  EXPECT_FALSE(
+      HtmlCacheDecisionIsStoreSide(Fields{{"request", "accept_markdown"}}));
 }
 
 }  // namespace

@@ -769,8 +769,7 @@ TEST(HtmlCachePolicyTest, PersonalisationSignalNamesAreTheClosedSet) {
 TEST(HtmlCachePolicyTest, PersonalisationNearMissesAreNotSignals) {
   for (
       std::string_view body : {
-          "<input type=\"text\" name=\"csrf\">",
-          "<input name=\"csrf_token\">",
+          "<input type=\"text\" name=\"csrf\">", "<input name=\"csrf_token\">",
           "<input type=\"hidden\" name=\"page\" value=\"2\">",
           "<input type=\"hidden\" name=\"my_token\">",
           "<form method=\"get\" action=\"/login\">",
