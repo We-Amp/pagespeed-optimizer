@@ -1147,24 +1147,28 @@ std::array<std::byte, 32> Sha256Of(std::string_view s) {
       reinterpret_cast<const std::byte*>(s.data()), s.size()));
 }
 
+// What the module's HTML store writes for a test page.
+struct ModuleStoredPage {
+  std::string content_type = "text/html; charset=utf-8";
+  ContentType type = ContentType::kHtml;
+  uint8_t flags = AlternateMetadata::kFlagHeadersClassified;
+  uint16_t cc_flags = 0;
+  std::optional<std::array<std::byte, 32>> stamp;  // default: SHA-256(body)
+};
+
+struct ModuleStoredEntry {
+  std::string content;
+  AlternateMetadata metadata;
+};
+
 class ModuleHtmlTest : public WorkerTest {
  protected:
   static constexpr const char* kPath = "/page.html";
   static constexpr const char* kHost = "example.com";
   const std::string site_ = std::string(kSiteIdChars, 'c');
 
-  struct StoredPage {
-    std::string content_type = "text/html; charset=utf-8";
-    ContentType type = ContentType::kHtml;
-    uint8_t flags = AlternateMetadata::kFlagHeadersClassified;
-    uint16_t cc_flags = 0;
-    std::optional<std::array<std::byte, 32>> stamp;  // default: SHA-256(body)
-  };
-
-  struct Entry {
-    std::string content;
-    AlternateMetadata metadata;
-  };
+  using StoredPage = ModuleStoredPage;
+  using Entry = ModuleStoredEntry;
 
   void TearDown() override {
     stopper_.reset();
