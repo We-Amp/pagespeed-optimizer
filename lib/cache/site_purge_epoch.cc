@@ -154,9 +154,18 @@ class EpochFile {
   bool WriteRecord(const std::string& record) {
     OVERLAPPED ov{};
     DWORD wrote = 0;
-    return WriteFile(h_, record.data(), static_cast<DWORD>(record.size()),
-                     &wrote, &ov) &&
-           wrote == record.size() && FlushFileBuffers(h_);
+    if (!WriteFile(h_, record.data(), static_cast<DWORD>(record.size()),
+                   &wrote, &ov) ||
+        wrote != record.size()) {
+      return false;
+    }
+    // A longer foreign file being repaired keeps no tail past the record.
+    LARGE_INTEGER end;
+    end.QuadPart = static_cast<LONGLONG>(record.size());
+    if (!SetFilePointerEx(h_, end, nullptr, FILE_BEGIN) || !SetEndOfFile(h_)) {
+      return false;
+    }
+    return FlushFileBuffers(h_) != 0;
   }
 
  private:
@@ -247,6 +256,8 @@ class EpochFile {
       if (n <= 0) return false;
       written += static_cast<size_t>(n);
     }
+    // A longer foreign file being repaired keeps no tail past the record.
+    if (::ftruncate(fd_, static_cast<off_t>(record.size())) != 0) return false;
     return ::fsync(fd_) == 0;
   }
 
