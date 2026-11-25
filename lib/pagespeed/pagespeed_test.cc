@@ -6121,9 +6121,9 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
     // be made (no live binding, or a copy without its content hash).
     char tag[PS_HTML_MARKDOWN_ETAG_CHARS + 1] = {};
     size_t tag_len = 0;
-    const bool made = ps_html_markdown_etag(facts.binding_hash,
-                                            facts.markdown_hash, tag,
-                                            sizeof(tag), &tag_len) == 0;
+    const bool made =
+        ps_html_markdown_etag(facts.binding_hash, facts.markdown_hash, tag,
+                              sizeof(tag), &tag_len) == 0;
     const nlohmann::json& want = expect["etag"];
     if (want.is_null()) {
       if (made) run->Fail(std::string("an entity tag was made: ") + tag);

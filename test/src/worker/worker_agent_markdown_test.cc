@@ -1119,7 +1119,6 @@ TEST(AgentPageAdmittedTest, AsksTheSharedCopyQuestionAboutThePage) {
   EXPECT_EQ(asked.size(), 2u);
 }
 
-
 // =============================================================================
 // Pages stored by the module's HTML store: the Markdown copy is derived from
 // the stored bytes, without a browser and without a request leaving the worker.
@@ -1345,10 +1344,9 @@ TEST_F(ModuleHtmlTest, AgentFrameRightAfterTheStoreFrameDerives) {
   ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(*worker_, sent_,
                                                            kWorkerStallBudget));
   ExpectCopyOf(kModuleRichPage);
-  EXPECT_FALSE(worker_
-                   ->GetCooldownForUrl(kPath, kHost, "https",
-                                       std::string_view(site_))
-                   .has_value())
+  EXPECT_FALSE(
+      worker_->GetCooldownForUrl(kPath, kHost, "https", std::string_view(site_))
+          .has_value())
       << "the page was left under a cooldown";
 }
 
@@ -1534,7 +1532,10 @@ TEST_F(ModuleHtmlTest, PermanentRefusalsWriteAMarkerAndAreNotRepeated) {
   const std::string gzip_body =
       std::string("\x1f\x8b\x08\x00", 4) + std::string(64, 'x');
   const Case cases[] = {
-      {"below floor", kModuleShellPage, {}, 1 << 20,
+      {"below floor",
+       kModuleShellPage,
+       {},
+       1 << 20,
        HtmlWithheldReason::kBelowFloor},
       {"too large", kModuleRichPage, {}, 64, HtmlWithheldReason::kTooLarge},
       {"encoded", gzip_body, {}, 1 << 20, HtmlWithheldReason::kEncoded},
@@ -1551,9 +1552,9 @@ TEST_F(ModuleHtmlTest, PermanentRefusalsWriteAMarkerAndAreNotRepeated) {
     ASSERT_NO_FATAL_FAILURE(Start(config));
     ASSERT_NO_FATAL_FAILURE(Store(c.body, c.page));
     ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
-    const std::string stamp_of =
-        c.reason == HtmlWithheldReason::kHashMismatch ? "some other page"
-                                                      : c.body;
+    const std::string stamp_of = c.reason == HtmlWithheldReason::kHashMismatch
+                                     ? "some other page"
+                                     : c.body;
     ExpectWithheld(stamp_of, c.reason);
     if (c.reason == HtmlWithheldReason::kTooLarge) {
       EXPECT_EQ(Marker()->size_cap, c.max_html_size);
@@ -1571,9 +1572,9 @@ TEST_F(ModuleHtmlTest, PermanentRefusalsWriteAMarkerAndAreNotRepeated) {
     // A marker never reads as a page: neither a selection for an agent
     // request nor one for a browser returns it.
     CapabilityMask agent;
-    auto best = cache()->ReadBestAlternateAgent(kPath, kHost, "https", agent,
-                                                /*agent_request_entitled=*/true,
-                                                site_);
+    auto best =
+        cache()->ReadBestAlternateAgent(kPath, kHost, "https", agent,
+                                        /*agent_request_entitled=*/true, site_);
     EXPECT_FALSE(best.has_value()) << "a selection read returned an entry";
     auto plain = cache()->ReadBestAlternate(kPath, kHost, "https",
                                             CapabilityMask(), false, site_);

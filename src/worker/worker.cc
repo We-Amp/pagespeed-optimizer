@@ -5052,9 +5052,9 @@ bool AllZeroHash(const std::array<std::byte, 32>& h) {
 
 }  // namespace
 
-void Worker::HandleModuleHtmlNotification(
-    const CacheNotification& notification, const PurgeDispatchGen& purge_gen,
-    const WorkerConfig& cfg) {
+void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
+                                          const PurgeDispatchGen& purge_gen,
+                                          const WorkerConfig& cfg) {
   const std::string& url = notification.url;
   const std::string& host = notification.hostname;
   const std::string& scheme = notification.scheme;
@@ -5088,8 +5088,7 @@ void Worker::HandleModuleHtmlNotification(
     return;
   }
   if (cfg.html_mode == HtmlMode::kMarkdownRendered &&
-      !module_rendered_mode_logged_.exchange(true,
-                                             std::memory_order_relaxed)) {
+      !module_rendered_mode_logged_.exchange(true, std::memory_order_relaxed)) {
     LogInfo(
         "html_mode markdown-rendered: pages stored by the module are derived "
         "without a browser, as in markdown-static (logged once)");
@@ -5245,9 +5244,9 @@ void Worker::HandleModuleHtmlNotification(
     withhold(HtmlWithheldReason::kEncoded);
     return;
   }
-  const std::array<std::byte, 32> h = cyclone::crypto::SHA256::hash(
-      std::span<const std::byte>(reinterpret_cast<const std::byte*>(html.data()),
-                                 html.size()));
+  const std::array<std::byte, 32> h =
+      cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+          reinterpret_cast<const std::byte*>(html.data()), html.size()));
   if (h != stamp) {
     LogWarning(
         "Stored HTML for %s does not match its content hash; no Markdown copy",
@@ -5265,8 +5264,8 @@ void Worker::HandleModuleHtmlNotification(
           cache_->ReadAlternate(url, host, scheme, kContentHashId, site);
       recorded.has_value()) {
     const auto c = recorded->content();
-    content_changed = c.size() != h.size() ||
-                      std::memcmp(c.data(), h.data(), h.size()) != 0;
+    content_changed =
+        c.size() != h.size() || std::memcmp(c.data(), h.data(), h.size()) != 0;
   }
   bool copy_present = false;
   bool copy_bound = false;
@@ -5319,7 +5318,8 @@ void Worker::HandleModuleHtmlNotification(
   // Extraction from the stored bytes alone: no request leaves this process.
   std::string markdown;
   try {
-    markdown = net_instaweb::ExtractAgentMarkdown(html, ModulePageUrl(notification));
+    markdown =
+        net_instaweb::ExtractAgentMarkdown(html, ModulePageUrl(notification));
   } catch (const std::exception& e) {
     LogWarning("Markdown extraction failed for %s: %s", url.c_str(), e.what());
     withhold(HtmlWithheldReason::kExtractFailed);
