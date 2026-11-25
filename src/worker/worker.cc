@@ -22,6 +22,7 @@
 #include <exception>
 #include <filesystem>
 #include <functional>
+#include <new>
 #include <optional>
 #include <span>
 #include <string>
@@ -3265,11 +3266,15 @@ bool Worker::ModuleHtmlFrameAccepted(const CacheNotification& notification,
   // Every flag of the stored-page shape, not just html_stored: the wire
   // check (HtmlStoredShapeValid) already refuses html_stored without the
   // others, and this does not rely on it.
+  // A plain capability mask only: a sentinel-shaped one (viewport bits 3:
+  // llms.txt, warmup, origin-refresh and every reserved class) names work
+  // this path does not do, and a warmup mask would also bypass the in-flight
+  // guard that keeps one pass per page.
+  const bool plain_mask = ((notification.capability_mask >> 2) & 0x03U) != 3;
   return notification.from_module &&
          notification.content_type == ContentType::kHtml &&
          notification.html_stored && notification.host_vouched &&
-         !notification.site.empty() &&
-         notification.capability_mask != kLlmsTxtSentinel &&
+         !notification.site.empty() && plain_mask &&
          HtmlModeIsMarkdown(cfg.html_mode) &&
          cfg.browser_analysis.agent_optimize;
 }
@@ -5050,6 +5055,27 @@ bool AllZeroHash(const std::array<std::byte, 32>& h) {
                      [](std::byte b) { return b == std::byte{0}; });
 }
 
+// Why a stored entry may not have a Markdown copy derived from it, or
+// nullptr when it may: it must be an HTML page the module's HTML store
+// wrote, allow transformation and carry its content hash.  Asked before any
+// byte is copied and again just before anything is written for it.
+const char* ModuleStoredEntryRefusal(const AlternateMetadata& meta) {
+  if (meta.content_type != ContentType::kHtml ||
+      !DeclaresHtml(meta.origin_content_type)) {
+    return "the stored entry is not an HTML page";
+  }
+  if ((meta.flags & AlternateMetadata::kFlagHeadersClassified) == 0) {
+    return "the stored entry was not written by the module's HTML store";
+  }
+  if ((meta.origin_cc_flags & AlternateMetadata::kCCOriginNoTransform) != 0) {
+    return "the origin forbids transformation (no-transform)";
+  }
+  if (AllZeroHash(meta.origin_html_hash)) {
+    return "the stored page carries no content hash, so no copy could bind";
+  }
+  return nullptr;
+}
+
 }  // namespace
 
 void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
@@ -5127,25 +5153,11 @@ void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
   }
 
   // Refused before a byte of the page is copied: what the entry says it is.
-  const AlternateMetadata& meta = stored->metadata;
-  if (meta.content_type != ContentType::kHtml ||
-      !DeclaresHtml(meta.origin_content_type)) {
-    refuse("the stored entry is not an HTML page");
+  if (const char* why = ModuleStoredEntryRefusal(stored->metadata)) {
+    refuse(why);
     return;
   }
-  if ((meta.flags & AlternateMetadata::kFlagHeadersClassified) == 0) {
-    refuse("the stored entry was not written by the module's HTML store");
-    return;
-  }
-  if ((meta.origin_cc_flags & AlternateMetadata::kCCOriginNoTransform) != 0) {
-    refuse("the origin forbids transformation (no-transform)");
-    return;
-  }
-  const std::array<std::byte, 32> stamp = meta.origin_html_hash;
-  if (AllZeroHash(stamp)) {
-    refuse("the stored page carries no content hash, so no copy could bind");
-    return;
-  }
+  const std::array<std::byte, 32> stamp = stored->metadata.origin_html_hash;
   const size_t stored_bytes = stored->content().size();
 
   // A refusal already recorded for this content needs no second derivation.
@@ -5176,11 +5188,15 @@ void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
     return WasPurgedSinceDispatch(url, host, gen, scheme, site);
   };
   // True while the stored page still carries the content hash this pass
-  // read: a page stored again meanwhile is another page's business.
+  // read and still passes every entry check: a page stored again meanwhile,
+  // even with the same bytes but now refusing transformation, is another
+  // page's business.
   const auto still_bound = [this, &url, &host, &scheme, &site, &stamp] {
     cache_->EvictAlternateFromRamCache(url, host, scheme, kOriginalId, site);
     auto now = cache_->ReadOriginalAlternate(url, host, scheme, site);
-    return now.has_value() && now->metadata.origin_html_hash == stamp;
+    return now.has_value() &&
+           ModuleStoredEntryRefusal(now->metadata) == nullptr &&
+           now->metadata.origin_html_hash == stamp;
   };
   // A permanent refusal for this content: recorded, so the serve side
   // answers "withheld" and asks for no copy again until the content, the
@@ -5235,6 +5251,7 @@ void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
     return;
   }
   stored.reset();
+  if (test_hook_module_html_after_copy_) test_hook_module_html_after_copy_();
 
   if (IsGzipCompressed(html)) {
     stats_.errors_origin_misconfiguration.fetch_add(1,
@@ -5276,16 +5293,26 @@ void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
   }
 
   if (content_changed) {
+    // A purge from anywhere else since dispatch: this pass is fenced, and
+    // its own purge below must not re-capture the fence past it.
+    if (purged()) {
+      LogInfo("Module HTML for %s not processed: purged meanwhile",
+              url.c_str());
+      return;
+    }
     // New content, a first pass, or a removal in between.  Drop the copies
     // derived from earlier content; the stored page and its header block are
-    // the module's and stay.  Never the whole key.
-    if (copy_present) {
-      stats_.agent_markdown_purged_on_change.fetch_add(
-          1, std::memory_order_relaxed);
+    // the module's and stay.  Never the whole key.  A copy already bound to
+    // exactly these bytes is kept: only the record went missing.
+    if (!copy_bound) {
+      if (copy_present) {
+        stats_.agent_markdown_purged_on_change.fetch_add(
+            1, std::memory_order_relaxed);
+      }
+      PurgeDerivedCopiesAndBumpGeneration(url, host, scheme, site);
+      gen = CapturePurgeGen(url, host, scheme, site);
+      marker_present = false;  // the purge removed it with the other copies
     }
-    PurgeDerivedCopiesAndBumpGeneration(url, host, scheme, site);
-    gen = CapturePurgeGen(url, host, scheme, site);
-    marker_present = false;  // the purge removed it with the other copies
     auto wh = cache_->WriteSentinel(url, host, scheme, SentinelId::kContentHash,
                                     h.size(), site);
     const bool recorded =
@@ -5306,8 +5333,7 @@ void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
 
   // Demand: an agent asked for the copy and none is bound to this content,
   // or a copy that was in use belongs to earlier content.
-  const bool demanded =
-      notification.agent_request && (content_changed || !copy_bound);
+  const bool demanded = notification.agent_request && !copy_bound;
   const bool stale_copy = copy_present && !copy_bound;
   if (!demanded && !stale_copy) {
     LogInfo("Module HTML for %s recorded; no Markdown copy requested",
@@ -5320,6 +5346,12 @@ void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
   try {
     markdown =
         net_instaweb::ExtractAgentMarkdown(html, ModulePageUrl(notification));
+  } catch (const std::bad_alloc&) {
+    // Memory pressure says nothing about the page: no marker, a later
+    // request tries again.
+    stats_.errors.fetch_add(1, std::memory_order_relaxed);
+    LogWarning("Markdown extraction for %s ran out of memory", url.c_str());
+    return;
   } catch (const std::exception& e) {
     LogWarning("Markdown extraction failed for %s: %s", url.c_str(), e.what());
     withhold(HtmlWithheldReason::kExtractFailed);
@@ -6228,6 +6260,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
         } else if (may_analyse && cfg->browser_analysis.agent_optimize &&
                    notification.agent_request &&
                    agent_origin_html_hash.has_value() &&
+                   !browser_manager_->AgentCopyBelowFloor(
+                       notification.url, notification.hostname,
+                       notification.scheme, notification.site,
+                       *agent_origin_html_hash) &&
                    AgentMarkdownNeedsBuild(
                        notification.url, notification.hostname,
                        notification.scheme, notification.site,

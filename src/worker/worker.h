@@ -843,6 +843,13 @@ class Worker {
   // notification.
   std::function<void()> test_hook_after_html_origin_read_;
 
+  // TEST-ONLY seam.  When set, invoked on the worker-pool thread by the
+  // module HTML handler right after its owned copy of the stored page is
+  // taken and the borrow released, so a test can change the stored entry, or
+  // hold the pass, at the point between the checks and the writes.  Never
+  // set in production.
+  std::function<void()> test_hook_module_html_after_copy_;
+
   // TEST-ONLY seam.  When set, invoked on the worker-pool thread before each
   // image variant write; returning true makes that write fail as a cache
   // write would, so a test can produce an incomplete variant matrix on

@@ -42,6 +42,8 @@
 #include "lib/classify/capability_mask.h"
 #include "lib/net/upstream_pin.h"
 #include "sha256.hpp"
+#include "src/browser/analysis_queue.h"
+#include "src/browser/page_analysis.h"
 #include "src/proto/worker_ipc.h"
 #include "src/worker/browser_analysis_manager.h"
 #include "src/worker/browser_analysis_manager_internal.h"
@@ -1337,21 +1339,74 @@ TEST_F(ModuleHtmlTest, StoreFrameRecordsAndAgentFrameDerives) {
   EXPECT_EQ(page->content, kModuleRichPage);
 }
 
-// The agent request that arrives right behind the store frame is not lost
-// to the cooldown, the dedup or the in-flight guard.
-TEST_F(ModuleHtmlTest, AgentFrameRightAfterTheStoreFrameDerives) {
-  ASSERT_NO_FATAL_FAILURE(Start(Config()));
+// The agent request that arrives while the store frame is still being
+// processed is held, not dropped, and a later store frame that replaces it in
+// the hold keeps its agent request: the copy is built once the first pass
+// ends.  The first pass is held at a known point so both frames are certain to
+// meet the in-flight guard.
+TEST_F(ModuleHtmlTest, AgentFrameBehindAnInFlightStoreFrameIsHeldNotDropped) {
+  std::atomic<bool> entered{false};
+  std::atomic<bool> release{false};
+  std::atomic<bool> first{true};
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    worker.test_hook_module_html_after_copy_ = [&]() {
+      if (!first.exchange(false)) return;
+      entered = true;
+      for (int i = 0; i < 2000 && !release; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+    };
+  }));
   ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
   SendNotification(Frame(/*agent_request=*/false));
+  for (int i = 0; i < 2000 && !entered; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  ASSERT_TRUE(entered) << "the first pass never started";
   SendNotification(Frame(/*agent_request=*/true));
-  sent_ = 2;
+  SendNotification(Frame(/*agent_request=*/false));
+  for (int i = 0; i < 2000 && stats().notifications_skipped_inflight.load() < 2;
+       ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  EXPECT_EQ(stats().notifications_skipped_inflight.load(), 2u);
+  EXPECT_FALSE(Read(SentinelId::kAgentMarkdown).has_value())
+      << "a copy appeared before the held frame ran";
+  release = true;
+  // Three frames sent; the held one is dispatched again when the first ends.
+  sent_ = 4;
   ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(*worker_, sent_,
                                                            kWorkerStallBudget));
   ExpectCopyOf(kModuleRichPage);
+  EXPECT_EQ(stats().module_markdown_derived.load(), 1u);
   EXPECT_FALSE(
       worker_->GetCooldownForUrl(kPath, kHost, "https", std::string_view(site_))
           .has_value())
       << "the page was left under a cooldown";
+}
+
+// A page stored again between the checks and the writes is checked again:
+// the same bytes, now with no-transform, get neither a copy nor a marker.
+TEST_F(ModuleHtmlTest, AnEntryThatTurnsNoTransformBeforeTheWriteGetsNothing) {
+  for (const char* body : {kModuleRichPage, kModuleShellPage}) {
+    SCOPED_TRACE(body == kModuleRichPage ? "copy" : "marker");
+    TearDown();
+    SetUp();
+    sent_ = 0;
+    ASSERT_NO_FATAL_FAILURE(Start(Config(), [this, body](Worker& worker) {
+      worker.test_hook_module_html_after_copy_ = [this, body]() {
+        StoredPage refusing;
+        refusing.cc_flags = AlternateMetadata::kCCOriginNoTransform;
+        Store(body, refusing);
+      };
+    }));
+    ASSERT_NO_FATAL_FAILURE(Store(body));
+    ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+    EXPECT_FALSE(Read(SentinelId::kAgentMarkdown).has_value());
+    EXPECT_FALSE(Read(SentinelId::kAgentMarkdownWithheld).has_value());
+    EXPECT_EQ(stats().module_markdown_derived.load(), 0u);
+    EXPECT_EQ(stats().module_markdown_withheld.load(), 0u);
+  }
 }
 
 // Every condition of the stored-page shape and of this worker's mode is a
@@ -1362,12 +1417,18 @@ TEST_F(ModuleHtmlTest, RefusedUnlessStoredAndTheWorkerDerivesCopies) {
     HtmlMode mode;
     bool agent_optimize;
     bool html_stored;
+    uint32_t mask;
   };
+  const uint32_t plain = CapabilityMask().Encode();
   const Case cases[] = {
-      {"full", HtmlMode::kFull, true, true},
-      {"off", HtmlMode::kOff, true, true},
-      {"agent_optimize off", HtmlMode::kMarkdownStatic, false, true},
-      {"not stored by the module", HtmlMode::kMarkdownStatic, true, false},
+      {"full", HtmlMode::kFull, true, true, plain},
+      {"off", HtmlMode::kOff, true, true, plain},
+      {"agent_optimize off", HtmlMode::kMarkdownStatic, false, true, plain},
+      {"not stored by the module", HtmlMode::kMarkdownStatic, true, false,
+       plain},
+      {"warmup mask", HtmlMode::kMarkdownStatic, true, true, kWarmupSentinel},
+      {"origin-refresh mask", HtmlMode::kMarkdownStatic, true, true,
+       kOriginRefreshedSentinel},
   };
   for (const Case& c : cases) {
     SCOPED_TRACE(c.name);
@@ -1379,6 +1440,7 @@ TEST_F(ModuleHtmlTest, RefusedUnlessStoredAndTheWorkerDerivesCopies) {
     ASSERT_NO_FATAL_FAILURE(Start(config));
     ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
     CacheNotification n = Frame(/*agent_request=*/true);
+    n.capability_mask = c.mask;
     if (!c.html_stored) {
       // Without the stored-page flag the module may not vouch or ask for a
       // copy either (the wire refuses that shape).
@@ -1431,8 +1493,8 @@ TEST_F(ModuleHtmlTest, StoredEntryRefusedBeforeAnyCopy) {
     if (c.store) ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage, c.page));
     ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
     EXPECT_EQ(stats().notifications_rejected_module_render.load(), 1u);
-    // The content-hash record is written only after the copy, so its absence
-    // shows the pass stopped before it.
+    // The content-hash record is written after the copy and its checks, so
+    // its absence shows the pass stopped before copying.
     EXPECT_FALSE(Read(SentinelId::kContentHash).has_value());
     EXPECT_FALSE(Read(SentinelId::kAgentMarkdown).has_value());
     EXPECT_FALSE(Read(SentinelId::kAgentMarkdownWithheld).has_value());
@@ -1690,6 +1752,103 @@ TEST_F(ModuleHtmlTest, DerivesWithoutAnyRequestLeavingTheWorker) {
   // Nothing on this path builds the /llms.txt index, the only user of the
   // agent fetcher.
   EXPECT_FALSE(Read(SentinelId::kLlmsTxt).has_value());
+}
+
+// The rendered path keeps no copy below the fidelity floor, and remembers it
+// for that content so the page is not rendered again for every request.
+TEST_F(WorkerTest, RenderedCopyBelowTheFloorIsNotKept) {
+  WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  BrowserAnalysisManager* manager = worker.TestBrowserManager();
+  ASSERT_NE(manager, nullptr);
+
+  AnalysisQueue::Item item;
+  item.url = "/rendered.html";
+  item.hostname = "example.com";
+  item.scheme = "https";
+  item.host_vouched = true;
+  item.has_origin_html_hash = true;
+  item.origin_html_hash = Sha256Of("the rendered page");
+  {
+    auto wh = worker.cache()->WriteSentinel(
+        item.url, item.hostname, item.scheme, SentinelId::kContentHash, 32);
+    ASSERT_TRUE(wh.has_value());
+    ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span(item.origin_html_hash)))
+                    .has_value());
+    ASSERT_TRUE(wh->close_sync().has_value());
+  }
+  const auto copy = [&]() {
+    const auto id = static_cast<AlternateId>(SentinelId::kAgentMarkdown);
+    worker.cache()->EvictAlternateFromRamCache(item.url, item.hostname,
+                                               item.scheme, id);
+    return worker.cache()
+        ->ReadAlternate(item.url, item.hostname, item.scheme, id)
+        .has_value();
+  };
+
+  PageAnalysisResult shell;
+  shell.agent_markdown = "# App\n\nLoading...\n";
+  manager->TestAgentRenderDone(item, shell);
+  EXPECT_FALSE(copy()) << "a copy below the floor was kept";
+  EXPECT_EQ(manager->stats().agent_markdown_below_floor.load(), 1u);
+  EXPECT_TRUE(manager->AgentCopyBelowFloor(item.url, item.hostname, item.scheme,
+                                           item.site, item.origin_html_hash));
+  EXPECT_FALSE(manager->AgentCopyBelowFloor(item.url, item.hostname,
+                                            item.scheme, item.site,
+                                            Sha256Of("changed content")))
+      << "a changed page must be rendered again";
+
+  // Positive control: the same render with a real body is kept.
+  PageAnalysisResult page;
+  page.agent_markdown = "# Page\n\n" + std::string(300, 'w') + "\n";
+  manager->TestAgentRenderDone(item, page);
+  EXPECT_TRUE(copy());
+}
+
+// In full mode an agent request for a warm template queues a forced render
+// whenever the page has no copy.  After a render of the same content fell
+// below the floor it queues none, so a shell page costs one render per retry
+// window, not one per request.
+TEST_F(WorkerTest, BelowFloorRenderIsNotRepeatedInFullMode) {
+  WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
+  ASSERT_EQ(config.html_mode, HtmlMode::kFull);
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  const std::string url = "http://example.com/shell.html";
+  CacheOriginal(worker.cache(), "/shell.html", kAgentHtml);
+  SeedProfileFor(worker, url, kAgentHtml);
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  SendNotification(AgentHtmlNotification(url, /*host_vouched=*/true));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  auto queued = worker.TestBrowserManager()->TestDequeue();
+  ASSERT_TRUE(queued.has_value());
+  ASSERT_TRUE(queued->force_agent_render);
+  ASSERT_TRUE(queued->has_origin_html_hash);
+
+  // Without a record, the next request queues the render again.
+  worker.ClearDedupAndCooldown(queued->url, queued->hostname, queued->scheme);
+  SendNotification(AgentHtmlNotification(url, /*host_vouched=*/true));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  ASSERT_TRUE(worker.TestBrowserManager()->TestDequeue().has_value());
+
+  // The render fell below the floor: the next request queues nothing.
+  worker.TestBrowserManager()->NoteAgentCopyBelowFloor(
+      queued->url, queued->hostname, queued->scheme, queued->site,
+      queued->origin_html_hash);
+  worker.ClearDedupAndCooldown(queued->url, queued->hostname, queued->scheme);
+  SendNotification(AgentHtmlNotification(url, /*host_vouched=*/true));
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 3,
+                                                           kWorkerStallBudget));
+  EXPECT_FALSE(worker.TestBrowserManager()->TestDequeue().has_value())
+      << "a render of content known to fall below the floor was queued";
 }
 
 }  // namespace
