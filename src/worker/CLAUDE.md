@@ -23,7 +23,13 @@ changes. Location: `parent_path(cache_path) / "pagespeed-shared.conf"`.
 
 **Fields:**
 - `socket_path` — Unix socket path for nginx notifications
-- `disable_html` — Whether HTML optimization is disabled (`true`/`false`)
+- `html_mode` — `off`, `markdown-static`, `markdown-rendered` or `full`
+  (optional key, no schema bump; absent = `full`). A valid value wins over
+  `disable_html` whatever the line order; an unknown value is ignored
+- `disable_html` — legacy form, written as `true` exactly when `html_mode` is
+  `off`, so a reader that predates `html_mode` keeps working (it sees every
+  `markdown-*` mode as `full`). Read only when `html_mode` is absent or
+  unknown: `true` = `off`, `false` = `full`
 
 Since 2.1 there is no license state anywhere in the daemon: no
 `license_key` / `license_valid` / `license_checked_once` in this file, no
@@ -580,8 +586,14 @@ processed, allowing re-notification to fill gaps. Counter:
 **Core**: `--num-threads N` (default: auto, clamped to [2, 128]),
 `--cache-size BYTES` (default: 1GB)
 
-**Content-type toggles**: `--disable-html`, `--disable-css`, `--disable-js`,
-`--disable-image`
+**Content-type toggles**: `--html-mode MODE` (`off`, `markdown-static`,
+`markdown-rendered`, `full`; default `full`), `--disable-html` (same as
+`--html-mode off`; `--html-mode` wins when both are given), `--disable-css`,
+`--disable-js`, `--disable-image`. The `markdown-*` modes write no optimized
+HTML variant for any sender. `pagespeed.json` and `PATCH /v1/config` take
+`html_mode` and the legacy `disable_html` under the same rule (an explicit,
+valid `html_mode` wins; a disagreeing `disable_html` in the same body is
+ignored with a warning); both are written back, `disable_html` derived
 
 **Compression**: `--gzip-level 6` (0=disable, 1-9), `--brotli-level 6`
 (0=disable, 1-11)

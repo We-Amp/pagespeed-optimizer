@@ -35,6 +35,7 @@
 #include "src/worker/browser_analysis_manager.h"
 #include "src/worker/cascade_layer_order.h"
 #include "src/worker/config_persister.h"
+#include "src/worker/html_mode.h"
 #include "src/worker/image_transcoder.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/subresource_gate.h"
@@ -493,8 +494,13 @@ struct WorkerConfig {
   // "aggressive" (long TTLs, public).
   std::string cache_mode = "safe";
 
+  // HTML mode (src/worker/html_mode.h): off, markdown-static,
+  // markdown-rendered or full.  Replaces the old disable_html boolean, which
+  // every input surface still accepts (true = off, false = full) and every
+  // writer still emits, derived, for readers that predate html_mode.
+  HtmlMode html_mode = kDefaultHtmlMode;
+
   // Content-type toggles
-  bool disable_html = false;
   bool disable_css = false;
   bool disable_js = false;
   bool disable_image = false;
@@ -1317,7 +1323,7 @@ class Worker {
   // config_ at startup; runtime reads go through live_config_.
   // Hot-reloadable fields: quality settings (jpeg_quality, webp_quality,
   // avif_quality, savedata_*), viewport widths, content toggles
-  // (disable_html, etc.), SSIMULACRA2 thresholds.
+  // (html_mode, disable_css, etc.), SSIMULACRA2 thresholds.
   // Uses AtomicSharedPtr for portable RCU semantics.
   AtomicSharedPtr<const WorkerConfig> live_config_;
 

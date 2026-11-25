@@ -119,6 +119,17 @@ factory_worker --shutdown-timeout 10000  # 10 seconds
 On SIGTERM or SIGINT the worker stops accepting new connections and waits up to
 this long for active connections to drain before force-closing them.
 
+## --html-mode
+
+`off` ignores HTML notifications, like `--disable-html`. `full` is today's
+behaviour: optimized HTML variants, plus the Markdown copy for agents when
+`--agent-optimize` is on. `markdown-static` and `markdown-rendered` write no
+optimized HTML variant; the Markdown copy for agents is the only output derived
+from a page. When both `--html-mode` and `--disable-html` are given,
+`--html-mode` wins. The same setting is `html_mode` in `pagespeed.json` and
+`PATCH /v1/config`, where the legacy `disable_html` (`true` = `off`, `false` =
+`full`) is still accepted and still reported.
+
 ## --disable-html
 
 HTML notifications from nginx are ignored: no critical-CSS inlining, no HTML

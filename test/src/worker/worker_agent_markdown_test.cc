@@ -161,6 +161,66 @@ TEST_F(WorkerTest, ContentHashIdempotency_OptimizedIdentityDoesNotSelfPurge) {
       << "Variant set must survive a no-change reprocess";
 }
 
+// A markdown-* html_mode writes no optimized HTML variant for the front
+// sender, while the page is still read and the content hash the Markdown copy
+// binds to is still written.  `mode` full is the positive control: the same
+// page and config do write the variant.
+class HtmlModeVariantTest : public WorkerTest {
+ protected:
+  void Run(HtmlMode mode, bool expect_variant) {
+    WorkerConfig config = MakeAgentOptimizeConfig(socket_path_, cache_path_);
+    config.unsafe_force_async_css = true;
+    config.html_mode = mode;
+    NullMessageHandler handler;
+    Worker worker(config, &handler);
+    ASSERT_TRUE(worker.Initialize());
+
+    const std::string cache_url = "/mode.html";
+    CacheOriginal(worker.cache(), cache_url, kAgentHtml);
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    WorkerStopper stopper(worker, worker_thread);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    CapabilityMask opt_mask;
+    CacheNotification notification;
+    notification.url = "http://example.com/mode.html";
+    notification.scheme = "https";
+    notification.content_type = ContentType::kHtml;
+    notification.capability_mask = opt_mask.Encode();
+    SendNotification(notification);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, 1, kWorkerStallBudget));
+
+    EXPECT_FALSE(
+        ReadSentinel(worker.cache(), cache_url, SentinelId::kContentHash)
+            .empty())
+        << HtmlModeName(mode) << ": the page was not read";
+    const bool has_variant =
+        !ReadVariant(worker.cache(), cache_url, opt_mask).empty();
+    EXPECT_EQ(has_variant, expect_variant) << HtmlModeName(mode);
+    EXPECT_EQ(worker.stats().html_processed.load(), expect_variant ? 1u : 0u)
+        << HtmlModeName(mode);
+    EXPECT_EQ(worker.stats().variants_written.load() > 0, expect_variant)
+        << HtmlModeName(mode);
+  }
+};
+
+// A markdown-* html_mode writes no optimized HTML variant for the front
+// sender, while the page is still read and the content hash the Markdown copy
+// binds to is still written.  Full is the positive control: the same page and
+// config do write the variant.
+TEST_F(HtmlModeVariantTest, FullWritesTheHtmlVariant) {
+  Run(HtmlMode::kFull, /*expect_variant=*/true);
+}
+
+TEST_F(HtmlModeVariantTest, MarkdownStaticWritesNoHtmlVariant) {
+  Run(HtmlMode::kMarkdownStatic, /*expect_variant=*/false);
+}
+
+TEST_F(HtmlModeVariantTest, MarkdownRenderedWritesNoHtmlVariant) {
+  Run(HtmlMode::kMarkdownRendered, /*expect_variant=*/false);
+}
+
 TEST_F(WorkerTest, ContentHashIdempotency_RealOriginChangeStillPurges) {
   // A GENUINE origin change (raw bytes at slot 0x08 differ from the bound
   // sentinel) must still purge exactly once and rebuild — the fix must not

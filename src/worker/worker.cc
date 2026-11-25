@@ -1515,7 +1515,7 @@ bool Worker::Initialize() {
     // compiled with, so a peer built against a different N fails the
     // handshake loudly instead of cold-starting in a silent split-brain.
     shared.cache_dir_generation = kCacheDirGeneration;
-    shared.disable_html = config_.disable_html;
+    shared.html_mode = config_.html_mode;
     // agent_optimize: the serve-side
     // toggle nginx reads to gate the markdown variant is simply the operator's
     // opt-in flag.  The wire key keeps its historical name.
@@ -5397,8 +5397,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         text_cooldown_expiry_.erase(ck);
       };
 
-      if (cfg->disable_html) {
-        LogInfo("HTML processing disabled, skipping %s",
+      if (cfg->html_mode == HtmlMode::kOff) {
+        LogInfo("HTML processing disabled (html_mode off), skipping %s",
                 notification.url.c_str());
         clear_tentative_cooldown();
         return;
@@ -5760,6 +5760,14 @@ void Worker::HandleNotification(const CacheNotification& notification,
               /*original_html=*/html_content, agent_origin_html_hash,
               /*force_agent_render=*/true);
         }
+      }
+
+      // A markdown-* mode writes no optimized HTML variant, for any sender:
+      // what runs above (the content hash the Markdown copy binds to, and the
+      // analysis that renders it) is all this notification is for.
+      if (!HtmlModeWritesHtmlVariant(cfg->html_mode)) {
+        clear_tentative_cooldown();
+        return;
       }
 
       std::string& combined_css = combined.css;
