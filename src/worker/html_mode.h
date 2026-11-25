@@ -6,8 +6,15 @@
 //   off                no HTML processing at all (the old disable_html=true)
 //   markdown-static    no optimized HTML variant; the Markdown copy for agents
 //                      is the only HTML-derived output
-//   markdown-rendered  as markdown-static; the copy may come from a rendered
-//                      page where the sender allows it
+//   markdown-rendered  as markdown-static
+//
+// The two markdown-* modes differ only in how the copy is built for pages a
+// module stores (static extraction vs a render).  For pages the nginx front
+// stores they currently behave the same: the copy comes from the browser
+// render, as in full.  Switching from full to a markdown-* mode does not drop
+// HTML variants already stored; they are served until the page changes, is
+// refreshed or is purged.
+//
 //   full               today's behaviour: optimized HTML variants, plus the
 //                      Markdown copy when agent optimization is on (the old
 //                      disable_html=false, and the default)

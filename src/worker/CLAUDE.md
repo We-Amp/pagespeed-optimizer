@@ -594,6 +594,13 @@ HTML variant for any sender. `pagespeed.json` and `PATCH /v1/config` take
 `html_mode` and the legacy `disable_html` under the same rule (an explicit,
 valid `html_mode` wins; a disagreeing `disable_html` in the same body is
 ignored with a warning); both are written back, `disable_html` derived
+In a `markdown-*` mode the raw entry is still stamped (derived ETag), and a
+repeat notification for an unchanged page (same origin hash, content-hash
+record present) is skipped for 10 minutes (`markdown_pass_last_`); an origin
+change, purge or refresh always processes. On the nginx front both
+`markdown-*` modes currently build the agent copy the same way, and variants
+stored under `full` stay servable until the page changes, refreshes or is
+purged
 
 **Compression**: `--gzip-level 6` (0=disable, 1-9), `--brotli-level 6`
 (0=disable, 1-11)

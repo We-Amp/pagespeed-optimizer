@@ -2212,6 +2212,28 @@ TEST_F(WorkerTest, DefaultHtmlModeIsFullAndRefusesModuleHtml) {
   EXPECT_FALSE(worker.TestBrowserManager()->TestDequeue().has_value());
 }
 
+TEST_F(WorkerTest, MarkdownHtmlModeStillRefusesModuleHtml) {
+  // Module HTML stays refused in every html_mode until the worker gains a
+  // handler for it; a markdown-* mode changes only what the front sender's
+  // pages produce.
+  WorkerConfig config = SiteAnalysisConfig(socket_path_, cache_path_);
+  config.html_mode = HtmlMode::kMarkdownStatic;
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification html = ModuleCss("http://example.com/p.html", kSiteOne);
+  html.content_type = ContentType::kHtml;
+  html.host_vouched = true;
+  SendNotification(html);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(worker.stats().notifications_rejected_module_render.load(), 1u);
+  EXPECT_FALSE(worker.TestBrowserManager()->TestDequeue().has_value());
+}
+
 TEST_F(WorkerTest, TwoSitesOnOneUrlGetIndependentVariants) {
   Worker worker(SiteTestConfig(socket_path_, cache_path_), nullptr);
   ASSERT_TRUE(worker.Initialize());

@@ -13,6 +13,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -1611,6 +1612,25 @@ class Worker {
   // monotonicity — issue #652 review), then rotate the maps on overflow.
   // REQUIRES purge_gen_mutex_ held by the caller.
   void BumpPurgeGenerationLocked(const std::string& gen_key);
+
+  // html_mode markdown-*: the last full pass per URL (internal key), with the
+  // origin hash it saw.  A repeat notification for the same hash within
+  // kMarkdownPassRetrySecs skips the scan and analysis lookup (see the HTML
+  // branch); a different hash, or a missing content-hash record, always
+  // processes.  The window lets a copy that failed to build be retried.
+  // markdown_pass_mutex_ is always taken alone.
+  struct MarkdownPass {
+    std::array<std::byte, 32> origin_hash;
+    std::chrono::steady_clock::time_point at;
+  };
+  static constexpr int kMarkdownPassRetrySecs = 600;
+  static constexpr size_t kMaxMarkdownPassEntries = 4096;
+  bool MarkdownModePassIsCurrent(const CacheNotification& notification,
+                                 const std::array<std::byte, 32>& origin_hash);
+  void RecordMarkdownModePass(const CacheNotification& notification,
+                              const std::array<std::byte, 32>& origin_hash);
+  mutable std::mutex markdown_pass_mutex_;
+  std::unordered_map<std::string, MarkdownPass> markdown_pass_last_;
 
   // Outcome of RecheckRecordedOriginal.
   enum class OriginRecheck : uint8_t {
