@@ -8,6 +8,8 @@
 // racing writers on separate handles of one volume).
 
 #include <algorithm>
+#include <chrono>
+#include <cstdlib>
 #include <array>
 #include <atomic>
 #include <cstddef>
@@ -33,7 +35,16 @@
 #include "lib/classify/capability_mask.h"
 #include "test/test_util/temp_dir.h"
 
-#ifndef _WIN32
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#else
 #include <sys/wait.h>
 #include <unistd.h>
 #endif
@@ -470,6 +481,144 @@ TEST_F(SiteHtmlStoreTest, StampPairingAndMarkerHoldThroughTheRamTier) {
 }
 
 // ------------------------------------------------------------ processes
+
+// Real processes on every platform: the test binary runs itself as a child
+// (SitePurgeEpochChild.Write, inert unless the spec variable is set), so the
+// lock and replace path of each OS — fcntl and rename on POSIX, LockFileEx
+// and MoveFileExW on Windows — is exercised across process boundaries.
+constexpr char kChildSpecVar[] = "PS_EPOCH_CHILD_SPEC";
+
+std::string SelfExecutable() {
+#ifdef _WIN32
+  char buf[MAX_PATH * 4];
+  const DWORD n = GetModuleFileNameA(nullptr, buf, sizeof(buf));
+  return std::string(buf, n);
+#elif defined(__APPLE__)
+  char buf[4096];
+  uint32_t size = sizeof(buf);
+  if (_NSGetExecutablePath(buf, &size) != 0) return std::string();
+  return std::string(buf);
+#else
+  std::error_code ec;
+  return std::filesystem::read_symlink("/proc/self/exe", ec).string();
+#endif
+}
+
+// The child side. Spec file: volume path, now, go-file path, then one value
+// per line.
+TEST(SitePurgeEpochChild, Write) {
+  const char* spec_path = std::getenv(kChildSpecVar);
+  if (spec_path == nullptr) GTEST_SKIP() << "runs only as a child process";
+  std::ifstream spec(spec_path);
+  std::string volume;
+  std::string go;
+  uint64_t now = 0;
+  ASSERT_TRUE(std::getline(spec, volume));
+  ASSERT_TRUE(spec >> now);
+  spec.ignore();
+  ASSERT_TRUE(std::getline(spec, go));
+  std::vector<uint64_t> values;
+  for (uint64_t v = 0; spec >> v;) values.push_back(v);
+  ASSERT_FALSE(values.empty());
+  // Start together: wait for the parent's go file.
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(60);
+  while (!std::filesystem::exists(go)) {
+    ASSERT_LT(std::chrono::steady_clock::now(), deadline);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  for (uint64_t v : values) {
+    auto written = WriteSitePurgeEpochFile(volume, kSiteA, v, now);
+    ASSERT_TRUE(written.has_value()) << "write of " << v << " failed";
+  }
+}
+
+class SitePurgeEpochChildProcessTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    temp_dir_ = pagespeed::test::MakeTempDir();
+    volume_ = temp_dir_ + "/cache.vol";
+    self_ = SelfExecutable();
+    ASSERT_FALSE(self_.empty());
+  }
+  void TearDown() override { std::filesystem::remove_all(temp_dir_); }
+
+  // One child process per entry of `values`, all released at once; each
+  // must exit 0.
+  void RunChildren(const std::vector<std::vector<uint64_t>>& values,
+                   int round) {
+    const std::string go =
+        temp_dir_ + "/go-" + std::to_string(round);
+    std::vector<std::string> commands;
+    for (size_t i = 0; i < values.size(); ++i) {
+      const std::string spec = temp_dir_ + "/spec-" + std::to_string(round) +
+                               "-" + std::to_string(i);
+      {
+        std::ofstream out(spec);
+        out << volume_ << "\n" << kNow << "\n" << go << "\n";
+        for (uint64_t v : values[i]) out << v << "\n";
+      }
+#ifdef _WIN32
+      // std::system runs cmd.exe /c; `set X=y&& cmd` sets the variable for
+      // that one child only.
+      commands.push_back(std::string("set ") + kChildSpecVar + "=" + spec +
+                         "&& \"" + self_ +
+                         "\" --gtest_filter=SitePurgeEpochChild.Write");
+#else
+      commands.push_back(std::string(kChildSpecVar) + "='" + spec + "' '" +
+                         self_ + "' --gtest_filter=SitePurgeEpochChild.Write" +
+                         " >/dev/null 2>&1");
+#endif
+    }
+    std::vector<int> results(commands.size(), -1);
+    std::vector<std::thread> threads;
+    for (size_t i = 0; i < commands.size(); ++i) {
+      threads.emplace_back(
+          [&results, &commands, i] { results[i] = std::system(commands[i].c_str()); });
+    }
+    // Give every child time to start and reach the gate, then open it.
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    { std::ofstream(go) << "go"; }
+    for (auto& t : threads) t.join();
+    for (size_t i = 0; i < results.size(); ++i) {
+      EXPECT_EQ(results[i], 0) << "child " << i << " failed: " << commands[i];
+    }
+  }
+
+  std::string temp_dir_;
+  std::string volume_;
+  std::string self_;
+};
+
+TEST_F(SitePurgeEpochChildProcessTest, TwoProcessesThirtyTwoSecondsApart) {
+  for (int round = 0; round < 10; ++round) {
+    SCOPED_TRACE(round);
+    const uint64_t base = kNow - 100'000 + static_cast<uint64_t>(round) * 100;
+    if (round % 2 == 0) {
+      RunChildren({{base}, {base + 32}}, round);
+    } else {
+      RunChildren({{base + 32}, {base}}, round);
+    }
+    ASSERT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), base + 32);
+  }
+}
+
+TEST_F(SitePurgeEpochChildProcessTest, ManyProcessesOfRandomValuesLeaveTheMax) {
+  std::mt19937_64 rng(777);
+  std::uniform_int_distribution<uint64_t> dist(kNow - 50'000, kNow);
+  std::vector<std::vector<uint64_t>> values(4);
+  uint64_t max = 0;
+  for (auto& mine : values) {
+    for (int i = 0; i < 200; ++i) {
+      mine.push_back(dist(rng));
+      max = std::max(max, mine.back());
+    }
+  }
+  RunChildren(values, 0);
+  EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), max);
+  EXPECT_FALSE(std::filesystem::exists(
+      SitePurgeEpochPath(volume_, kSiteA) + ".tmp"));
+}
 
 #ifndef _WIN32
 // Real processes, not handles: each child writes through its own lock and
