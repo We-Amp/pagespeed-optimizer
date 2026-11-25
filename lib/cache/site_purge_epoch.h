@@ -28,9 +28,10 @@ namespace pagespeed {
 // name; anything else is refused before any path is built).
 //
 // FORMAT: one fixed-width ASCII record, "pspe1 " + 20 zero-padded decimal
-// digits + "\n" (27 bytes), and nothing else.  Any other content — empty,
-// torn, short, longer, a format this build does not know — is kCorrupted,
-// never 0.
+// digits + "\n" (27 bytes), and nothing else.  An empty file (created, not
+// yet written, or its creator died first) reads as no file: nothing was
+// recorded.  Any other content — torn, short, longer, a format this build
+// does not know — is kCorrupted, never 0.
 //
 // THE FILE IS UPDATED IN PLACE, never replaced.  A writer opens it (creating
 // it 0660 if absent; the setgid cache directory gives it the cache group),

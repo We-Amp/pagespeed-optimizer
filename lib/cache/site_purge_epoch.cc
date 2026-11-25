@@ -322,6 +322,10 @@ std::expected<uint64_t, SitePurgeEpochError> ReadSitePurgeEpochFile(
   if (!file.ready()) return std::unexpected(SitePurgeEpochError::kIo);
   auto record = file.ReadRecord();
   if (!record.has_value()) return std::unexpected(SitePurgeEpochError::kIo);
+  // An empty file is one whose creator has not written yet, or died before
+  // writing: nothing was recorded, the same as no file.  (A write to an
+  // existing record never shortens it below the record.)
+  if (record->empty()) return 0;
   return ParseSitePurgeEpoch(*record);
 }
 
@@ -338,10 +342,12 @@ std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
   std::lock_guard in_process(ProcessEpochMutex());
   EpochFile file(path, OpenMode::kWrite);
   if (!file.ready()) return std::unexpected(SitePurgeEpochError::kIo);
+  // Always read under the lock, even when this call created the file: a
+  // writer that opened it a moment later may have locked and written first.
+  auto record = file.ReadRecord();
+  if (!record.has_value()) return std::unexpected(SitePurgeEpochError::kIo);
   uint64_t to_write = epoch_seconds;
-  if (!file.created()) {
-    auto record = file.ReadRecord();
-    if (!record.has_value()) return std::unexpected(SitePurgeEpochError::kIo);
+  if (!record->empty()) {
     auto current = ParseSitePurgeEpoch(*record);
     if (!current.has_value()) {
       // Torn, short or foreign: the stored value is unknowable, so it may

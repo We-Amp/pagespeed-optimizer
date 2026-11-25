@@ -365,7 +365,7 @@ TEST_F(SiteHtmlStoreTest, ATornRecordFailsClosedAndTheNextWriteRepairs) {
   const std::string whole = RenderSitePurgeEpoch(kNow - 10);
   // A writer that died part way through its in-place write: every prefix of
   // the record reads as an error, never as a value.
-  for (size_t cut = 0; cut < whole.size(); ++cut) {
+  for (size_t cut = 1; cut < whole.size(); ++cut) {
     SCOPED_TRACE(cut);
     {
       std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -375,7 +375,14 @@ TEST_F(SiteHtmlStoreTest, ATornRecordFailsClosedAndTheNextWriteRepairs) {
     ASSERT_FALSE(read.has_value());
     EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
   }
-  // The next write, even of a lower value, repairs it fail-closed.
+  // An empty file is a creator that has not written yet: nothing recorded.
+  { std::ofstream(path, std::ios::binary | std::ios::trunc); }
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), 0u);
+  {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out << whole.substr(0, 9);
+  }
+  // The next write, even of a lower value, repairs a torn one fail-closed.
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 500, kNow));
   EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow);
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow + 2, kNow + 2));
@@ -423,7 +430,7 @@ TEST_F(SiteHtmlStoreTest, ANonAsciiVolumePathWorks) {
 TEST_F(SiteHtmlStoreTest, AnUnparseableFileIsAnErrorNeverZero) {
   const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
   for (std::string_view content :
-       {std::string_view(""), std::string_view("pspe1 123"),
+       {std::string_view("pspe1 123"),
         std::string_view("pspe1 \n"), std::string_view("pspe1 12x\n"),
         std::string_view("pspe1 012\n"), std::string_view("pspe2 12\n"),
         std::string_view("pspe1 12\nextra"),
