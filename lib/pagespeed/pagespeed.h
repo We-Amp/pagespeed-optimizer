@@ -1466,7 +1466,9 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_remove_site(ps_cache_t* cache,
  *
  * READ gives PS_OK and 0 when the site has no epoch file. ANY OTHER RESULT
  * THAN PS_OK — PS_ERR_CORRUPTED for a file that does not hold a whole record
- * (a writer died mid-write, or the file is foreign), PS_ERR_IO, anything —
+ * (the first write was torn by a power loss, or the file is foreign) or holds
+ * a value later than now plus 5 seconds (a torn overwrite, which is never
+ * below the previous value, or a clock step back), PS_ERR_IO, anything —
  * means the caller must treat every entry of the site as purged; the
  * out-parameter is left untouched then and must not be used. The next write
  * replaces a corrupted record with the larger of its value and the current

@@ -1933,7 +1933,8 @@ extern "C" ps_error_t ps_cache_read_site_purge_epoch(ps_cache_t* cache,
   ps_error_t err = ParseEpochSiteArg(site, &site_view);
   if (err != PS_OK) return err;
   try {
-    auto result = cache->cache->ReadSitePurgeEpoch(site_view);
+    auto result = cache->cache->ReadSitePurgeEpoch(
+        site_view, static_cast<uint64_t>(std::time(nullptr)));
     if (!result.has_value()) {
       if (result.error() == cyclone::CacheError::Corrupted) {
         SetLastError(
