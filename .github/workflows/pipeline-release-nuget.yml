@@ -1897,8 +1897,11 @@ jobs:
   # draft, by the generic generator of the SLSA project. Real runs only, like
   # `package`, which chooses the subjects. The generator only uploads the
   # statement as a run artifact (`upload-assets: false`, pinned by the shape
-  # gate's slsa rule); attach-signature checks it against the draft and adds
-  # it. The generator is referenced by its version tag, not a commit: it
+  # gate's slsa rule); attach-signature checks it against the draft
+  # (tools/ci/check_slsa_provenance.py --exact, from main) and adds it. It
+  # runs after `package`, which is behind the `release` environment's
+  # approval. The generator keeps the artifact 5 days (v2.1.0): an
+  # attach-signature re-run after that needs `provenance` re-run too. The generator is referenced by its version tag, not a commit: it
   # verifies its own ref and refuses a commit SHA. Its jobs run on
   # GitHub-hosted runners and declare these permissions (the upload job's
   # `contents: write` included, although `upload-assets: false` skips it); a
@@ -1949,6 +1952,15 @@ jobs:
           name: multiple.intoto.jsonl
           path: provenance
 
+      - name: Checkout main (provenance check)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: provenance-tool
+          sparse-checkout: tools/ci/check_slsa_provenance.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
       - name: Attach to the draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1970,14 +1982,8 @@ jobs:
                <(find draft -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | LC_ALL=C sort) \
             || { echo "::error::the draft's assets differ from the files SHA256SUMS lists"; exit 1; }
           ( cd draft && sha256sum -c SHA256SUMS )
-          [ -s provenance/multiple.intoto.jsonl ] || { echo "::error::no SLSA provenance"; exit 1; }
-          jq -r '.payload' provenance/multiple.intoto.jsonl | base64 -d > provenance/statement.json
-          jq -e '.predicateType | startswith("https://slsa.dev/provenance/")' provenance/statement.json >/dev/null \
-            || { echo "::error::the provenance is not a SLSA provenance statement"; exit 1; }
-          jq -r '.subject[] | "\(.digest.sha256)  \(.name)"' provenance/statement.json > provenance/subjects.sha256
-          [ -s provenance/subjects.sha256 ] || { echo "::error::the provenance has no subject"; exit 1; }
-          ( cd draft && sha256sum -c "${GITHUB_WORKSPACE}/provenance/subjects.sha256" )
-          grep -qE '  SHA256SUMS$' provenance/subjects.sha256 || { echo "::error::SHA256SUMS is not a subject of the provenance"; exit 1; }
+          # The provenance covers exactly the draft's files and SHA256SUMS.
+          python3 -I provenance-tool/tools/ci/check_slsa_provenance.py verify provenance/multiple.intoto.jsonl draft --exact
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber signed/SHA256SUMS.asc provenance/multiple.intoto.jsonl
           echo "Attached SHA256SUMS.asc and multiple.intoto.jsonl to the draft release $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
 

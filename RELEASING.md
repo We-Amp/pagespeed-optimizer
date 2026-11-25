@@ -173,8 +173,10 @@ VEX file are well-formed, and that the package-internal versions are the
 derived tilde form. The release job re-verifies SHA256SUMS across the job
 boundary before publishing anything. The release job also refuses to publish
 without a non-empty `SHA256SUMS.asc` and `SHA256SUMS.sigstore.json`, and
-without an SLSA provenance whose every subject is a file of the set with its
-digest.
+without an SLSA provenance whose subjects are exactly the set, each with its
+digest (`tools/ci/check_slsa_provenance.py`). A release tag must be on a
+commit whose `release.yml` grants `actions: read` to the lanes (the
+provenance job needs it; docs/ci/release.md, "SLSA provenance").
 
 Every real run also records a build provenance attestation for the five
 packages, the SBOM and the VEX file, and an SBOM attestation for each

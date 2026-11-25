@@ -1124,12 +1124,15 @@ jobs:
   # reviewer and tag policy: docs/ci/release.md). A dry run never gets here.
   # SLSA build provenance (multiple.intoto.jsonl): the generic generator of
   # the SLSA project signs, keyless, an in-toto statement whose subjects are
-  # the seven files and SHA256SUMS. Real runs only, like `sign-checksums`:
-  # a dry run signs nothing, so unreleased binaries never reach the public
-  # transparency log. The generator only uploads the statement as a run
+  # the seven files and SHA256SUMS. Real runs only, and only after
+  # `sign-checksums`, so after the `release` environment's approval: a dry
+  # run or a rejected approval signs nothing, and unreleased binaries never
+  # reach the public transparency log. The generator only uploads the statement as a run
   # artifact (`upload-assets: false`, pinned by the shape gate's slsa rule):
-  # it never touches a release; `release` checks it against the set and
-  # publishes it with the assets. The generator is referenced by its version tag, not a
+  # it never touches a release; `release` checks it against the set
+  # (tools/ci/check_slsa_provenance.py --exact, from main) and publishes it
+  # with the assets. The generator keeps the artifact 5 days (v2.1.0): a
+  # `release` re-run after that needs `provenance` re-run too. The generator is referenced by its version tag, not a
   # commit: it verifies its own ref and refuses a commit SHA. Its jobs run on
   # GitHub-hosted runners and declare these permissions (the upload job's
   # `contents: write` included, although `upload-assets: false` skips it); a
@@ -1137,8 +1140,8 @@ jobs:
   # grants them.
   provenance:
     name: SLSA build provenance
-    needs: [version, manifest]
-    if: ${{ !cancelled() && needs.manifest.result == 'success' && needs.version.outputs.dry_run == 'false' }}
+    needs: [version, manifest, sign-checksums]
+    if: ${{ !cancelled() && needs.manifest.result == 'success' && needs.sign-checksums.result == 'success' && needs.version.outputs.dry_run == 'false' }}
     permissions:
       actions: read
       id-token: write
@@ -1200,22 +1203,24 @@ jobs:
           name: multiple.intoto.jsonl
           path: provenance
 
-      # Every subject of the provenance is a file of the set with its digest;
-      # then the statement joins the assets.
+      - name: Checkout main (provenance check)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: provenance-tool
+          sparse-checkout: tools/ci/check_slsa_provenance.py
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      # The provenance covers exactly the set (the files SHA256SUMS lists and
+      # SHA256SUMS); then the statement joins the assets.
       - name: Re-verify SHA256SUMS across the job boundary
         run: |
           set -euo pipefail
           ( cd dist && sha256sum -c SHA256SUMS )
           [ -s dist/SHA256SUMS.asc ] || { echo "::error::SHA256SUMS.asc is missing"; exit 1; }
           [ -s dist/SHA256SUMS.sigstore.json ] || { echo "::error::SHA256SUMS.sigstore.json is missing"; exit 1; }
-          [ -s provenance/multiple.intoto.jsonl ] || { echo "::error::no SLSA provenance"; exit 1; }
-          jq -r '.payload' provenance/multiple.intoto.jsonl | base64 -d > provenance/statement.json
-          jq -e '.predicateType | startswith("https://slsa.dev/provenance/")' provenance/statement.json >/dev/null \
-            || { echo "::error::the provenance is not a SLSA provenance statement"; exit 1; }
-          jq -r '.subject[] | "\(.digest.sha256)  \(.name)"' provenance/statement.json > provenance/subjects.sha256
-          [ -s provenance/subjects.sha256 ] || { echo "::error::the provenance has no subject"; exit 1; }
-          ( cd dist && sha256sum -c "${GITHUB_WORKSPACE}/provenance/subjects.sha256" )
-          grep -qE '  SHA256SUMS$' provenance/subjects.sha256 || { echo "::error::SHA256SUMS is not a subject of the provenance"; exit 1; }
+          python3 -I provenance-tool/tools/ci/check_slsa_provenance.py verify provenance/multiple.intoto.jsonl dist --exact
           cp provenance/multiple.intoto.jsonl dist/multiple.intoto.jsonl
 
       - name: Create release

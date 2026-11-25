@@ -313,19 +313,37 @@ referenced by its version tag, because the generator verifies its own ref
 and refuses a commit SHA. Its subjects are the `sha256sum` lines of the
 files `SHA256SUMS` lists and of `SHA256SUMS` itself, which the optimizer
 lane's `manifest` job and the NuGet lane's `package` job hand over as the
-output `provenance_subjects` (base64). The generator signs keyless and
-uploads the statement only as the run artifact `multiple.intoto.jsonl`:
-`upload-assets` is false, which the shape gate's slsa rule pins, so it never
-writes to a release. The optimizer lane's `release` job and the NuGet lane's
-`attach-signature` job check that the statement is an SLSA provenance whose
-every subject is a file of the set with its digest, and add it to the
-release. The generator's jobs run on GitHub-hosted runners and declare
-`actions: read`, `id-token: write` and, for the upload job that never runs,
+output `provenance_subjects` (base64). The job runs only after a job behind
+the `release` environment's approval (`sign-checksums` in the optimizer
+lane, `package` in the NuGet lane), so a rejected approval signs nothing.
+The generator signs, keyless, an in-toto statement with an SLSA provenance
+v0.2 predicate and uploads it, as a Sigstore bundle, only as the run
+artifact `multiple.intoto.jsonl`: `upload-assets` is false, which the shape
+gate's slsa rule pins, so it never writes to a release. The optimizer
+lane's `release` job and the NuGet lane's `attach-signature` job run
+`tools/ci/check_slsa_provenance.py verify ... --exact` from `main` (its
+`--self-test`, against a real v2.1.0 bundle in
+`tools/ci/testdata/slsa-provenance/`, runs on every pull request): the file
+must be a Sigstore bundle (or a bare DSSE envelope) of an in-toto statement
+with an SLSA provenance predicate, every subject a file of the set with its
+digest, and the subjects exactly the files `SHA256SUMS` lists and
+`SHA256SUMS`. Then the job adds it to the release.
+
+The generator's jobs run on GitHub-hosted runners and declare `actions:
+read`, `id-token: write` and, for the upload job that never runs,
 `contents: write`; the call job grants exactly those, and `release.yml`
 grants `actions: read` to both lanes for it, because a called workflow
-cannot get more than its caller grants. A dry run skips the job, so it signs
-nothing; GitHub still resolves the call when the run starts (a permission
-the caller does not grant fails the run there).
+cannot get more than its caller grants. A tag push runs `release.yml` from
+the tagged commit, but the lanes from `main`: a release tag must therefore
+be on a commit that has the `actions: read` grant, or the run fails at
+startup. A dry run skips the job, so it signs nothing; GitHub still
+resolves the call when the run starts (a permission the caller does not
+grant fails the run there).
+
+The generator keeps the artifact 5 days (its v2.1.0 setting). Re-running
+`release` or `attach-signature` after that fails at the download; re-run
+`provenance` first (whether a re-run attempt may upload an artifact of the
+same name again is not verified here).
 
 To verify a file (needs [slsa-verifier](https://github.com/slsa-framework/slsa-verifier)):
 
