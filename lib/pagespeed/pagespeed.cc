@@ -57,9 +57,9 @@
 #include "src/worker/async_css_loader.h"
 #include "src/worker/critical_css_extractor.h"
 #include "src/worker/html_css_injector.h"
+#include "src/worker/html_mode.h"
 #include "src/worker/html_scanner.h"
 #include "src/worker/html_transform_filter.h"
-#include "src/worker/html_mode.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
 
