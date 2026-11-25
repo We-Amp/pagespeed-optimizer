@@ -203,10 +203,12 @@ cache group can update the file, also in the sticky cache directory where a
 rename over another user's file would be refused. A power-loss tear of the
 first write (or of a repair) leaves a record that does not parse; a tear of
 an overwrite leaves a well-formed record that is never below the previous
-value, since both are zero-padded to one width and the new one is larger. A
-stored value later than now plus 5 seconds reads as corrupted, so such an
-over-fence is repaired by the next write. A value more than 5 seconds in the
-future is refused on write.
+value, since both are zero-padded to one width and the new one is larger.
+The epoch never decreases: a stored value in the future (such a tear, or a
+write made while the clock ran fast) is returned as it is and kept by every
+later write, so it over-fences until the clock passes it, by design; lowering
+it would un-purge entries stored under the fast clock. A value more than 5
+seconds in the future is refused on write.
 
 Three guarantees a caller builds on:
 

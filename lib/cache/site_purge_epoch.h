@@ -45,17 +45,20 @@ namespace pagespeed {
 // user.  A reader takes a shared lock on the same byte, so it never sees a
 // half-written record from a live writer.
 //
-// TORN WRITES (power loss mid-write; a killed process cannot tear a 27-byte
-// write).  A tear of the FIRST write, or of a repair of a longer file, leaves
+// TORN WRITES AND THE CLOCK (a tear needs a power loss mid-write; a killed
+// process cannot tear a 27-byte write).  A tear of the FIRST write, or of a repair of a longer file, leaves
 // a short or mixed record that reads kCorrupted (fail closed); an empty file
 // reads 0, since nothing was acknowledged.  A tear of an OVERWRITE leaves the
 // new value's leading digits over the old value's trailing ones: still a
 // well-formed record, and because both are zero-padded to one width and the
 // new value is larger, the mix is never below the old value, so nothing is
-// un-purged.  It can exceed both values and the present; a stored value later
-// than now plus the skew is therefore read as kCorrupted, by readers and by
-// the writer, and the next write repairs any kCorrupted record with the
-// larger of its value and the current time.  A
+// un-purged.  The epoch NEVER decreases: a stored value in the future — such
+// a mixed record, or one written while the clock ran fast and then stepped
+// back — is a valid value.  Readers return it and writers keep the larger of
+// it and theirs, so it over-fences (fail closed) until the clock passes it,
+// by design.  Lowering it would un-purge entries stored under the fast clock
+// once real time passes their stored time.  The next write repairs a
+// kCorrupted record with the larger of its value and the current time.  A
 // process-wide mutex serialises this process's own uses of the file (fcntl
 // locks belong to the process, and closing any descriptor drops them).
 //
@@ -93,12 +96,10 @@ bool IsSitePurgeEpochSite(std::string_view site);
 std::string SitePurgeEpochPath(std::string_view volume_path,
                                std::string_view site);
 
-// 0 when the file does not exist.
-//
-// A stored value later than `now_seconds` + kSitePurgeEpochSkewSeconds is
-// kCorrupted (the write clamp never stores one; see TORN WRITES).
+// 0 when the file does not exist.  A stored value in the future is returned
+// as it is (see TORN WRITES AND THE CLOCK).
 std::expected<uint64_t, SitePurgeEpochError> ReadSitePurgeEpochFile(
-    std::string_view volume_path, std::string_view site, uint64_t now_seconds);
+    std::string_view volume_path, std::string_view site);
 
 std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
     std::string_view volume_path, std::string_view site, uint64_t epoch_seconds,

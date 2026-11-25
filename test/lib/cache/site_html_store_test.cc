@@ -292,31 +292,31 @@ TEST_F(SiteHtmlStoreTest, TheOriginalStampSurvivesReadsOnEveryHandle) {
 constexpr uint64_t kNow = 1'800'000'000;
 
 TEST_F(SiteHtmlStoreTest, TheEpochRoundTripsPerSite) {
-  auto none = cache_->ReadSitePurgeEpoch(kSiteA, kNow);
+  auto none = cache_->ReadSitePurgeEpoch(kSiteA);
   ASSERT_TRUE(none.has_value());
   EXPECT_EQ(*none, 0u);
 
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 100, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow - 100);
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteB, kNow).value(), 0u)
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 100);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteB).value(), 0u)
       << "another site's epoch moved";
 
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteB, kNow - 7, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow - 100);
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteB, kNow).value(), kNow - 7);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 100);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteB).value(), kNow - 7);
 
   auto other = Open();
   ASSERT_NE(other, nullptr);
-  EXPECT_EQ(other->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow - 100);
+  EXPECT_EQ(other->ReadSitePurgeEpoch(kSiteA).value(), kNow - 100);
 }
 
 TEST_F(SiteHtmlStoreTest, ALowerEpochIsASuccessfulNoOp) {
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 10, kNow));
   EXPECT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 500, kNow));
   EXPECT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 10, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow - 10);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 10);
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow);
 }
 
 TEST_F(SiteHtmlStoreTest, AFutureEpochIsRefused) {
@@ -325,7 +325,7 @@ TEST_F(SiteHtmlStoreTest, AFutureEpochIsRefused) {
   auto refused = cache_->WriteSitePurgeEpoch(kSiteA, kNow + skew + 1, kNow);
   ASSERT_FALSE(refused.has_value());
   EXPECT_EQ(refused.error(), cyclone::CacheError::InvalidArgument);
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow + skew);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow + skew);
 }
 
 TEST_F(SiteHtmlStoreTest, OnlyASiteIdNamesAnEpoch) {
@@ -336,7 +336,7 @@ TEST_F(SiteHtmlStoreTest, OnlyASiteIdNamesAnEpoch) {
         std::string_view(upper), std::string_view(short_site)}) {
     SCOPED_TRACE(std::string(bad));
     EXPECT_FALSE(cache_->WriteSitePurgeEpoch(bad, kNow, kNow).has_value());
-    EXPECT_FALSE(cache_->ReadSitePurgeEpoch(bad, kNow).has_value());
+    EXPECT_FALSE(cache_->ReadSitePurgeEpoch(bad).has_value());
   }
 }
 
@@ -356,7 +356,7 @@ TEST_F(SiteHtmlStoreTest, RemovingTheUrlLeavesTheEpoch) {
   WriteOriginal(kSiteA, "<html>x</html>");
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 1, kNow));
   ASSERT_TRUE(cache_->Remove(kUrl, kHost, kScheme, kSiteA));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow - 1);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 1);
 }
 
 TEST_F(SiteHtmlStoreTest, ATornRecordFailsClosedAndTheNextWriteRepairs) {
@@ -371,7 +371,7 @@ TEST_F(SiteHtmlStoreTest, ATornRecordFailsClosedAndTheNextWriteRepairs) {
       std::ofstream out(path, std::ios::binary | std::ios::trunc);
       out << whole.substr(0, cut);
     }
-    auto read = cache_->ReadSitePurgeEpoch(kSiteA, kNow);
+    auto read = cache_->ReadSitePurgeEpoch(kSiteA);
     ASSERT_FALSE(read.has_value());
     EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
   }
@@ -379,16 +379,16 @@ TEST_F(SiteHtmlStoreTest, ATornRecordFailsClosedAndTheNextWriteRepairs) {
   {
     std::ofstream(path, std::ios::binary | std::ios::trunc);
   }
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), 0u);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), 0u);
   {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     out << whole.substr(0, 9);
   }
   // The next write, even of a lower value, repairs a torn one fail-closed.
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 500, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow);
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow + 2, kNow + 2));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow + 2);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow + 2);
 }
 
 TEST_F(SiteHtmlStoreTest, ATornOverwriteNeverReadsBelowTheOldValue) {
@@ -406,41 +406,34 @@ TEST_F(SiteHtmlStoreTest, ATornOverwriteNeverReadsBelowTheOldValue) {
       std::ofstream out(path, std::ios::binary | std::ios::trunc);
       out << new_rec.substr(0, cut) << old_rec.substr(cut);
     }
-    auto read = cache_->ReadSitePurgeEpoch(kSiteA, kNow);
-    // Either a value at or above the old one, or (past now + skew) an error;
-    // never a value below what was acknowledged.
-    if (read.has_value()) {
-      EXPECT_GE(*read, old_value);
-    } else {
-      EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
-    }
+    // Always a whole record: a value at or above the old one, never below
+    // what was acknowledged.
+    auto read = cache_->ReadSitePurgeEpoch(kSiteA);
+    ASSERT_TRUE(read.has_value());
+    EXPECT_GE(*read, old_value);
   }
 }
 
-TEST_F(SiteHtmlStoreTest, AStoredFutureValueIsCorruptedAndRepaired) {
-  // An over-fence (a torn overwrite that mixed into a later value, or a
-  // clock stepped back) reads as an error, never as the value, and the next
-  // write — even of a lower value — repairs it with the present.
+TEST_F(SiteHtmlStoreTest, AStoredFutureValueIsKeptAndNeverLowered) {
+  // A value an hour ahead (a write made while the clock ran fast, or a torn
+  // overwrite) is a valid epoch: it reads as itself, and a lower write leaves
+  // it alone. Lowering it would un-purge entries stored under the fast clock.
   const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
   {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     out << RenderSitePurgeEpoch(kNow + 3600);
   }
-  auto read = cache_->ReadSitePurgeEpoch(kSiteA, kNow);
-  ASSERT_FALSE(read.has_value());
-  EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
-  // Within the skew it is still a value.
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow + 3600 - 5).value(),
-            kNow + 3600);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow + 3600);
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 100, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow);
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow, kNow));
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow + 3600);
 }
 
 TEST_F(SiteHtmlStoreTest, AnUnreadableFileIsAnErrorNeverZero) {
   // A directory where the file should be: the open or the read fails.
   const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
   std::filesystem::create_directories(path);
-  auto read = cache_->ReadSitePurgeEpoch(kSiteA, kNow);
+  auto read = cache_->ReadSitePurgeEpoch(kSiteA);
   ASSERT_FALSE(read.has_value());
   EXPECT_FALSE(cache_->WriteSitePurgeEpoch(kSiteA, kNow, kNow).has_value());
 }
@@ -451,7 +444,7 @@ TEST_F(SiteHtmlStoreTest, AReaderHoldingTheFileOpenDoesNotBlockAWriter) {
   std::ifstream held(path, std::ios::binary);
   ASSERT_TRUE(held.is_open());
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 5, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow - 5);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 5);
   // The open handle sees the same, updated file (it was written in place).
   std::string content((std::istreambuf_iterator<char>(held)),
                       std::istreambuf_iterator<char>());
@@ -465,10 +458,10 @@ TEST_F(SiteHtmlStoreTest, ANonAsciiVolumePathWorks) {
       std::filesystem::path(u8"cach\u00e9-\u00f1");
   std::filesystem::create_directories(dir);
   const std::string volume = temp_dir_ + "/cach\xc3\xa9-\xc3\xb1/cache.vol";
-  ASSERT_EQ(ReadSitePurgeEpochFile(volume, kSiteA, kNow).value(), 0u);
+  ASSERT_EQ(ReadSitePurgeEpochFile(volume, kSiteA).value(), 0u);
   ASSERT_TRUE(WriteSitePurgeEpochFile(volume, kSiteA, kNow - 9, kNow));
   ASSERT_TRUE(WriteSitePurgeEpochFile(volume, kSiteA, kNow - 99, kNow));
-  EXPECT_EQ(ReadSitePurgeEpochFile(volume, kSiteA, kNow).value(), kNow - 9);
+  EXPECT_EQ(ReadSitePurgeEpochFile(volume, kSiteA).value(), kNow - 9);
   EXPECT_TRUE(std::filesystem::exists(
       dir /
       std::filesystem::path(std::string("cache.vol.purge-epoch.") + kSiteA)));
@@ -487,13 +480,13 @@ TEST_F(SiteHtmlStoreTest, AnUnparseableFileIsAnErrorNeverZero) {
       std::ofstream out(path, std::ios::binary | std::ios::trunc);
       out << content;
     }
-    auto read = cache_->ReadSitePurgeEpoch(kSiteA, kNow);
+    auto read = cache_->ReadSitePurgeEpoch(kSiteA);
     ASSERT_FALSE(read.has_value()) << "an unreadable epoch read as a value";
     EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
   }
   // A write heals it fail-closed: the larger of its value and now.
   ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 500, kNow));
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), kNow);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow);
 }
 
 TEST_F(SiteHtmlStoreTest, RacingThreadsOnSeparateHandlesLeaveTheLarger) {
@@ -516,7 +509,7 @@ TEST_F(SiteHtmlStoreTest, RacingThreadsOnSeparateHandlesLeaveTheLarger) {
     std::thread t2(run, high, base + 32);
     t1.join();
     t2.join();
-    ASSERT_EQ(cache_->ReadSitePurgeEpoch(kSiteA, kNow).value(), base + 32)
+    ASSERT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), base + 32)
         << "round " << round;
   }
 }
@@ -709,7 +702,7 @@ TEST_F(SitePurgeEpochChildProcessTest, TwoProcessesThirtyTwoSecondsApart) {
     } else {
       RunChildren({{base + 32}, {base}}, round);
     }
-    ASSERT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA, kNow).value(), base + 32);
+    ASSERT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), base + 32);
   }
 }
 
@@ -725,7 +718,7 @@ TEST_F(SitePurgeEpochChildProcessTest, ManyProcessesOfRandomValuesLeaveTheMax) {
     }
   }
   RunChildren(values, 0);
-  EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA, kNow).value(), max);
+  EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), max);
 }
 
 #ifndef _WIN32
@@ -785,7 +778,7 @@ TEST_F(SitePurgeEpochProcessTest, TwoProcessesThirtyTwoSecondsApart) {
     } else {
       RunChildren({{base + 32}, {base}});
     }
-    ASSERT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA, kNow).value(), base + 32);
+    ASSERT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), base + 32);
   }
 }
 
@@ -801,7 +794,7 @@ TEST_F(SitePurgeEpochProcessTest, ManyProcessesOfRandomValuesLeaveTheMax) {
     }
   }
   RunChildren(values);
-  EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA, kNow).value(), max);
+  EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), max);
 }
 #endif  // !_WIN32
 

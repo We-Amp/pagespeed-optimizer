@@ -1217,8 +1217,8 @@ cyclone::CacheError FromEpochError(SitePurgeEpochError e) {
 }  // namespace
 
 std::expected<uint64_t, cyclone::CacheError> PageSpeedCache::ReadSitePurgeEpoch(
-    std::string_view site, uint64_t now_seconds) {
-  auto read = ReadSitePurgeEpochFile(config_.volume_path, site, now_seconds);
+    std::string_view site) {
+  auto read = ReadSitePurgeEpochFile(config_.volume_path, site);
   if (!read.has_value()) {
     // Rate-limited: a caller may read on every tick, and one line a minute
     // says as much as one per read.

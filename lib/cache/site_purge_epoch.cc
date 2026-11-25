@@ -321,24 +321,8 @@ std::string RenderSitePurgeEpoch(uint64_t epoch_seconds) {
   return Render(epoch_seconds);
 }
 
-namespace {
-
-// A stored value past now + skew is not one a writer could have stored (the
-// write clamp refuses it), so it is a torn overwrite or a clock step back:
-// unknowable, and treated as corrupted so the next write repairs it.
-std::expected<uint64_t, SitePurgeEpochError> ParseStored(
-    std::string_view record, uint64_t now_seconds) {
-  auto value = ParseSitePurgeEpoch(record);
-  if (value.has_value() && *value > now_seconds + kSitePurgeEpochSkewSeconds) {
-    return std::unexpected(SitePurgeEpochError::kCorrupted);
-  }
-  return value;
-}
-
-}  // namespace
-
 std::expected<uint64_t, SitePurgeEpochError> ReadSitePurgeEpochFile(
-    std::string_view volume_path, std::string_view site, uint64_t now_seconds) {
+    std::string_view volume_path, std::string_view site) {
   const std::string path = SitePurgeEpochPath(volume_path, site);
   if (path.empty()) {
     return std::unexpected(SitePurgeEpochError::kInvalidArgument);
@@ -353,7 +337,7 @@ std::expected<uint64_t, SitePurgeEpochError> ReadSitePurgeEpochFile(
   // writing: nothing was recorded, the same as no file.  (A write to an
   // existing record never shortens it below the record.)
   if (record->empty()) return 0;
-  return ParseStored(*record, now_seconds);
+  return ParseSitePurgeEpoch(*record);
 }
 
 std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
@@ -375,7 +359,7 @@ std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
   if (!record.has_value()) return std::unexpected(SitePurgeEpochError::kIo);
   uint64_t to_write = epoch_seconds;
   if (!record->empty()) {
-    auto current = ParseStored(*record, now_seconds);
+    auto current = ParseSitePurgeEpoch(*record);
     if (!current.has_value()) {
       // Torn, short or foreign: the stored value is unknowable, so it may
       // have been anything up to now. Replace it with the larger of the
