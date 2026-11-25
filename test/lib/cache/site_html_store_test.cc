@@ -376,7 +376,9 @@ TEST_F(SiteHtmlStoreTest, ATornRecordFailsClosedAndTheNextWriteRepairs) {
     EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
   }
   // An empty file is a creator that has not written yet: nothing recorded.
-  { std::ofstream(path, std::ios::binary | std::ios::trunc); }
+  {
+    std::ofstream(path, std::ios::binary | std::ios::trunc);
+  }
   EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), 0u);
   {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -430,10 +432,9 @@ TEST_F(SiteHtmlStoreTest, ANonAsciiVolumePathWorks) {
 TEST_F(SiteHtmlStoreTest, AnUnparseableFileIsAnErrorNeverZero) {
   const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
   for (std::string_view content :
-       {std::string_view("pspe1 123"),
-        std::string_view("pspe1 \n"), std::string_view("pspe1 12x\n"),
-        std::string_view("pspe1 012\n"), std::string_view("pspe2 12\n"),
-        std::string_view("pspe1 12\nextra"),
+       {std::string_view("pspe1 123"), std::string_view("pspe1 \n"),
+        std::string_view("pspe1 12x\n"), std::string_view("pspe1 012\n"),
+        std::string_view("pspe2 12\n"), std::string_view("pspe1 12\nextra"),
         std::string_view("pspe1 0000000000000000001x\n"),
         std::string_view("pspe1 00000000000000000001\nx")}) {
     SCOPED_TRACE(std::string(content));
