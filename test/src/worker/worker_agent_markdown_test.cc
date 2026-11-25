@@ -195,8 +195,12 @@ class HtmlModeVariantTest : public WorkerTest {
         ReadSentinel(worker.cache(), cache_url, SentinelId::kContentHash)
             .empty())
         << HtmlModeName(mode) << ": the page was not read";
+    // The identity slot holds the raw origin until the worker replaces it
+    // with its own output, so "a variant" is an entry the worker wrote.
+    auto slot = ReadVariantWithMeta(worker.cache(), cache_url, opt_mask);
+    ASSERT_TRUE(slot.has_value()) << HtmlModeName(mode);
     const bool has_variant =
-        !ReadVariant(worker.cache(), cache_url, opt_mask).empty();
+        (slot->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) != 0;
     EXPECT_EQ(has_variant, expect_variant) << HtmlModeName(mode);
     EXPECT_EQ(worker.stats().html_processed.load(), expect_variant ? 1u : 0u)
         << HtmlModeName(mode);

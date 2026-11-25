@@ -906,7 +906,7 @@ TEST_F(ConfigFileTest, FullRoundTrip) {
 
   // Guard: if a new field is added to ConfigToJsonPersistable without updating
   // this test, this assertion will fail.
-  EXPECT_EQ(persistable.size(), 59u);
+  EXPECT_EQ(persistable.size(), 60u);
 
   std::string path = (tmp_dir_ / "pagespeed.json").string();
   ASSERT_TRUE(WriteConfigFile(path, persistable));
