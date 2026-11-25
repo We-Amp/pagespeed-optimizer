@@ -225,8 +225,8 @@ class EpochFile {
     char buf[kRecordBytes + 1];
     size_t got = 0;
     while (got < sizeof(buf)) {
-      const ssize_t n = ::pread(fd_, buf + got, sizeof(buf) - got,
-                                static_cast<off_t>(got));
+      const ssize_t n =
+          ::pread(fd_, buf + got, sizeof(buf) - got, static_cast<off_t>(got));
       if (n < 0) {
         if (errno == EINTR) continue;
         return std::nullopt;
@@ -240,9 +240,9 @@ class EpochFile {
   bool WriteRecord(const std::string& record) {
     size_t written = 0;
     while (written < record.size()) {
-      const ssize_t n = ::pwrite(fd_, record.data() + written,
-                                 record.size() - written,
-                                 static_cast<off_t>(written));
+      const ssize_t n =
+          ::pwrite(fd_, record.data() + written, record.size() - written,
+                   static_cast<off_t>(written));
       if (n < 0 && errno == EINTR) continue;
       if (n <= 0) return false;
       written += static_cast<size_t>(n);
@@ -315,8 +315,8 @@ std::expected<uint64_t, SitePurgeEpochError> ReadSitePurgeEpochFile(
 }
 
 std::expected<void, SitePurgeEpochError> WriteSitePurgeEpochFile(
-    std::string_view volume_path, std::string_view site,
-    uint64_t epoch_seconds, uint64_t now_seconds) {
+    std::string_view volume_path, std::string_view site, uint64_t epoch_seconds,
+    uint64_t now_seconds) {
   const std::string path = SitePurgeEpochPath(volume_path, site);
   if (path.empty()) {
     return std::unexpected(SitePurgeEpochError::kInvalidArgument);

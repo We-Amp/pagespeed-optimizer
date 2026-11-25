@@ -407,7 +407,8 @@ TEST_F(SiteHtmlStoreTest, AReaderHoldingTheFileOpenDoesNotBlockAWriter) {
 TEST_F(SiteHtmlStoreTest, ANonAsciiVolumePathWorks) {
   // UTF-8 bytes for "caché-ñ": the path the API takes is UTF-8.
   const std::filesystem::path dir =
-      std::filesystem::path(temp_dir_) / std::filesystem::path(u8"cach\u00e9-\u00f1");
+      std::filesystem::path(temp_dir_) /
+      std::filesystem::path(u8"cach\u00e9-\u00f1");
   std::filesystem::create_directories(dir);
   const std::string volume = temp_dir_ + "/cach\xc3\xa9-\xc3\xb1/cache.vol";
   ASSERT_EQ(ReadSitePurgeEpochFile(volume, kSiteA).value(), 0u);
@@ -415,7 +416,8 @@ TEST_F(SiteHtmlStoreTest, ANonAsciiVolumePathWorks) {
   ASSERT_TRUE(WriteSitePurgeEpochFile(volume, kSiteA, kNow - 99, kNow));
   EXPECT_EQ(ReadSitePurgeEpochFile(volume, kSiteA).value(), kNow - 9);
   EXPECT_TRUE(std::filesystem::exists(
-      dir / std::filesystem::path(std::string("cache.vol.purge-epoch.") + kSiteA)));
+      dir /
+      std::filesystem::path(std::string("cache.vol.purge-epoch.") + kSiteA)));
 }
 
 TEST_F(SiteHtmlStoreTest, AnUnparseableFileIsAnErrorNeverZero) {
