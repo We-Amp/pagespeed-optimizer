@@ -6126,8 +6126,7 @@ void RunWriteParamsRow(const nlohmann::json& in, const nlohmann::json& expect,
       &params);
   ExpectField<bool>(expect, "valid", rc == 0, run);
   if (rc != 0) return;
-  ExpectField<uint32_t>(expect, "inserted_at_s", params.cache_inserted_at,
-                        run);
+  ExpectField<uint32_t>(expect, "inserted_at_s", params.cache_inserted_at, run);
   // The entry records no age beside the insert time: Age is counted once.
   ExpectField<uint32_t>(expect, "age_at_store", 0u, run);
 }
@@ -6416,11 +6415,11 @@ TEST(PageSpeedCApiPolicy, StoreWriteParamsComputesTheInsertTimeOnce) {
   ps_write_params_t p;
   ps_write_params_init_auto(&p);
   const char* age[] = {"30"};
-  ASSERT_EQ(ps_html_store_write_params(
-                PS_HTML_STORE_ACTION_STORE, 300,
-                PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT,
-                PS_CC_ORIGIN_HEADER_PRESENT, 1, int64_t{1700000000999}, age, 1,
-                1234, "text/html; charset=utf-8", &p),
+  ASSERT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_STORE, 300,
+                                       PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT,
+                                       PS_CC_ORIGIN_HEADER_PRESENT, 1,
+                                       int64_t{1700000000999}, age, 1, 1234,
+                                       "text/html; charset=utf-8", &p),
             0);
   EXPECT_EQ(p.alternate_id, PS_SENTINEL_ORIGINAL);
   EXPECT_EQ(p.full_mask, static_cast<uint32_t>(PS_SENTINEL_ORIGINAL));
@@ -6437,10 +6436,10 @@ TEST(PageSpeedCApiPolicy, StoreWriteParamsComputesTheInsertTimeOnce) {
   for (int action :
        {PS_HTML_STORE_ACTION_WOULD_STORE, PS_HTML_STORE_ACTION_REFUSE}) {
     ps_write_params_init_auto(&p);
-    EXPECT_EQ(ps_html_store_write_params(action, 300, 0, 0, 0,
-                                         int64_t{1700000000000}, nullptr, 0, 1,
-                                         "text/html", &p),
-              -1);
+    EXPECT_EQ(
+        ps_html_store_write_params(action, 300, 0, 0, 0, int64_t{1700000000000},
+                                   nullptr, 0, 1, "text/html", &p),
+        -1);
   }
   for (int64_t ms : {int64_t{0}, int64_t{999}, int64_t{-5000}}) {
     EXPECT_EQ(WriteParamsWithAge({}, ms, &p), -1) << ms;
@@ -6478,12 +6477,12 @@ TEST(PageSpeedCApiPolicy, StoreWriteParamsComputesTheInsertTimeOnce) {
   EXPECT_EQ(p.origin_s_maxage, 120u);
   EXPECT_EQ(p.flags, 0x10);
   ps_write_params_init_auto(&p);
-  ASSERT_EQ(ps_html_store_write_params(
-                PS_HTML_STORE_ACTION_STORE, 120,
-                PS_HTML_STORE_FLAG_EXPLICIT_SHARED,
-                PS_CC_ORIGIN_HEADER_PRESENT | PS_CC_ORIGIN_PUBLIC, 0,
-                int64_t{1700000000000}, nullptr, 0, 1, "text/html", &p),
-            0);
+  ASSERT_EQ(
+      ps_html_store_write_params(
+          PS_HTML_STORE_ACTION_STORE, 120, PS_HTML_STORE_FLAG_EXPLICIT_SHARED,
+          PS_CC_ORIGIN_HEADER_PRESENT | PS_CC_ORIGIN_PUBLIC, 0,
+          int64_t{1700000000000}, nullptr, 0, 1, "text/html", &p),
+      0);
   EXPECT_EQ(p.origin_s_maxage, 0u);
 }
 
@@ -6495,19 +6494,18 @@ TEST(PageSpeedCApiPolicy, StoreWriteParamsRefusesAnAgeItCannotTrust) {
   const std::string at_capture = std::to_string(1700000000);
   const std::string past_capture = std::to_string(1700000001);
   for (const std::vector<const char*>& age :
-       std::vector<std::vector<const char*>>{
-           {at_capture.c_str()},
-           {past_capture.c_str()},
-           {"4294967295"},
-           {"2147483648"},
-           {"99999999999999999999"},
-           {"-5"},
-           {"1.5"},
-           {"abc"},
-           {""},
-           {"20", "40"},
-           {"20, 40"},
-           {"20", nullptr}}) {
+       std::vector<std::vector<const char*>>{{at_capture.c_str()},
+                                             {past_capture.c_str()},
+                                             {"4294967295"},
+                                             {"2147483648"},
+                                             {"99999999999999999999"},
+                                             {"-5"},
+                                             {"1.5"},
+                                             {"abc"},
+                                             {""},
+                                             {"20", "40"},
+                                             {"20, 40"},
+                                             {"20", nullptr}}) {
     p.content_length = 77;
     EXPECT_EQ(WriteParamsWithAge(age, kCaptureMs, &p), -1)
         << (age[0] != nullptr ? age[0] : "null");

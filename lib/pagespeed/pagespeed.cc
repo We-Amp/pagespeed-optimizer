@@ -1732,8 +1732,8 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
     }
     // The tag is written whole or not at all: a caller whose struct ends
     // inside it gets only NUL bytes there, never a cut-off tag.
-    if (out->struct_size < offsetof(ps_html_serve_verdict_t, etag) +
-                               sizeof(result.etag)) {
+    if (out->struct_size <
+        offsetof(ps_html_serve_verdict_t, etag) + sizeof(result.etag)) {
       std::memset(result.etag, 0, sizeof(result.etag));
     }
     std::memcpy(out, &result, std::min(out->struct_size, sizeof(result)));
