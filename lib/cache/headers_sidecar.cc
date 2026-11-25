@@ -447,7 +447,11 @@ std::optional<HeadersSidecarBlock> ParseHeadersSidecarBlock(
 std::optional<std::vector<HeaderField>> ParseHeadersSidecar(
     std::string_view payload) {
   auto block = ParseHeadersSidecarBlock(payload);
-  if (!block.has_value()) return std::nullopt;
+  // Fields only, so this reader cannot check a pairing: a paired block is
+  // absent to it (fail closed), and the caller's miss path runs.
+  if (!block.has_value() || block->pairing_hash.has_value()) {
+    return std::nullopt;
+  }
   return std::move(block->fields);
 }
 

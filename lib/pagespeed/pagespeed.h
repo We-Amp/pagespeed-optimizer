@@ -1422,6 +1422,12 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_remove(ps_cache_t* cache,
  * PS_OK when the key was removed; PS_ERR_NOT_FOUND when nothing was stored
  * under it, which a caller removing an entry may treat as success.
  *
+ * PER PROCESS for the RAM tier: this process's RAM copies of the key are
+ * evicted with it, but another process that already holds a copy in its own
+ * RAM tier can keep answering from it. A purge must fence peer processes
+ * itself (for example with the per-site purge epoch below); a removal is
+ * not a cross-process invalidation.
+ *
  * NOT FENCED against the optimizer: a derivation already in flight for the
  * key can still write its result after this returns. Such a copy is bound to
  * the removed original's hash, so it is not served unless an original with
@@ -1435,20 +1441,35 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_remove_site(ps_cache_t* cache,
 /* ---------- per-site purge epoch (PS_API 1.13) ---------- */
 
 /* The time (Unix seconds) of the last global purge a site's front end
- * observed, kept in the cache volume so it outlives the front end's own
- * caches and processes: an entry the front end stored at or before the epoch
- * counts as purged. `site` must be PS_SITE_ID_CHARS lowercase hex; NULL and
- * "" are PS_ERR_INVALID_ARG. The record is outside every URL's keyspace, so
- * ps_cache_remove and ps_cache_remove_site never touch it.
+ * observed: an entry the front end stored at or before the epoch counts as
+ * purged. `site` must be PS_SITE_ID_CHARS lowercase hex; NULL and "" are
+ * PS_ERR_INVALID_ARG.
  *
- * WRITE IS A MAX-MERGE. A value at or below the stored epoch is a successful
- * no-op, so racing writers — threads or processes — end at the largest value.
- * A value later than the current time plus 5 seconds is PS_ERR_INVALID_ARG,
- * so a clock step or a file touched with a future time cannot become a
- * permanent epoch: pass min(observed, now). PS_ERR_BUSY when the write
- * committed but a concurrent writer left the stored epoch below it; retry.
+ * WHERE IT LIVES: one small file per site beside the cache volume,
+ * `<volume_path>.purge-epoch.<site>` (plus a `.lock` file writers lock and a
+ * transient `.tmp`), where `volume_path` is the path this cache was opened
+ * with. It is NOT in the volume, so the volume's own reclamation cannot drop
+ * it, and a wipe of a front end's own caches leaves it. ps_cache_remove and
+ * ps_cache_remove_site never touch it. Every process that opens the volume
+ * must be able to read and write files in its directory.
  *
- * READ gives 0 when the site has no epoch. */
+ * WRITE IS A MAX-MERGE. Under an OS advisory lock the current value is read,
+ * and only a larger value is written (to a temp file, flushed, then renamed
+ * over), so racing writers — threads or processes — end at the largest
+ * value, and a crash mid-write leaves the previous value. A value at or below
+ * the stored epoch is a successful no-op. A value later than the current time
+ * plus 5 seconds is PS_ERR_INVALID_ARG, so a clock step or a file touched
+ * with a future time cannot become a permanent epoch: pass min(observed,
+ * now). PS_ERR_IO when the file or its lock cannot be used.
+ *
+ * READ gives 0 when the site has no epoch file. A file that exists but does
+ * not hold a value this library wrote is PS_ERR_CORRUPTED, never 0: the
+ * caller must then treat every entry of the site as purged. The next write
+ * replaces such a file with the larger of its value and the current time.
+ *
+ * The file is not tied to the volume's generation: a recreated volume holds
+ * no entry from before, so an epoch that outlives the recreate can only
+ * fence more than needed, never un-purge an entry. */
 PS_EXPORT PS_NODISCARD ps_error_t ps_cache_write_site_purge_epoch(
     ps_cache_t* cache, const char* site, uint64_t epoch_s);
 PS_EXPORT PS_NODISCARD ps_error_t ps_cache_read_site_purge_epoch(

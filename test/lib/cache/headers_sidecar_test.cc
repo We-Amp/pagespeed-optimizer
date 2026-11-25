@@ -584,10 +584,10 @@ TEST(HeadersSidecarTest, APairedBlockRoundTripsItsFieldsAndItsHash) {
   EXPECT_EQ(block->fields[0].name, "Referrer-Policy");
   EXPECT_EQ(block->fields[0].value, "  no-referrer ");
   EXPECT_EQ(block->fields[1].name, "X-Content-Type-Options");
-  // The fields-only reader sees the same fields.
-  auto only_fields = ParseHeadersSidecar(paired);
-  ASSERT_TRUE(only_fields.has_value());
-  EXPECT_EQ(only_fields->size(), 2u);
+  // The fields-only reader cannot check a pairing, so it reads a paired
+  // block as absent (fail closed); format 1 still parses there.
+  EXPECT_FALSE(ParseHeadersSidecar(paired).has_value());
+  EXPECT_TRUE(ParseHeadersSidecar(format1).has_value());
 }
 
 TEST(HeadersSidecarTest, AFormat1BlockParsesWithNoPairingHash) {

@@ -186,6 +186,10 @@ inline constexpr size_t kMaxHeadersSidecarValueBytes = 65535;
 // reason the byte is spent.
 //
 // The returned views point INTO `payload`, which must outlive them.
+//
+// Format 1 only: a paired (format 2) block is nullopt here, because a
+// fields-only reader cannot check that the block belongs to the entry it is
+// about to serve.  Use ParseHeadersSidecarBlock to read either format.
 std::optional<std::vector<HeaderField>> ParseHeadersSidecar(
     std::string_view payload);
 

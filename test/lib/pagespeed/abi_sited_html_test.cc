@@ -14,6 +14,7 @@
 #include <cstring>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <span>
 #include <string>
@@ -63,17 +64,18 @@ class AbiSitedHtmlTest : public ::testing::Test {
   }
 
   // A handle on the same volume, as a second process opens it.
-  ps_cache_t* Open() {
+  ps_cache_t* Open(size_t ram_cache_size = 0) {
     ps_cache_config_t config;
     ps_cache_config_init(&config);
     config.volume_path = path_.c_str();
     config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+    config.ram_cache_size = ram_cache_size;
     ps_cache_t* c = nullptr;
     if (ps_cache_open(&config, &c) != PS_OK) return nullptr;
     return c;
   }
-  ps_cache_t* OpenExtra() {
-    ps_cache_t* c = Open();
+  ps_cache_t* OpenExtra(size_t ram_cache_size = 0) {
+    ps_cache_t* c = Open(ram_cache_size);
     if (c != nullptr) extra_.push_back(c);
     return c;
   }
@@ -535,7 +537,7 @@ TEST_F(AbiSitedHtmlTest, ConcurrentWritersOfDifferentValuesLeaveTheLarger) {
   ASSERT_NE(other, nullptr);
   const uint64_t now = Now();
   for (int round = 0; round < 100; ++round) {
-    const uint64_t base = now - 50'000 + static_cast<uint64_t>(round) * 10;
+    const uint64_t base = now - 50'000 + static_cast<uint64_t>(round) * 100;
     ps_cache_t* low = (round % 2 == 0) ? cache_ : other;
     ps_cache_t* high = (round % 2 == 0) ? other : cache_;
     std::atomic<int> ready{0};
@@ -546,15 +548,75 @@ TEST_F(AbiSitedHtmlTest, ConcurrentWritersOfDifferentValuesLeaveTheLarger) {
       EXPECT_EQ(PS_OK,
                 ps_cache_write_site_purge_epoch(c, kSiteA.c_str(), value));
     };
-    std::thread t1(run, low, base + 2);
-    std::thread t2(run, high, base + 5);
+    std::thread t1(run, low, base);
+    std::thread t2(run, high, base + 32);
     t1.join();
     t2.join();
     uint64_t e = 0;
     ASSERT_EQ(PS_OK,
               ps_cache_read_site_purge_epoch(cache_, kSiteA.c_str(), &e));
-    ASSERT_EQ(e, base + 5) << "round " << round;
+    ASSERT_EQ(e, base + 32) << "round " << round;
   }
+}
+
+TEST_F(AbiSitedHtmlTest, TheEpochFileIsBesideTheVolumeAndFailsClosed) {
+  const uint64_t now = Now();
+  ASSERT_EQ(PS_OK,
+            ps_cache_write_site_purge_epoch(cache_, kSiteA.c_str(), now - 9));
+  const std::string file = path_ + ".purge-epoch." + kSiteA;
+  ASSERT_TRUE(std::filesystem::exists(file));
+  {
+    std::ofstream out(file, std::ios::binary | std::ios::trunc);
+    out << "pspe1 1";  // truncated: no newline
+  }
+  uint64_t e = 42;
+  EXPECT_EQ(PS_ERR_CORRUPTED,
+            ps_cache_read_site_purge_epoch(cache_, kSiteA.c_str(), &e));
+  EXPECT_EQ(e, 42u) << "the out-param was written on a failed read";
+  EXPECT_NE(ps_last_error_message(), nullptr);
+}
+
+// ------------------------------------------------------------ RAM tier
+
+TEST_F(AbiSitedHtmlTest, WithTheRamTierOnRemovalAndReStoreAreVisible) {
+  ps_cache_t* ram = OpenExtra(/*ram_cache_size=*/4 * 1024 * 1024);
+  ASSERT_NE(ram, nullptr);
+  const auto h1 = Hash(60);
+  const auto h2 = Hash(61);
+  const char* names[] = {"Referrer-Policy"};
+  const char* values[] = {"no-referrer"};
+  auto params = SidecarParams(kSiteA.c_str(), h1.data());
+  ASSERT_EQ(PS_OK, ps_cache_write_headers_sidecar_site(
+                       ram, &params, names, values, 1, nullptr, nullptr));
+  ASSERT_EQ(PS_OK,
+            WriteOriginal(ram, kSiteA.c_str(), "<html>1</html>", h1.data()));
+  const std::string want1(reinterpret_cast<const char*>(h1.data()), 32);
+  const std::string want2(reinterpret_cast<const char*>(h2.data()), 32);
+  for (int i = 0; i < 3; ++i) {  // later reads are RAM hits
+    EXPECT_EQ(ReadStamp(ram, kSiteA.c_str()), want1);
+    ps_header_block_t* block = nullptr;
+    ASSERT_EQ(PS_OK, ps_headers_sidecar_read(ram, kUrl, kHost, kScheme,
+                                             kSiteA.c_str(), &block));
+    EXPECT_EQ(ps_header_block_pairing(block, h1.data()), PS_SIDECAR_PAIRED);
+    ps_header_block_free(block);
+  }
+  params = SidecarParams(kSiteA.c_str(), h2.data());
+  ASSERT_EQ(PS_OK, ps_cache_write_headers_sidecar_site(
+                       ram, &params, names, values, 1, nullptr, nullptr));
+  ASSERT_EQ(PS_OK,
+            WriteOriginal(ram, kSiteA.c_str(), "<html>2</html>", h2.data()));
+  EXPECT_EQ(ReadStamp(ram, kSiteA.c_str()), want2);
+  ps_header_block_t* block = nullptr;
+  ASSERT_EQ(PS_OK, ps_headers_sidecar_read(ram, kUrl, kHost, kScheme,
+                                           kSiteA.c_str(), &block));
+  EXPECT_EQ(ps_header_block_pairing(block, h2.data()), PS_SIDECAR_PAIRED);
+  ps_header_block_free(block);
+
+  // Removal evicts this handle's RAM copies.
+  ASSERT_EQ(PS_OK,
+            ps_cache_remove_site(ram, kUrl, kHost, kScheme, kSiteA.c_str()));
+  EXPECT_EQ(ReadStamp(ram, kSiteA.c_str()), "<miss>");
+  EXPECT_FALSE(Has(ram, kSiteA.c_str(), PS_SENTINEL_HEADERS_SIDECAR));
 }
 
 }  // namespace

@@ -180,11 +180,51 @@ another class asks for it; the generic sentinel write refuses it. A durable
 original written for the key removes the key's marker in the same call. The id
 is reserved for the optimizer's own writer and may never be reused.
 
-**The per-site purge epoch is a max-merge, clamped to the present.** A write at
-or below the stored value is a successful no-op, across threads and processes,
-and a value more than 5 seconds in the future is refused. Both are guarantees a
-caller builds on: a front end that loses either would mark entries purged
-forever, or un-purge them.
+**The per-site purge epoch is a max-merge, clamped to the present, and it
+lives outside the volume.** It is one file per site,
+`<volume_path>.purge-epoch.<site>` (64 lowercase hex), holding the single
+line `pspe1 <seconds>\n`, with a `<…>.lock` file beside it that writers hold
+an exclusive OS advisory lock on (`fcntl(F_SETLKW)` on POSIX, `LockFileEx` on
+Windows; a process-wide mutex covers threads, since POSIX record locks belong
+to the process). A write reads the current value under the lock and replaces
+the file only with a larger value, through a temp file that is flushed and
+renamed over it (`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING |
+MOVEFILE_WRITE_THROUGH` on Windows), so a crash leaves the previous value. A
+value more than 5 seconds in the future is refused. Reads take no lock:
+the file is only ever replaced whole.
+
+Three guarantees a caller builds on:
+
+- a lower value never replaces a higher one, across threads and processes;
+- a missing file reads 0, and a file that does not parse is
+  `PS_ERR_CORRUPTED`, never 0, so the caller fences the whole site rather
+  than un-purge anything (the next write replaces it with the larger of its
+  value and the current time);
+- the record cannot be reclaimed. It is outside the volume because the
+  volume's reclamation (per-stripe logs, full directory buckets, chain
+  carry-forward) has no ordering against the entries the epoch fences, so a
+  record inside it could vanish while older entries survive.
+
+It is deliberately NOT keyed by the volume generation. A recreated volume
+holds no entry from before, and the epoch only fences entries stored at or
+before it, so an epoch that outlives a recreate can only fence more than
+needed until the next store (fail closed), and a missing one fences nothing
+the new volume holds. Keying by generation would instead lose the epoch on
+any generation change that is not a recreate.
+
+**Removal is per process for the RAM tier.** `ps_cache_remove_site` (like
+`ps_cache_remove`) removes the key from the volume and evicts this process's
+RAM-tier copies of it, so no later read in this process returns them.
+Another process's RAM tier is its own: a peer can keep answering from a copy
+it already holds. A caller whose correctness depends on a removal (a purge)
+must therefore fence its peers itself, for example with the purge epoch
+above, rather than rely on the removal reaching them.
+
+**Legacy sidecar readers fail closed on the paired format.** The C++
+`ParseHeadersSidecar` (fields only, used by the in-tree replay paths) reads a
+format-2 block as absent, because it cannot check the pairing; a replay that
+needs a block then falls through. Pairing-aware readers use
+`ParseHeadersSidecarBlock` (and `ps_headers_sidecar_read` through the C API).
 
 The HTML cacheability report entry points (`ps_html_store_classify`,
 `ps_html_decision_format`, `ps_html_store_reason_name`, PS_API 1.12) are pure

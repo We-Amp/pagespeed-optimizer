@@ -102,6 +102,7 @@ gtest_test(
     deps = [
         "//lib/cache:headers_sidecar",
         "//lib/cache:pagespeed_cache",
+        "//lib/cache:site_purge_epoch",
         "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",
         "//lib/classify:capability_mask",

@@ -13,6 +13,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <random>
 #include <memory>
 #include <span>
 #include <string>
@@ -24,10 +27,16 @@
 #include "gtest/gtest.h"
 #include "lib/cache/cache.h"
 #include "lib/cache/headers_sidecar.h"
+#include "lib/cache/site_purge_epoch.h"
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
 #include "test/test_util/temp_dir.h"
+
+#ifndef _WIN32
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace pagespeed {
 namespace {
@@ -300,7 +309,7 @@ TEST_F(SiteHtmlStoreTest, ALowerEpochIsASuccessfulNoOp) {
 }
 
 TEST_F(SiteHtmlStoreTest, AFutureEpochIsRefused) {
-  const uint64_t skew = PageSpeedCache::kSitePurgeEpochSkewSeconds;
+  const uint64_t skew = kSitePurgeEpochSkewSeconds;
   EXPECT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow + skew, kNow));
   auto refused = cache_->WriteSitePurgeEpoch(kSiteA, kNow + skew + 1, kNow);
   ASSERT_FALSE(refused.has_value());
@@ -308,9 +317,26 @@ TEST_F(SiteHtmlStoreTest, AFutureEpochIsRefused) {
   EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow + skew);
 }
 
-TEST_F(SiteHtmlStoreTest, AnEmptySiteHasNoEpoch) {
-  EXPECT_FALSE(cache_->WriteSitePurgeEpoch("", kNow, kNow).has_value());
-  EXPECT_FALSE(cache_->ReadSitePurgeEpoch("").has_value());
+TEST_F(SiteHtmlStoreTest, OnlyASiteIdNamesAnEpoch) {
+  const std::string upper(64, 'A');
+  const std::string short_site = kSiteA.substr(1);
+  for (std::string_view bad :
+       {std::string_view(""), std::string_view("../../etc/passwd"),
+        std::string_view(upper), std::string_view(short_site)}) {
+    SCOPED_TRACE(std::string(bad));
+    EXPECT_FALSE(cache_->WriteSitePurgeEpoch(bad, kNow, kNow).has_value());
+    EXPECT_FALSE(cache_->ReadSitePurgeEpoch(bad).has_value());
+  }
+}
+
+TEST_F(SiteHtmlStoreTest, TheEpochIsAFileBesideTheVolume) {
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 3, kNow));
+  const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
+  EXPECT_EQ(path, cache_path_ + ".purge-epoch." + kSiteA);
+  std::ifstream in(path, std::ios::binary);
+  std::string content((std::istreambuf_iterator<char>(in)),
+                      std::istreambuf_iterator<char>());
+  EXPECT_EQ(content, "pspe1 " + std::to_string(kNow - 3) + "\n");
 }
 
 TEST_F(SiteHtmlStoreTest, RemovingTheUrlLeavesTheEpoch) {
@@ -320,24 +346,49 @@ TEST_F(SiteHtmlStoreTest, RemovingTheUrlLeavesTheEpoch) {
   EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 1);
 }
 
-TEST_F(SiteHtmlStoreTest, ManyRisingWritesStayWithinTheSlotBound) {
-  for (uint64_t i = 0; i < 3 * PageSpeedCache::kSitePurgeEpochSlots; ++i) {
-    ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 1000 + i, kNow));
+TEST_F(SiteHtmlStoreTest, ACrashBeforeTheRenameLeavesTheOldValue) {
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 100, kNow));
+  const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
+  // A writer that died after writing its temp file and before the rename.
+  {
+    std::ofstream tmp(path + ".tmp", std::ios::binary | std::ios::trunc);
+    tmp << "pspe1 " << (kNow - 10) << "\n";
   }
-  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(),
-            kNow - 1000 + 3 * PageSpeedCache::kSitePurgeEpochSlots - 1);
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 100);
+  // The next writer replaces the stale temp file and lands its own value.
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 50, kNow));
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow - 50);
+  EXPECT_FALSE(std::filesystem::exists(path + ".tmp"));
 }
 
-TEST_F(SiteHtmlStoreTest, RacingWritersOnSeparateHandlesLeaveTheLarger) {
-  // Two handles on one volume stand in for two processes: each thread has
-  // its own handle and its own in-process lock, so only the storage layer
-  // is shared, as it is across processes.
+TEST_F(SiteHtmlStoreTest, AnUnparseableFileIsAnErrorNeverZero) {
+  const std::string path = SitePurgeEpochPath(cache_path_, kSiteA);
+  for (std::string_view content :
+       {std::string_view(""), std::string_view("pspe1 123"),
+        std::string_view("pspe1 \n"), std::string_view("pspe1 12x\n"),
+        std::string_view("pspe1 012\n"), std::string_view("pspe2 12\n"),
+        std::string_view("pspe1 12\nextra")}) {
+    SCOPED_TRACE(std::string(content));
+    {
+      std::ofstream out(path, std::ios::binary | std::ios::trunc);
+      out << content;
+    }
+    auto read = cache_->ReadSitePurgeEpoch(kSiteA);
+    ASSERT_FALSE(read.has_value()) << "an unreadable epoch read as a value";
+    EXPECT_EQ(read.error(), cyclone::CacheError::Corrupted);
+  }
+  // A write heals it fail-closed: the larger of its value and now.
+  ASSERT_TRUE(cache_->WriteSitePurgeEpoch(kSiteA, kNow - 500, kNow));
+  EXPECT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), kNow);
+}
+
+TEST_F(SiteHtmlStoreTest, RacingThreadsOnSeparateHandlesLeaveTheLarger) {
+  // Values 32 s apart: the pair a slot-per-residue design would lose.
   auto other = Open();
   ASSERT_NE(other, nullptr);
   constexpr int kRounds = 200;
   for (int round = 0; round < kRounds; ++round) {
-    const uint64_t base = kNow - 100'000 + static_cast<uint64_t>(round) * 10;
-    // Alternate which handle carries the larger value.
+    const uint64_t base = kNow - 100'000 + static_cast<uint64_t>(round) * 100;
     PageSpeedCache* low = (round % 2 == 0) ? cache_.get() : other.get();
     PageSpeedCache* high = (round % 2 == 0) ? other.get() : cache_.get();
     std::atomic<int> ready{0};
@@ -347,16 +398,154 @@ TEST_F(SiteHtmlStoreTest, RacingWritersOnSeparateHandlesLeaveTheLarger) {
       }
       EXPECT_TRUE(c->WriteSitePurgeEpoch(kSiteA, value, kNow).has_value());
     };
-    std::thread t1(run, low, base + 1);
-    std::thread t2(run, high, base + 3);
+    std::thread t1(run, low, base);
+    std::thread t2(run, high, base + 32);
     t1.join();
     t2.join();
-    ASSERT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), base + 3)
-        << "round " << round;
-    ASSERT_EQ(other->ReadSitePurgeEpoch(kSiteA).value(), base + 3)
+    ASSERT_EQ(cache_->ReadSitePurgeEpoch(kSiteA).value(), base + 32)
         << "round " << round;
   }
 }
+
+// ------------------------------------------------------------ RAM tier
+//
+// The fixture's handles run with the RAM tier on (the cache's default), so
+// a second read of an entry on the same handle is answered from it.
+
+TEST_F(SiteHtmlStoreTest, RemoveEvictsThisProcesssRamCopies) {
+  const auto h = Hash(6);
+  WriteOriginal(kSiteA, "<html>ram</html>", &h);
+  WriteMarkdown(kSiteA, "# ram");
+  WriteMarker(kSiteA);
+  for (int i = 0; i < 2; ++i) {  // populate the RAM tier
+    ASSERT_TRUE(cache_->ReadOriginalAlternate(kUrl, kHost, kScheme, kSiteA));
+    ASSERT_TRUE(
+        cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkdownId, kSiteA));
+    ASSERT_TRUE(cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkerId, kSiteA));
+  }
+  ASSERT_TRUE(cache_->Remove(kUrl, kHost, kScheme, kSiteA));
+  EXPECT_FALSE(cache_->ReadOriginalAlternate(kUrl, kHost, kScheme, kSiteA));
+  EXPECT_FALSE(cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkdownId, kSiteA));
+  EXPECT_FALSE(cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkerId, kSiteA));
+}
+
+TEST_F(SiteHtmlStoreTest, StampPairingAndMarkerHoldThroughTheRamTier) {
+  const auto h1 = Hash(7);
+  const auto h2 = Hash(8);
+  const std::vector<HeaderField> headers = {{"Referrer-Policy", "x"}};
+  ASSERT_TRUE(cache_->WriteHeadersSidecar(kUrl, kHost, kScheme, headers,
+                                          kSiteA, h1));
+  WriteOriginal(kSiteA, "<html>1</html>", &h1);
+  WriteMarker(kSiteA);
+  for (int i = 0; i < 3; ++i) {  // the later reads come from RAM
+    auto orig = cache_->ReadOriginalAlternate(kUrl, kHost, kScheme, kSiteA);
+    ASSERT_TRUE(orig.has_value());
+    EXPECT_EQ(orig->metadata.origin_html_hash, h1);
+    auto side = cache_->ReadHeadersSidecar(kUrl, kHost, kScheme, kSiteA);
+    ASSERT_TRUE(side.has_value());
+    auto block =
+        ParseHeadersSidecarBlock(PageSpeedCache::HeadersSidecarPayload(*side));
+    ASSERT_TRUE(block.has_value());
+    ASSERT_TRUE(block->pairing_hash.has_value());
+    EXPECT_EQ(*block->pairing_hash, h1);
+    ASSERT_TRUE(cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkerId, kSiteA));
+  }
+  // Re-store on the same handle: the RAM copies of the old sidecar, the old
+  // original and the marker must not answer afterwards.
+  ASSERT_TRUE(cache_->WriteHeadersSidecar(kUrl, kHost, kScheme, headers,
+                                          kSiteA, h2));
+  WriteOriginal(kSiteA, "<html>2</html>", &h2);
+  auto orig = cache_->ReadOriginalAlternate(kUrl, kHost, kScheme, kSiteA);
+  ASSERT_TRUE(orig.has_value());
+  EXPECT_EQ(orig->metadata.origin_html_hash, h2);
+  auto side = cache_->ReadHeadersSidecar(kUrl, kHost, kScheme, kSiteA);
+  ASSERT_TRUE(side.has_value());
+  auto block =
+      ParseHeadersSidecarBlock(PageSpeedCache::HeadersSidecarPayload(*side));
+  ASSERT_TRUE(block.has_value());
+  EXPECT_EQ(*block->pairing_hash, h2);
+  EXPECT_FALSE(cache_->ReadAlternate(kUrl, kHost, kScheme, kMarkerId, kSiteA))
+      << "the marker survived a re-store in this process's RAM tier";
+}
+
+// ------------------------------------------------------------ processes
+
+#ifndef _WIN32
+// Real processes, not handles: each child writes through its own lock and
+// file descriptors, which is the case the OS advisory lock exists for.
+class SitePurgeEpochProcessTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    temp_dir_ = pagespeed::test::MakeTempDir();
+    volume_ = temp_dir_ + "/cache.vol";
+  }
+  void TearDown() override { std::filesystem::remove_all(temp_dir_); }
+
+  // Forks one child per entry of `values`; every child waits on `gate`,
+  // writes its values in order, and exits 0 only if every write succeeded.
+  void RunChildren(const std::vector<std::vector<uint64_t>>& values) {
+    int gate[2];
+    ASSERT_EQ(::pipe(gate), 0);
+    std::vector<pid_t> children;
+    for (const auto& mine : values) {
+      const pid_t pid = ::fork();
+      ASSERT_GE(pid, 0);
+      if (pid == 0) {
+        ::close(gate[1]);
+        char c;
+        (void)::read(gate[0], &c, 1);  // released when the parent closes
+        int rc = 0;
+        for (uint64_t v : mine) {
+          if (!WriteSitePurgeEpochFile(volume_, kSiteA, v, kNow).has_value()) {
+            rc = 1;
+          }
+        }
+        ::_exit(rc);
+      }
+      children.push_back(pid);
+    }
+    ::close(gate[0]);
+    ::close(gate[1]);  // EOF releases every child at once
+    for (pid_t pid : children) {
+      int status = 0;
+      ASSERT_EQ(::waitpid(pid, &status, 0), pid);
+      ASSERT_TRUE(WIFEXITED(status));
+      EXPECT_EQ(WEXITSTATUS(status), 0) << "a child's write failed";
+    }
+  }
+
+  std::string temp_dir_;
+  std::string volume_;
+};
+
+TEST_F(SitePurgeEpochProcessTest, TwoProcessesThirtyTwoSecondsApart) {
+  for (int round = 0; round < 40; ++round) {
+    SCOPED_TRACE(round);
+    const uint64_t base = kNow - 100'000 + static_cast<uint64_t>(round) * 100;
+    if (round % 2 == 0) {
+      RunChildren({{base}, {base + 32}});
+    } else {
+      RunChildren({{base + 32}, {base}});
+    }
+    ASSERT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), base + 32);
+  }
+}
+
+TEST_F(SitePurgeEpochProcessTest, ManyProcessesOfRandomValuesLeaveTheMax) {
+  std::mt19937_64 rng(12345);
+  std::uniform_int_distribution<uint64_t> dist(kNow - 50'000, kNow);
+  std::vector<std::vector<uint64_t>> values(6);
+  uint64_t max = 0;
+  for (auto& mine : values) {
+    for (int i = 0; i < 150; ++i) {
+      mine.push_back(dist(rng));
+      max = std::max(max, mine.back());
+    }
+  }
+  RunChildren(values);
+  EXPECT_EQ(ReadSitePurgeEpochFile(volume_, kSiteA).value(), max);
+}
+#endif  // !_WIN32
 
 }  // namespace
 }  // namespace pagespeed

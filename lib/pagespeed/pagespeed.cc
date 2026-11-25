@@ -1909,6 +1909,8 @@ extern "C" ps_error_t ps_cache_write_site_purge_epoch(ps_cache_t* cache,
         SetLastError(
             "purge epoch is later than the current time plus the allowed "
             "skew; pass min(observed, now)");
+      } else {
+        SetLastError("the purge epoch file could not be read or written");
       }
       return MapError(result.error());
     }
@@ -1932,7 +1934,14 @@ extern "C" ps_error_t ps_cache_read_site_purge_epoch(ps_cache_t* cache,
   if (err != PS_OK) return err;
   try {
     auto result = cache->cache->ReadSitePurgeEpoch(site_view);
-    if (!result.has_value()) return MapError(result.error());
+    if (!result.has_value()) {
+      if (result.error() == cyclone::CacheError::Corrupted) {
+        SetLastError(
+            "the purge epoch file is unreadable; treat every entry of the "
+            "site as purged");
+      }
+      return MapError(result.error());
+    }
     *out_epoch_s = *result;
     return PS_OK;
   } catch (const std::exception& e) {

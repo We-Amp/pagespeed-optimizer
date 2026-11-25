@@ -38,6 +38,7 @@ inline int chmod(const char*, int) { return 0; }
 #include <vector>
 
 #include "lib/base/message_handler.h"
+#include "lib/cache/site_purge_epoch.h"
 #include "lib/classify/option_context.h"
 // The storage layer's on-disk format major (VolumeHeader::kFormatVersionMajor)
 // is what the volume filename's fingerprint encodes, and the sweep below has
@@ -835,7 +836,9 @@ PageSpeedCache::WriteOriginalAlternate(std::string_view url,
                             "Durable original", &originals_unlink_failed_);
 
   // A re-store of the original clears the key's withheld marker in the same
-  // call.  The marker records that the Markdown copy of ONE original was
+  // call.  (On a chain the storage layer retains across a wrap, removing one
+  // alternate can drop the whole entry; that only costs a re-store and is
+  // fail-closed.)  The marker records that the Markdown copy of ONE original was
   // permanently refused; a new original — even one with the same bytes,
   // since refusals such as a hash mismatch or a size cap are about the copy
   // that was read, not about the page — gets a fresh derivation.  Removed
@@ -1177,7 +1180,7 @@ PageSpeedCache::ReadHeadersSidecarByKey(const cyclone::CacheKey& key) {
   // parse as this format is not this class — a peer speaking a version this
   // build does not have, or a slot someone else wrote — and the caller gets
   // the class or it gets nothing.
-  if (!ParseHeadersSidecar(HeadersSidecarPayload(*result)).has_value()) {
+  if (!ParseHeadersSidecarBlock(HeadersSidecarPayload(*result)).has_value()) {
     return std::unexpected(cyclone::CacheError::NotFound);
   }
   return result;
@@ -1198,132 +1201,48 @@ std::string_view PageSpeedCache::HeadersSidecarPayload(
 
 namespace {
 
-// Payload of one purge-epoch slot, stored as the alternate's header (what a
-// chain listing returns) and as its content.
-//   [1B format version == kSitePurgeEpochFormatVersion][8B epoch, big-endian]
-constexpr uint8_t kSitePurgeEpochFormatVersion = 1;
-constexpr size_t kSitePurgeEpochPayloadBytes = 9;
-
-std::array<std::byte, kSitePurgeEpochPayloadBytes> EncodeSitePurgeEpoch(
-    uint64_t epoch) {
-  std::array<std::byte, kSitePurgeEpochPayloadBytes> out{};
-  out[0] = std::byte{kSitePurgeEpochFormatVersion};
-  for (size_t i = 0; i < 8; ++i) {
-    out[1 + i] = static_cast<std::byte>((epoch >> (8 * (7 - i))) & 0xFF);
+cyclone::CacheError FromEpochError(SitePurgeEpochError e) {
+  switch (e) {
+    case SitePurgeEpochError::kInvalidArgument:
+      return cyclone::CacheError::InvalidArgument;
+    case SitePurgeEpochError::kCorrupted:
+      return cyclone::CacheError::Corrupted;
+    case SitePurgeEpochError::kIo:
+      break;
   }
-  return out;
-}
-
-// nullopt for anything that is not a slot this build wrote.
-std::optional<uint64_t> DecodeSitePurgeEpoch(std::span<const std::byte> in) {
-  if (in.size() != kSitePurgeEpochPayloadBytes ||
-      in[0] != std::byte{kSitePurgeEpochFormatVersion}) {
-    return std::nullopt;
-  }
-  uint64_t epoch = 0;
-  for (size_t i = 0; i < 8; ++i) {
-    epoch = (epoch << 8) | static_cast<uint64_t>(in[1 + i]);
-  }
-  return epoch;
+  return cyclone::CacheError::IoError;
 }
 
 }  // namespace
 
-cyclone::CacheKey PageSpeedCache::SitePurgeEpochKey(std::string_view site) {
-  // "pe1:" is this record's key-namespace version.  Every URL key's string
-  // carries "://" after its scheme (and after any "st1:"/"oc1:" prefix);
-  // this one never does, so the two cannot collide.
-  static constexpr std::string_view kPrefix = "pe1:";
-  std::string combined;
-  combined.reserve(kPrefix.size() + site.size());
-  combined.append(kPrefix);
-  combined.append(site);
-  return KeyInNamespace(combined);
-}
-
-std::expected<uint64_t, cyclone::CacheError>
-PageSpeedCache::ReadSitePurgeEpochLocked(const cyclone::CacheKey& key) {
-  auto listed = cache_->list_alternates_sync(key);
-  if (!listed.has_value()) {
-    if (listed.error() == cyclone::CacheError::NotFound ||
-        listed.error() == cyclone::CacheError::AlternateNotFound) {
-      return 0;
-    }
-    return std::unexpected(listed.error());
-  }
-  uint64_t epoch = 0;
-  for (const auto& alt : *listed) {
-    if (static_cast<size_t>(alt.id) >= kSitePurgeEpochSlots) continue;
-    auto value = DecodeSitePurgeEpoch(alt.header);
-    if (value.has_value()) epoch = std::max(epoch, *value);
-  }
-  return epoch;
-}
-
 std::expected<uint64_t, cyclone::CacheError> PageSpeedCache::ReadSitePurgeEpoch(
     std::string_view site) {
-  if (site.empty()) {
-    return std::unexpected(cyclone::CacheError::InvalidArgument);
+  auto read = ReadSitePurgeEpochFile(config_.volume_path, site);
+  if (!read.has_value()) {
+    if (read.error() == SitePurgeEpochError::kCorrupted && handler_ != nullptr) {
+      handler_->Warning(
+          "Purge epoch file for a site of %s is unreadable; every entry of "
+          "that site counts as purged until the next epoch write",
+          config_.volume_path.c_str());
+    }
+    return std::unexpected(FromEpochError(read.error()));
   }
-  std::shared_lock lock(reset_mutex_);
-  if (!cache_) {
-    return std::unexpected(cyclone::CacheError::NotInitialized);
-  }
-  return ReadSitePurgeEpochLocked(SitePurgeEpochKey(site));
+  return *read;
 }
 
 std::expected<void, cyclone::CacheError> PageSpeedCache::WriteSitePurgeEpoch(
     std::string_view site, uint64_t epoch_seconds, uint64_t now_seconds) {
-  if (site.empty()) {
-    return std::unexpected(cyclone::CacheError::InvalidArgument);
-  }
-  if (epoch_seconds > now_seconds + kSitePurgeEpochSkewSeconds) {
+  auto written = WriteSitePurgeEpochFile(config_.volume_path, site,
+                                         epoch_seconds, now_seconds);
+  if (!written.has_value()) {
     if (handler_ != nullptr) {
-      handler_->Warning("Purge epoch %" PRIu64
-                        " refused: it is later than now (%" PRIu64
-                        ") plus the allowed skew",
-                        epoch_seconds, now_seconds);
+      handler_->Warning("Purge epoch %" PRIu64 " not written for %s (%s)",
+                        epoch_seconds, config_.volume_path.c_str(),
+                        written.error() == SitePurgeEpochError::kInvalidArgument
+                            ? "invalid site or a time in the future"
+                            : "file error");
     }
-    return std::unexpected(cyclone::CacheError::InvalidArgument);
-  }
-  std::lock_guard serialise(site_purge_epoch_mutex_);
-  std::shared_lock lock(reset_mutex_);
-  if (!cache_) {
-    return std::unexpected(cyclone::CacheError::NotInitialized);
-  }
-  const auto key = SitePurgeEpochKey(site);
-  const auto slot =
-      static_cast<cyclone::AlternateId>(epoch_seconds % kSitePurgeEpochSlots);
-  const auto payload = EncodeSitePurgeEpoch(epoch_seconds);
-
-  // Two attempts: the second covers a writer of a smaller value that shared
-  // this slot and committed between this write's listing and its commit.
-  for (int attempt = 0; attempt < 2; ++attempt) {
-    auto current = ReadSitePurgeEpochLocked(key);
-    if (!current.has_value()) return std::unexpected(current.error());
-    if (epoch_seconds <= *current) return {};  // max-merge: nothing to raise
-
-    // Replacement of this slot's previous node is the storage layer's own
-    // (it unlinks a superseded same-id node on write); the slot held a
-    // smaller value or none, since the listing above found nothing as large.
-    auto wh =
-        cache_->write_alternate_sync(key, slot, kSitePurgeEpochPayloadBytes);
-    if (!wh) return std::unexpected(wh.error());
-    wh->set_header(payload);
-    auto written = wh->write_sync(payload);
-    if (!written) return std::unexpected(written.error());
-    auto closed = wh->close_sync();
-    if (!closed) return std::unexpected(closed.error());
-  }
-  auto after = ReadSitePurgeEpochLocked(key);
-  if (!after.has_value()) return std::unexpected(after.error());
-  if (*after < epoch_seconds) {
-    if (handler_ != nullptr) {
-      handler_->Warning("Purge epoch %" PRIu64
-                        " did not persist (stored %" PRIu64 ")",
-                        epoch_seconds, *after);
-    }
-    return std::unexpected(cyclone::CacheError::Busy);
+    return std::unexpected(FromEpochError(written.error()));
   }
   return {};
 }

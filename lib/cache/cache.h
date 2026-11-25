@@ -20,7 +20,6 @@
 #include <expected>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <shared_mutex>
 #include <span>
@@ -850,7 +849,9 @@ class PageSpeedCache {
   // The returned ReadResult holds the RAW blob: this class carries a payload
   // format version, NOT an entry-metadata prefix, so the parsed `metadata` of
   // the result is meaningless and `content()` is not the accessor to use.
-  // Pass ReadHeadersSidecarPayload(result) to ParseHeadersSidecar.
+  // Pass HeadersSidecarPayload(result) to ParseHeadersSidecarBlock (either
+  // format) or ParseHeadersSidecar (format 1 only; a paired block reads as
+  // absent there).
   [[nodiscard]] std::expected<ReadResult, cyclone::CacheError>
   ReadHeadersSidecar(std::string_view url, std::string_view hostname,
                      std::string_view scheme, std::string_view site = {});
@@ -1026,43 +1027,27 @@ class PageSpeedCache {
 
   // ---- Per-site purge epoch ----
   //
-  // One small record per site, in the volume (not in any front end's own
-  // file cache, so wiping that leaves it): the time, in Unix seconds, of the
-  // last global purge that site's front end observed.  A front end treats an
-  // entry it stored at or before the epoch as purged.
+  // The time, in Unix seconds, of the last global purge one site's front end
+  // observed.  Kept in a small file beside this cache's volume, not in the
+  // volume (whose reclamation has no ordering against the entries the epoch
+  // fences); see lib/cache/site_purge_epoch.h for the path, the format, the
+  // locking and why it is not keyed by the volume generation.
   //
-  // The record lives under its own key, outside every URL's keyspace, so
-  // removing a URL (Remove, any site) never touches it.
+  // WRITE is a max-merge across threads and processes: a value at or below
+  // the stored one is a successful no-op.  A value later than `now_seconds`
+  // + kSitePurgeEpochSkewSeconds is InvalidArgument.  IoError when the file
+  // or its lock cannot be used.
   //
-  // WRITE IS A MAX-MERGE: a value at or below the stored one is a successful
-  // no-op, so racing writers end at the largest value, across processes.
-  // There is no compare-and-swap in the storage layer, so the record is a
-  // small set of slots (kSitePurgeEpochSlots alternates of the one key, slot
-  // = value mod the slot count): a writer only ever replaces the slot of its
-  // own value, and the epoch is the largest value over every slot.  Two
-  // writers lose a value only when they race inside one write's duration
-  // with values a multiple of kSitePurgeEpochSlots seconds apart; the write
-  // re-reads after it commits and repeats once if its value is no longer
-  // the maximum.
+  // READ is 0 when the site has no epoch file.  A file that exists and
+  // cannot be parsed is Corrupted, never 0: the caller must then treat every
+  // entry as purged.
   //
-  // CLAMP.  A value later than `now_seconds` + kSitePurgeEpochSkewSeconds is
-  // InvalidArgument: a future epoch would mark every entry stored before it
-  // as purged for as long as the clock takes to catch up.
-  //
-  // `site` is a site id (64 lowercase hex; the caller validates it, as for
-  // every sited method); empty is InvalidArgument — the unsited keyspace has
-  // no front end that owns it.
-  //
-  // The record is subject to the volume's own reclamation like any entry.
-  // Reclamation is positional, and an entry stored before the purge was
-  // written before the record, so it is reclaimed first.
-  static constexpr size_t kSitePurgeEpochSlots = 32;
-  static constexpr uint32_t kSitePurgeEpochSkewSeconds = 5;
+  // `site` must be a site id (64 lowercase hex); anything else, empty
+  // included, is InvalidArgument.
   [[nodiscard]] std::expected<void, cyclone::CacheError> WriteSitePurgeEpoch(
       std::string_view site, uint64_t epoch_seconds, uint64_t now_seconds);
-  // The stored epoch; 0 when the site has none.
-  [[nodiscard]] std::expected<uint64_t, cyclone::CacheError> ReadSitePurgeEpoch(
-      std::string_view site);
+  [[nodiscard]] std::expected<uint64_t, cyclone::CacheError>
+  ReadSitePurgeEpoch(std::string_view site);
 
   // Remove all alternates for a URL.
   [[nodiscard]] std::expected<void, cyclone::CacheError> Remove(
@@ -1346,16 +1331,6 @@ class PageSpeedCache {
   // Compose a CacheKey from URL, hostname, and scheme (normalizes hostname).
   cyclone::CacheKey ComposeKey(std::string_view url, std::string_view hostname,
                                std::string_view scheme, std::string_view site);
-  // The key of a site's purge-epoch record.  Composed in the same namespace
-  // as every other key, from a string no URL key can produce (every URL key
-  // carries "://").
-  static cyclone::CacheKey SitePurgeEpochKey(std::string_view site);
-  // Max over the epoch record's slots; 0 when there is none.
-  std::expected<uint64_t, cyclone::CacheError> ReadSitePurgeEpochLocked(
-      const cyclone::CacheKey& key);
-  // Serialises this process's epoch writes; cross-process writers are
-  // handled by the slot scheme (see WriteSitePurgeEpoch).
-  std::mutex site_purge_epoch_mutex_;
 
   // Drop the node currently carrying `id` on this key's chain, and this
   // process's RAM copy of it, so that the write about to follow REPLACES
