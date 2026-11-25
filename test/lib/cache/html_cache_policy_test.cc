@@ -1460,14 +1460,20 @@ TEST(HtmlCachePolicyTest, ServeAgeArithmetic) {
   EXPECT_EQ(v.age_s, 100u);
   EXPECT_EQ(v.action, HtmlServeAction::kValidate);
 
-  // A clock that stepped back is not negative age.
+  // A clock that stepped back a little is not negative age.
   HtmlServeRequest back = Req(HtmlCacheMode::kServeCachedHtml);
-  back.now_seconds = kStoredAt - 500;
+  back.now_seconds = kStoredAt - kHtmlServeSkewSeconds;
   v = ClassifyHtmlForServe(back, Fresh());
   EXPECT_EQ(v.age_s, 0u);
   EXPECT_EQ(v.action, HtmlServeAction::kServeHtml);
   v = ClassifyHtmlForServe(back, f);
   EXPECT_EQ(v.age_s, 40u);
+  // Further than the skew bound, the entry's age cannot be known and it is
+  // not served.
+  back.now_seconds = kStoredAt - 500;
+  v = ClassifyHtmlForServe(back, Fresh());
+  EXPECT_EQ(v.action, HtmlServeAction::kFallThrough);
+  EXPECT_EQ(v.reason, HtmlServeReason::kSkew);
 
   // Saturates rather than wrapping.
   StoredHtmlFacts huge = Fresh();
