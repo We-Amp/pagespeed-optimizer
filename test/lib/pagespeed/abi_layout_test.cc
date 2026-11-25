@@ -231,7 +231,7 @@ static_assert(offsetof(ps_cache_control_t, s_maxage) == 12);
 static_assert(offsetof(ps_cache_control_t, cc_flags) == 16);
 
 // ---------------------------------------------------------------------------
-// HTML serve policy structs (new at 1.13). Each carries struct_size; fields
+// HTML serve policy structs (new at 1.14). Each carries struct_size; fields
 // are appended only. The two hash arrays of the facts struct and the entity
 // tag buffer of the verdict are fixed-size, so no pointer crosses the
 // boundary in either direction for them.

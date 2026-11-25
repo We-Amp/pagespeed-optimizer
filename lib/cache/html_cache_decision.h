@@ -126,7 +126,7 @@ inline constexpr size_t kMaxHtmlCacheDecisionVaryBytes = 1024;
 bool HtmlCacheDecisionIsStoreSide(
     std::span<const HtmlCacheDecisionField> fields);
 
-// The gate the C API applies (PS_API 1.13).  A line whose mode serves
+// The gate the C API applies (PS_API 1.14).  A line whose mode serves
 // (serve-variants or serve-cached-html) is admitted whole; the formatter's
 // grammar is then the only check.  Any other line must state nothing beyond
 // the store side and the report, as HtmlCacheDecisionIsStoreSide requires,

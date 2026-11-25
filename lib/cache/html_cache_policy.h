@@ -361,7 +361,7 @@ enum class HtmlServeReason : uint8_t {
   kAbsent,
   kBindingStale,
   kParentStale,
-  // Appended (C API 1.13).  The numeric values are ABI: append only.
+  // Appended (C API 1.14).  The numeric values are ABI: append only.
   kMethod,
   kRange,
   kCors,

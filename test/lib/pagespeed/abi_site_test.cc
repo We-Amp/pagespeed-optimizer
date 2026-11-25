@@ -416,7 +416,7 @@ TEST_F(AbiSiteNotifyTest, EveryRefusalRuleSendsNothing) {
   EXPECT_FALSE(frames[0].from_module);
 }
 
-// PS_API 1.13: a page the module stored itself, for a host it vouched for,
+// PS_API 1.14: a page the module stored itself, for a host it vouched for,
 // may be named in an HTML notification, with an agent request; the frame
 // carries all three flags.
 TEST_F(AbiSiteNotifyTest, AStoredPageNotificationCarriesTheStoredFlag) {

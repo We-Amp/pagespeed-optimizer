@@ -5291,7 +5291,7 @@ TEST(PageSpeedCApi, HtmlStoreClassifyModes) {
   }
   EXPECT_NE(ClassifyStore(kStorableHeaders).action, 1);
   EXPECT_NE(ClassifyStore(kStorableHeaders).action, 2);
-  // The serve modes (PS_API 1.13) store exactly what report-only reports it
+  // The serve modes (PS_API 1.14) store exactly what report-only reports it
   // would, with the same reason and lifetime.
   const StoreResult report = ClassifyStore(kStorableHeaders);
   EXPECT_EQ(report.action, PS_HTML_STORE_ACTION_WOULD_STORE);
@@ -5357,7 +5357,7 @@ TEST(PageSpeedCApi, HtmlDecisionFormatRefusesServeFactsOnStoreSideLines) {
       -2);
 }
 
-// PS_API 1.13: what report-only lines may now carry, and serve-side lines.
+// PS_API 1.14: what report-only lines may now carry, and serve-side lines.
 TEST(PageSpeedCApi, HtmlDecisionFormatAdmitsTheSurface113Adds) {
   char buf[512];
   size_t len = 0;
@@ -5471,7 +5471,7 @@ TEST(PageSpeedCApi, HtmlStoreReasonNames) {
 }
 
 // ================================================================
-// HTML serve policy (PS_API 1.13)
+// HTML serve policy (PS_API 1.14)
 // ================================================================
 //
 // The policy runner below is the proof of the library's HTML cache policy:

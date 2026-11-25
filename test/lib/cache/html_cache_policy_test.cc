@@ -2077,7 +2077,7 @@ TEST(HtmlCachePolicyTest, StoredFieldsAgreeWithTheStoreVerdict) {
   }
 }
 
-// ---- C API 1.13 serve rules -----------------------------------------------
+// ---- C API 1.14 serve rules -----------------------------------------------
 
 HtmlServeRequest FreshMarkdownRequest() {
   HtmlServeRequest r;

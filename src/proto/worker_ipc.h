@@ -82,7 +82,7 @@ inline constexpr uint8_t kNotifyFlagFromModule = 0x02;
 // Set only by libpagespeed, on a frame from a caller whose
 // ps_notify_params_t predates the site fields.
 inline constexpr uint8_t kNotifyFlagLegacyExCaller = 0x04;
-// The module's HTML store wrote the entry the frame names (C API 1.13).
+// The module's HTML store wrote the entry the frame names (C API 1.14).
 // Added without a version bump: a reader that does not know the bit rejects
 // only the frames that carry it, as a malformed frame.
 inline constexpr uint8_t kNotifyFlagHtmlStored = 0x08;

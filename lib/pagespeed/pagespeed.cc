@@ -1485,7 +1485,7 @@ extern "C" const char* ps_html_store_reason_name(int reason) {
       .data();
 }
 
-// ---- HTML serve policy (PS_API 1.13) ----
+// ---- HTML serve policy (PS_API 1.14) ----
 //
 // Thin adapters again: the C structs become the C++ request and facts, and
 // the verdict comes back through the out struct.  Nothing here holds state or
@@ -1493,9 +1493,9 @@ extern "C" const char* ps_html_store_reason_name(int reason) {
 
 namespace {
 
-// The PS_API 1.13 sizes: the end of the last field, rounded up to the
+// The PS_API 1.14 sizes: the end of the last field, rounded up to the
 // struct's alignment.  Pinned so that a later append keeps accepting callers
-// built against 1.13 (the >= rule), and so that the sizes are stated, not
+// built against 1.14 (the >= rule), and so that the sizes are stated, not
 // assumed: they are also pinned in the ABI golden.
 template <typename T>
 constexpr size_t RoundUpToAlign(size_t n) {
@@ -1507,10 +1507,10 @@ constexpr size_t kServeRequestSizeV1_13 =
 constexpr size_t kStoredFactsSizeV1_13 = RoundUpToAlign<ps_html_stored_facts_t>(
     offsetof(ps_html_stored_facts_t, markdown_hash) + PS_HTML_HASH_BYTES);
 static_assert(kServeRequestSizeV1_13 == sizeof(ps_html_serve_request_t),
-              "ps_html_serve_request_t grew: keep this constant at its 1.13 "
+              "ps_html_serve_request_t grew: keep this constant at its 1.14 "
               "value and relax to the >= form");
 static_assert(kStoredFactsSizeV1_13 == sizeof(ps_html_stored_facts_t),
-              "ps_html_stored_facts_t grew: keep this constant at its 1.13 "
+              "ps_html_stored_facts_t grew: keep this constant at its 1.14 "
               "value and relax to the >= form");
 static_assert(sizeof(void*) != 8 || sizeof(ps_html_serve_request_t) == 64,
               "ps_html_serve_request_t is 64 bytes on 64-bit targets");

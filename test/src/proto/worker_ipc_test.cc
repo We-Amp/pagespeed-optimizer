@@ -1194,7 +1194,7 @@ TEST(CacheNotificationTest, TheMiddlewaresVouchedFrameIsReadAsVouched) {
   EXPECT_EQ(Rejection(wire).reason, IpcRejectReason::kMalformed);
 }
 
-// The HTML-stored bit (C API 1.13) is bit three, rides beside from_module
+// The HTML-stored bit (C API 1.14) is bit three, rides beside from_module
 // and round-trips; the wire version does not move for it.
 TEST(CacheNotificationTest, HtmlStoredFlagIsBitThree) {
   CacheNotification n = BaseNotification();
