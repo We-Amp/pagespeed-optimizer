@@ -1056,27 +1056,6 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
 
 namespace {
 
-bool EqualsIgnoreAsciiCase(std::string_view a, std::string_view b) {
-  if (a.size() != b.size()) return false;
-  for (size_t i = 0; i < a.size(); ++i) {
-    auto lower = [](char c) {
-      return (c >= 'A' && c <= 'Z') ? static_cast<char>(c | 0x20) : c;
-    };
-    if (lower(a[i]) != lower(b[i])) return false;
-  }
-  return true;
-}
-
-std::string_view TrimOws(std::string_view s) {
-  while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) {
-    s.remove_prefix(1);
-  }
-  while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) {
-    s.remove_suffix(1);
-  }
-  return s;
-}
-
 // RFC 9111 section 1.2.2 delta-seconds, saturating at INT32_MAX (2^31, the
 // section's own ceiling, minus one so it fits the signed field); -1 when the
 // value is not delta-seconds at all.  A quoted value is accepted, as section
@@ -1107,15 +1086,15 @@ void ApplyHtmlRequestCacheControl(std::string_view cache_control,
     const std::string_view name = TrimOws(item.substr(0, eq));
     const std::string_view arg =
         eq == std::string_view::npos ? std::string_view() : item.substr(eq + 1);
-    if (EqualsIgnoreAsciiCase(name, "no-cache")) {
+    if (EqualsIgnoreCase(name, "no-cache")) {
       request->cache_control_no_cache = true;
-    } else if (EqualsIgnoreAsciiCase(name, "max-age") ||
-               EqualsIgnoreAsciiCase(name, "min-fresh")) {
+    } else if (EqualsIgnoreCase(name, "max-age") ||
+               EqualsIgnoreCase(name, "min-fresh")) {
       const int64_t seconds = ParseDeltaSeconds(arg);
       if (seconds < 0) {
         // Not delta-seconds: the strictest reading, which falls through.
         request->max_age = 0;
-      } else if (EqualsIgnoreAsciiCase(name, "max-age")) {
+      } else if (EqualsIgnoreCase(name, "max-age")) {
         request->max_age = request->max_age < 0
                                ? seconds
                                : std::min(request->max_age, seconds);
