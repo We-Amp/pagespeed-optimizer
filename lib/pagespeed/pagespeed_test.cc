@@ -5355,6 +5355,60 @@ TEST(PageSpeedCApi, HtmlDecisionFormatRefusesServeFactsOnStoreSideLines) {
   EXPECT_EQ(
       ps_html_decision_format(ro_keys, ro_unpaired, 2, buf, sizeof(buf), &len),
       -2);
+
+  // Mode off is a store-side line too: no serve action, serve reason or serve
+  // key gets through it.
+  struct Pair {
+    const char* key;
+    const char* value;
+  };
+  const Pair serve_facts[] = {{"action", "would_serve"},
+                              {"action", "served_markdown"},
+                              {"action", "served_html"},
+                              {"action", "serve_markdown"},
+                              {"action", "validate"},
+                              {"action", "stored"},
+                              {"reason", "fresh"},
+                              {"reason", "withheld"},
+                              {"reason", "skew"},
+                              {"reason", "binding_stale"},
+                              {"reason", "sidecar_unpaired"},
+                              {"reason", "transport_conflict"},
+                              {"request", "no_cache"},
+                              {"variant", "markdown"},
+                              {"binding", "live"},
+                              {"age_s", "1"}};
+  for (const Pair& f : serve_facts) {
+    const char* keys[] = {"mode", f.key};
+    const char* values[] = {"off", f.value};
+    len = 99;
+    EXPECT_EQ(ps_html_decision_format(keys, values, 2, buf, sizeof(buf), &len),
+              -2)
+        << f.key << "=" << f.value;
+    EXPECT_EQ(len, 0u) << f.key << "=" << f.value;
+  }
+
+  // A serve-mode line is admitted whole, but only within the grammar: an
+  // action or reason outside the closed sets is still refused.
+  for (const char* mode : {"serve-variants", "serve-cached-html"}) {
+    const Pair unknown[] = {{"action", "serve_everything"},
+                            {"action", "served"},
+                            {"action", "SERVED_MARKDOWN"},
+                            {"reason", "not_a_reason"},
+                            {"reason", "fresh:x"},
+                            {"reason", "Fresh"},
+                            {"variant", "html"},
+                            {"binding", "maybe"}};
+    for (const Pair& f : unknown) {
+      const char* keys[] = {"mode", f.key};
+      const char* values[] = {mode, f.value};
+      len = 99;
+      EXPECT_EQ(
+          ps_html_decision_format(keys, values, 2, buf, sizeof(buf), &len), -2)
+          << mode << " " << f.key << "=" << f.value;
+      EXPECT_EQ(len, 0u);
+    }
+  }
 }
 
 // PS_API 1.14: what report-only lines may now carry, and serve-side lines.

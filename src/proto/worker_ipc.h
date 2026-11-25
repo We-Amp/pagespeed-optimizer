@@ -84,11 +84,22 @@ inline constexpr uint8_t kNotifyFlagFromModule = 0x02;
 inline constexpr uint8_t kNotifyFlagLegacyExCaller = 0x04;
 // The module's HTML store wrote the entry the frame names (C API 1.14).
 // Added without a version bump: a reader that does not know the bit rejects
-// only the frames that carry it, as a malformed frame.
+// only the frames that carry it, as a malformed frame.  Valid only on a frame
+// that is from the module, host-vouched, sited and for HTML
+// (HtmlStoredShapeValid); any other frame carrying it is malformed, on the
+// way out and on the way in.
 inline constexpr uint8_t kNotifyFlagHtmlStored = 0x08;
 inline constexpr uint8_t kNotifyFlagsKnown =
     kNotifyFlagHostVouched | kNotifyFlagFromModule | kNotifyFlagLegacyExCaller |
     kNotifyFlagHtmlStored;
+
+// True unless `html_stored` is set on a frame that is not from the module,
+// not host-vouched, unsited, or not HTML.
+inline constexpr bool HtmlStoredShapeValid(bool html_stored, bool from_module,
+                                           bool host_vouched, bool sited,
+                                           bool is_html) {
+  return !html_stored || (from_module && host_vouched && sited && is_html);
+}
 
 // Why a notification was refused.  Deliberately distinguishes skew from
 // damage; see the kIpcVersion note above.

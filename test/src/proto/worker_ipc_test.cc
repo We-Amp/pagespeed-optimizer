@@ -1154,8 +1154,9 @@ TEST(CacheNotificationTest, AReservedFlagBitIsMalformedOnRead) {
     const IpcRejection r = Rejection(wire);
     EXPECT_EQ(r.reason, IpcRejectReason::kMalformed) << "bit " << bit;
   }
-  // Each known bit alone is accepted.
-  for (int bit = 0; bit < 4; ++bit) {
+  // Each known bit alone is accepted (the HTML-stored bit only in its own
+  // shape; see the tests below).
+  for (int bit = 0; bit < 3; ++bit) {
     std::vector<char> wire = BaseNotification().Serialize();
     wire.back() = static_cast<char>(1u << bit);
     CacheNotification decoded;
@@ -1194,14 +1195,72 @@ TEST(CacheNotificationTest, TheMiddlewaresVouchedFrameIsReadAsVouched) {
   EXPECT_EQ(Rejection(wire).reason, IpcRejectReason::kMalformed);
 }
 
-// The HTML-stored bit (C API 1.14) is bit three, rides beside from_module
-// and round-trips; the wire version does not move for it.
-TEST(CacheNotificationTest, HtmlStoredFlagIsBitThree) {
+// A frame in the one shape the HTML-stored bit is valid in.
+CacheNotification StoredPageNotification() {
   CacheNotification n = BaseNotification();
+  n.url = "/page.html";
+  n.content_type = ContentType::kHtml;
   n.site = kSite;
   n.from_module = true;
   n.host_vouched = true;
   n.html_stored = true;
+  return n;
+}
+
+// Every frame that carries the HTML-stored bit outside its shape (not from
+// the module, not vouched, unsited, not HTML): Serialize refuses it, and the
+// same frame forged on the wire is malformed.
+TEST(CacheNotificationTest, HtmlStoredOutsideItsShapeIsRefusedBothWays) {
+  std::vector<std::pair<const char*, CacheNotification>> shapes;
+  {
+    CacheNotification n = StoredPageNotification();
+    n.from_module = false;
+    shapes.emplace_back("not from the module", n);
+  }
+  {
+    CacheNotification n = StoredPageNotification();
+    n.host_vouched = false;
+    shapes.emplace_back("not vouched", n);
+  }
+  {
+    CacheNotification n = StoredPageNotification();
+    n.site.clear();
+    shapes.emplace_back("unsited", n);
+  }
+  {
+    CacheNotification n = StoredPageNotification();
+    n.content_type = ContentType::kCss;
+    shapes.emplace_back("not HTML", n);
+  }
+  {
+    CacheNotification n = StoredPageNotification();
+    n.from_module = false;
+    n.host_vouched = false;
+    n.site.clear();
+    n.content_type = ContentType::kCss;
+    shapes.emplace_back("nothing else", n);
+  }
+  for (const auto& [name, shape] : shapes) {
+    EXPECT_TRUE(shape.Serialize().empty()) << name;
+    CacheNotification without = shape;
+    without.html_stored = false;
+    std::vector<char> wire = without.Serialize();
+    ASSERT_FALSE(wire.empty()) << name;
+    CacheNotification decoded;
+    EXPECT_TRUE(CacheNotification::Deserialize(
+        std::string_view(wire.data(), wire.size()), &decoded))
+        << name << ": the frame without the bit is fine";
+    wire.back() = static_cast<char>(wire.back() | kNotifyFlagHtmlStored);
+    const IpcRejection r = Rejection(wire);
+    EXPECT_EQ(r.reason, IpcRejectReason::kMalformed) << name;
+    EXPECT_EQ(r.peer_version, kIpcVersion) << name;
+  }
+}
+
+// The HTML-stored bit (C API 1.14) is bit three, rides beside from_module
+// and round-trips in its shape; the wire version does not move for it.
+TEST(CacheNotificationTest, HtmlStoredFlagIsBitThree) {
+  CacheNotification n = StoredPageNotification();
   const std::vector<char> wire = n.Serialize();
   ASSERT_FALSE(wire.empty());
   EXPECT_EQ(0x0Bu, static_cast<uint8_t>(wire.back()));
