@@ -5653,8 +5653,9 @@ const char* ServeActionName(int action) {
       return "serve_markdown";
     case PS_HTML_SERVE_ACTION_VALIDATE:
       return "validate";
+    default:
+      return "malformed";
   }
-  return "malformed";
 }
 
 const char* StoreActionName(int action) {
@@ -5669,8 +5670,9 @@ const char* StoreActionName(int action) {
       return "would_store";
     case PS_HTML_STORE_ACTION_WOULD_STORE_NO_NOTIFY:
       return "would_store_no_notify";
+    default:
+      return "malformed";
   }
-  return "malformed";
 }
 
 int WithheldReasonValue(const std::string& name) {
@@ -6053,7 +6055,7 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
   }
   if (has_sidecar) {
     // A version byte and one header line; only its presence matters here.
-    const std::string block("\x01X-Policy: case\r\n", 18);
+    const std::string block = std::string(1, '\x01') + "X-Policy: case\r\n";
     if (!WriteBytes(
             cache->cache->WriteSentinel(kUrl, kHost, kScheme,
                                         pagespeed::SentinelId::kHeadersSidecar,
@@ -6166,11 +6168,12 @@ void RunInmRow(const nlohmann::json& in, const nlohmann::json& expect,
 // Age lines, for a plain storable page.
 void RunWriteParamsRow(const nlohmann::json& in, const nlohmann::json& expect,
                        RowRun* run) {
+  const nlohmann::json age = in.value("age", nlohmann::json::array());
   std::vector<std::string> lines;
-  for (const auto& l : in.value("age", nlohmann::json::array())) {
-    lines.push_back(l.get<std::string>());
-  }
+  lines.reserve(age.size());
+  for (const auto& l : age) lines.push_back(l.get<std::string>());
   std::vector<const char*> ptrs;
+  ptrs.reserve(lines.size());
   for (const std::string& l : lines) ptrs.push_back(l.c_str());
   ps_write_params_t params;
   ps_write_params_init_auto(&params);
