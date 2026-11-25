@@ -152,8 +152,39 @@ parse never consumes a prefix of a sidecar payload. That constraint is the
 reason the C surface needs no separate payload accessor — and therefore it may
 not be relaxed without either giving the class one or breaking every consumer
 that reads it the documented way. It costs the class one spare version value
-(2); a class that needs a third takes a new id, which is cheaper than the
-alternative.
+(2), which PS_API 1.13 spends on the paired form below; a class that needs a
+third takes a new id, which is cheaper than the alternative.
+
+**Pairing (PS_API 1.13).** `ps_cache_write_headers_sidecar_site` can bind a
+block to the durable original it belongs to, by that original's
+`origin_html_hash` stamp, and stores it as payload format 2: format 1 with the
+32-byte hash after the version byte. A reader that knows only format 1 reads a
+paired block as absent, which is the safe answer. `ps_headers_sidecar_read`
+parses either format into an owned block, and `ps_header_block_pairing` tells
+a block that belongs to the stored original from one that does not. Unpaired
+is a window by design, not a fault: a re-store writes the new block before the
+new original. A paired block may carry no field.
+
+The site-scoped HTML store surface (PS_API 1.13) carries three more
+constraints of this kind.
+
+**`ps_cache_remove_site` is not fenced against the optimizer.** A derivation
+already in flight for the key can write its Markdown copy after the removal
+returns. That copy is bound to the removed original's hash, so it is not served
+unless the original is stored again with identical bytes, and in that case
+serving it is correct.
+
+**The withheld marker is never readable as a page.** `PS_SENTINEL_MARKDOWN_WITHHELD`
+is sentinel-shaped, so no selection read returns it, and no exact-id reader of
+another class asks for it; the generic sentinel write refuses it. A durable
+original written for the key removes the key's marker in the same call. The id
+is reserved for the optimizer's own writer and may never be reused.
+
+**The per-site purge epoch is a max-merge, clamped to the present.** A write at
+or below the stored value is a successful no-op, across threads and processes,
+and a value more than 5 seconds in the future is refused. Both are guarantees a
+caller builds on: a front end that loses either would mark entries purged
+forever, or un-purge them.
 
 The HTML cacheability report entry points (`ps_html_store_classify`,
 `ps_html_decision_format`, `ps_html_store_reason_name`, PS_API 1.12) are pure
