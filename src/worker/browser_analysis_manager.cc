@@ -24,6 +24,7 @@
 #include "absl/strings/str_format.h"
 #include "lib/base/message_handler.h"
 #include "lib/base/url_util.h"
+#include "lib/cache/html_withheld_marker.h"
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
@@ -1898,6 +1899,15 @@ void BrowserAnalysisManager::OnAgentRenderDone(
         handler_->Info(
             "agent_optimize: discarding markdown for %s (answer no longer "
             "confirmed as shareable)",
+            item.url.c_str());
+      }
+    } else if (MarkdownBelowFidelityFloor(result->agent_markdown)) {
+      // A shell is not a copy of the page: the request falls back to the
+      // page itself.
+      stats_.agent_markdown_below_floor.fetch_add(1, std::memory_order_relaxed);
+      if (handler_) {
+        handler_->Info(
+            "agent_optimize: no Markdown copy for %s: below the fidelity floor",
             item.url.c_str());
       }
     } else if (!AgentBindingStillLive(*cache_, item)) {

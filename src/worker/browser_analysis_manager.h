@@ -154,6 +154,9 @@ struct BrowserStats {
   // Agent renders (or their Markdown writes) skipped because the page's own
   // anonymous answer was not confirmed as shareable.
   std::atomic<uint64_t> agent_render_page_refused{0};
+  // Rendered Markdown copies not kept because their body fell below the
+  // fidelity floor (kHtmlMarkdownFloorBytes).
+  std::atomic<uint64_t> agent_markdown_below_floor{0};
   // Analyses queued because a template's validation record no longer matched
   // the stylesheet its page is served with (RequestRevalidation), and requests
   // the per-template rate limit turned away.
