@@ -153,7 +153,7 @@ const StringSet kCcFlags = {
 const StringSet kRequestFlags = {"authorization", "authenticated_user",
                                  "cookie", "no_store"};
 const StringSet kServeActions = {"fall_through", "serve_markdown", "serve_html",
-                                 "validate"};
+                                 "validate", "malformed"};
 // The 1.12 serve reasons plus the ones the 1.13 surface appends.
 const StringSet kServeReasons = {"fresh",
                                  "mode",
@@ -250,7 +250,9 @@ void CheckServe(Checker& c, const std::string& w, const json& in,
                 const json& ex) {
   c.Keys(w + " input", in, {"mode", "request", "stored"},
          {"mode", "request", "stored"});
-  c.OneOf(w + " input", in, "mode", kModes);
+  if (in.contains("mode") && !in["mode"].is_number_integer()) {
+    c.OneOf(w + " input", in, "mode", kModes);
+  }
   if (in.contains("request"))
     CheckServeRequest(c, w + " request", in["request"]);
   if (in.contains("stored")) {
@@ -314,8 +316,10 @@ void CheckFacts(Checker& c, const std::string& w, const json& in,
     if (v.contains("original")) {
       const json& o = v["original"];
       c.Keys(w + " original", o,
-             {"stored_at", "lifetime_s", "cc_flags", "origin_html_hash"},
+             {"stored_at", "lifetime_s", "cc_flags", "origin_html_hash",
+              "sidecar_required"},
              {"stored_at", "lifetime_s", "cc_flags", "origin_html_hash"});
+      c.Bool(w + " original", o, "sidecar_required");
       c.Uint(w + " original", o, "stored_at");
       c.Uint(w + " original", o, "lifetime_s");
       c.SubsetOf(w + " original", o, "cc_flags", kCcFlags);
@@ -340,12 +344,19 @@ void CheckFacts(Checker& c, const std::string& w, const json& in,
   }
   c.Keys(w + " expect", ex,
          {"present", "variant_present", "binding_live", "withheld",
-          "explicit_shared", "sidecar_present", "serve"},
+          "explicit_shared", "sidecar_present", "sidecar_required",
+          "needs_validation", "stored_at", "age_at_store", "lifetime_s",
+          "cc_flags", "serve"},
          {"present"});
   for (const char* key : {"present", "variant_present", "binding_live",
-                          "withheld", "explicit_shared", "sidecar_present"}) {
+                          "withheld", "explicit_shared", "sidecar_present",
+                          "sidecar_required", "needs_validation"}) {
     c.Bool(w + " expect", ex, key);
   }
+  for (const char* key : {"stored_at", "age_at_store", "lifetime_s"}) {
+    c.Uint(w + " expect", ex, key);
+  }
+  c.SubsetOf(w + " expect", ex, "cc_flags", kCcFlags);
   if (ex.contains("serve")) {
     c.Keys(w + " expect serve", ex["serve"], {"action", "reason"},
            {"action", "reason"});
@@ -378,6 +389,27 @@ void CheckInm(Checker& c, const std::string& w, const json& in,
   c.Bool(w + " expect", ex, "match");
 }
 
+void CheckWriteParams(Checker& c, const std::string& w, const json& in,
+                      const json& ex) {
+  c.Keys(w + " input", in, {"capture_start_ms", "age"}, {"capture_start_ms"});
+  c.Uint(w + " input", in, "capture_start_ms");
+  if (in.contains("age")) {
+    bool ok = in["age"].is_array() && !in["age"].empty();
+    if (ok) {
+      for (const json& line : in["age"]) ok = ok && line.is_string();
+    }
+    if (!ok) c.Fail(w + " input", "age is not a non-empty list of strings");
+  }
+  c.Keys(w + " expect", ex, {"valid", "inserted_at_s", "age_at_store"},
+         {"valid"});
+  c.Bool(w + " expect", ex, "valid");
+  c.Uint(w + " expect", ex, "inserted_at_s");
+  c.Uint(w + " expect", ex, "age_at_store");
+  if (ex.value("valid", false) != ex.contains("inserted_at_s")) {
+    c.Fail(w + " expect", "inserted_at_s is asserted exactly when valid");
+  }
+}
+
 void CheckNotify(Checker& c, const std::string& w, const json& in,
                  const json& ex) {
   c.Keys(w + " input", in,
@@ -399,10 +431,12 @@ void CheckNotify(Checker& c, const std::string& w, const json& in,
     if (!ok) c.Fail(w + " input", "flags has a value outside its set");
   }
   if (in.contains("site") && !in["site"].is_null()) {
-    static const std::regex kSite("[0-9a-f]{32}");
+    // PS_SITE_ID_CHARS: a shorter or longer site is refused by the library,
+    // so a row with one would fail for the wrong reason.
+    static const std::regex kSite("[0-9a-f]{64}");
     if (!in["site"].is_string() ||
         !std::regex_match(in["site"].get<std::string>(), kSite)) {
-      c.Fail(w + " input", "site is not 32 lowercase hex characters or null");
+      c.Fail(w + " input", "site is not 64 lowercase hex characters or null");
     }
   }
   c.Keys(w + " expect", ex, {"valid"}, {"valid"});
@@ -493,15 +527,61 @@ TEST(DaemonHtmlPolicyCasesTest, EveryRowHasTheDocumentedShape) {
       CheckInm(c, w, in, ex);
     } else if (call == "notify") {
       CheckNotify(c, w, in, ex);
+    } else if (call == "write_params") {
+      CheckWriteParams(c, w, in, ex);
     } else {
       c.Fail(w, "call '" + call + "' is not one of the documented calls");
     }
   }
   for (const std::string& e : c.errors()) ADD_FAILURE() << e;
   for (const char* call :
-       {"store", "serve", "facts", "etag", "inm", "notify"}) {
+       {"store", "serve", "facts", "etag", "inm", "notify", "write_params"}) {
     EXPECT_GT(per_call[call], 0) << "no " << call << " rows";
   }
+}
+
+// The notify argument rule, restated as the list of rules a notification
+// breaks. Used only to check the rows: each expected verdict must follow from
+// the rule, and a row expected invalid must break exactly one rule, so it
+// cannot pass for a reason other than the one it is about.
+std::vector<std::string> NotifyRulesBroken(const json& in) {
+  std::vector<std::string> broken;
+  StringSet flags;
+  for (const json& f : in["flags"]) flags.insert(f.get<std::string>());
+  const bool from_module = flags.count("from_module") != 0;
+  const bool vouched = flags.count("host_vouched") != 0;
+  const bool stored = flags.count("html_stored") != 0;
+  const bool html = in["content"] == "html";
+  const bool agent = in["agent_request"].get<bool>();
+  for (const std::string& f : flags) {
+    if (f.rfind("reserved_", 0) == 0) broken.push_back("reserved flag");
+  }
+  if (stored && !from_module) broken.push_back("stored without module");
+  if (from_module) {
+    if (in["site"].is_null()) broken.push_back("module without site");
+    if (in.contains("mask")) broken.push_back("module with mask");
+    if (html && !(vouched && stored)) broken.push_back("module html flags");
+    if (!html && stored) broken.push_back("stored on non-html");
+    if (!html && vouched) broken.push_back("vouched on non-html");
+    if (!html && agent) broken.push_back("agent on non-html");
+  }
+  return broken;
+}
+
+TEST(DaemonHtmlPolicyCasesTest, EachInvalidNotifyRowBreaksOneRule) {
+  const json doc = LoadCases();
+  ASSERT_FALSE(doc.is_discarded());
+  int rows = 0;
+  for (const json& row : doc["rows"]) {
+    const json& p = row["policy"];
+    if (p.value("call", "") != "notify") continue;
+    ++rows;
+    const std::vector<std::string> broken = NotifyRulesBroken(p["input"]);
+    const bool valid = p["expect"]["valid"].get<bool>();
+    EXPECT_EQ(valid, broken.empty()) << row["id"];
+    if (!valid) EXPECT_EQ(broken.size(), 1u) << row["id"];
+  }
+  EXPECT_GT(rows, 0);
 }
 
 TEST(DaemonHtmlPolicyCasesTest, RejectsMalformedRows) {
@@ -511,10 +591,9 @@ TEST(DaemonHtmlPolicyCasesTest, RejectsMalformedRows) {
       "stored":{}})"),
              json::parse(R"({"action":"serve_markdown","reason":"bogus"})"));
   EXPECT_GE(c.errors().size(), 3u);  // unknown key, missing facts, bad reason
-  EXPECT_FALSE(LabelIsPublicSafe("store: S5 private"));
-  EXPECT_FALSE(LabelIsPublicSafe("see ADR text"));
-  EXPECT_FALSE(LabelIsPublicSafe("per constraint 6"));
-  EXPECT_FALSE(LabelIsPublicSafe("from OPT-1"));
+  EXPECT_FALSE(LabelIsPublicSafe("store: rule S99"));
+  EXPECT_FALSE(LabelIsPublicSafe("per constraint 99"));
+  EXPECT_FALSE(LabelIsPublicSafe("tracked as XYZ-99"));
   EXPECT_TRUE(LabelIsPublicSafe("store: private (RFC 9111 5.2.2.7)"));
 }
 

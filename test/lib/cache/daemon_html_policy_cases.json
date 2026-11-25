@@ -29,7 +29,7 @@
     "PS_HTML_STORE_FLAG_* bit is set; lifetime_explicit, needs_validation,",
     "has_validators, explicit_shared), cc_flags (each named PS_CC_ORIGIN_* bit is set).",
     "",
-    "call serve: ps_html_serve_classify. input: mode; request {method, accept (list",
+    "call serve: ps_html_serve_classify. input: mode (as for store); request {method, accept (list",
     "of Accept lines, joined in order with \", \"; key absent = no header; [\"\"] =",
     "an empty header), authorization, authenticated_user, cookie, cache_control,",
     "pragma (header values; absent = no header), range, if_range, origin (header",
@@ -38,7 +38,9 @@
     "explicit_shared, headers_not_reproducible, sidecar_required, sidecar_present,",
     "purged, cc_flags (names of PS_CC_ORIGIN_* bits), variant_present, binding_live,",
     "withheld, render_ttl_s, binding_hash, markdown_hash (64 hex = 32 bytes)}.",
-    "expect: action (fall_through | serve_markdown | serve_html | validate), reason",
+    "expect: action (fall_through | serve_markdown | serve_html | validate |",
+    "malformed = an error return for a malformed call, such as a mode outside the",
+    "set), reason",
     "(ps_html_serve_reason_name), enforce, wants_markdown, age_s, and outcome.",
     "outcome is composed from library calls only: serve_markdown with an",
     "if_none_match that ps_if_none_match_matches_weak matches against",
@@ -47,12 +49,15 @@
     "",
     "call facts: write input.volume into a real temporary cache volume (original =",
     "the HTML entry with stored_at, lifetime_s, cc_flags, origin_html_hash (null =",
-    "no stamp); markdown = the Markdown copy with its origin_html_hash and",
+    "no stamp) and optional sidecar_required (the entry needs a header block);",
+    "markdown = the Markdown copy with its origin_html_hash and",
     "markdown_hash; withheld_marker = {parent_hash, deriver_version current |",
     "previous (the library's deriver version minus one), reason}; sidecar = a",
     "header block written beside the entry), read them back, and call",
-    "ps_html_stored_facts_from_reads. expect: present, variant_present,",
-    "binding_live, withheld, explicit_shared, sidecar_present, and serve {action,",
+    "ps_html_stored_facts_from_reads. expect: any field of the produced facts",
+    "(present, variant_present, binding_live, withheld, explicit_shared,",
+    "sidecar_present, sidecar_required, needs_validation, stored_at, age_at_store,",
+    "lifetime_s, cc_flags = exactly these PS_CC_ORIGIN_* names), and serve {action,",
     "reason}: ps_html_serve_classify on the produced facts in serve-variants with",
     "GET, Accept text/markdown and input.now_s.",
     "",
@@ -61,13 +66,25 @@
     "bytes of SHA-256(binding_hash || markdown_hash).",
     "",
     "call inm: ps_if_none_match_matches_weak(if_none_match, etag). expect: match.",
+    "\"*\" alone matches; \"*\" inside a list is invalid and matches nothing.",
+    "",
+    "call write_params: ps_html_store_write_params. input: capture_start_ms (the",
+    "library floors it to seconds), age (the inbound Age header lines, in order;",
+    "absent = no Age). expect: valid (false = an error return: the caller stores",
+    "nothing), inserted_at_s (floored capture start minus Age), age_at_store (the",
+    "age the entry records beside inserted_at_s; Age is counted once, so 0 when",
+    "inserted_at_s already carries it). Equal repeated lines count as one; a",
+    "conflicting, malformed, negative, fractional or larger-than-capture Age is",
+    "invalid.",
     "",
     "call notify: ps_notify_worker_ex argument check. input: content (html | css |",
     "js | image | other), flags (from_module, host_vouched, html_stored, or",
-    "reserved_0x<hex> for a reserved bit), site (32 lowercase hex or null),",
+    "reserved_0x<hex> for a reserved bit), site (64 lowercase hex, PS_SITE_ID_CHARS, or null),",
     "agent_request, mask (llms_txt when present). expect: valid (false =",
     "PS_ERR_INVALID_ARG with no connection attempted; true = the argument check",
-    "passed, whatever the delivery result)."
+    "passed, whatever the delivery result). Every other argument is valid (url",
+    "https://www.example.test/page, hostname www.example.test, scheme https, no",
+    "options context), so a valid:false row fails only for the input it names."
   ],
   "rows": [
     {
@@ -854,6 +871,152 @@
       }
     },
     {
+      "id": "store-no-cache-positive-lifetime",
+      "runners": ["policy"],
+      "why": "store: no-cache beside a lifetime still needs validation (RFC 9111 5.2.2.4)",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "no-cache, max-age=300"],
+            ["ETag", "\"v1\""]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {
+          "action": "store",
+          "reason": "none",
+          "lifetime_s": 300,
+          "flags": ["lifetime_explicit", "needs_validation", "has_validators"]
+        }
+      }
+    },
+    {
+      "id": "store-validator-only",
+      "runners": ["policy"],
+      "why": "store: validator without a lifetime stores lifetime 0, never a heuristic",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Last-Modified", "Sun, 15 Nov 2026 11:00:00 GMT"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {
+          "action": "store",
+          "reason": "none",
+          "lifetime_s": 0,
+          "flags": ["needs_validation", "has_validators"]
+        }
+      }
+    },
+    {
+      "id": "store-s-maxage-zero",
+      "runners": ["policy"],
+      "why": "store: s-maxage 0 wins over max-age",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "s-maxage=0, max-age=300"],
+            ["ETag", "\"v1\""]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {
+          "action": "store",
+          "reason": "none",
+          "lifetime_s": 0,
+          "flags": ["lifetime_explicit", "needs_validation", "has_validators"]
+        }
+      }
+    },
+    {
+      "id": "store-private-second-line",
+      "runners": ["policy"],
+      "why": "store: Cache-Control lines are one list (RFC 9110 5.3)",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["Cache-Control", "private"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "private"}
+      }
+    },
+    {
+      "id": "store-nonce-link",
+      "runners": ["policy"],
+      "why": "store: preload hint with a nonce",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["Link", "</app.js>; rel=preload; as=script; nonce=abc123"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "nonce_link"}
+      }
+    },
+    {
       "id": "store-swr-not-a-lifetime",
       "runners": ["policy"],
       "why": "freshness: stale-while-revalidate is ignored (RFC 5861)",
@@ -1491,7 +1654,39 @@
             "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
           }
         },
-        "expect": {"action": "fall_through", "wants_markdown": false, "enforce": true}
+        "expect": {"action": "fall_through", "reason": "mode", "wants_markdown": false, "enforce": true}
+      }
+    },
+    {
+      "id": "serve-bad-mode-malformed",
+      "runners": ["policy"],
+      "why": "mode: value outside the set",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": 7,
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "malformed"}
       }
     },
     {
@@ -4602,7 +4797,429 @@
             "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
           }
         },
-        "expect": {"action": "fall_through", "wants_markdown": false, "outcome": "fall_through"}
+        "expect": {
+          "action": "fall_through",
+          "reason": "mode",
+          "wants_markdown": false,
+          "outcome": "fall_through"
+        }
+      }
+    },
+    {
+      "id": "inm-star-servable-304",
+      "runners": ["policy"],
+      "why": "validator: star matches a servable copy (RFC 9110 13.1.2)",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300, "if_none_match": "*"},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {
+          "action": "serve_markdown",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": true,
+          "age_s": 300,
+          "outcome": "markdown_304"
+        }
+      }
+    },
+    {
+      "id": "inm-star-stale-parent-no-304",
+      "runners": ["policy"],
+      "why": "validator: star never confirms a stale parent",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300, "if_none_match": "*"},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 3600,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "parent_stale", "outcome": "fall_through"}
+      }
+    },
+    {
+      "id": "serve-auth-shared-entry",
+      "runners": ["policy"],
+      "why": "serve: credentials fall through even on a shared entry",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300, "authorization": true},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "auth_request"}
+      }
+    },
+    {
+      "id": "serve-withheld-beside-live-copy",
+      "runners": ["policy"],
+      "why": "derivation: withheld marker wins over a live binding",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": true,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "withheld"}
+      }
+    },
+    {
+      "id": "serve-request-max-age-malformed",
+      "runners": ["policy"],
+      "why": "freshness: malformed request max-age never serves",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cache_control": "max-age=abc"
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through"}
+      }
+    },
+    {
+      "id": "serve-request-max-age-repeated",
+      "runners": ["policy"],
+      "why": "freshness: repeated request max-age never serves",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cache_control": "max-age=1000, max-age=10"
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through"}
+      }
+    },
+    {
+      "id": "serve-request-no-transform",
+      "runners": ["policy"],
+      "why": "request: no-transform never gets the copy (RFC 9111 5.2.1.6)",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cache_control": "no-transform"
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "no_transform"}
+      }
+    },
+    {
+      "id": "precedence-purged-before-absent-copy",
+      "runners": ["policy"],
+      "why": "precedence: purge before a missing copy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": true,
+            "cc_flags": [],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "purged"}
+      }
+    },
+    {
+      "id": "precedence-stale-before-absent-copy",
+      "runners": ["policy"],
+      "why": "precedence: stale parent before a missing copy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 3600,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "parent_stale"}
+      }
+    },
+    {
+      "id": "precedence-no-transform-before-absent-copy",
+      "runners": ["policy"],
+      "why": "precedence: no-transform before a missing copy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": ["no_transform"],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "no_transform"}
+      }
+    },
+    {
+      "id": "boundary-request-max-age-equals-age",
+      "runners": ["policy"],
+      "why": "freshness: request max-age equal to age is acceptable (RFC 9111 5.2.1.1)",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cache_control": "max-age=300"
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {
+          "action": "serve_markdown",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": true,
+          "age_s": 300
+        }
+      }
+    },
+    {
+      "id": "boundary-render-ttl-equals-age",
+      "runners": ["policy"],
+      "why": "freshness: copy at exactly its render lifetime",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {"method": "GET", "accept": ["text/markdown"], "now_s": 1790000300},
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 300,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+          }
+        },
+        "expect": {"action": "fall_through", "reason": "parent_stale"}
       }
     },
     {
@@ -5031,6 +5648,134 @@
       }
     },
     {
+      "id": "facts-no-cache-parent",
+      "runners": ["policy"],
+      "why": "freshness: no-cache parent read from the volume needs validation",
+      "policy": {
+        "call": "facts",
+        "input": {
+          "volume": {
+            "original": {
+              "stored_at": 1790000000,
+              "lifetime_s": 3600,
+              "cc_flags": ["no_cache"],
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32"
+            },
+            "markdown": {
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+              "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+            },
+            "sidecar": false
+          },
+          "now_s": 1790000300
+        },
+        "expect": {
+          "present": true,
+          "binding_live": true,
+          "needs_validation": true,
+          "lifetime_s": 3600,
+          "cc_flags": ["no_cache"],
+          "serve": {"action": "fall_through", "reason": "parent_stale"}
+        }
+      }
+    },
+    {
+      "id": "facts-parent-past-lifetime",
+      "runners": ["policy"],
+      "why": "freshness: parent past its lifetime read from the volume",
+      "policy": {
+        "call": "facts",
+        "input": {
+          "volume": {
+            "original": {
+              "stored_at": 1789996000,
+              "lifetime_s": 3600,
+              "cc_flags": [],
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32"
+            },
+            "markdown": {
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+              "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+            },
+            "sidecar": false
+          },
+          "now_s": 1790000300
+        },
+        "expect": {
+          "present": true,
+          "binding_live": true,
+          "needs_validation": false,
+          "stored_at": 1789996000,
+          "lifetime_s": 3600,
+          "serve": {"action": "fall_through", "reason": "parent_stale"}
+        }
+      }
+    },
+    {
+      "id": "facts-fresh-fields",
+      "runners": ["policy"],
+      "why": "freshness: stored fields read back",
+      "policy": {
+        "call": "facts",
+        "input": {
+          "volume": {
+            "original": {
+              "stored_at": 1790000000,
+              "lifetime_s": 3600,
+              "cc_flags": [],
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32"
+            },
+            "markdown": {
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+              "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+            },
+            "sidecar": false
+          },
+          "now_s": 1790000300
+        },
+        "expect": {
+          "present": true,
+          "stored_at": 1790000000,
+          "age_at_store": 0,
+          "lifetime_s": 3600,
+          "needs_validation": false,
+          "sidecar_required": false,
+          "cc_flags": []
+        }
+      }
+    },
+    {
+      "id": "facts-sidecar-required-missing",
+      "runners": ["policy"],
+      "why": "replay: required header block missing in the volume",
+      "policy": {
+        "call": "facts",
+        "input": {
+          "volume": {
+            "original": {
+              "stored_at": 1790000000,
+              "lifetime_s": 3600,
+              "cc_flags": [],
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+              "sidecar_required": true
+            },
+            "markdown": {
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+              "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+            },
+            "sidecar": false
+          },
+          "now_s": 1790000300
+        },
+        "expect": {
+          "present": true,
+          "sidecar_required": true,
+          "sidecar_present": false,
+          "serve": {"action": "fall_through", "reason": "sidecar_missing"}
+        }
+      }
+    },
+    {
       "id": "etag-golden-1",
       "runners": ["policy"],
       "why": "validator: Markdown tag derivation",
@@ -5216,6 +5961,116 @@
       }
     },
     {
+      "id": "inm-star-in-list",
+      "runners": ["policy"],
+      "why": "validator: weak comparison (RFC 9110 13.1.2)",
+      "policy": {
+        "call": "inm",
+        "input": {"if_none_match": "\"a\", *", "etag": "W/\"psm-f7fd01b44f8ba0f5\""},
+        "expect": {"match": false}
+      }
+    },
+    {
+      "id": "inm-longer-tag",
+      "runners": ["policy"],
+      "why": "validator: weak comparison (RFC 9110 13.1.2)",
+      "policy": {
+        "call": "inm",
+        "input": {"if_none_match": "W/\"psm-f7fd01b44f8ba0f50\"", "etag": "W/\"psm-f7fd01b44f8ba0f5\""},
+        "expect": {"match": false}
+      }
+    },
+    {
+      "id": "write-params-no-age",
+      "runners": ["policy"],
+      "why": "insert time: capture start floored to the second",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999},
+        "expect": {"valid": true, "inserted_at_s": 1790000000, "age_at_store": 0}
+      }
+    },
+    {
+      "id": "write-params-age",
+      "runners": ["policy"],
+      "why": "insert time: inbound Age counted once (RFC 9111 4.2.3)",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["20"]},
+        "expect": {"valid": true, "inserted_at_s": 1789999980, "age_at_store": 0}
+      }
+    },
+    {
+      "id": "write-params-age-zero",
+      "runners": ["policy"],
+      "why": "insert time: Age 0",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["0"]},
+        "expect": {"valid": true, "inserted_at_s": 1790000000, "age_at_store": 0}
+      }
+    },
+    {
+      "id": "write-params-age-repeated-same",
+      "runners": ["policy"],
+      "why": "insert time: repeated equal Age lines are one",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["20", "20"]},
+        "expect": {"valid": true, "inserted_at_s": 1789999980, "age_at_store": 0}
+      }
+    },
+    {
+      "id": "write-params-age-repeated-different",
+      "runners": ["policy"],
+      "why": "insert time: conflicting Age lines refuse the store",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["20", "40"]},
+        "expect": {"valid": false}
+      }
+    },
+    {
+      "id": "write-params-age-malformed",
+      "runners": ["policy"],
+      "why": "insert time: malformed Age refuses the store (RFC 9111 5.1)",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["abc"]},
+        "expect": {"valid": false}
+      }
+    },
+    {
+      "id": "write-params-age-negative",
+      "runners": ["policy"],
+      "why": "insert time: negative Age refuses the store",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["-5"]},
+        "expect": {"valid": false}
+      }
+    },
+    {
+      "id": "write-params-age-fraction",
+      "runners": ["policy"],
+      "why": "insert time: fractional Age refuses the store",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["1.5"]},
+        "expect": {"valid": false}
+      }
+    },
+    {
+      "id": "write-params-age-huge",
+      "runners": ["policy"],
+      "why": "insert time: Age beyond the capture time refuses the store",
+      "policy": {
+        "call": "write_params",
+        "input": {"capture_start_ms": 1790000000999, "age": ["2147483648"]},
+        "expect": {"valid": false}
+      }
+    },
+    {
       "id": "notify-module-html-vouched-0-stored-0",
       "runners": ["policy"],
       "why": "notify: module HTML needs host validation and an own store",
@@ -5224,7 +6079,7 @@
         "input": {
           "content": "html",
           "flags": ["from_module"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": false}
@@ -5239,7 +6094,7 @@
         "input": {
           "content": "html",
           "flags": ["from_module", "html_stored"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": false}
@@ -5254,7 +6109,7 @@
         "input": {
           "content": "html",
           "flags": ["from_module", "host_vouched"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": false}
@@ -5269,7 +6124,7 @@
         "input": {
           "content": "html",
           "flags": ["from_module", "host_vouched", "html_stored"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": true}
@@ -5284,7 +6139,7 @@
         "input": {
           "content": "html",
           "flags": ["from_module", "host_vouched", "html_stored"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": true
         },
         "expect": {"valid": true}
@@ -5314,7 +6169,7 @@
         "input": {
           "content": "html",
           "flags": ["from_module", "host_vouched", "html_stored"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false,
           "mask": "llms_txt"
         },
@@ -5330,7 +6185,7 @@
         "input": {
           "content": "css",
           "flags": ["from_module"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": true}
@@ -5345,7 +6200,7 @@
         "input": {
           "content": "css",
           "flags": ["from_module", "html_stored"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": false}
@@ -5360,7 +6215,7 @@
         "input": {
           "content": "css",
           "flags": ["from_module", "host_vouched"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": false}
@@ -5375,7 +6230,7 @@
         "input": {
           "content": "css",
           "flags": ["from_module"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": true
         },
         "expect": {"valid": false}
@@ -5390,7 +6245,7 @@
         "input": {
           "content": "html",
           "flags": ["host_vouched", "html_stored"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": false}
@@ -5405,7 +6260,7 @@
         "input": {
           "content": "html",
           "flags": ["host_vouched"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": true
         },
         "expect": {"valid": true}
@@ -5420,7 +6275,7 @@
         "input": {
           "content": "html",
           "flags": ["from_module", "reserved_0x40"],
-          "site": "0123456789abcdef0123456789abcdef",
+          "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
         },
         "expect": {"valid": false}
