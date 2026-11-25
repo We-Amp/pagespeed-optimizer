@@ -1705,10 +1705,12 @@ PS_EXPORT int ps_html_markdown_etag(const uint8_t* binding_hash,
  * joined with ", ", `etag` one entity-tag. Returns 1 when any member of the
  * list is weakly equal to `etag`, 0 otherwise.
  *
- * Fail-safe in one direction, toward sending the full response: a list
- * that does not parse matches nothing, and `*` matches nothing either (it
- * would confirm a representation without naming it). Returns 0 for a NULL
- * `if_none_match`, and -1 for a NULL or malformed `etag`.
+ * `*` matches (RFC 9110 section 13.1.2: any current representation); a
+ * caller asks only about a representation it is about to send, and
+ * ps_html_serve_classify asks only for a copy it would serve. Fail-safe in
+ * one direction, toward sending the full response: a list that does not
+ * parse matches nothing. Returns 0 for a NULL `if_none_match`, and -1 for a
+ * NULL or malformed `etag`.
  * Available from PS_API 1.13. */
 PS_EXPORT int ps_if_none_match_matches_weak(const char* if_none_match,
                                             const char* etag);

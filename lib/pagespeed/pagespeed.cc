@@ -1620,7 +1620,15 @@ int IfNoneMatchMatchesWeak(std::string_view inm, std::string_view etag) {
       rest.remove_prefix(1);
       continue;
     }
-    if (rest.front() == '*') return 0;  // never confirms an unnamed tag
+    // RFC 9110 section 13.1.2: `*` matches any current representation. The
+    // caller asks only about a copy it would serve, so that is this one.
+    if (rest.front() == '*') {
+      rest.remove_prefix(1);
+      rest = TrimOwsView(rest);
+      if (!rest.empty() && rest.front() != ',') return 0;
+      matched = true;
+      continue;
+    }
     const std::optional<std::string_view> tag = TakeEntityTag(&rest);
     if (!tag.has_value())
       return 0;  // a list that does not parse matches nothing

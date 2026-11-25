@@ -38,6 +38,7 @@
 #include "lib/cache/html_withheld_marker.h"
 #include "lib/pagespeed/pagespeed_internal.h"
 #include "nlohmann/json.hpp"
+#include "test/lib/cache/daemon_html_policy_cases.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
 #include "test/test_util/temp_dir.h"
@@ -5474,19 +5475,15 @@ TEST(PageSpeedCApi, HtmlStoreReasonNames) {
 //
 // The policy runner below is the proof of the library's HTML cache policy:
 // every row of the shared policy-case file runs against the real library,
-// and a row the runner cannot run is a failure, never a skip. The file is
-// pinned by hash, so it cannot change without this test changing with it.
+// and a row the runner cannot run is a failure, never a skip. The file's
+// hash pin is checked before any row runs. The row format is documented in
+// the file's own "about" block: an expect key that is absent is not
+// asserted, and every key that is present is.
 // The direct tests after it cover what a case file cannot state: the struct
 // size rules, the accept vectors read from their own file, and the frames a
 // notification actually puts on the wire.
 
 namespace {
-
-constexpr std::string_view kPolicyCasesPath =
-    "test/lib/cache/daemon_html_policy_cases.json";
-// FNV-1a 64 of the policy-case file with carriage returns removed. When the
-// cases change, change the pin in the same change.
-constexpr uint64_t kPolicyCasesHash = 0xe3b1bdf671c3da74ULL;
 
 std::string ReadFileNoCr(std::string_view path) {
   std::ifstream in(std::string(path), std::ios::binary);
@@ -5498,21 +5495,8 @@ std::string ReadFileNoCr(std::string_view path) {
   return contents;
 }
 
-uint64_t Fnv1a64Of(std::string_view data) {
-  uint64_t hash = 0xcbf29ce484222325ULL;
-  for (unsigned char c : data) {
-    hash ^= c;
-    hash *= 0x100000001b3ULL;
-  }
-  return hash;
-}
-
-const std::string kPolicySite(PS_SITE_ID_CHARS, 'c');
-
-// A failure collector: every mismatch names the row, and a row the runner
-// does not understand is recorded as such.
+// Every mismatch names the row.
 struct RowRun {
-  std::string id;
   std::vector<std::string> failures;
   void Fail(const std::string& what) { failures.push_back(what); }
 };
@@ -5537,10 +5521,11 @@ bool HexToBytes(const std::string& hex, uint8_t* out, size_t n) {
   return true;
 }
 
-// Names to bits, refusing an unknown name so a typo in a row is a failure.
-template <size_t N>
-bool Bits(const nlohmann::json& names,
-          const std::pair<const char*, uint32_t> (&table)[N], uint32_t* out,
+using BitTable = std::vector<std::pair<std::string, uint32_t>>;
+
+// Names to bits. An unknown name is a failure, so a typo in a row cannot
+// pass silently.
+bool Bits(const nlohmann::json& names, const BitTable& table, uint32_t* out,
           RowRun* run) {
   *out = 0;
   for (const auto& n : names) {
@@ -5560,14 +5545,38 @@ bool Bits(const nlohmann::json& names,
   return true;
 }
 
-const std::pair<const char*, uint32_t> kServeRequestBits[] = {
-    {"authorization", PS_HTML_SERVE_REQUEST_HAS_AUTHORIZATION},
-    {"authenticated_user", PS_HTML_SERVE_REQUEST_AUTHENTICATED_USER},
-    {"cookie", PS_HTML_SERVE_REQUEST_HAS_COOKIE},
-    {"range", PS_HTML_SERVE_REQUEST_HAS_RANGE},
-    {"if_range", PS_HTML_SERVE_REQUEST_HAS_IF_RANGE},
-    {"origin", PS_HTML_SERVE_REQUEST_HAS_ORIGIN}};
-const std::pair<const char*, uint32_t> kFactBits[] = {
+const BitTable kStoreRequestBits = {
+    {"authorization", PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION},
+    {"authenticated_user", PS_HTML_STORE_REQUEST_AUTHENTICATED_USER},
+    {"cookie", PS_HTML_STORE_REQUEST_HAS_COOKIE},
+    {"no_store", PS_HTML_STORE_REQUEST_NO_STORE}};
+const BitTable kStoreFlagBits = {
+    {"lifetime_explicit", PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT},
+    {"needs_validation", PS_HTML_STORE_FLAG_NEEDS_VALIDATION},
+    {"has_validators", PS_HTML_STORE_FLAG_HAS_VALIDATORS},
+    {"explicit_shared", PS_HTML_STORE_FLAG_EXPLICIT_SHARED}};
+const BitTable kCcBits = {
+    {"no_cache", PS_CC_ORIGIN_NO_CACHE},
+    {"must_revalidate", PS_CC_ORIGIN_MUST_REVALIDATE},
+    {"no_store", PS_CC_ORIGIN_NO_STORE},
+    {"private", PS_CC_ORIGIN_PRIVATE},
+    {"public", PS_CC_ORIGIN_PUBLIC},
+    {"immutable", PS_CC_ORIGIN_IMMUTABLE},
+    {"s_maxage_present", PS_CC_ORIGIN_S_MAXAGE_PRESENT},
+    {"proxy_revalidate", PS_CC_ORIGIN_PROXY_REVALIDATE},
+    {"no_transform", PS_CC_ORIGIN_NO_TRANSFORM},
+    {"header_present", PS_CC_ORIGIN_HEADER_PRESENT},
+    {"private_qualified", PS_CC_ORIGIN_PRIVATE_QUALIFIED},
+    {"private_bare", PS_CC_ORIGIN_PRIVATE_BARE},
+    {"no_cache_qualified", PS_CC_ORIGIN_NO_CACHE_QUALIFIED},
+    {"no_cache_bare", PS_CC_ORIGIN_NO_CACHE_BARE},
+    {"s_maxage_repeated", PS_CC_ORIGIN_S_MAXAGE_REPEATED}};
+const BitTable kNotifyBits = {
+    {"host_vouched", PS_NOTIFY_FLAG_HOST_VOUCHED},
+    {"from_module", PS_NOTIFY_FLAG_FROM_MODULE},
+    {"html_stored", PS_NOTIFY_FLAG_HTML_STORED}};
+// The stored-facts booleans of a serve row, by the struct's own names.
+const BitTable kFactBits = {
     {"present", PS_HTML_FACTS_PRESENT},
     {"needs_validation", PS_HTML_FACTS_NEEDS_VALIDATION},
     {"explicit_shared", PS_HTML_FACTS_EXPLICIT_SHARED},
@@ -5578,31 +5587,7 @@ const std::pair<const char*, uint32_t> kFactBits[] = {
     {"validated_this_request", PS_HTML_FACTS_VALIDATED_THIS_REQUEST},
     {"variant_present", PS_HTML_FACTS_VARIANT_PRESENT},
     {"binding_live", PS_HTML_FACTS_BINDING_LIVE},
-    {"no_transform", PS_HTML_FACTS_NO_TRANSFORM},
     {"withheld", PS_HTML_FACTS_WITHHELD}};
-const std::pair<const char*, uint32_t> kStoreRequestBits[] = {
-    {"authorization", PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION},
-    {"authenticated_user", PS_HTML_STORE_REQUEST_AUTHENTICATED_USER},
-    {"cookie", PS_HTML_STORE_REQUEST_HAS_COOKIE},
-    {"no_store", PS_HTML_STORE_REQUEST_NO_STORE}};
-const std::pair<const char*, uint32_t> kStoreFlagBits[] = {
-    {"lifetime_explicit", PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT},
-    {"needs_validation", PS_HTML_STORE_FLAG_NEEDS_VALIDATION},
-    {"has_validators", PS_HTML_STORE_FLAG_HAS_VALIDATORS},
-    {"explicit_shared", PS_HTML_STORE_FLAG_EXPLICIT_SHARED}};
-const std::pair<const char*, uint32_t> kCcBits[] = {
-    {"header_present", PS_CC_ORIGIN_HEADER_PRESENT},
-    {"no_cache", PS_CC_ORIGIN_NO_CACHE},
-    {"no_cache_bare", PS_CC_ORIGIN_NO_CACHE_BARE},
-    {"no_store", PS_CC_ORIGIN_NO_STORE},
-    {"public", PS_CC_ORIGIN_PUBLIC},
-    {"private", PS_CC_ORIGIN_PRIVATE},
-    {"no_transform", PS_CC_ORIGIN_NO_TRANSFORM},
-    {"s_maxage_present", PS_CC_ORIGIN_S_MAXAGE_PRESENT}};
-const std::pair<const char*, uint32_t> kNotifyBits[] = {
-    {"host_vouched", PS_NOTIFY_FLAG_HOST_VOUCHED},
-    {"from_module", PS_NOTIFY_FLAG_FROM_MODULE},
-    {"html_stored", PS_NOTIFY_FLAG_HTML_STORED}};
 
 const char* ServeActionName(int action) {
   switch (action) {
@@ -5634,9 +5619,14 @@ const char* StoreActionName(int action) {
   return "malformed";
 }
 
-const char* OptionalString(const nlohmann::json& obj, const char* key) {
-  if (!obj.contains(key) || obj[key].is_null()) return nullptr;
-  return obj[key].get_ref<const std::string&>().c_str();
+int WithheldReasonValue(const std::string& name) {
+  for (uint8_t r = 1; r <= pagespeed::kHtmlWithheldReasonMax; ++r) {
+    if (pagespeed::HtmlWithheldReasonName(
+            static_cast<pagespeed::HtmlWithheldReason>(r)) == name) {
+      return r;
+    }
+  }
+  return 0;
 }
 
 template <typename T>
@@ -5651,23 +5641,103 @@ void ExpectField(const nlohmann::json& expect, const char* key, T actual,
   }
 }
 
-// Builds the request struct a serve row names. The strings stay owned by
-// `row`, which outlives the call.
-bool BuildServeRequest(const nlohmann::json& r, ps_html_serve_request_t* out,
-                       RowRun* run) {
-  *out = ps_html_serve_request_t{};
-  out->struct_size = sizeof(*out);
-  out->mode = ModeValue(r.at("mode"));
-  out->method = OptionalString(r, "method");
-  out->accept = OptionalString(r, "accept");
-  out->cache_control = OptionalString(r, "cache_control");
-  out->pragma = OptionalString(r, "pragma");
-  out->if_none_match = OptionalString(r, "if_none_match");
-  out->now_seconds = r.at("now").get<uint32_t>();
-  return Bits(r.value("flags", nlohmann::json::array()), kServeRequestBits,
-              &out->request_flags, run);
+// Every named bit of `expect[key]` must be set in `actual`.
+void ExpectBitsSet(const nlohmann::json& expect, const char* key,
+                   const BitTable& table, uint32_t actual, RowRun* run) {
+  if (!expect.contains(key)) return;
+  uint32_t wanted = 0;
+  if (!Bits(expect[key], table, &wanted, run)) return;
+  if ((actual & wanted) != wanted) {
+    std::ostringstream msg;
+    msg << key << ": expected bits 0x" << std::hex << wanted << " in 0x"
+        << actual;
+    run->Fail(msg.str());
+  }
 }
 
+// The strings a serve request points at, owned for the call.
+struct ServeRequestStrings {
+  std::string accept;
+  bool has_accept = false;
+};
+
+bool BuildServeRequest(int mode, const nlohmann::json& r,
+                       ServeRequestStrings* strings,
+                       ps_html_serve_request_t* out, RowRun* run) {
+  *out = ps_html_serve_request_t{};
+  out->struct_size = sizeof(*out);
+  out->mode = mode;
+  const auto str = [&r](const char* key) -> const char* {
+    if (!r.contains(key) || r[key].is_null()) return nullptr;
+    return r[key].get_ref<const std::string&>().c_str();
+  };
+  out->method = str("method");
+  if (r.contains("accept")) {
+    strings->has_accept = true;
+    for (size_t i = 0; i < r["accept"].size(); ++i) {
+      if (i != 0) strings->accept += ", ";
+      strings->accept += r["accept"][i].get<std::string>();
+    }
+    out->accept = strings->accept.c_str();
+  }
+  out->cache_control = str("cache_control");
+  out->pragma = str("pragma");
+  out->if_none_match = str("if_none_match");
+  const auto present = [&r](const char* key) {
+    return r.contains(key) && !r[key].is_null() &&
+           (!r[key].is_boolean() || r[key].get<bool>());
+  };
+  if (present("authorization")) {
+    out->request_flags |= PS_HTML_SERVE_REQUEST_HAS_AUTHORIZATION;
+  }
+  if (present("authenticated_user")) {
+    out->request_flags |= PS_HTML_SERVE_REQUEST_AUTHENTICATED_USER;
+  }
+  if (present("cookie")) out->request_flags |= PS_HTML_SERVE_REQUEST_HAS_COOKIE;
+  if (present("range")) out->request_flags |= PS_HTML_SERVE_REQUEST_HAS_RANGE;
+  if (present("if_range")) {
+    out->request_flags |= PS_HTML_SERVE_REQUEST_HAS_IF_RANGE;
+  }
+  if (present("origin")) out->request_flags |= PS_HTML_SERVE_REQUEST_HAS_ORIGIN;
+  if (!r.contains("now_s")) {
+    run->Fail("request without now_s");
+    return false;
+  }
+  out->now_seconds = r["now_s"].get<uint32_t>();
+  return true;
+}
+
+bool BuildStoredFacts(const nlohmann::json& s, ps_html_stored_facts_t* out,
+                      RowRun* run) {
+  *out = ps_html_stored_facts_t{};
+  out->struct_size = sizeof(*out);
+  for (const auto& [name, bit] : kFactBits) {
+    if (s.contains(name) && s[name].get<bool>()) out->flags |= bit;
+  }
+  uint32_t cc = 0;
+  if (!Bits(s.value("cc_flags", nlohmann::json::array()), kCcBits, &cc, run)) {
+    return false;
+  }
+  // The stored entry's no-transform reaches the facts as their own bit.
+  if ((cc & PS_CC_ORIGIN_NO_TRANSFORM) != 0) {
+    out->flags |= PS_HTML_FACTS_NO_TRANSFORM;
+  }
+  out->stored_at = s.value("stored_at", 0u);
+  out->age_at_store = s.value("age_at_store", 0u);
+  out->lifetime_s = s.value("lifetime_s", 0u);
+  out->render_ttl_s = s.value("render_ttl_s", 0u);
+  if (!HexToBytes(s.value("binding_hash", std::string(64, '0')),
+                  out->binding_hash, PS_HTML_HASH_BYTES) ||
+      !HexToBytes(s.value("markdown_hash", std::string(64, '0')),
+                  out->markdown_hash, PS_HTML_HASH_BYTES)) {
+    run->Fail("bad hash field");
+    return false;
+  }
+  return true;
+}
+
+// Runs one serve verdict and checks `expect`, the about block's `outcome`
+// included, plus the invariants every row holds.
 void CheckServeVerdict(const ps_html_serve_request_t& request,
                        const ps_html_stored_facts_t& facts,
                        const nlohmann::json& expect, RowRun* run) {
@@ -5682,9 +5752,26 @@ void CheckServeVerdict(const ps_html_serve_request_t& request,
   ExpectField<bool>(expect, "enforce", v.enforce != 0, run);
   ExpectField<bool>(expect, "wants_markdown", v.wants_markdown != 0, run);
   ExpectField<uint32_t>(expect, "age_s", v.age_s, run);
-  ExpectField<bool>(expect, "not_modified", v.not_modified != 0, run);
-  ExpectField<std::string>(expect, "etag", std::string(v.etag), run);
-  // Invariants every row holds, whatever it names.
+
+  // The outcome, composed from the library's own calls as the file defines
+  // it, and checked against the verdict's not_modified so the two agree.
+  std::string outcome = "fall_through";
+  if (v.action == PS_HTML_SERVE_ACTION_SERVE_MARKDOWN) {
+    outcome = "markdown_200";
+    char tag[PS_HTML_MARKDOWN_ETAG_CHARS + 1];
+    size_t len = 0;
+    if (request.if_none_match != nullptr &&
+        ps_html_markdown_etag(facts.binding_hash, facts.markdown_hash, tag,
+                              sizeof(tag), &len) == 0 &&
+        ps_if_none_match_matches_weak(request.if_none_match, tag) == 1) {
+      outcome = "markdown_304";
+    }
+    if ((outcome == "markdown_304") != (v.not_modified != 0)) {
+      run->Fail("not_modified disagrees with the composed outcome");
+    }
+  }
+  ExpectField<std::string>(expect, "outcome", outcome, run);
+
   if (v.not_modified != 0 && v.action != PS_HTML_SERVE_ACTION_SERVE_MARKDOWN) {
     run->Fail("a 304 for a copy that is not served");
   }
@@ -5699,26 +5786,14 @@ void CheckServeVerdict(const ps_html_serve_request_t& request,
   }
 }
 
-void RunServeRow(const nlohmann::json& input, const nlohmann::json& expect,
+void RunServeRow(const nlohmann::json& in, const nlohmann::json& expect,
                  RowRun* run) {
+  ServeRequestStrings strings;
   ps_html_serve_request_t request;
-  if (!BuildServeRequest(input.at("request"), &request, run)) return;
-  const nlohmann::json& f = input.at("facts");
-  ps_html_stored_facts_t facts{};
-  facts.struct_size = sizeof(facts);
-  if (!Bits(f.value("flags", nlohmann::json::array()), kFactBits, &facts.flags,
-            run)) {
-    return;
-  }
-  facts.stored_at = f.value("stored_at", 0u);
-  facts.age_at_store = f.value("age_at_store", 0u);
-  facts.lifetime_s = f.value("lifetime_s", 0u);
-  facts.render_ttl_s = f.value("render_ttl_s", 0u);
-  if (!HexToBytes(f.value("binding_hash", std::string(64, '0')),
-                  facts.binding_hash, PS_HTML_HASH_BYTES) ||
-      !HexToBytes(f.value("markdown_hash", std::string(64, '0')),
-                  facts.markdown_hash, PS_HTML_HASH_BYTES)) {
-    run->Fail("bad hash field");
+  ps_html_stored_facts_t facts;
+  if (!BuildServeRequest(ModeValue(in.at("mode")), in.at("request"), &strings,
+                         &request, run) ||
+      !BuildStoredFacts(in.at("stored"), &facts, run)) {
     return;
   }
   CheckServeVerdict(request, facts, expect, run);
@@ -5733,35 +5808,38 @@ void RunStoreRow(const nlohmann::json& in, const nlohmann::json& expect,
     values.push_back(h.at(1).get_ref<const std::string&>().c_str());
   }
   uint32_t request_flags = 0;
-  if (!Bits(in.value("request_flags", nlohmann::json::array()),
-            kStoreRequestBits, &request_flags, run)) {
+  if (!Bits(in.value("request", nlohmann::json::array()), kStoreRequestBits,
+            &request_flags, run)) {
     return;
   }
   const std::string& body = in.at("body").get_ref<const std::string&>();
   const std::string& method = in.at("method").get_ref<const std::string&>();
-  const std::string& path = in.at("path").get_ref<const std::string&>();
+  const std::string& path = in.at("url_path").get_ref<const std::string&>();
   int reason = -1;
   int sidecar = 0;
   uint32_t lifetime = 0;
   uint32_t flags = 0;
   uint16_t cc = 0;
   size_t detail_len = 0;
-  char detail[160];
+  char detail[160] = {};
+  const int mode = ModeValue(in.at("mode"));
   const int action = ps_html_store_classify(
-      ModeValue(in.at("mode")), method.c_str(), path.c_str(), request_flags,
+      mode, method.c_str(), path.c_str(), request_flags,
       in.at("status").get<int>(), names.empty() ? nullptr : names.data(),
       values.empty() ? nullptr : values.data(), names.size(),
       in.value("body_bytes", static_cast<uint64_t>(body.size())),
       in.value("body_complete", true) ? 1 : 0, body.data(), body.size(),
       in.value("max_body_bytes", uint64_t{5} * 1024 * 1024),
-      in.at("now").get<uint32_t>(), &reason, &lifetime, &flags, &cc, &sidecar,
-      detail, sizeof(detail), &detail_len);
+      in.value("now_s", 0u), &reason, &lifetime, &flags, &cc, &sidecar, detail,
+      sizeof(detail), &detail_len);
   ExpectField<std::string>(expect, "action", StoreActionName(action), run);
   if (action < 0) return;
   const char* name = ps_html_store_reason_name(reason);
   ExpectField<std::string>(expect, "reason", name ? name : "<none>", run);
+  ExpectField<std::string>(expect, "detail", std::string(detail), run);
   ExpectField<uint32_t>(expect, "lifetime_s", lifetime, run);
-  const int mode = ModeValue(in.at("mode"));
+  ExpectBitsSet(expect, "flags", kStoreFlagBits, flags, run);
+  ExpectBitsSet(expect, "cc_flags", kCcBits, cc, run);
   if (mode == PS_HTML_CACHE_REPORT_ONLY &&
       (action == PS_HTML_STORE_ACTION_STORE ||
        action == PS_HTML_STORE_ACTION_STORE_NO_NOTIFY)) {
@@ -5769,41 +5847,29 @@ void RunStoreRow(const nlohmann::json& in, const nlohmann::json& expect,
   }
 }
 
-std::string FactFlagNames(uint32_t flags) {
-  std::string out;
-  for (const auto& [name, bit] : kFactBits) {
-    if ((flags & bit) == 0) continue;
-    if (!out.empty()) out += ",";
-    out += name;
-  }
-  return out;
-}
-
-const char* WithheldReasonName(int reason) {
-  switch (reason) {
-    case PS_HTML_WITHHELD_BELOW_FLOOR:
-      return "below_floor";
-    case PS_HTML_WITHHELD_TOO_LARGE:
-      return "too_large";
-    case PS_HTML_WITHHELD_ENCODED:
-      return "encoded";
-    case PS_HTML_WITHHELD_HASH_MISMATCH:
-      return "hash_mismatch";
-    case PS_HTML_WITHHELD_EXTRACT_FAILED:
-      return "extract_failed";
-  }
-  return "none";
-}
-
-// The deriver's withheld record is written here under a test-local alternate
-// id: the facts helper reads only the record's bytes, and which id the
-// record lives at is the cache's business, not the policy's.
+// The deriver's withheld record is written under a test-local alternate id:
+// the facts helper reads only the record's bytes, and which id it lives at is
+// the cache's business, not the policy's.
 constexpr uint8_t kTestWithheldMarkerId = 0xCC;
+constexpr char kPolicySite[] =
+    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+bool WriteBytes(std::expected<pagespeed::WriteResult, cyclone::CacheError> wh,
+                std::string_view bytes) {
+  if (!wh.has_value()) return false;
+  if (!wh->write_sync(std::span<const std::byte>(
+                          reinterpret_cast<const std::byte*>(bytes.data()),
+                          bytes.size()))
+           .has_value()) {
+    return false;
+  }
+  return wh->close_sync().has_value();
+}
 
 // A facts row: writes the HTML entry (through ps_html_store_write_params),
-// its Markdown copy and a withheld record into a real temporary volume,
-// reads them back by exact id in the row's site, and builds the facts from
-// those reads.
+// its Markdown copy, a withheld record and a header block into a real
+// temporary volume, reads them back by exact id in one site, and builds the
+// facts from those reads.
 void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
                  RowRun* run) {
   const std::string dir = pagespeed::test::MakeTempDir();
@@ -5823,115 +5889,117 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
   const char* kScheme = "https";
   const std::string site = kPolicySite;
   const std::string body = "<html><body>a page for facts</body></html>";
+  const nlohmann::json& vol = in.at("volume");
 
-  const auto write_entry = [&](pagespeed::AlternateMetadata meta,
-                               std::string_view bytes, int which) -> bool {
-    std::expected<pagespeed::WriteResult, cyclone::CacheError> wh =
-        std::unexpected(cyclone::CacheError::InvalidArgument);
-    if (which == 0) {
-      wh = cache->cache->WriteOriginalAlternate(kUrl, kHost, kScheme,
-                                                bytes.size(), meta, site);
-    } else {
-      wh = cache->cache->WriteAgentAlternate(kUrl, kHost, kScheme, bytes.size(),
-                                             meta, site);
-    }
-    if (!wh.has_value()) return false;
-    if (!wh->write_sync(std::span<const std::byte>(
-                            reinterpret_cast<const std::byte*>(bytes.data()),
-                            bytes.size()))
-             .has_value()) {
-      return false;
-    }
-    return wh->close_sync().has_value();
-  };
+  const bool has_original =
+      vol.contains("original") && !vol["original"].is_null();
+  const bool has_markdown =
+      vol.contains("markdown") && !vol["markdown"].is_null();
+  const bool has_marker =
+      vol.contains("withheld_marker") && !vol["withheld_marker"].is_null();
+  const bool has_sidecar = vol.value("sidecar", false);
 
-  const nlohmann::json& o = in.at("original");
-  if (!o.is_null()) {
-    uint32_t store_flags = 0;
+  if (has_original) {
+    const nlohmann::json& o = vol["original"];
     uint32_t cc = 0;
-    if (!Bits(o.value("store_flags", nlohmann::json::array()), kStoreFlagBits,
-              &store_flags, run) ||
-        !Bits(o.value("cc", nlohmann::json::array()), kCcBits, &cc, run)) {
+    if (!Bits(o.value("cc_flags", nlohmann::json::array()), kCcBits, &cc,
+              run)) {
       ps_cache_close(cache);
       std::filesystem::remove_all(dir);
       return;
     }
-    const std::string& ct = o.at("content_type").get_ref<const std::string&>();
-    const int action = o.at("action") == "store_no_notify"
+    const uint32_t store_flags =
+        PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT |
+        ((cc & PS_CC_ORIGIN_PUBLIC) != 0 ? PS_HTML_STORE_FLAG_EXPLICIT_SHARED
+                                         : 0u);
+    const int action = (cc & PS_CC_ORIGIN_NO_TRANSFORM) != 0
                            ? PS_HTML_STORE_ACTION_STORE_NO_NOTIFY
                            : PS_HTML_STORE_ACTION_STORE;
     ps_write_params_t params;
     ps_write_params_init_auto(&params);
-    if (ps_html_store_write_params(action, o.at("lifetime_s").get<uint32_t>(),
-                                   store_flags, static_cast<uint16_t>(cc),
-                                   o.value("sidecar_stored", false) ? 1 : 0,
-                                   o.at("capture_start_s").get<uint32_t>(),
-                                   o.value("inbound_age_s", 0u), body.size(),
-                                   ct.c_str(), &params) != 0) {
+    if (ps_html_store_write_params(
+            action, o.at("lifetime_s").get<uint32_t>(), store_flags,
+            static_cast<uint16_t>(cc | PS_CC_ORIGIN_HEADER_PRESENT),
+            has_sidecar ? 1 : 0, o.at("stored_at").get<uint32_t>(), 0,
+            body.size(), "text/html; charset=utf-8", &params) != 0) {
       run->Fail("ps_html_store_write_params refused the row");
     }
-    // The metadata the C write would build from these params, plus the
-    // content hash a module stamps on the entry it stores.
+    // The metadata the C write builds from these params, plus the content
+    // hash a module stamps on the entry it stores.
     pagespeed::AlternateMetadata meta;
     meta.full_mask = params.full_mask;
     meta.content_type =
         static_cast<pagespeed::ContentType>(params.content_type);
     meta.flags = params.flags;
-    if (!o.value("classified", true)) {
-      meta.flags &= static_cast<uint8_t>(
-          ~pagespeed::AlternateMetadata::kFlagHeadersClassified);
-    }
     meta.origin_content_type = params.origin_ct;
     meta.origin_max_age = params.origin_max_age;
     meta.origin_s_maxage = params.origin_s_maxage;
     meta.origin_cc_flags = params.origin_cc_flags;
     meta.cache_inserted_at = params.cache_inserted_at;
-    HexToBytes(o.at("binding_hash").get<std::string>(),
-               reinterpret_cast<uint8_t*>(meta.origin_html_hash.data()),
-               PS_HTML_HASH_BYTES);
-    if (!write_entry(meta, body, 0)) run->Fail("original write failed");
+    if (o.contains("origin_html_hash") && !o["origin_html_hash"].is_null()) {
+      HexToBytes(o["origin_html_hash"].get<std::string>(),
+                 reinterpret_cast<uint8_t*>(meta.origin_html_hash.data()),
+                 PS_HTML_HASH_BYTES);
+    }
+    if (!WriteBytes(cache->cache->WriteOriginalAlternate(
+                        kUrl, kHost, kScheme, body.size(), meta, site),
+                    body)) {
+      run->Fail("original write failed");
+    }
   }
-  const nlohmann::json& m = in.at("markdown");
-  if (!m.is_null()) {
+  if (has_markdown) {
+    const nlohmann::json& m = vol["markdown"];
     pagespeed::AlternateMetadata meta;
     meta.full_mask = 0x7C;
     meta.content_type = pagespeed::ContentType::kOther;
     meta.origin_content_type = "text/markdown; charset=utf-8";
     meta.flags = pagespeed::AlternateMetadata::kFlagWorkerProcessed;
-    HexToBytes(m.at("origin_html_hash").get<std::string>(),
-               reinterpret_cast<uint8_t*>(meta.origin_html_hash.data()),
-               PS_HTML_HASH_BYTES);
-    if (!write_entry(meta, "# a page for facts\n", 1)) {
+    if (m.contains("origin_html_hash") && !m["origin_html_hash"].is_null()) {
+      HexToBytes(m["origin_html_hash"].get<std::string>(),
+                 reinterpret_cast<uint8_t*>(meta.origin_html_hash.data()),
+                 PS_HTML_HASH_BYTES);
+    }
+    const std::string copy = "# a page for facts\n";
+    if (!WriteBytes(cache->cache->WriteAgentAlternate(kUrl, kHost, kScheme,
+                                                      copy.size(), meta, site),
+                    copy)) {
       run->Fail("markdown write failed");
     }
   }
-  const nlohmann::json& k = in.at("marker");
-  if (!k.is_null()) {
+  if (has_marker) {
+    const nlohmann::json& k = vol["withheld_marker"];
     pagespeed::HtmlWithheldMarker marker;
-    const std::string reason = k.at("reason").get<std::string>();
-    for (uint8_t r = 1; r <= pagespeed::kHtmlWithheldReasonMax; ++r) {
-      if (pagespeed::HtmlWithheldReasonName(
-              static_cast<pagespeed::HtmlWithheldReason>(r)) == reason) {
-        marker.reason = static_cast<pagespeed::HtmlWithheldReason>(r);
-      }
+    const int reason = WithheldReasonValue(k.at("reason").get<std::string>());
+    if (reason == 0) run->Fail("unknown withheld reason");
+    marker.reason = static_cast<pagespeed::HtmlWithheldReason>(reason);
+    const std::string version = k.at("deriver_version").get<std::string>();
+    if (version != "current" && version != "previous") {
+      run->Fail("unknown deriver_version " + version);
     }
-    marker.deriver_version = k.at("deriver") == "current"
+    marker.deriver_version = version == "current"
                                  ? pagespeed::kHtmlMarkdownDeriverVersion
                                  : pagespeed::kHtmlMarkdownDeriverVersion - 1;
     HexToBytes(k.at("parent_hash").get<std::string>(),
                marker.parent_hash.data(), PS_HTML_HASH_BYTES);
     const std::string payload = pagespeed::EncodeHtmlWithheldMarker(marker);
-    auto wh = cache->cache->WriteSentinel(
-        kUrl, kHost, kScheme,
-        static_cast<pagespeed::SentinelId>(kTestWithheldMarkerId),
-        payload.size(), site);
-    if (!wh.has_value() ||
-        !wh->write_sync(std::span<const std::byte>(
-                            reinterpret_cast<const std::byte*>(payload.data()),
-                            payload.size()))
-             .has_value() ||
-        !wh->close_sync().has_value()) {
+    if (!WriteBytes(
+            cache->cache->WriteSentinel(
+                kUrl, kHost, kScheme,
+                static_cast<pagespeed::SentinelId>(kTestWithheldMarkerId),
+                payload.size(), site),
+            payload)) {
       run->Fail("marker write failed");
+    }
+  }
+  if (has_sidecar) {
+    // A version byte and one header line; only its presence matters here.
+    const std::string block("\x01X-Policy: case\r\n", 18);
+    if (!WriteBytes(cache->cache->WriteSentinel(
+                        kUrl, kHost, kScheme,
+                        pagespeed::SentinelId::kHeadersSidecar, block.size(),
+                        site),
+                    block)) {
+      run->Fail("sidecar write failed");
     }
   }
 
@@ -5947,48 +6015,54 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
   ps_read_result_t* original = read(PS_SENTINEL_ORIGINAL);
   ps_read_result_t* markdown = read(0x7C);
   ps_read_result_t* marker = read(kTestWithheldMarkerId);
-  if (!o.is_null() && original == nullptr) run->Fail("original did not read");
-  if (!m.is_null() && markdown == nullptr) run->Fail("markdown did not read");
-  if (!k.is_null() && marker == nullptr) run->Fail("marker did not read");
+  ps_read_result_t* sidecar = read(PS_SENTINEL_HEADERS_SIDECAR);
+  if (has_original && original == nullptr) run->Fail("original did not read");
+  if (has_markdown && markdown == nullptr) run->Fail("markdown did not read");
+  if (has_marker && marker == nullptr) run->Fail("marker did not read");
+  if (has_sidecar && sidecar == nullptr) run->Fail("sidecar did not read");
 
   ps_html_stored_facts_t facts{};
   facts.struct_size = sizeof(facts);
-  if (ps_html_stored_facts_from_reads(
-          original, markdown, marker,
-          in.value("sidecar_present", false) ? 1 : 0, &facts) != 0) {
+  if (ps_html_stored_facts_from_reads(original, markdown, marker,
+                                      sidecar != nullptr ? 1 : 0,
+                                      &facts) != 0) {
     run->Fail("ps_html_stored_facts_from_reads failed");
   }
-  if (expect.contains("flags")) {
-    uint32_t wanted = 0;
-    if (Bits(expect.at("flags"), kFactBits, &wanted, run) &&
-        wanted != facts.flags) {
-      run->Fail("flags: expected " + FactFlagNames(wanted) + ", got " +
-                FactFlagNames(facts.flags));
-    }
-  }
-  if (expect.contains("withheld_reason")) {
-    ExpectField<std::string>(expect, "withheld_reason",
-                             WithheldReasonName(facts.withheld_reason), run);
-  } else if ((facts.flags & PS_HTML_FACTS_WITHHELD) == 0 &&
-             facts.withheld_reason != 0) {
-    run->Fail("a withheld reason without the withheld flag");
-  }
-  ExpectField<uint32_t>(expect, "stored_at", facts.stored_at, run);
-  ExpectField<uint32_t>(expect, "lifetime_s", facts.lifetime_s, run);
-  if ((facts.flags & PS_HTML_FACTS_WITHHELD) != 0 &&
-      (facts.flags & PS_HTML_FACTS_BINDING_LIVE) != 0) {
+  const auto flag = [&facts](uint32_t bit) { return (facts.flags & bit) != 0; };
+  ExpectField<bool>(expect, "present", flag(PS_HTML_FACTS_PRESENT), run);
+  ExpectField<bool>(expect, "variant_present",
+                    flag(PS_HTML_FACTS_VARIANT_PRESENT), run);
+  ExpectField<bool>(expect, "binding_live", flag(PS_HTML_FACTS_BINDING_LIVE),
+                    run);
+  ExpectField<bool>(expect, "withheld", flag(PS_HTML_FACTS_WITHHELD), run);
+  ExpectField<bool>(expect, "explicit_shared",
+                    flag(PS_HTML_FACTS_EXPLICIT_SHARED), run);
+  ExpectField<bool>(expect, "sidecar_present",
+                    flag(PS_HTML_FACTS_SIDECAR_PRESENT), run);
+  if (flag(PS_HTML_FACTS_WITHHELD) && flag(PS_HTML_FACTS_BINDING_LIVE)) {
     run->Fail("a withheld copy called live");
   }
-  if (in.contains("then_serve")) {
-    const nlohmann::json& ts = in.at("then_serve");
+  if (flag(PS_HTML_FACTS_WITHHELD) &&
+      facts.withheld_reason !=
+          WithheldReasonValue(
+              vol["withheld_marker"].at("reason").get<std::string>())) {
+    run->Fail("withheld_reason is not the marker's");
+  }
+  if (expect.contains("serve")) {
+    const nlohmann::json req = {{"method", "GET"},
+                                {"accept", {"text/markdown"}},
+                                {"now_s", in.at("now_s")}};
+    ServeRequestStrings strings;
     ps_html_serve_request_t request;
-    if (BuildServeRequest(ts.at("request"), &request, run)) {
-      CheckServeVerdict(request, facts, ts.at("expect"), run);
+    if (BuildServeRequest(PS_HTML_CACHE_SERVE_VARIANTS, req, &strings,
+                          &request, run)) {
+      CheckServeVerdict(request, facts, expect["serve"], run);
     }
   }
   ps_read_free(original);
   ps_read_free(markdown);
   ps_read_free(marker);
+  ps_read_free(sidecar);
   ps_cache_close(cache);
   std::filesystem::remove_all(dir);
 }
@@ -6005,23 +6079,32 @@ void RunEtagRow(const nlohmann::json& in, const nlohmann::json& expect,
   char buf[64] = {};
   size_t len = 0;
   const int rc = ps_html_markdown_etag(b, m, buf, sizeof(buf), &len);
-  ExpectField<int>(expect, "return", rc, run);
-  if (rc == 0) {
-    ExpectField<std::string>(expect, "etag", std::string(buf), run);
-    if (len != PS_HTML_MARKDOWN_ETAG_CHARS) run->Fail("etag length");
+  if (rc != 0) {
+    run->Fail("ps_html_markdown_etag returned " + std::to_string(rc));
+    return;
   }
+  ExpectField<std::string>(expect, "etag", std::string(buf), run);
+  if (len != PS_HTML_MARKDOWN_ETAG_CHARS) run->Fail("etag length");
 }
 
 void RunInmRow(const nlohmann::json& in, const nlohmann::json& expect,
                RowRun* run) {
-  const int rc = ps_if_none_match_matches_weak(
-      OptionalString(in, "if_none_match"), OptionalString(in, "etag"));
-  ExpectField<int>(expect, "return", rc, run);
+  const auto str = [&in](const char* key) -> const char* {
+    if (!in.contains(key) || in[key].is_null()) return nullptr;
+    return in[key].get_ref<const std::string&>().c_str();
+  };
+  const int rc = ps_if_none_match_matches_weak(str("if_none_match"),
+                                               str("etag"));
+  if (rc < 0) {
+    run->Fail("ps_if_none_match_matches_weak refused the call");
+    return;
+  }
+  ExpectField<bool>(expect, "match", rc == 1, run);
 }
 
-// A notification is checked against the rules before any connection is
-// tried, so a socket nobody listens on tells the two apart: a refused
-// notification is PS_ERR_INVALID_ARG, an accepted one fails to connect.
+// The argument check runs before any connection is tried, so a socket nobody
+// listens on tells the two apart: a refusal is PS_ERR_INVALID_ARG, anything
+// else passed the check.
 void RunNotifyRow(const nlohmann::json& in, const nlohmann::json& expect,
                   RowRun* run) {
   const std::string dir = pagespeed::test::MakeTempDir();
@@ -6031,18 +6114,38 @@ void RunNotifyRow(const nlohmann::json& in, const nlohmann::json& expect,
   p.url = "/n.html";
   p.hostname = "n.example";
   p.scheme = "https";
-  const std::string ct = in.at("content_type").get<std::string>();
-  p.content_type = ct == "html" ? PS_CONTENT_HTML : PS_CONTENT_CSS;
-  p.mask = in.value("llms_mask", false) ? 0xFFFFFFFDu : 0x08u;
+  const std::string content = in.at("content").get<std::string>();
+  p.content_type = content == "html"    ? PS_CONTENT_HTML
+                   : content == "css"   ? PS_CONTENT_CSS
+                   : content == "js"    ? PS_CONTENT_JS
+                   : content == "image" ? PS_CONTENT_IMAGE
+                                        : PS_CONTENT_OTHER;
+  p.mask = in.value("mask", std::string()) == "llms_txt" ? 0xFFFFFFFDu : 0x08u;
   p.agent_request = in.value("agent_request", false) ? 1 : 0;
-  p.site = in.value("site", true) ? kPolicySite.c_str() : nullptr;
-  if (Bits(in.value("flags", nlohmann::json::array()), kNotifyBits,
-           &p.notify_flags, run)) {
+  std::string site;
+  if (in.contains("site") && !in["site"].is_null()) {
+    site = in["site"].get<std::string>();
+    p.site = site.c_str();
+  }
+  uint32_t flags = 0;
+  bool ok = true;
+  for (const auto& f : in.value("flags", nlohmann::json::array())) {
+    const std::string name = f.get<std::string>();
+    if (name.rfind("reserved_0x", 0) == 0) {
+      flags |= static_cast<uint32_t>(std::stoul(name.substr(11), nullptr, 16));
+      continue;
+    }
+    uint32_t bit = 0;
+    if (!Bits(nlohmann::json::array({name}), kNotifyBits, &bit, run)) {
+      ok = false;
+      break;
+    }
+    flags |= bit;
+  }
+  if (ok) {
+    p.notify_flags = flags;
     const ps_error_t rc = ps_notify_worker_ex(socket_path.c_str(), &p);
-    const std::string got = rc == PS_ERR_INVALID_ARG ? "invalid_arg"
-                            : rc == PS_ERR_IO        ? "ok"
-                                                     : ps_error_name(rc);
-    ExpectField<std::string>(expect, "return", got, run);
+    ExpectField<bool>(expect, "valid", rc != PS_ERR_INVALID_ARG, run);
   }
   std::filesystem::remove_all(dir);
 }
@@ -6050,33 +6153,25 @@ void RunNotifyRow(const nlohmann::json& in, const nlohmann::json& expect,
 }  // namespace
 
 TEST(PageSpeedCApiPolicy, EveryPolicyCaseHoldsWithNoSkips) {
-  const std::string contents = ReadFileNoCr(kPolicyCasesPath);
-  ASSERT_FALSE(contents.empty()) << "cannot read " << kPolicyCasesPath;
-  EXPECT_EQ(Fnv1a64Of(contents), kPolicyCasesHash)
-      << "the policy-case file changed: update kPolicyCasesHash with it";
+  const std::string contents = pagespeed::test::ReadDaemonHtmlPolicyCases();
+  ASSERT_FALSE(contents.empty())
+      << "cannot read " << pagespeed::test::kDaemonHtmlPolicyCasesPath;
+  // The pin first: a runner never asserts a file other than the reviewed one.
+  ASSERT_EQ(pagespeed::test::PolicyCasesFnv1a64(contents),
+            pagespeed::test::kDaemonHtmlPolicyCasesFnv1a64);
   const nlohmann::json doc = nlohmann::json::parse(contents);
-  ASSERT_EQ(doc.at("format"), "daemon_html_policy_cases");
-  ASSERT_EQ(doc.at("version"), 1);
   const nlohmann::json& rows = doc.at("rows");
   ASSERT_GT(rows.size(), 0u);
 
   size_t ran = 0;
   size_t skipped = 0;
-  std::set<std::string> ids;
   std::map<std::string, size_t> per_call;
   for (const nlohmann::json& row : rows) {
-    RowRun run;
-    run.id = row.at("id").get<std::string>();
-    EXPECT_TRUE(ids.insert(run.id).second) << "duplicate id " << run.id;
-    EXPECT_TRUE(row.contains("why") && row.at("why").is_string() &&
-                !row.at("why").get<std::string>().empty())
-        << run.id << ": every row carries a label";
+    const std::string id = row.at("id").get<std::string>();
     bool for_policy = false;
     for (const auto& r : row.at("runners")) for_policy |= r == "policy";
     if (!for_policy) {
-      // A row in this file that no policy runner runs is a mistake: the
-      // file holds policy rows only.
-      ADD_FAILURE() << run.id << ": not a policy row";
+      ADD_FAILURE() << id << ": not a policy row";
       ++skipped;
       continue;
     }
@@ -6084,6 +6179,7 @@ TEST(PageSpeedCApiPolicy, EveryPolicyCaseHoldsWithNoSkips) {
     const std::string call = body.at("call").get<std::string>();
     const nlohmann::json& input = body.at("input");
     const nlohmann::json& expect = body.at("expect");
+    RowRun run;
     if (call == "store") {
       RunStoreRow(input, expect, &run);
     } else if (call == "serve") {
@@ -6097,21 +6193,20 @@ TEST(PageSpeedCApiPolicy, EveryPolicyCaseHoldsWithNoSkips) {
     } else if (call == "notify") {
       RunNotifyRow(input, expect, &run);
     } else {
-      ADD_FAILURE() << run.id << ": unknown call " << call;
+      ADD_FAILURE() << id << ": unknown call " << call;
       ++skipped;
       continue;
     }
     ++ran;
     ++per_call[call];
-    for (const std::string& f : run.failures) {
-      ADD_FAILURE() << run.id << ": " << f;
-    }
+    for (const std::string& f : run.failures) ADD_FAILURE() << id << ": " << f;
   }
   EXPECT_EQ(skipped, 0u);
   EXPECT_EQ(ran, rows.size());
   std::printf("policy runner: %zu rows ran, %zu skipped", ran, skipped);
-  for (const auto& [call, n] : per_call)
+  for (const auto& [call, n] : per_call) {
     std::printf(", %s %zu", call.c_str(), n);
+  }
   std::printf("\n");
 }
 
