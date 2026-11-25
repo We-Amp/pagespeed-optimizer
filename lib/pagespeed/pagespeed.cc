@@ -1580,12 +1580,9 @@ struct ps_header_block_s {
   std::array<uint8_t, AlternateMetadata::kHashSize> pairing_hash{};
 };
 
-extern "C" ps_error_t ps_headers_sidecar_read(ps_cache_t* cache,
-                                              const char* url,
-                                              const char* hostname,
-                                              const char* scheme,
-                                              const char* site,
-                                              ps_header_block_t** out) {
+extern "C" ps_error_t ps_headers_sidecar_read(
+    ps_cache_t* cache, const char* url, const char* hostname,
+    const char* scheme, const char* site, ps_header_block_t** out) {
   ClearLastError();
   if (out != nullptr) *out = nullptr;
   if (cache == nullptr || out == nullptr) return PS_ERR_INVALID_ARG;
@@ -1664,9 +1661,7 @@ extern "C" int ps_header_block_pairing(const ps_header_block_t* block,
              : PS_SIDECAR_UNPAIRED;
 }
 
-extern "C" void ps_header_block_free(ps_header_block_t* block) {
-  delete block;
-}
+extern "C" void ps_header_block_free(ps_header_block_t* block) { delete block; }
 
 extern "C" ps_error_t ps_cache_write_sentinel(
     ps_cache_t* cache, const char* url, const char* hostname,
@@ -1908,8 +1903,7 @@ extern "C" ps_error_t ps_cache_write_site_purge_epoch(ps_cache_t* cache,
   if (err != PS_OK) return err;
   try {
     const auto now = static_cast<uint64_t>(std::time(nullptr));
-    auto result =
-        cache->cache->WriteSitePurgeEpoch(site_view, epoch_s, now);
+    auto result = cache->cache->WriteSitePurgeEpoch(site_view, epoch_s, now);
     if (!result.has_value()) {
       if (result.error() == cyclone::CacheError::InvalidArgument) {
         SetLastError(
@@ -2138,9 +2132,9 @@ static_assert(PS_SENTINEL_MARKDOWN_WITHHELD ==
               static_cast<int>(SentinelId::kAgentMarkdownWithheld));
 static_assert(pagespeed::IsSentinel(PS_SENTINEL_MARKDOWN_WITHHELD),
               "the withheld marker must never be selectable");
-static_assert(!pagespeed::IsEmbedderWritableSentinel(
-                  PS_SENTINEL_MARKDOWN_WITHHELD),
-              "ps_cache_write_sentinel must refuse the withheld marker");
+static_assert(
+    !pagespeed::IsEmbedderWritableSentinel(PS_SENTINEL_MARKDOWN_WITHHELD),
+    "ps_cache_write_sentinel must refuse the withheld marker");
 
 // Copy the caller's prefix of an input struct into a zeroed local of this
 // build's shape. Absent fields read as zero; fields this build does not know

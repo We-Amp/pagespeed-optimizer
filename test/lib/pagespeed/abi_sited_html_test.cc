@@ -105,9 +105,8 @@ class AbiSitedHtmlTest : public ::testing::Test {
       params.origin_html_hash = hash;
     }
     ps_write_handle_t* wh = nullptr;
-    ps_error_t err =
-        ps_cache_write_original_site(c, kUrl, kHost, kScheme, site, &params,
-                                     &wh);
+    ps_error_t err = ps_cache_write_original_site(c, kUrl, kHost, kScheme, site,
+                                                  &params, &wh);
     if (err != PS_OK) return err;
     err = ps_write_data(wh, body.data(), body.size());
     if (err != PS_OK) {
@@ -160,8 +159,8 @@ TEST(AbiSitedHtmlVersion, TheSurfaceIsPsApi113) {
 TEST_F(AbiSitedHtmlTest, ASitedSidecarRoundTripsByteExact) {
   const char* names[] = {"Content-Type", "Referrer-Policy",
                          "X-Content-Type-Options", "Link"};
-  const char* values[] = {"text/html", "  strict-origin \t",
-                          "nosniff", "</a.css>; rel=preload"};
+  const char* values[] = {"text/html", "  strict-origin \t", "nosniff",
+                          "</a.css>; rel=preload"};
   const auto h = Hash(1);
   const auto params = SidecarParams(kSiteA.c_str(), h.data());
   int verdict = -1;
@@ -201,10 +200,9 @@ TEST_F(AbiSitedHtmlTest, ASitedSidecarRoundTripsByteExact) {
 
   // The raw blob read by id is the paired format, version byte first.
   ps_read_result_t* r = nullptr;
-  ASSERT_EQ(PS_OK, ps_cache_read_alternate_site(cache_, kUrl, kHost, kScheme,
-                                                kSiteA.c_str(),
-                                                PS_SENTINEL_HEADERS_SIDECAR,
-                                                &r));
+  ASSERT_EQ(PS_OK, ps_cache_read_alternate_site(
+                       cache_, kUrl, kHost, kScheme, kSiteA.c_str(),
+                       PS_SENTINEL_HEADERS_SIDECAR, &r));
   const uint8_t* data = nullptr;
   size_t len = 0;
   ASSERT_EQ(PS_OK, ps_read_content(r, &data, &len));
@@ -222,9 +220,9 @@ TEST_F(AbiSitedHtmlTest, AnUnsitedOrOtherSiteReadMissesASitedSidecar) {
                        cache_, &params, names, values, 1, nullptr, nullptr));
 
   ps_header_block_t* block = reinterpret_cast<ps_header_block_t*>(0x1);
-  EXPECT_EQ(PS_ERR_NOT_FOUND,
-            ps_headers_sidecar_read(cache_, kUrl, kHost, kScheme, nullptr,
-                                    &block));
+  EXPECT_EQ(
+      PS_ERR_NOT_FOUND,
+      ps_headers_sidecar_read(cache_, kUrl, kHost, kScheme, nullptr, &block));
   EXPECT_EQ(block, nullptr);
   EXPECT_EQ(PS_ERR_NOT_FOUND,
             ps_headers_sidecar_read(cache_, kUrl, kHost, kScheme,
@@ -249,8 +247,8 @@ TEST_F(AbiSitedHtmlTest, PairingTellsTheStoredOriginalFromAnother) {
   auto params = SidecarParams(kSiteA.c_str(), h1.data());
   ASSERT_EQ(PS_OK, ps_cache_write_headers_sidecar_site(
                        cache_, &params, names, values, 1, nullptr, nullptr));
-  ASSERT_EQ(PS_OK, WriteOriginal(cache_, kSiteA.c_str(), "<html>1</html>",
-                                 h1.data()));
+  ASSERT_EQ(PS_OK,
+            WriteOriginal(cache_, kSiteA.c_str(), "<html>1</html>", h1.data()));
 
   auto pairing = [&]() {
     ps_read_result_t* r = nullptr;
@@ -260,7 +258,8 @@ TEST_F(AbiSitedHtmlTest, PairingTellsTheStoredOriginalFromAnother) {
     ps_header_block_t* block = nullptr;
     EXPECT_EQ(PS_OK, ps_headers_sidecar_read(cache_, kUrl, kHost, kScheme,
                                              kSiteA.c_str(), &block));
-    const int result = ps_header_block_pairing(block, ps_read_origin_html_hash(r));
+    const int result =
+        ps_header_block_pairing(block, ps_read_origin_html_hash(r));
     ps_header_block_free(block);
     ps_read_free(r);
     return result;
@@ -273,8 +272,8 @@ TEST_F(AbiSitedHtmlTest, PairingTellsTheStoredOriginalFromAnother) {
   ASSERT_EQ(PS_OK, ps_cache_write_headers_sidecar_site(
                        cache_, &params, names, values, 1, nullptr, nullptr));
   EXPECT_EQ(pairing(), PS_SIDECAR_UNPAIRED);
-  ASSERT_EQ(PS_OK, WriteOriginal(cache_, kSiteA.c_str(), "<html>2</html>",
-                                 h2.data()));
+  ASSERT_EQ(PS_OK,
+            WriteOriginal(cache_, kSiteA.c_str(), "<html>2</html>", h2.data()));
   EXPECT_EQ(pairing(), PS_SIDECAR_PAIRED);
 
   // An unpaired block never pairs, and nothing pairs with an unbound original.
@@ -358,8 +357,8 @@ TEST_F(AbiSitedHtmlTest, An80BytePre113WriteParamsStillWorks) {
 TEST_F(AbiSitedHtmlTest, TheStampReadsBackOnEveryHandle) {
   const auto h = Hash(40);
   const std::string want(reinterpret_cast<const char*>(h.data()), 32);
-  ASSERT_EQ(PS_OK, WriteOriginal(cache_, kSiteA.c_str(), "<html>s</html>",
-                                 h.data()));
+  ASSERT_EQ(PS_OK,
+            WriteOriginal(cache_, kSiteA.c_str(), "<html>s</html>", h.data()));
   EXPECT_EQ(ReadStamp(cache_, kSiteA.c_str()), want);
   EXPECT_EQ(ReadStamp(cache_, kSiteA.c_str()), want);  // RAM tier
   ps_cache_t* other = OpenExtra();
@@ -367,8 +366,8 @@ TEST_F(AbiSitedHtmlTest, TheStampReadsBackOnEveryHandle) {
   EXPECT_EQ(ReadStamp(other, kSiteA.c_str()), want);  // volume only
 
   // A re-store without a hash replaces the binding with none.
-  ASSERT_EQ(PS_OK, WriteOriginal(cache_, kSiteA.c_str(), "<html>s</html>",
-                                 nullptr));
+  ASSERT_EQ(PS_OK,
+            WriteOriginal(cache_, kSiteA.c_str(), "<html>s</html>", nullptr));
   EXPECT_EQ(ReadStamp(cache_, kSiteA.c_str()), "");
 }
 
@@ -402,8 +401,8 @@ TEST_F(AbiSitedHtmlTest, TheMarkerIsNeitherWritableNorSelectable) {
   EXPECT_TRUE(Has(cache_, kSiteA.c_str(), PS_SENTINEL_MARKDOWN_WITHHELD));
 
   // A durable original written for the key clears it.
-  ASSERT_EQ(PS_OK, WriteOriginal(cache_, kSiteA.c_str(), "<html>r</html>",
-                                 nullptr));
+  ASSERT_EQ(PS_OK,
+            WriteOriginal(cache_, kSiteA.c_str(), "<html>r</html>", nullptr));
   EXPECT_FALSE(Has(cache_, kSiteA.c_str(), PS_SENTINEL_MARKDOWN_WITHHELD));
 }
 
@@ -418,9 +417,12 @@ TEST_F(AbiSitedHtmlTest, RemoveSiteDropsTheWholeKeyInThatSiteOnly) {
   pagespeed::PageSpeedCache& c = **cpp;
 
   const uint8_t kVariant = 0x08;
-  const std::vector<uint8_t> ids = {
-      PS_SENTINEL_ORIGINAL, PS_SENTINEL_HEADERS_SIDECAR,
-      PS_SENTINEL_CONTENT_HASH, 0x7C, kVariant, PS_SENTINEL_MARKDOWN_WITHHELD};
+  const std::vector<uint8_t> ids = {PS_SENTINEL_ORIGINAL,
+                                    PS_SENTINEL_HEADERS_SIDECAR,
+                                    PS_SENTINEL_CONTENT_HASH,
+                                    0x7C,
+                                    kVariant,
+                                    PS_SENTINEL_MARKDOWN_WITHHELD};
   auto seed = [&](const std::string& site) {
     const auto h = Hash(50);
     const char* names[] = {"Referrer-Policy"};
@@ -428,8 +430,8 @@ TEST_F(AbiSitedHtmlTest, RemoveSiteDropsTheWholeKeyInThatSiteOnly) {
     const auto params = SidecarParams(site.c_str(), h.data());
     ASSERT_EQ(PS_OK, ps_cache_write_headers_sidecar_site(
                          cache_, &params, names, values, 1, nullptr, nullptr));
-    ASSERT_EQ(PS_OK, WriteOriginal(cache_, site.c_str(), "<html>o</html>",
-                                   h.data()));
+    ASSERT_EQ(PS_OK,
+              WriteOriginal(cache_, site.c_str(), "<html>o</html>", h.data()));
     auto write_raw = [&](pagespeed::SentinelId id, std::string_view bytes) {
       auto wh = c.WriteSentinel(kUrl, kHost, kScheme, id, bytes.size(), site);
       ASSERT_TRUE(wh.has_value());
@@ -443,8 +445,8 @@ TEST_F(AbiSitedHtmlTest, RemoveSiteDropsTheWholeKeyInThatSiteOnly) {
     md.full_mask = 0x7C;
     md.origin_content_type = "text/markdown";
     const std::string body = "# md";
-    auto aw = c.WriteAgentAlternate(kUrl, kHost, kScheme, body.size(), md,
-                                    site);
+    auto aw =
+        c.WriteAgentAlternate(kUrl, kHost, kScheme, body.size(), md, site);
     ASSERT_TRUE(aw.has_value());
     ASSERT_TRUE(aw->write_sync(std::as_bytes(std::span(body))).has_value());
     ASSERT_TRUE(aw->close_sync().has_value());
@@ -452,8 +454,8 @@ TEST_F(AbiSitedHtmlTest, RemoveSiteDropsTheWholeKeyInThatSiteOnly) {
     vm.full_mask = kVariant;
     vm.content_type = pagespeed::ContentType::kHtml;
     const std::string vbody = "<html>v</html>";
-    auto vw = c.WriteAlternate(kUrl, kHost, kScheme, kVariant, vbody.size(),
-                               vm, site);
+    auto vw = c.WriteAlternate(kUrl, kHost, kScheme, kVariant, vbody.size(), vm,
+                               site);
     ASSERT_TRUE(vw.has_value());
     ASSERT_TRUE(vw->write_sync(std::as_bytes(std::span(vbody))).has_value());
     ASSERT_TRUE(vw->close_sync().has_value());
@@ -511,14 +513,15 @@ TEST_F(AbiSitedHtmlTest, TheEpochRoundTripsPerSiteAndMaxMerges) {
 
 TEST_F(AbiSitedHtmlTest, AFutureEpochAndABadSiteAreRefused) {
   const uint64_t now = Now();
-  EXPECT_EQ(PS_ERR_INVALID_ARG,
-            ps_cache_write_site_purge_epoch(cache_, kSiteA.c_str(), now + 3600));
+  EXPECT_EQ(PS_ERR_INVALID_ARG, ps_cache_write_site_purge_epoch(
+                                    cache_, kSiteA.c_str(), now + 3600));
   uint64_t e = 7;
   ASSERT_EQ(PS_OK, ps_cache_read_site_purge_epoch(cache_, kSiteA.c_str(), &e));
   EXPECT_EQ(e, 0u);
   EXPECT_EQ(PS_ERR_INVALID_ARG,
             ps_cache_write_site_purge_epoch(cache_, nullptr, now));
-  EXPECT_EQ(PS_ERR_INVALID_ARG, ps_cache_write_site_purge_epoch(cache_, "", now));
+  EXPECT_EQ(PS_ERR_INVALID_ARG,
+            ps_cache_write_site_purge_epoch(cache_, "", now));
   EXPECT_EQ(PS_ERR_INVALID_ARG,
             ps_cache_write_site_purge_epoch(cache_, "xyz", now));
   EXPECT_EQ(PS_ERR_INVALID_ARG,
@@ -540,8 +543,8 @@ TEST_F(AbiSitedHtmlTest, ConcurrentWritersOfDifferentValuesLeaveTheLarger) {
       ready.fetch_add(1);
       while (ready.load() < 2) {
       }
-      EXPECT_EQ(PS_OK, ps_cache_write_site_purge_epoch(c, kSiteA.c_str(),
-                                                       value));
+      EXPECT_EQ(PS_OK,
+                ps_cache_write_site_purge_epoch(c, kSiteA.c_str(), value));
     };
     std::thread t1(run, low, base + 2);
     std::thread t2(run, high, base + 5);

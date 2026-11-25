@@ -849,10 +849,9 @@ PageSpeedCache::WriteOriginalAlternate(std::string_view url,
     auto removed = cache_->remove_alternate_sync(key, marker);
     if (!removed.has_value() && UnlinkLeftEntryLinked(removed.error()) &&
         handler_ != nullptr) {
-      handler_->Warning(
-          "Withheld marker removal failed for %.*s (%s)",
-          static_cast<int>(url.size()), url.data(),
-          make_error_code(removed.error()).message().c_str());
+      handler_->Warning("Withheld marker removal failed for %.*s (%s)",
+                        static_cast<int>(url.size()), url.data(),
+                        make_error_code(removed.error()).message().c_str());
     }
   }
 
@@ -1261,8 +1260,8 @@ PageSpeedCache::ReadSitePurgeEpochLocked(const cyclone::CacheKey& key) {
   return epoch;
 }
 
-std::expected<uint64_t, cyclone::CacheError>
-PageSpeedCache::ReadSitePurgeEpoch(std::string_view site) {
+std::expected<uint64_t, cyclone::CacheError> PageSpeedCache::ReadSitePurgeEpoch(
+    std::string_view site) {
   if (site.empty()) {
     return std::unexpected(cyclone::CacheError::InvalidArgument);
   }

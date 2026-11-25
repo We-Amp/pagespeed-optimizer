@@ -124,8 +124,8 @@ class SiteHtmlStoreTest : public ::testing::Test {
 
 TEST_F(SiteHtmlStoreTest, APairedSidecarIsStoredInFormat2WithItsHash) {
   const auto hash = Hash(1);
-  const std::vector<HeaderField> headers = {
-      {"Content-Type", "text/html"}, {"Referrer-Policy", "no-referrer"}};
+  const std::vector<HeaderField> headers = {{"Content-Type", "text/html"},
+                                            {"Referrer-Policy", "no-referrer"}};
   auto written =
       cache_->WriteHeadersSidecar(kUrl, kHost, kScheme, headers, kSiteA, hash);
   ASSERT_TRUE(written.has_value());
@@ -225,9 +225,9 @@ TEST_F(SiteHtmlStoreTest, NoSelectionReadEverReturnsTheMarker) {
 TEST_F(SiteHtmlStoreTest, BesideAMarkdownCopyTheAgentReadGetsTheCopy) {
   WriteMarkdown(kSiteA, "# title");
   WriteMarker(kSiteA);
-  auto read = cache_->ReadBestAlternate(kUrl, kHost, kScheme, CapabilityMask(),
-                                        /*agent_request_entitled=*/true,
-                                        kSiteA);
+  auto read =
+      cache_->ReadBestAlternate(kUrl, kHost, kScheme, CapabilityMask(),
+                                /*agent_request_entitled=*/true, kSiteA);
   ASSERT_TRUE(read.has_value());
   EXPECT_EQ(read->metadata.full_mask & 0xFF,
             static_cast<uint32_t>(SentinelId::kAgentMarkdown));
@@ -244,8 +244,8 @@ TEST_F(SiteHtmlStoreTest, ARestoreOfTheOriginalClearsTheMarker) {
   // the copy that was read, not a property of the page.
   WriteOriginal(kSiteA, "<html>v1</html>", &h);
   EXPECT_FALSE(Exists(kSiteA, kMarkerId));
-  EXPECT_TRUE(Exists(kSiteA, static_cast<AlternateId>(
-                                 SentinelId::kOriginalContent)));
+  EXPECT_TRUE(
+      Exists(kSiteA, static_cast<AlternateId>(SentinelId::kOriginalContent)));
   // Another site's marker is another key.
   EXPECT_TRUE(Exists(kSiteB, kMarkerId));
 }

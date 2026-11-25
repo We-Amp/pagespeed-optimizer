@@ -139,7 +139,7 @@ enum class SentinelPayload : uint8_t {
 // Payload format version of each kVersionedPayload class.  Reserved with the
 // id: a reader that finds a byte it does not recognise here stops rather than
 // guessing, which is the whole reason the byte is spent.
-inline constexpr uint8_t kHeadersSidecarFormatVersion = 1;   // kHeadersSidecar
+inline constexpr uint8_t kHeadersSidecarFormatVersion = 1;  // kHeadersSidecar
 // The paired form of the same class: format 1 preceded by the 32-byte hash of
 // the durable original the block was recorded with, so a reader can tell a
 // block that belongs to the stored original from one that does not.  A build
