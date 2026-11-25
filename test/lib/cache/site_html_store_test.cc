@@ -672,6 +672,7 @@ class SitePurgeEpochChildProcessTest : public ::testing::Test {
     }
     std::vector<int> results(commands.size(), -1);
     std::vector<std::thread> threads;
+    threads.reserve(commands.size());
     for (size_t i = 0; i < commands.size(); ++i) {
       threads.emplace_back([&results, &commands, i] {
         results[i] = std::system(commands[i].c_str());

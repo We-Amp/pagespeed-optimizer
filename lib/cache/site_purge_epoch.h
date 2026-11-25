@@ -80,7 +80,7 @@ namespace pagespeed {
 // missing after a recreate fences nothing the new volume holds.  Keying by
 // generation would instead drop the epoch whenever the generation moves for
 // a reason other than a recreate.
-enum class SitePurgeEpochError {
+enum class SitePurgeEpochError : std::uint8_t {
   kInvalidArgument,  // bad site, or a value too far in the future
   kIo,               // the file or its lock could not be read or written
   kCorrupted,        // the file exists and is not a value this build wrote

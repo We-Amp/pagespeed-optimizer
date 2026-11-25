@@ -61,7 +61,7 @@ std::string Render(uint64_t epoch) {
   return out;
 }
 
-enum class OpenMode { kRead, kWrite };
+enum class OpenMode : std::uint8_t { kRead, kWrite };
 
 #ifdef _WIN32
 
