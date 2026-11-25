@@ -348,6 +348,8 @@ class TestModuleStoredHtml:
         )
         facts = standin.facts(url)
         assert facts["withheld"] and not facts["markdown"], facts
+        assert facts["withheld_reason"] == "hash_mismatch", facts
+        assert facts["serve"]["reason"] == "withheld", facts
 
         _stored, facts = _derive(module_worker, standin, url, body)
         assert not facts["withheld"], facts
@@ -418,6 +420,9 @@ class TestRefusedShapes:
         elif case != "nothing_stored":
             assert standin.store(url, body)["original"] == "ok"
 
+        # The page is there (or, for nothing_stored, is not), so each case is
+        # refused for its own reason and not for a write that failed.
+        assert standin.facts(url)["original"] == (case != "nothing_stored"), case
         rejected = module_worker.counter("notifications", "rejected_module_render")
         derived = module_worker.counter("agent_markdown", "module_derived")
         assert standin.notify(url, agent=True) == "ok"
@@ -448,6 +453,12 @@ def front_worker(compliance_services):
     worker = Worker("worker")
     yield worker
     worker.set_html_mode({"html_mode": "full"})
+    # The next test file must not meet a front still in another mode: wait
+    # until full is published, then for the front's next shared-config poll.
+    assert _poll(lambda: _shared_conf().get("html_mode") == "full", timeout=10), (
+        "full was not published"
+    )
+    time.sleep(1.5)
 
 
 def _shared_conf() -> dict:
@@ -488,19 +499,20 @@ class TestHtmlModeOnTheFront:
             "no HTML pass ran under full"
         )
 
+    @pytest.mark.parametrize("mode", ["markdown-static", "markdown-rendered"])
     def test_markdown_mode_writes_no_html_variant(
-        self, front_worker, client: ComplianceClient, origin_client
+        self, front_worker, client: ComplianceClient, origin_client, mode
     ):
-        """In markdown-static the front's HTML gets no HTML pass, and what it
+        """In a markdown-* mode the front's HTML gets no HTML pass, and what it
         serves is the origin's page byte for byte."""
-        front_worker.set_html_mode({"html_mode": "markdown-static"})
+        front_worker.set_html_mode({"html_mode": mode})
         conf = _shared_conf()
-        assert conf.get("html_mode") == "markdown-static", conf
+        assert conf.get("html_mode") == mode, conf
         # Readers that predate html_mode see the legacy key as "not off".
         assert conf.get("disable_html") == "false", conf
         time.sleep(1.5)  # the front's next shared-config poll
         before = _html_passes(front_worker)
-        path = f"/small.html?mode=markdown-{uuid.uuid4().hex}"
+        path = f"/small.html?mode={mode}-{uuid.uuid4().hex}"
         origin = origin_client.get(path)
         deadline = time.time() + 6
         while time.time() < deadline:

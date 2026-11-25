@@ -38,7 +38,9 @@ services:
     entrypoint: ["/entrypoint-compliance-worker.sh"]
     environment:
       # The management API over a unix socket in the shared volume, so the
-      # html_mode tests can PATCH /v1/config from inside the container.
+      # html_mode tests can PATCH /v1/config from inside the container. The
+      # nginx container shares the volume and can reach the socket too; that
+      # is accepted for this test-only stack, which publishes no API port.
       - PAGESPEED_API_SOCKET=/shared/api.sock
     volumes:
       - shared:/shared

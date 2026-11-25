@@ -832,7 +832,7 @@ JSON (`STATS`) only; none has a Prometheus metric.
 
 | Counter | Description |
 |---------|-------------|
-| `notifications.rejected_module_render` | Module frames refused: HTML in the event loop (not the stored-page flag set, no site, a sentinel mask, `html_mode` `off` or `full`, `agent_optimize` off), and on the thread pool before any byte is copied (no stored page, not `kHtml` with a `text/html` type, no `PS_FLAG_HEADERS_CLASSIFIED`, `no-transform`, no content hash). Also non-HTML module frames that carry an agent request, the vouched bit or the llms.txt mask |
+| `notifications.rejected_module_render` | Module frames refused: HTML in the event loop (not the stored-page flag set, a sentinel mask, `html_mode` `off` or `full`, `agent_optimize` off), and on the thread pool before any byte is copied (no stored page, not `kHtml` with a `text/html` type, no `PS_FLAG_HEADERS_CLASSIFIED`, `no-transform`, no content hash). Also non-HTML module frames that carry an agent request, the vouched bit or the llms.txt mask. A module frame with no site is counted in `notifications.rejected_empty_site` instead, before any of these checks |
 | `agent_markdown.module_derived` | Markdown copies written from module-stored pages, bound to the page's `0x0C` stamp and stamped with their own content hash (the entity tag input) |
 | `agent_markdown.module_withheld` | Permanent refusals recorded as a withheld marker (`0xCC`): `below_floor`, `too_large`, `encoded`, `hash_mismatch`, `extract_failed` |
 | `agent_markdown.module_withheld_skips` | Frames that found a current marker for the content and did no derivation |
