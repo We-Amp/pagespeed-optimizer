@@ -59,6 +59,7 @@
 #include "src/worker/html_css_injector.h"
 #include "src/worker/html_scanner.h"
 #include "src/worker/html_transform_filter.h"
+#include "src/worker/html_mode.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
 
@@ -660,18 +661,28 @@ extern "C" uint64_t ps_read_shared_config_volume_size(const char* cache_path) {
   }
 }
 
+static_assert(PS_HTML_MODE_OFF == static_cast<int>(pagespeed::HtmlMode::kOff),
+              "the published HTML mode values are the worker's");
+static_assert(PS_HTML_MODE_MARKDOWN_STATIC ==
+                  static_cast<int>(pagespeed::HtmlMode::kMarkdownStatic),
+              "the published HTML mode values are the worker's");
+static_assert(PS_HTML_MODE_MARKDOWN_RENDERED ==
+                  static_cast<int>(pagespeed::HtmlMode::kMarkdownRendered),
+              "the published HTML mode values are the worker's");
+static_assert(PS_HTML_MODE_FULL == static_cast<int>(pagespeed::HtmlMode::kFull),
+              "the published HTML mode values are the worker's");
+
 extern "C" int ps_read_shared_config_html_mode(const char* cache_path) {
   ClearLastError();
   if (cache_path == nullptr) return -1;
   try {
     std::string path = pagespeed::SharedConfigFilePath(cache_path);
     if (path.empty()) return PS_HTML_MODE_FULL;
-    pagespeed::SharedConfig sc = pagespeed::ReadSharedConfigFile(path);
-    // The worker publishes only disable_html today: true is off, false (and
-    // a missing or unreadable file, which reads as the defaults) is full.
-    // Neither is a Markdown mode, so a front end keeps to report-only until a
-    // worker publishes one.
-    return sc.disable_html ? PS_HTML_MODE_OFF : PS_HTML_MODE_FULL;
+    // The shared-config reader applies the worker's own precedence rule
+    // (ResolveHtmlMode): a valid html_mode wins, otherwise disable_html
+    // decides, and a missing or unreadable file reads as the default, full.
+    const pagespeed::SharedConfig sc = pagespeed::ReadSharedConfigFile(path);
+    return static_cast<int>(sc.html_mode);
   } catch (const std::exception& e) {
     SetLastError(e.what());
     return PS_HTML_MODE_FULL;
@@ -1805,9 +1816,8 @@ extern "C" int ps_html_store_write_params(
   params->content_length = content_length;
   params->full_mask = PS_SENTINEL_ORIGINAL;
   params->content_type = PS_CONTENT_HTML;
-  uint8_t flags = AlternateMetadata::kFlagHeadersClassified;
-  if (sidecar_stored != 0)
-    flags |= AlternateMetadata::kFlagHeadersSidecarRequired;
+  uint8_t flags = PS_FLAG_HEADERS_CLASSIFIED;
+  if (sidecar_stored != 0) flags |= PS_FLAG_HEADERS_SIDECAR_REQUIRED;
   params->flags = flags;
   params->origin_ct = origin_content_type;
   params->origin_etag = nullptr;

@@ -38,6 +38,7 @@
 #include "lib/cache/html_withheld_marker.h"
 #include "lib/pagespeed/pagespeed_internal.h"
 #include "nlohmann/json.hpp"
+#include "src/worker/html_mode.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
 #include "test/lib/cache/daemon_html_policy_cases.h"
@@ -5846,10 +5847,10 @@ void RunStoreRow(const nlohmann::json& in, const nlohmann::json& expect,
   }
 }
 
-// The deriver's withheld record is written under a test-local alternate id:
-// the facts helper reads only the record's bytes, and which id it lives at is
-// the cache's business, not the policy's.
-constexpr uint8_t kTestWithheldMarkerId = 0xCC;
+// The deriver's withheld record, at its reserved id. It is not writable
+// through the C API, so the test writes it through the cache directly, as
+// the worker will.
+constexpr uint8_t kTestWithheldMarkerId = PS_SENTINEL_MARKDOWN_WITHHELD;
 constexpr char kPolicySite[] =
     "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -6639,24 +6640,54 @@ TEST(PageSpeedCApiPolicy, MarkdownEtagShapeAndBuffer) {
   EXPECT_EQ(ps_html_markdown_etag(b, m, nullptr, 4, &len), -1);
 }
 
-TEST(PageSpeedCApiPolicy, HtmlModeReaderDefaultsAndMapsTheSwitch) {
+// The reader resolves the two keys exactly as the worker does
+// (ResolveHtmlMode): a valid html_mode wins whatever the line order,
+// otherwise disable_html decides, with neither the default.
+TEST(PageSpeedCApiPolicy, HtmlModeReaderFollowsTheWorkersPrecedence) {
   EXPECT_EQ(ps_read_shared_config_html_mode(nullptr), -1);
   const std::string dir = pagespeed::test::MakeTempDir();
   const std::string cache_path = dir + "/cache.vol";
+  const std::string conf = pagespeed::SharedConfigFilePath(cache_path);
   // No shared config: the worker's default.
   EXPECT_EQ(ps_read_shared_config_html_mode(cache_path.c_str()),
             PS_HTML_MODE_FULL);
-  pagespeed::SharedConfig sc;
-  sc.disable_html = true;
-  ASSERT_TRUE(pagespeed::WriteSharedConfigFile(
-      pagespeed::SharedConfigFilePath(cache_path), sc));
-  EXPECT_EQ(ps_read_shared_config_html_mode(cache_path.c_str()),
-            PS_HTML_MODE_OFF);
-  sc.disable_html = false;
-  ASSERT_TRUE(pagespeed::WriteSharedConfigFile(
-      pagespeed::SharedConfigFilePath(cache_path), sc));
-  EXPECT_EQ(ps_read_shared_config_html_mode(cache_path.c_str()),
-            PS_HTML_MODE_FULL);
+  // Every mode the worker writes reads back as itself.
+  for (pagespeed::HtmlMode mode :
+       {pagespeed::HtmlMode::kOff, pagespeed::HtmlMode::kMarkdownStatic,
+        pagespeed::HtmlMode::kMarkdownRendered, pagespeed::HtmlMode::kFull}) {
+    pagespeed::SharedConfig sc;
+    sc.html_mode = mode;
+    ASSERT_TRUE(pagespeed::WriteSharedConfigFile(conf, sc));
+    EXPECT_EQ(ps_read_shared_config_html_mode(cache_path.c_str()),
+              static_cast<int>(mode))
+        << pagespeed::HtmlModeName(mode);
+  }
+  // Hand-written files, for the precedence rule.
+  struct Case {
+    const char* lines;
+    int want;
+  };
+  const Case cases[] = {
+      {"disable_html=true\n", PS_HTML_MODE_OFF},
+      {"disable_html=false\n", PS_HTML_MODE_FULL},
+      {"", PS_HTML_MODE_FULL},
+      {"html_mode=markdown-static\n", PS_HTML_MODE_MARKDOWN_STATIC},
+      {"html_mode=markdown-static\ndisable_html=true\n",
+       PS_HTML_MODE_MARKDOWN_STATIC},
+      {"disable_html=true\nhtml_mode=markdown-rendered\n",
+       PS_HTML_MODE_MARKDOWN_RENDERED},
+      {"html_mode=Markdown-Static\ndisable_html=true\n", PS_HTML_MODE_OFF},
+      {"html_mode=bogus\n", PS_HTML_MODE_FULL},
+      {"html_mode=off\ndisable_html=false\n", PS_HTML_MODE_OFF},
+  };
+  for (const Case& c : cases) {
+    {
+      std::ofstream out(conf, std::ios::binary | std::ios::trunc);
+      out << "version=1\n" << c.lines;
+    }
+    EXPECT_EQ(ps_read_shared_config_html_mode(cache_path.c_str()), c.want)
+        << c.lines;
+  }
   std::filesystem::remove_all(dir);
 }
 

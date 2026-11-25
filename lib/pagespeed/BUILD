@@ -58,6 +58,7 @@ cc_library(
         "//src/worker:critical_css_extractor",
         "//src/worker:html_css_injector",
         "//src/worker:html_scanner",
+        "//src/worker:html_mode",
         "//src/worker:html_transform_filter",
         "//src/worker:serve_stats",
         "//src/worker:shared_config",
@@ -144,6 +145,7 @@ gtest_test(
     deps = [
         ":pagespeed_api",
         "//lib/cache:html_withheld_marker",
+        "//src/worker:html_mode",
         "//test/lib/cache:daemon_html_policy_cases",
         "//src/worker:serve_stats",
         "//src/worker:shared_config",

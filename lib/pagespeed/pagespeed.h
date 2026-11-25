@@ -1737,8 +1737,10 @@ PS_EXPORT int ps_if_none_match_matches_weak(const char* if_none_match,
 /* Read the worker's HTML mode from the shared config under cache_path (the
  * same string the worker was configured with; see
  * ps_read_shared_config_volume_size). Returns a PS_HTML_MODE_* value, or -1
- * for a NULL cache_path. A missing or unreadable config reads as the worker's
- * default, PS_HTML_MODE_FULL. Only a PS_HTML_MODE_MARKDOWN_* value means the
+ * for a NULL cache_path. The worker's own precedence applies: a valid
+ * html_mode key wins, otherwise disable_html=true is off and false is full;
+ * a missing or unreadable config, or one with neither key, reads as the
+ * worker's default, PS_HTML_MODE_FULL. Only a PS_HTML_MODE_MARKDOWN_* value means the
  * worker derives Markdown copies of pages a front end stores; a front end
  * gates its store and notify on it, reading it on a timer rather than per
  * request (it reads a file). Available from PS_API 1.13. */
