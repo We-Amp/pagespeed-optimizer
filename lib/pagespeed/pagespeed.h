@@ -1563,7 +1563,8 @@ typedef struct {
   int not_modified;
   /* With PS_HTML_SERVE_ACTION_SERVE_MARKDOWN and both hashes known, the
    * copy's entity tag (ps_html_markdown_etag), NUL-terminated; otherwise the
-   * empty string. */
+   * empty string. A caller whose struct_size ends inside this field gets
+   * only NUL bytes in the part it has, never a partial tag. */
   char etag[PS_HTML_MARKDOWN_ETAG_CHARS + 8];
 } ps_html_serve_verdict_t;
 
@@ -1590,7 +1591,8 @@ typedef struct {
  *   6. Markdown. The request selects it only by preference (the rule of
  *      ps_wants_agent_markdown, applied here to `accept`). The copy is served
  *      only from a fresh parent (else `parent_stale`); never for a parent
- *      stored with no-transform (`no_transform`) or whose copy was withheld
+ *      stored with no-transform or a request whose Cache-Control carries
+ *      no-transform (`no_transform`) or whose copy was withheld
  *      (`withheld`); only when it exists (`absent`) and was derived from
  *      exactly the stored content (`binding_stale`); and only while the
  *      PARENT's age is below the smaller of the parent's lifetime and the
@@ -1628,13 +1630,20 @@ PS_EXPORT const char* ps_html_serve_reason_name(int reason);
  * original (ps_cache_write_original_site), from the verdict
  * ps_html_store_classify returned for it. Available from PS_API 1.13.
  *
- * This is the ONE place the insert time is computed: capture_start_s is when
- * the request was sent to the origin (or entered the handler), in whole
- * seconds rounded down, never a later moment such as the commit; the time is
- * then moved back by the response's inbound Age (ps_age_adjusted_insert_time).
- * An insert time that is too early makes the entry expire early and fall
- * behind a purge sooner; one that is too late would let a page captured
- * before a purge pass as captured after it.
+ * This is the ONE place the insert time is computed. `capture_start_ms` is
+ * when the request was sent to the origin (or entered the handler), in Unix
+ * milliseconds, never a later moment such as the commit; the library floors
+ * it to seconds. The time is then moved back by the response's inbound Age:
+ * `age_lines` / `age_count` are the response's Age header lines AS RECEIVED,
+ * in order (count 0 when there was none). An insert time that is too early
+ * makes the entry expire early and fall behind a purge sooner; one that is
+ * too late would let a page captured before a purge pass as captured after
+ * it, or an old page pass as fresh. So the Age is never ignored: lines that
+ * repeat one value count once, and a value that is not delta-seconds
+ * (negative, fractional, empty, any other byte), two lines that disagree, a
+ * value above 2147483647, or a value at or above the capture time make the
+ * call fail, and the caller stores nothing. The Age is folded into the
+ * insert time once; the stored entry records no separate age.
  *
  * `action` must be PS_HTML_STORE_ACTION_STORE or
  * PS_HTML_STORE_ACTION_STORE_NO_NOTIFY; `lifetime_s`, `store_flags` and
@@ -1647,13 +1656,14 @@ PS_EXPORT const char* ps_html_serve_reason_name(int reason);
  * flags are set; the caller's own content_length is replaced by
  * `content_length`.
  *
- * Returns 0, or -1 for a malformed call (an action that does not store, a zero
- * capture_start_s, a NULL params or origin_content_type, or a struct_size
+ * Returns 0, or -1 for a malformed call or an Age the rules above refuse (an
+ * action that does not store, a capture_start_ms below 1000, a NULL params or
+ * origin_content_type, NULL lines with a non-zero count, or a struct_size
  * smaller than the PS_API 1.2 struct); nothing is written then. */
 PS_EXPORT int ps_html_store_write_params(
     int action, uint32_t lifetime_s, uint32_t store_flags, uint16_t cc_flags,
-    int sidecar_stored, uint32_t capture_start_s, uint32_t inbound_age_s,
-    uint64_t content_length, const char* origin_content_type,
+    int sidecar_stored, int64_t capture_start_ms, const char* const* age_lines,
+    size_t age_count, uint64_t content_length, const char* origin_content_type,
     ps_write_params_t* params);
 
 /* Build the stored facts for one URL from what the cache holds for it.
@@ -1678,7 +1688,9 @@ PS_EXPORT int ps_html_store_write_params(
  * equals the stored content hash and that hash is not all zero.
  *
  * PS_HTML_FACTS_PURGED is never set here: the caller adds it from its purge
- * state. Returns 0 with `*out` written up to its struct_size, or -1 for a
+ * state. `markdown_hash` is left all zero by this version: the Markdown
+ * copy does not yet carry its own content hash, so until it does no entity
+ * tag is made and no 304 is answered from these facts. Returns 0 with `*out` written up to its struct_size, or -1 for a
  * NULL out or a struct_size below the PS_API 1.13 size. */
 PS_EXPORT int ps_html_stored_facts_from_reads(
     const ps_read_result_t* original, const ps_read_result_t* markdown,
@@ -1705,11 +1717,12 @@ PS_EXPORT int ps_html_markdown_etag(const uint8_t* binding_hash,
  * joined with ", ", `etag` one entity-tag. Returns 1 when any member of the
  * list is weakly equal to `etag`, 0 otherwise.
  *
- * `*` matches (RFC 9110 section 13.1.2: any current representation); a
- * caller asks only about a representation it is about to send, and
- * ps_html_serve_classify asks only for a copy it would serve. Fail-safe in
- * one direction, toward sending the full response: a list that does not
- * parse matches nothing. Returns 0 for a NULL `if_none_match`, and -1 for a
+ * A field that is exactly `*` (surrounding whitespace aside) matches (RFC
+ * 9110 section 13.1.2: any current representation); a caller asks only about
+ * a representation it is about to send, and ps_html_serve_classify asks only
+ * for a copy it would serve. Fail-safe in one direction, toward sending the
+ * full response: a list that does not parse matches nothing, and `*` inside
+ * a list is such a list. Returns 0 for a NULL `if_none_match`, and -1 for a
  * NULL or malformed `etag`.
  * Available from PS_API 1.13. */
 PS_EXPORT int ps_if_none_match_matches_weak(const char* if_none_match,

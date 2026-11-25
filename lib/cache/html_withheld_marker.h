@@ -21,9 +21,11 @@ namespace pagespeed {
 // A marker is bound to two things, and means nothing without either:
 //   - the parent hash H, the content hash stamped on the stored HTML entry it
 //     was derived from: a page whose content changed is a different page;
-//   - the deriver version, which names the extractor, the fidelity floor and
-//     the size cap in force when the refusal was made: a deriver that could
-//     now succeed must get to try.
+//   - the deriver version, which names the extractor and the fidelity floor
+//     in force when the refusal was made: a deriver that could now succeed
+//     must get to try.  A runtime size cap is not part of it, so a
+//     `too_large` marker outlives a raised cap until the page is stored
+//     again, which removes the marker.
 // A marker whose H or deriver version differs from the current one is
 // ignored, exactly as if it were absent.
 //
@@ -41,8 +43,8 @@ namespace pagespeed {
 // length, with an unknown format version or reason, or with an all-zero H, is
 // not a marker.
 
-// Bump when the extractor, the fidelity floor or the size cap changes in a
-// way that could turn a refusal into a copy.  A marker written under any
+// Bump when the extractor or the fidelity floor changes in a way that could
+// turn a refusal into a copy.  A marker written under any
 // other value is ignored.
 inline constexpr uint32_t kHtmlMarkdownDeriverVersion = 1;
 

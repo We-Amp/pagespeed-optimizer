@@ -1035,7 +1035,9 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
   // parent-lifetime term (the parent was just confirmed) and keeps the
   // render bound, so a copy older than its own lifetime is still refused.
   if (request.wants_markdown) {
-    if (stored.no_transform) return done(kFall, HtmlServeReason::kNoTransform);
+    if (stored.no_transform || request.request_no_transform) {
+      return done(kFall, HtmlServeReason::kNoTransform);
+    }
     if (stored.withheld) return done(kFall, HtmlServeReason::kWithheld);
     if (!stored.variant_present) return done(kFall, HtmlServeReason::kAbsent);
     if (!stored.binding_live)
@@ -1088,11 +1090,14 @@ void ApplyHtmlRequestCacheControl(std::string_view cache_control,
         eq == std::string_view::npos ? std::string_view() : item.substr(eq + 1);
     if (EqualsIgnoreCase(name, "no-cache")) {
       request->cache_control_no_cache = true;
+    } else if (EqualsIgnoreCase(name, "no-transform")) {
+      request->request_no_transform = true;
     } else if (EqualsIgnoreCase(name, "max-age") ||
                EqualsIgnoreCase(name, "min-fresh")) {
       const int64_t seconds = ParseDeltaSeconds(arg);
       if (seconds < 0) {
-        // Not delta-seconds: the strictest reading, which falls through.
+        // Not delta-seconds: read as max-age=0, the strictest value, so only
+        // an entry of age 0 can still answer.
         request->max_age = 0;
       } else if (EqualsIgnoreCase(name, "max-age")) {
         request->max_age = request->max_age < 0

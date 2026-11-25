@@ -2133,6 +2133,12 @@ TEST(HtmlServePolicy113Test, NoTransformAndWithheldNeverServeTheCopy) {
   f.withheld = true;
   EXPECT_EQ(ClassifyHtmlForServe(FreshMarkdownRequest(), f).reason,
             HtmlServeReason::kWithheld);
+  // A request that asks for no transformation is not given the copy.
+  HtmlServeRequest no_transform = FreshMarkdownRequest();
+  ApplyHtmlRequestCacheControl("No-Transform", &no_transform);
+  EXPECT_TRUE(no_transform.request_no_transform);
+  EXPECT_EQ(ClassifyHtmlForServe(no_transform, LiveCopy()).reason,
+            HtmlServeReason::kNoTransform);
   // Neither touches HTML serving.
   HtmlServeRequest html = FreshMarkdownRequest();
   html.wants_markdown = false;

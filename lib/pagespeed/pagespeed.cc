@@ -1610,6 +1610,10 @@ int IfNoneMatchMatchesWeak(std::string_view inm, std::string_view etag) {
   std::string_view tag_view = etag;
   const std::optional<std::string_view> wanted = TakeEntityTag(&tag_view);
   if (!wanted.has_value() || !tag_view.empty()) return -1;
+  // RFC 9110 section 13.1.2: the field is "*" or a list of entity-tags. `*`
+  // matches any current representation; the caller asks only about a copy it
+  // would send, so that is this one.
+  if (TrimOwsView(inm) == "*") return 1;
   // RFC 9110 section 5.6.1: empty list members are allowed and ignored.
   bool matched = false;
   std::string_view rest = inm;
@@ -1620,15 +1624,9 @@ int IfNoneMatchMatchesWeak(std::string_view inm, std::string_view etag) {
       rest.remove_prefix(1);
       continue;
     }
-    // RFC 9110 section 13.1.2: `*` matches any current representation. The
-    // caller asks only about a copy it would serve, so that is this one.
-    if (rest.front() == '*') {
-      rest.remove_prefix(1);
-      rest = TrimOwsView(rest);
-      if (!rest.empty() && rest.front() != ',') return 0;
-      matched = true;
-      continue;
-    }
+    // `*` is a list of its own (RFC 9110 section 13.1.2: "*" /
+    // #entity-tag), handled above; inside a list it is malformed.
+    if (rest.front() == '*') return 0;
     const std::optional<std::string_view> tag = TakeEntityTag(&rest);
     if (!tag.has_value())
       return 0;  // a list that does not parse matches nothing
@@ -1732,6 +1730,12 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
         result.not_modified = 1;
       }
     }
+    // The tag is written whole or not at all: a caller whose struct ends
+    // inside it gets only NUL bytes there, never a cut-off tag.
+    if (out->struct_size < offsetof(ps_html_serve_verdict_t, etag) +
+                               sizeof(result.etag)) {
+      std::memset(result.etag, 0, sizeof(result.etag));
+    }
     std::memcpy(out, &result, std::min(out->struct_size, sizeof(result)));
     return 0;
   } catch (...) {
@@ -1746,19 +1750,51 @@ extern "C" const char* ps_html_serve_reason_name(int reason) {
       .data();
 }
 
+namespace {
+
+// The inbound Age, by the rules on ps_html_store_write_params: nullopt when
+// it must refuse the store, 0 when there is none.
+std::optional<uint32_t> InboundAgeSeconds(const char* const* lines,
+                                          size_t count) {
+  std::optional<uint32_t> age;
+  for (size_t i = 0; i < count; ++i) {
+    if (lines[i] == nullptr) return std::nullopt;
+    const std::string_view v = TrimOwsView(lines[i]);
+    if (v.empty() || v.size() > 10) return std::nullopt;
+    uint64_t n = 0;
+    for (char c : v) {
+      if (c < '0' || c > '9') return std::nullopt;
+      n = n * 10 + static_cast<uint64_t>(c - '0');
+    }
+    if (n > 2147483647u) return std::nullopt;
+    if (age.has_value() && *age != n) return std::nullopt;
+    age = static_cast<uint32_t>(n);
+  }
+  return age.value_or(0);
+}
+
+}  // namespace
+
 extern "C" int ps_html_store_write_params(
     int action, uint32_t lifetime_s, uint32_t store_flags, uint16_t cc_flags,
-    int sidecar_stored, uint32_t capture_start_s, uint32_t inbound_age_s,
-    uint64_t content_length, const char* origin_content_type,
+    int sidecar_stored, int64_t capture_start_ms, const char* const* age_lines,
+    size_t age_count, uint64_t content_length, const char* origin_content_type,
     ps_write_params_t* params) {
   if (action != PS_HTML_STORE_ACTION_STORE &&
       action != PS_HTML_STORE_ACTION_STORE_NO_NOTIFY) {
     return -1;
   }
-  if (capture_start_s == 0 || params == nullptr ||
-      origin_content_type == nullptr) {
+  if (capture_start_ms < 1000 || params == nullptr ||
+      origin_content_type == nullptr ||
+      (age_lines == nullptr && age_count != 0)) {
     return -1;
   }
+  const int64_t capture_s = capture_start_ms / 1000;  // floored: ms >= 1000
+  if (capture_s > static_cast<int64_t>(UINT32_MAX)) return -1;
+  const std::optional<uint32_t> age = InboundAgeSeconds(age_lines, age_count);
+  // An Age at or above the capture time says the page is older than the
+  // epoch: a value no origin produces, so nothing is stored.
+  if (!age.has_value() || static_cast<int64_t>(*age) >= capture_s) return -1;
   // The origin-state fields arrived at 1.2; a struct without them cannot
   // carry a page this policy may serve.
   constexpr size_t kWithOriginState =
@@ -1775,8 +1811,9 @@ extern "C" int ps_html_store_write_params(
   params->flags = flags;
   params->origin_ct = origin_content_type;
   params->origin_etag = nullptr;
-  params->cache_inserted_at =
-      ps_age_adjusted_insert_time(capture_start_s, inbound_age_s);
+  // Age < capture_s, so the result is at least 1: never the 0 the write
+  // path reads as "not supplied".
+  params->cache_inserted_at = static_cast<uint32_t>(capture_s - *age);
   // The lifetime the policy computed (s-maxage, else max-age, else Expires
   // minus Date) is what a later serve compares against, so it is what is
   // stored; s-maxage is kept only when it is what made the page shareable.

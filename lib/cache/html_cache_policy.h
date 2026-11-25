@@ -190,7 +190,8 @@ namespace pagespeed {
 //      the render lifetime bounds it).  The bound is the PARENT's age: the
 //      copy is not separately limited by its own age, because the binding
 //      hash already covers a content change.  A parent stored with
-//      `no-transform` (RFC 9111 section 5.2.2.6) never has its copy served
+//      `no-transform` (RFC 9111 section 5.2.2.6), or asked for by a request
+//      carrying `no-transform` (section 5.2.1.6), never has its copy served
 //      (kNoTransform), and a parent whose copy the deriver withheld for this
 //      content (`withheld`) falls through with kWithheld; both are checked
 //      before the copy itself.  A Markdown request on a parent that
@@ -391,6 +392,9 @@ struct HtmlServeRequest {
   bool pragma_no_cache = false;  // counts only when has_cache_control is false
   int64_t max_age = -1;          // request max-age, -1 when absent
   int64_t min_fresh = -1;        // request min-fresh, -1 when absent
+  // The request's Cache-Control carried no-transform (RFC 9111 section
+  // 5.2.1.6): the Markdown copy is a transformation, so it is not served.
+  bool request_no_transform = false;
   uint32_t now_seconds = 0;
 };
 
@@ -421,11 +425,12 @@ struct StoredHtmlFacts {
 };
 
 // Fold a request's Cache-Control value (every line joined with ", ") into
-// `request`: `no-cache` sets cache_control_no_cache, `max-age` and
-// `min-fresh` set their fields, and has_cache_control is set.  Directive names
+// `request`: `no-cache` sets cache_control_no_cache, `no-transform` sets
+// request_no_transform, `max-age` and `min-fresh` set their fields, and
+// has_cache_control is set.  Directive names
 // are matched case-insensitively (RFC 9111 section 5.2).  A `max-age` or
-// `min-fresh` whose argument is not delta-seconds counts as max-age=0, which
-// falls through rather than guessing; a value too large for the field
+// `min-fresh` whose argument is not delta-seconds counts as max-age=0 (only
+// an entry of age 0 still answers) rather than guessing; a value too large for the field
 // saturates (RFC 9111 section 1.2.2).  Other directives are ignored.
 void ApplyHtmlRequestCacheControl(std::string_view cache_control,
                                   HtmlServeRequest* request);

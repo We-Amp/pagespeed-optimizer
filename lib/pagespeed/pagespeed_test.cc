@@ -5907,10 +5907,15 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
       std::filesystem::remove_all(dir);
       return;
     }
+    // What the classifier reports for these directives: shared by public,
+    // or by an s-maxage that is then the lifetime.
     const uint32_t store_flags =
         PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT |
-        ((cc & PS_CC_ORIGIN_PUBLIC) != 0 ? PS_HTML_STORE_FLAG_EXPLICIT_SHARED
-                                         : 0u);
+        ((cc & (PS_CC_ORIGIN_PUBLIC | PS_CC_ORIGIN_S_MAXAGE_PRESENT)) != 0
+             ? PS_HTML_STORE_FLAG_EXPLICIT_SHARED
+             : 0u);
+    const bool sidecar_required =
+        has_sidecar || o.value("sidecar_required", false);
     const int action = (cc & PS_CC_ORIGIN_NO_TRANSFORM) != 0
                            ? PS_HTML_STORE_ACTION_STORE_NO_NOTIFY
                            : PS_HTML_STORE_ACTION_STORE;
@@ -5919,7 +5924,8 @@ void RunFactsRow(const nlohmann::json& in, const nlohmann::json& expect,
     if (ps_html_store_write_params(
             action, o.at("lifetime_s").get<uint32_t>(), store_flags,
             static_cast<uint16_t>(cc | PS_CC_ORIGIN_HEADER_PRESENT),
-            has_sidecar ? 1 : 0, o.at("stored_at").get<uint32_t>(), 0,
+            sidecar_required ? 1 : 0,
+            int64_t{o.at("stored_at").get<uint32_t>()} * 1000, nullptr, 0,
             body.size(), "text/html; charset=utf-8", &params) != 0) {
       run->Fail("ps_html_store_write_params refused the row");
     }
@@ -6101,6 +6107,31 @@ void RunInmRow(const nlohmann::json& in, const nlohmann::json& expect,
   ExpectField<bool>(expect, "match", rc == 1, run);
 }
 
+// A write_params row: the insert time from a capture start and the inbound
+// Age lines, for a plain storable page.
+void RunWriteParamsRow(const nlohmann::json& in, const nlohmann::json& expect,
+                       RowRun* run) {
+  std::vector<std::string> lines;
+  for (const auto& l : in.value("age", nlohmann::json::array())) {
+    lines.push_back(l.get<std::string>());
+  }
+  std::vector<const char*> ptrs;
+  for (const std::string& l : lines) ptrs.push_back(l.c_str());
+  ps_write_params_t params;
+  ps_write_params_init_auto(&params);
+  const int rc = ps_html_store_write_params(
+      PS_HTML_STORE_ACTION_STORE, 300, PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT,
+      PS_CC_ORIGIN_HEADER_PRESENT, 0, in.at("capture_start_ms").get<int64_t>(),
+      ptrs.empty() ? nullptr : ptrs.data(), ptrs.size(), 1, "text/html",
+      &params);
+  ExpectField<bool>(expect, "valid", rc == 0, run);
+  if (rc != 0) return;
+  ExpectField<uint32_t>(expect, "inserted_at_s", params.cache_inserted_at,
+                        run);
+  // The entry records no age beside the insert time: Age is counted once.
+  ExpectField<uint32_t>(expect, "age_at_store", 0u, run);
+}
+
 // The argument check runs before any connection is tried, so a socket nobody
 // listens on tells the two apart: a refusal is PS_ERR_INVALID_ARG, anything
 // else passed the check.
@@ -6191,6 +6222,8 @@ TEST(PageSpeedCApiPolicy, EveryPolicyCaseHoldsWithNoSkips) {
       RunInmRow(input, expect, &run);
     } else if (call == "notify") {
       RunNotifyRow(input, expect, &run);
+    } else if (call == "write_params") {
+      RunWriteParamsRow(input, expect, &run);
     } else {
       ADD_FAILURE() << id << ": unknown call " << call;
       ++skipped;
@@ -6366,47 +6399,70 @@ TEST(PageSpeedCApiPolicy, ServeReasonNamesAreAClosedSet) {
   EXPECT_EQ(ps_html_serve_reason_name(-1), nullptr);
 }
 
+namespace {
+
+int WriteParamsWithAge(std::vector<const char*> age, int64_t capture_ms,
+                       ps_write_params_t* p) {
+  ps_write_params_init_auto(p);
+  return ps_html_store_write_params(
+      PS_HTML_STORE_ACTION_STORE, 300, PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT,
+      PS_CC_ORIGIN_HEADER_PRESENT, 0, capture_ms,
+      age.empty() ? nullptr : age.data(), age.size(), 1, "text/html", p);
+}
+
+}  // namespace
+
 TEST(PageSpeedCApiPolicy, StoreWriteParamsComputesTheInsertTimeOnce) {
   ps_write_params_t p;
   ps_write_params_init_auto(&p);
-  ASSERT_EQ(
-      ps_html_store_write_params(PS_HTML_STORE_ACTION_STORE, 300,
-                                 PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT,
-                                 PS_CC_ORIGIN_HEADER_PRESENT, 1, 1700000000, 30,
-                                 1234, "text/html; charset=utf-8", &p),
-      0);
+  const char* age[] = {"30"};
+  ASSERT_EQ(ps_html_store_write_params(
+                PS_HTML_STORE_ACTION_STORE, 300,
+                PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT,
+                PS_CC_ORIGIN_HEADER_PRESENT, 1, int64_t{1700000000999}, age, 1,
+                1234, "text/html; charset=utf-8", &p),
+            0);
   EXPECT_EQ(p.alternate_id, PS_SENTINEL_ORIGINAL);
   EXPECT_EQ(p.full_mask, static_cast<uint32_t>(PS_SENTINEL_ORIGINAL));
   EXPECT_EQ(p.content_type, PS_CONTENT_HTML);
   EXPECT_EQ(p.content_length, 1234u);
+  // Floored to the second, then moved back by the Age.
   EXPECT_EQ(p.cache_inserted_at, 1700000000u - 30u);
-  EXPECT_EQ(p.cache_inserted_at, ps_age_adjusted_insert_time(1700000000, 30));
   EXPECT_EQ(p.origin_max_age, 300u);
   EXPECT_EQ(p.origin_s_maxage, 0u);
   EXPECT_EQ(p.flags, 0x10 | 0x20);
   EXPECT_STREQ(p.origin_ct, "text/html; charset=utf-8");
 
   // Only a storing action, a real capture time and a usable struct.
-  EXPECT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_WOULD_STORE, 300, 0,
-                                       0, 0, 1700000000, 0, 1, "text/html", &p),
-            -1);
-  EXPECT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_REFUSE, 300, 0, 0,
-                                       0, 1700000000, 0, 1, "text/html", &p),
+  for (int action :
+       {PS_HTML_STORE_ACTION_WOULD_STORE, PS_HTML_STORE_ACTION_REFUSE}) {
+    ps_write_params_init_auto(&p);
+    EXPECT_EQ(ps_html_store_write_params(action, 300, 0, 0, 0,
+                                         int64_t{1700000000000}, nullptr, 0, 1,
+                                         "text/html", &p),
+              -1);
+  }
+  for (int64_t ms : {int64_t{0}, int64_t{999}, int64_t{-5000}}) {
+    EXPECT_EQ(WriteParamsWithAge({}, ms, &p), -1) << ms;
+  }
+  EXPECT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_STORE, 300, 0, 0, 0,
+                                       int64_t{1700000000000}, nullptr, 0, 1,
+                                       nullptr, &p),
             -1);
   EXPECT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_STORE, 300, 0, 0, 0,
-                                       0, 0, 1, "text/html", &p),
+                                       int64_t{1700000000000}, nullptr, 0, 1,
+                                       "text/html", nullptr),
             -1);
   EXPECT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_STORE, 300, 0, 0, 0,
-                                       1700000000, 0, 1, nullptr, &p),
-            -1);
-  EXPECT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_STORE, 300, 0, 0, 0,
-                                       1700000000, 0, 1, "text/html", nullptr),
+                                       int64_t{1700000000000}, nullptr, 1, 1,
+                                       "text/html", &p),
             -1);
   ps_write_params_t legacy;
   ps_write_params_init(&legacy);  // the 1.1 prefix: no origin state
   legacy.content_length = 77;
   EXPECT_EQ(ps_html_store_write_params(PS_HTML_STORE_ACTION_STORE, 300, 0, 0, 0,
-                                       1700000000, 0, 1, "text/html", &legacy),
+                                       int64_t{1700000000000}, nullptr, 0, 1,
+                                       "text/html", &legacy),
             -1);
   EXPECT_EQ(legacy.content_length, 77u);  // nothing written
 
@@ -6417,18 +6473,127 @@ TEST(PageSpeedCApiPolicy, StoreWriteParamsComputesTheInsertTimeOnce) {
                 PS_HTML_STORE_ACTION_STORE_NO_NOTIFY, 120,
                 PS_HTML_STORE_FLAG_EXPLICIT_SHARED,
                 PS_CC_ORIGIN_HEADER_PRESENT | PS_CC_ORIGIN_S_MAXAGE_PRESENT, 0,
-                1700000000, 0, 1, "text/html", &p),
+                int64_t{1700000000000}, nullptr, 0, 1, "text/html", &p),
             0);
   EXPECT_EQ(p.origin_s_maxage, 120u);
   EXPECT_EQ(p.flags, 0x10);
   ps_write_params_init_auto(&p);
-  ASSERT_EQ(
-      ps_html_store_write_params(
-          PS_HTML_STORE_ACTION_STORE, 120, PS_HTML_STORE_FLAG_EXPLICIT_SHARED,
-          PS_CC_ORIGIN_HEADER_PRESENT | PS_CC_ORIGIN_PUBLIC, 0, 1700000000, 0,
-          1, "text/html", &p),
-      0);
+  ASSERT_EQ(ps_html_store_write_params(
+                PS_HTML_STORE_ACTION_STORE, 120,
+                PS_HTML_STORE_FLAG_EXPLICIT_SHARED,
+                PS_CC_ORIGIN_HEADER_PRESENT | PS_CC_ORIGIN_PUBLIC, 0,
+                int64_t{1700000000000}, nullptr, 0, 1, "text/html", &p),
+            0);
   EXPECT_EQ(p.origin_s_maxage, 0u);
+}
+
+// An Age the library cannot trust is never ignored: the page is not stored,
+// so it can never pass as fresher than the upstream said it was.
+TEST(PageSpeedCApiPolicy, StoreWriteParamsRefusesAnAgeItCannotTrust) {
+  ps_write_params_t p;
+  constexpr int64_t kCaptureMs = int64_t{1700000000500};
+  const std::string at_capture = std::to_string(1700000000);
+  const std::string past_capture = std::to_string(1700000001);
+  for (const std::vector<const char*>& age :
+       std::vector<std::vector<const char*>>{
+           {at_capture.c_str()},
+           {past_capture.c_str()},
+           {"4294967295"},
+           {"2147483648"},
+           {"99999999999999999999"},
+           {"-5"},
+           {"1.5"},
+           {"abc"},
+           {""},
+           {"20", "40"},
+           {"20, 40"},
+           {"20", nullptr}}) {
+    p.content_length = 77;
+    EXPECT_EQ(WriteParamsWithAge(age, kCaptureMs, &p), -1)
+        << (age[0] != nullptr ? age[0] : "null");
+  }
+  // Trusted forms.
+  ASSERT_EQ(WriteParamsWithAge({" 20 ", "20"}, kCaptureMs, &p), 0);
+  EXPECT_EQ(p.cache_inserted_at, 1700000000u - 20u);
+  ASSERT_EQ(WriteParamsWithAge({"0"}, kCaptureMs, &p), 0);
+  EXPECT_EQ(p.cache_inserted_at, 1700000000u);
+  ASSERT_EQ(WriteParamsWithAge({"1699999999"}, kCaptureMs, &p), 0);
+  EXPECT_EQ(p.cache_inserted_at, 1u);
+}
+
+// If-None-Match `*` only as the whole field, and only for a copy that has a
+// tag of its own.
+TEST(PageSpeedCApiPolicy, StarConfirmsOnlyAWholeFieldAndATaggedCopy) {
+  const char* tag = "W/\"psm-0123456789abcdef\"";
+  EXPECT_EQ(ps_if_none_match_matches_weak("*", tag), 1);
+  EXPECT_EQ(ps_if_none_match_matches_weak("  *\t", tag), 1);
+  EXPECT_EQ(ps_if_none_match_matches_weak("\"a\", *", tag), 0);
+  EXPECT_EQ(ps_if_none_match_matches_weak("*, \"a\"", tag), 0);
+  EXPECT_EQ(ps_if_none_match_matches_weak("*, *", tag), 0);
+  EXPECT_EQ(ps_if_none_match_matches_weak("**", tag), 0);
+
+  ps_html_serve_request_t request{};
+  request.struct_size = sizeof(request);
+  request.mode = PS_HTML_CACHE_SERVE_VARIANTS;
+  request.method = "GET";
+  request.accept = "text/markdown";
+  request.if_none_match = "*";
+  request.now_seconds = 1000;
+  ps_html_stored_facts_t facts{};
+  facts.struct_size = sizeof(facts);
+  facts.flags = PS_HTML_FACTS_PRESENT | PS_HTML_FACTS_VARIANT_PRESENT |
+                PS_HTML_FACTS_BINDING_LIVE;
+  facts.stored_at = 990;
+  facts.lifetime_s = 60;
+  std::memset(facts.binding_hash, 0x11, sizeof(facts.binding_hash));
+  std::memset(facts.markdown_hash, 0xAA, sizeof(facts.markdown_hash));
+  ps_html_serve_verdict_t v{};
+  v.struct_size = sizeof(v);
+  ASSERT_EQ(ps_html_serve_classify(&request, &facts, &v), 0);
+  EXPECT_EQ(v.action, PS_HTML_SERVE_ACTION_SERVE_MARKDOWN);
+  EXPECT_EQ(v.not_modified, 1);
+  // No copy hash: no tag, so neither `*` nor any tag gets a 304.
+  std::memset(facts.markdown_hash, 0, sizeof(facts.markdown_hash));
+  ASSERT_EQ(ps_html_serve_classify(&request, &facts, &v), 0);
+  EXPECT_EQ(v.action, PS_HTML_SERVE_ACTION_SERVE_MARKDOWN);
+  EXPECT_EQ(v.not_modified, 0);
+  EXPECT_STREQ(v.etag, "");
+  // Not servable: never 304, `*` included.
+  std::memset(facts.markdown_hash, 0xAA, sizeof(facts.markdown_hash));
+  facts.flags &= ~PS_HTML_FACTS_BINDING_LIVE;
+  ASSERT_EQ(ps_html_serve_classify(&request, &facts, &v), 0);
+  EXPECT_EQ(v.action, PS_HTML_SERVE_ACTION_FALL_THROUGH);
+  EXPECT_EQ(v.not_modified, 0);
+}
+
+// A verdict struct that ends inside the tag gets NUL bytes there, never a
+// partial tag.
+TEST(PageSpeedCApiPolicy, AShortVerdictNeverHoldsAPartialTag) {
+  ps_html_serve_request_t request{};
+  request.struct_size = sizeof(request);
+  request.mode = PS_HTML_CACHE_SERVE_VARIANTS;
+  request.method = "GET";
+  request.accept = "text/markdown";
+  request.now_seconds = 1000;
+  ps_html_stored_facts_t facts{};
+  facts.struct_size = sizeof(facts);
+  facts.flags = PS_HTML_FACTS_PRESENT | PS_HTML_FACTS_VARIANT_PRESENT |
+                PS_HTML_FACTS_BINDING_LIVE;
+  facts.stored_at = 990;
+  facts.lifetime_s = 60;
+  std::memset(facts.binding_hash, 0x11, sizeof(facts.binding_hash));
+  std::memset(facts.markdown_hash, 0xAA, sizeof(facts.markdown_hash));
+  unsigned char buf[sizeof(ps_html_serve_verdict_t)];
+  std::memset(buf, 0x5A, sizeof(buf));
+  auto* v = reinterpret_cast<ps_html_serve_verdict_t*>(buf);
+  const size_t cut = offsetof(ps_html_serve_verdict_t, etag) + 10;
+  v->struct_size = cut;
+  ASSERT_EQ(ps_html_serve_classify(&request, &facts, v), 0);
+  EXPECT_EQ(v->action, PS_HTML_SERVE_ACTION_SERVE_MARKDOWN);
+  for (size_t i = offsetof(ps_html_serve_verdict_t, etag); i < cut; ++i) {
+    EXPECT_EQ(buf[i], 0) << i;
+  }
+  for (size_t i = cut; i < sizeof(buf); ++i) EXPECT_EQ(buf[i], 0x5A) << i;
 }
 
 TEST(PageSpeedCApiPolicy, StoredFactsRefuseAShortStructAndReadAbsent) {
