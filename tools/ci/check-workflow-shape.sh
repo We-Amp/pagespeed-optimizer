@@ -61,6 +61,16 @@
 #       `--add-host=bazel-remote-cache` elsewhere fails, except on a line
 #       marked `# predates remote-cache-docker-args.sh` (the fallback for a
 #       release tag cut before the helper existed).
+#   (slsa) the one reusable workflow from outside this repository: a job
+#       whose uses: names slsa-framework/slsa-github-generator must name
+#       exactly .github/workflows/generator_generic_slsa3.yml@v<X.Y.Z> (a
+#       version tag, not a commit: the generator checks its own ref and
+#       refuses anything else), sit in a file of SLSA_CALLERS (the release
+#       lanes), set `upload-assets: false` in its with: block, so the
+#       provenance reaches a release only through the lane's own release
+#       job, and pass no secrets. Such a job may hold the write permissions
+#       the generator's jobs declare (rule f): the generator's jobs run on
+#       GitHub-hosted runners, never on the fleet.
 #
 # Rule (e) exclusions (same pattern as the public-tree hygiene gate, which
 # excludes its own rules file):
@@ -111,6 +121,19 @@ FLEET_DISPATCH_QUEUE_GUARD="${FLEET_DISPATCH_GUARD% \}\}} && needs.changes.outpu
 
 status=0
 err() { echo "::error::$*" >&2; status=1; }
+
+# The (slsa) rule: the SLSA generic generator, by version tag, and the files
+# that may call it.
+SLSA_GENERATOR_RE='^slsa-framework/slsa-github-generator/\.github/workflows/generator_generic_slsa3\.yml@v[0-9]+\.[0-9]+\.[0-9]+$'
+SLSA_CALLERS="pipeline-release-optimizer.yml pipeline-release-nuget.yml"
+is_slsa_call() { # a `uses:` value
+  printf '%s' "$1" | grep -qE "${SLSA_GENERATOR_RE}"
+}
+is_slsa_caller() { # a workflow file name
+  local c
+  for c in ${SLSA_CALLERS}; do [ "$1" = "${c}" ] && return 0; done
+  return 1
+}
 
 # --- allowlist (rule (b) exemption list) ------------------------------------
 is_allowlisted() {
@@ -429,6 +452,11 @@ EOF
         esac
       fi
       wruns="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${wjob}" '$1=="KEY" && $2==j && $3=="runs-on" {print $5}')"
+      wuses="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${wjob}" '$1=="KEY" && $2==j && $3=="uses" {print $5}')"
+      # The SLSA generator's jobs run on hosted runners (the slsa rule).
+      if [ -z "${wruns}" ] && is_slsa_call "${wuses}"; then
+        continue
+      fi
       if ! is_hosted_label "${wruns}"; then
         err "${wf}:${wline}: job '${wjob}' holds a write permission but does not run on a hosted label (rule f)"
       fi
@@ -436,6 +464,29 @@ EOF
 $(write_perm_records "${wf}")
 EOF
   fi
+
+  # (slsa) every workflow: a call of the SLSA generator names the generic
+  # generator by version tag, from a release lane, never uploads itself and
+  # is passed no secret.
+  while IFS="${TAB}" read -r kind job key lineno val; do
+    { [ "${kind}" = "KEY" ] && [ "${key}" = "uses" ]; } || continue
+    case "${val}" in
+      *slsa-framework/slsa-github-generator/*) ;;
+      *) continue ;;
+    esac
+    if ! is_slsa_call "${val}"; then
+      err "${wf}:${lineno}: job '${job}' uses '${val}'; only .github/workflows/generator_generic_slsa3.yml@v<X.Y.Z> of the SLSA generator is allowed, by version tag (slsa)"
+    elif ! is_slsa_caller "${base}"; then
+      err "${wf}:${lineno}: job '${job}' calls the SLSA generator, which only the release lanes (${SLSA_CALLERS}) may call (slsa)"
+    elif ! awk -v j="  ${job}:" '/^  [A-Za-z0-9_-]+:[ ]*$/ { inj = ($0 == j) } inj { print }' "${wf}" \
+         | grep -qE '^      upload-assets:[[:space:]]*false[[:space:]]*$'; then
+      err "${wf}:${lineno}: job '${job}' calls the SLSA generator without 'upload-assets: false'; the lane's release job attaches the provenance (slsa)"
+    elif printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${job}" '$1=="KEY" && $2==j && $3=="secrets" {f=1} END {exit !f}'; then
+      err "${wf}:${lineno}: job '${job}' passes secrets to the SLSA generator; it needs none (slsa)"
+    fi
+  done <<EOF
+${records}
+EOF
 
   if printf '%s\n' "${triggers}" | grep -qvx 'workflow_call'; then
     # Caller workflow. (b) unless allowlisted.
