@@ -579,7 +579,9 @@ TEST(DaemonHtmlPolicyCasesTest, EachInvalidNotifyRowBreaksOneRule) {
     const std::vector<std::string> broken = NotifyRulesBroken(p["input"]);
     const bool valid = p["expect"]["valid"].get<bool>();
     EXPECT_EQ(valid, broken.empty()) << row["id"];
-    if (!valid) EXPECT_EQ(broken.size(), 1u) << row["id"];
+    if (!valid) {
+      EXPECT_EQ(broken.size(), 1u) << row["id"];
+    }
   }
   EXPECT_GT(rows, 0);
 }
