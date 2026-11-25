@@ -6273,7 +6273,7 @@
       "policy": {
         "call": "notify",
         "input": {
-          "content": "html",
+          "content": "css",
           "flags": ["from_module", "reserved_0x40"],
           "site": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
           "agent_request": false
