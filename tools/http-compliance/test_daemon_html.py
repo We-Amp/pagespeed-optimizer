@@ -287,16 +287,14 @@ class TestModuleStoredHtml:
         """Module HTML in a markdown-* mode yields the Markdown copy and
         nothing else: no optimized HTML variant, no HTML pass."""
         module_mode(mode)
-        stats = module_worker.stats()
-        html_before = stats["by_type"]["html"]["count"]
-        variants_before = stats["variants"]["written"]
+        html_before = _html_passes(module_worker)
+        variants_before = module_worker.counter("variants", "written")
         url = _url()
         _stored, facts = _derive(module_worker, standin, url, _page(mode))
         assert facts["markdown"] and "binding_live" in facts["facts"]
         assert not _is_plain_variant(facts["best_alternate_id"]), facts
-        stats = module_worker.stats()
-        assert stats["by_type"]["html"]["count"] == html_before
-        assert stats["variants"]["written"] == variants_before
+        assert _html_passes(module_worker) == html_before
+        assert module_worker.counter("variants", "written") == variants_before
 
     def test_no_network_in_markdown_static(self, module_worker, standin):
         """The copy is derived with no network at all: the worker's
@@ -459,7 +457,13 @@ def _shared_conf() -> dict:
 
 
 def _html_passes(worker: Worker) -> int:
-    return int(worker.stats()["by_type"]["html"]["count"])
+    """HTML passes the worker ran, whether or not they changed the page."""
+    stats = worker.stats()
+    return int(
+        stats["by_type"]["html"]["count"]
+        + stats["html_assembly"]["complete"]
+        + stats["html_assembly"]["skipped"]
+    )
 
 
 class TestHtmlModeOnTheFront:
