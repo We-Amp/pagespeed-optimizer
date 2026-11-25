@@ -154,8 +154,8 @@ class EpochFile {
   bool WriteRecord(const std::string& record) {
     OVERLAPPED ov{};
     DWORD wrote = 0;
-    if (!WriteFile(h_, record.data(), static_cast<DWORD>(record.size()),
-                   &wrote, &ov) ||
+    if (!WriteFile(h_, record.data(), static_cast<DWORD>(record.size()), &wrote,
+                   &ov) ||
         wrote != record.size()) {
       return false;
     }
