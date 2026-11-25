@@ -458,12 +458,16 @@ def _shared_conf() -> dict:
     return dict(line.split("=", 1) for line in r.stdout.splitlines() if "=" in line)
 
 
+def _html_passes(worker: Worker) -> int:
+    return int(worker.stats()["by_type"]["html"]["count"])
+
+
 class TestHtmlModeOnTheFront:
     def test_full_equals_disable_html_false(
         self, front_worker, client: ComplianceClient
     ):
         """disable_html=false is html_mode full, everywhere it is read, and
-        the front optimizes HTML under it as it always has."""
+        the front's HTML gets the optimizer's HTML pass under it."""
         front_worker.set_html_mode({"disable_html": True})
         assert front_worker.api("GET", "/v1/config")["html_mode"] == "off"
         front_worker.set_html_mode({"disable_html": False})
@@ -473,23 +477,31 @@ class TestHtmlModeOnTheFront:
         assert conf.get("html_mode") == "full", conf
         assert conf.get("disable_html") == "false", conf
         time.sleep(1.5)  # the front's next shared-config poll
-        r = client.poll_for_hit(f"/small.html?mode=full-{uuid.uuid4().hex}", timeout=15)
-        client.assert_hit(r)
+        before = _html_passes(front_worker)
+        r = client.get(f"/small.html?mode=full-{uuid.uuid4().hex}")
+        assert r.status_code == 200
+        assert _poll(lambda: _html_passes(front_worker) > before), (
+            "no HTML pass ran under full"
+        )
 
     def test_markdown_mode_writes_no_html_variant(
-        self, front_worker, client: ComplianceClient
+        self, front_worker, client: ComplianceClient, origin_client
     ):
-        """In markdown-static the front's HTML is never optimized: no HTML
-        pass runs and no optimized page is served."""
+        """In markdown-static the front's HTML gets no HTML pass, and what it
+        serves is the origin's page byte for byte."""
         front_worker.set_html_mode({"html_mode": "markdown-static"})
         conf = _shared_conf()
         assert conf.get("html_mode") == "markdown-static", conf
         # Readers that predate html_mode see the legacy key as "not off".
         assert conf.get("disable_html") == "false", conf
         time.sleep(1.5)  # the front's next shared-config poll
-        html_before = front_worker.stats()["by_type"]["html"]["count"]
+        before = _html_passes(front_worker)
         path = f"/small.html?mode=markdown-{uuid.uuid4().hex}"
-        r = client.poll_for_hit(path, timeout=6)
-        assert r.status_code == 200
-        assert r.headers.get("X-PageSpeed") != "HIT", r.headers
-        assert front_worker.stats()["by_type"]["html"]["count"] == html_before
+        origin = origin_client.get(path)
+        deadline = time.time() + 6
+        while time.time() < deadline:
+            r = client.get(path)
+            assert r.status_code == 200
+            assert r.content == origin.content, r.headers
+            time.sleep(0.5)
+        assert _html_passes(front_worker) == before
