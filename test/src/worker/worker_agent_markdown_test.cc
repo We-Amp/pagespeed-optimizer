@@ -1219,7 +1219,7 @@ class ModuleHtmlTest : public WorkerTest {
     ASSERT_TRUE(wh->close_sync().has_value());
   }
 
-  CacheNotification Frame(bool agent_request) const {
+  [[nodiscard]] CacheNotification Frame(bool agent_request) const {
     CacheNotification n;
     n.url = std::string("http://example.com") + kPath;
     n.hostname = kHost;

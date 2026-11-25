@@ -1959,7 +1959,7 @@ void BrowserAnalysisManager::OnAgentRenderDone(
         NoteAgentCopyBelowFloor(item.url, item.hostname, item.scheme, item.site,
                                 item.origin_html_hash);
       }
-      if (handler_) {
+      if (handler_ != nullptr) {
         handler_->Info(
             "agent_optimize: no Markdown copy for %s: below the fidelity floor",
             item.url.c_str());

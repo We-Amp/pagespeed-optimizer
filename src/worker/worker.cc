@@ -5396,14 +5396,25 @@ void Worker::HandleModuleHtmlNotification(const CacheNotification& notification,
   }
   if (purged()) {
     // A purge landed between the check and the commit: take the copy back.
-    (void)cache_->RemoveAlternate(url, host, scheme, kMarkdownId, site);
+    if (!cache_->RemoveAlternate(url, host, scheme, kMarkdownId, site)
+             .has_value()) {
+      LogWarning("Markdown copy of %s written across a purge was not removed",
+                 url.c_str());
+    }
     stats_.alternate_writes_fenced.fetch_add(1, std::memory_order_relaxed);
     return;
   }
   if (marker_present) {
     // A marker this pass did not obey (an older deriver, or a size cap since
     // raised) must not keep the serve side withholding the copy just built.
-    (void)cache_->RemoveAlternate(url, host, scheme, kWithheldId, site);
+    if (!cache_->RemoveAlternate(url, host, scheme, kWithheldId, site)
+             .has_value()) {
+      // The copy stays unserved until the next store clears the marker.
+      LogWarning(
+          "Withheld marker for %s was not removed after its copy was "
+          "written",
+          url.c_str());
+    }
   }
   stats_.module_markdown_derived.fetch_add(1, std::memory_order_relaxed);
   LogInfo("Wrote %zu bytes of Markdown for %s from the stored page",
