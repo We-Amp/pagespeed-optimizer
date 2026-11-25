@@ -184,6 +184,7 @@ std::vector<char> CacheNotification::Serialize() const {
   if (host_vouched) flags |= kNotifyFlagHostVouched;
   if (from_module) flags |= kNotifyFlagFromModule;
   if (legacy_ex_caller) flags |= kNotifyFlagLegacyExCaller;
+  if (html_stored) flags |= kNotifyFlagHtmlStored;
   *ptr = static_cast<char>(flags);
 
   return result;
@@ -356,6 +357,7 @@ bool CacheNotification::Deserialize(std::string_view data,
   notification->host_vouched = (flags & kNotifyFlagHostVouched) != 0;
   notification->from_module = (flags & kNotifyFlagFromModule) != 0;
   notification->legacy_ex_caller = (flags & kNotifyFlagLegacyExCaller) != 0;
+  notification->html_stored = (flags & kNotifyFlagHtmlStored) != 0;
 
   // Both or neither, checked on the way in as well as on the way out: a sender
   // that never emits a half context does not make a receiver that would accept

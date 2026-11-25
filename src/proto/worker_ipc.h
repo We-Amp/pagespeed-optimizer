@@ -76,14 +76,19 @@ inline constexpr size_t kSiteIdChars = 64;
 // True for exactly kSiteIdChars characters of [0-9a-f].  False for empty.
 bool IsSiteId(std::string_view site);
 
-// Notification flags byte (v6).  Bits 3-7 are reserved and must be zero.
+// Notification flags byte (v6).  Bits 4-7 are reserved and must be zero.
 inline constexpr uint8_t kNotifyFlagHostVouched = 0x01;
 inline constexpr uint8_t kNotifyFlagFromModule = 0x02;
 // Set only by libpagespeed, on a frame from a caller whose
 // ps_notify_params_t predates the site fields.
 inline constexpr uint8_t kNotifyFlagLegacyExCaller = 0x04;
+// The module's HTML store wrote the entry the frame names (C API 1.13).
+// Added without a version bump: a reader that does not know the bit rejects
+// only the frames that carry it, as a malformed frame.
+inline constexpr uint8_t kNotifyFlagHtmlStored = 0x08;
 inline constexpr uint8_t kNotifyFlagsKnown =
-    kNotifyFlagHostVouched | kNotifyFlagFromModule | kNotifyFlagLegacyExCaller;
+    kNotifyFlagHostVouched | kNotifyFlagFromModule | kNotifyFlagLegacyExCaller |
+    kNotifyFlagHtmlStored;
 
 // Why a notification was refused.  Deliberately distinguishes skew from
 // damage; see the kIpcVersion note above.
@@ -165,9 +170,11 @@ struct CacheNotification {
   //   from_module: the sender is the mod_pagespeed in-place arm.
   //   legacy_ex_caller: libpagespeed built this frame for a caller whose
   //     parameters predate the site fields.
+  //   html_stored: the module's HTML store wrote the entry this frame names.
   bool host_vouched = false;
   bool from_module = false;
   bool legacy_ex_caller = false;
+  bool html_stored = false;
 
   // Serialize to binary format (v6).
   // Returns empty vector if validation fails.

@@ -481,13 +481,25 @@ std::string_view HtmlServeActionName(HtmlServeAction action) {
 
 std::string_view HtmlServeReasonName(HtmlServeReason reason) {
   static constexpr std::array<std::string_view, kHtmlServeReasonCount> kNames =
-      {"fresh",           "mode",
-       "auth_request",    "cookie_request",
-       "client_no_cache", "needs_validation",
-       "stale",           "headers_not_reproducible",
-       "sidecar_missing", "purged",
-       "absent",          "binding_stale",
-       "parent_stale"};
+      {"fresh",
+       "mode",
+       "auth_request",
+       "cookie_request",
+       "client_no_cache",
+       "needs_validation",
+       "stale",
+       "headers_not_reproducible",
+       "sidecar_missing",
+       "purged",
+       "absent",
+       "binding_stale",
+       "parent_stale",
+       "method",
+       "range",
+       "cors",
+       "no_transform",
+       "withheld",
+       "skew"};
   const auto index = static_cast<size_t>(reason);
   return index < kNames.size() ? kNames[index] : "unknown";
 }
@@ -948,8 +960,19 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
   }
   const bool cached_html = request.mode == HtmlCacheMode::kServeCachedHtml;
 
+  // 1a. Request shape.
+  if (!request.method_cacheable) return done(kFall, HtmlServeReason::kMethod);
+  if (request.has_range) return done(kFall, HtmlServeReason::kRange);
+  if (request.has_origin) return done(kFall, HtmlServeReason::kCors);
+
   // 2. Absent entry.
   if (!stored.present) return done(kFall, HtmlServeReason::kAbsent);
+
+  // 2a. Skew.
+  if (static_cast<int64_t>(stored.stored_at) >
+      static_cast<int64_t>(request.now_seconds) + kHtmlServeSkewSeconds) {
+    return done(kFall, HtmlServeReason::kSkew);
+  }
 
   const int64_t elapsed =
       std::max<int64_t>(0, static_cast<int64_t>(request.now_seconds) -
@@ -1012,6 +1035,8 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
   // parent-lifetime term (the parent was just confirmed) and keeps the
   // render bound, so a copy older than its own lifetime is still refused.
   if (request.wants_markdown) {
+    if (stored.no_transform) return done(kFall, HtmlServeReason::kNoTransform);
+    if (stored.withheld) return done(kFall, HtmlServeReason::kWithheld);
     if (!stored.variant_present) return done(kFall, HtmlServeReason::kAbsent);
     if (!stored.binding_live)
       return done(kFall, HtmlServeReason::kBindingStale);
@@ -1027,6 +1052,80 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
     return done(HtmlServeAction::kServeHtml, HtmlServeReason::kFresh);
   }
   return done(kFall, HtmlServeReason::kMode);
+}
+
+namespace {
+
+bool EqualsIgnoreAsciiCase(std::string_view a, std::string_view b) {
+  if (a.size() != b.size()) return false;
+  for (size_t i = 0; i < a.size(); ++i) {
+    auto lower = [](char c) {
+      return (c >= 'A' && c <= 'Z') ? static_cast<char>(c | 0x20) : c;
+    };
+    if (lower(a[i]) != lower(b[i])) return false;
+  }
+  return true;
+}
+
+std::string_view TrimOws(std::string_view s) {
+  while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) {
+    s.remove_prefix(1);
+  }
+  while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) {
+    s.remove_suffix(1);
+  }
+  return s;
+}
+
+// RFC 9111 section 1.2.2 delta-seconds, saturating at INT32_MAX (2^31, the
+// section's own ceiling, minus one so it fits the signed field); -1 when the
+// value is not delta-seconds at all.  A quoted value is accepted, as section
+// 5.2 asks of a recipient.
+int64_t ParseDeltaSeconds(std::string_view v) {
+  v = TrimOws(v);
+  if (v.size() >= 2 && v.front() == '"' && v.back() == '"') {
+    v = v.substr(1, v.size() - 2);
+  }
+  if (v.empty()) return -1;
+  int64_t out = 0;
+  for (char c : v) {
+    if (c < '0' || c > '9') return -1;
+    out = std::min<int64_t>(out * 10 + (c - '0'), INT32_MAX);
+  }
+  return out;
+}
+
+}  // namespace
+
+void ApplyHtmlRequestCacheControl(std::string_view cache_control,
+                                  HtmlServeRequest* request) {
+  request->has_cache_control = true;
+  while (true) {
+    const size_t comma = cache_control.find(',');
+    const std::string_view item = TrimOws(cache_control.substr(0, comma));
+    const size_t eq = item.find('=');
+    const std::string_view name = TrimOws(item.substr(0, eq));
+    const std::string_view arg =
+        eq == std::string_view::npos ? std::string_view() : item.substr(eq + 1);
+    if (EqualsIgnoreAsciiCase(name, "no-cache")) {
+      request->cache_control_no_cache = true;
+    } else if (EqualsIgnoreAsciiCase(name, "max-age") ||
+               EqualsIgnoreAsciiCase(name, "min-fresh")) {
+      const int64_t seconds = ParseDeltaSeconds(arg);
+      if (seconds < 0) {
+        // Not delta-seconds: the strictest reading, which falls through.
+        request->max_age = 0;
+      } else if (EqualsIgnoreAsciiCase(name, "max-age")) {
+        request->max_age = request->max_age < 0
+                               ? seconds
+                               : std::min(request->max_age, seconds);
+      } else {
+        request->min_fresh = std::max(request->min_fresh, seconds);
+      }
+    }
+    if (comma == std::string_view::npos) return;
+    cache_control = cache_control.substr(comma + 1);
+  }
 }
 
 }  // namespace pagespeed

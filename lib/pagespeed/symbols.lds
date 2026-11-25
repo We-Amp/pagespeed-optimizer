@@ -182,4 +182,12 @@ PAGESPEED_1.13 {
     ps_cache_remove_site;
     ps_cache_write_site_purge_epoch;
     ps_cache_read_site_purge_epoch;
+    /* HTML serve policy */
+    ps_html_serve_classify;
+    ps_html_serve_reason_name;
+    ps_html_store_write_params;
+    ps_html_stored_facts_from_reads;
+    ps_html_markdown_etag;
+    ps_if_none_match_matches_weak;
+    ps_read_shared_config_html_mode;
 } PAGESPEED_1.12;
