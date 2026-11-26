@@ -59,7 +59,7 @@ The agent response is content-negotiated, with these guarantees:
 In the nginx module, and on Apache with `DaemonHtmlCache serve-variants`, while agent optimization is on,
 the HTML responses of your pages name `Accept` in their `Vary` too (for example
 `Vary: Accept-Encoding, User-Agent, Accept`), whether or not a Markdown copy
-exists yet, so a CDN in front of nginx keys the two apart from the first
+exists yet, so a CDN in front of the server keys the two apart from the first
 request. With agent optimization off, `Vary` is as before. Stylesheets,
 scripts and images are not affected.
 
@@ -100,7 +100,8 @@ worker started with the right flags. The module alone does nothing.
    and do not pass arguments through; set the mode with the `html_mode` key in
    `pagespeed.json`, which the worker reads at start from the directory that
    holds its cache volume (`/data` by default in the images), or with
-   `PATCH /v1/config` on the worker's API. The mode applies to the whole worker:
+   `PATCH /v1/config` on the worker's API, with the management API enabled
+   (`PAGESPEED_API_PORT` or `PAGESPEED_API_SOCKET`). The mode applies to the whole worker:
    in a `markdown-*` mode it writes no optimized HTML variants for any site it
    serves, and variants already stored are served until the page changes, is
    refreshed or is purged.
