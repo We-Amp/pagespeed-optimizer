@@ -3,7 +3,7 @@ title: 'Serve Markdown to AI agents'
 description: 'Serve AI agents a rendered Markdown copy of your pages at the same URL, and synthesize an /llms.txt — off by default, nothing leaves your server.'
 order: 60
 group: 'Agents'
-lastUpdated: 2026-11-14
+lastUpdated: 2026-11-27
 faq:
   - q: 'Does this change what browsers and search engines see?'
     a: 'No. Browsers and crawlers receive your normal HTML at the same URL. Only a request that explicitly negotiates the agent representation (Accept: text/markdown), on a deployment where you have enabled agent optimization, receives the rendered-Markdown copy. The response carries Vary: Accept so shared caches never mix the two.'
@@ -12,7 +12,7 @@ faq:
   - q: 'Does my content leave my server?'
     a: 'No. Rendering, cleaning, caching, and serving all happen on your own server. Serving a cached response performs zero outbound network I/O.'
   - q: 'Does this work with the module alone, or does it need the optimizer worker?'
-    a: 'It needs the optimizer worker. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.'
+    a: 'It needs the optimizer worker. The module never produces the Markdown copy itself: the worker does, and the module only stores your HTML pages and answers requests with the worker''s copy when you have opted in on Apache or nginx (see Serve the Markdown copy from the module). Without that opt-in, the module serves normal HTML to an agent request.'
   - q: 'What is the synthesized /llms.txt, and is it your /llms.txt?'
     a: 'The optimizer worker can publish a synthesized /llms.txt for YOUR site — a Markdown index built from your own sitemap, off by default and enabled by its own worker flag. It is unrelated to the /llms.txt on modpagespeed.com, which describes our product. The index is built off the serving path and serving it performs zero outbound network I/O. It needs the worker: the module alone does not produce it.'
 ---
@@ -83,6 +83,51 @@ the rendered DOM.
 While the flag is off, an agent request **transparently receives the normal
 HTML** of the same URL — never an error, never a half-rendered page. Turning the
 feature off is always safe.
+
+## Serve the Markdown copy from the module (Apache and nginx)
+
+On Apache and nginx the mod_pagespeed module can keep a copy of each HTML page
+and answer an agent request with the Markdown copy that the worker derives from
+it, with no browser rendering. This is the `DaemonHtmlCache serve-variants`
+mode. It is opt-in, and it needs both halves: the module configuration and a
+worker started with the right flags. The module alone does nothing.
+
+1. Install the optimizer and restart it before you reload the web server. A
+   worker from an earlier release refuses the module's notifications.
+2. Start the worker with `--html-mode markdown-static` (or `markdown-rendered`)
+   and `--agent-optimize`. In the Docker images, `PAGESPEED_AGENT_OPTIMIZE=true`
+   sets the second flag; give the HTML mode as the worker argument.
+   In a `markdown-*` mode the worker writes no optimized HTML; if you also want
+   optimized HTML from the worker, this mode is not for that site.
+3. In the module, turn on `AgentOptimize` and start with `report-only`:
+
+   ```nginx
+   pagespeed AgentOptimize on;
+   pagespeed DaemonHtmlCache report-only;
+   ```
+
+   On Apache the directives are `ModPagespeedAgentOptimize on` and
+   `ModPagespeedDaemonHtmlCache report-only`, set at virtual host level.
+   `report-only` changes nothing a client receives. It counts which pages the
+   module could store and why it would refuse the others, so you can see what
+   `serve-variants` would do for your site first.
+4. When the counters look right, change the value to `serve-variants` and
+   reload. If the module or worker does not allow serving, the module logs why
+   once and keeps running as `report-only`. `DaemonHtmlCache off` turns the
+   feature off again.
+
+Only pages that your origin gives an explicit lifetime, and that a shared cache
+may keep, are stored. A `no-cache` page, or a static file nginx serves without an
+upstream `Cache-Control`, gains nothing. The first request for a page gets
+HTML; the Markdown copy is derived after the page is stored. The Markdown answer
+carries only a fixed set of headers, so server-wide headers such as
+`Strict-Transport-Security` are not applied to it: set those at a stage in front
+of the server. It is never compressed.
+
+The module's operator guide, `docs/html-cache-serve-variants.md` in the
+[mod_pagespeed repository](https://github.com/We-Amp/mod_pagespeed), lists what
+is stored and served on each server, how purging works, the limits and the
+counters. IIS does not serve Markdown copies yet.
 
 ## State a content-use policy (`content-signal`)
 
@@ -255,6 +300,9 @@ agent, not as a signed-in visitor, and may be served the Markdown copy and
 
 Start the worker with `--agent-optimize` (and `--enable-browser-analysis`), then
 add `--agent-optimize-llms-txt` if you also want the synthesized `/llms.txt`.
+To have the module serve the Markdown copy, follow the steps in
+[Serve the Markdown copy from the module](#serve-the-markdown-copy-from-the-module-apache-and-nginx)
+and try `report-only` before `serve-variants`.
 Evaluate it in staging first: the capability is experimental and its flags may
 change.
 
