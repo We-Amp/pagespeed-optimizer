@@ -131,6 +131,8 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   // leading whitespace moves before the link, and the return value says
   // whether trailing whitespace was removed (it then goes after the link).
   static bool TrimLinkText(std::string* o, std::size_t open);
+  // Record the first <time datetime> value as the front-matter date.
+  void CaptureFrontMatterDate(HtmlElement* element);
   // Inside <pre>: end the current line (dropping trailing blanks) so a block
   // child of the <pre> starts on a line of its own.
   void PreLineBreak();

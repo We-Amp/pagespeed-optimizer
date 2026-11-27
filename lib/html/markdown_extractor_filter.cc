@@ -702,6 +702,13 @@ bool MarkdownExtractorFilter::TrimLinkText(std::string* o, std::size_t open) {
   return trailing;
 }
 
+void MarkdownExtractorFilter::CaptureFrontMatterDate(HtmlElement* element) {
+  if (!fm_date_.empty()) return;
+  const HtmlElement::Attribute* dt = element->FindAttribute("datetime");
+  const char* v = dt != nullptr ? dt->DecodedValueOrNull() : nullptr;
+  if (v != nullptr && *v != '\0') fm_date_.assign(v);
+}
+
 void MarkdownExtractorFilter::PreLineBreak() {
   std::string* o = Out();
   while (!o->empty() && (o->back() == ' ' || o->back() == '\t')) o->pop_back();
@@ -743,6 +750,11 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
         IsHardStripByName(element)) {
       ++hard_skip_depth_;
     } else if (element->keyword() == HtmlName::kTime) {
+      // A "Last updated <time>" line inside <main> is often page chrome; its
+      // date is still the page's date for the front matter.
+      if (hard_skip_depth_ == 0 && content_root_depth_ > 0) {
+        CaptureFrontMatterDate(element);
+      }
       ++time_depth_;  // each <time> tracks its own counter (balanced nesting)
     } else if (strip_soft_chrome_ && IsSoftStripElement(element)) {
       ++soft_skip_depth_;
@@ -788,11 +800,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
   // Issue F (3): capture the first <time datetime> as the front-matter date and
   // SUPPRESS its visible text (a timestamp is metadata, not citation body).
   if (kw == HtmlName::kTime) {
-    if (fm_date_.empty()) {
-      const HtmlElement::Attribute* dt = element->FindAttribute("datetime");
-      const char* v = dt != nullptr ? dt->DecodedValueOrNull() : nullptr;
-      if (v != nullptr && *v != '\0') fm_date_.assign(v);
-    }
+    CaptureFrontMatterDate(element);
     ++time_depth_;  // drop the visible stamp text (Skipping covers descendants)
     return;
   }

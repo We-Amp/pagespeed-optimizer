@@ -996,6 +996,12 @@ TEST_F(MarkdownExtractorFilterTest, PagefindIgnoredContentIsLeftOut) {
          "<div data-pagefind-ignore>Last updated "
          "<a href=\"/edit\">Edit this page</a></div></main>"),
       "# Title\n\nBody.");
+  // The date of a marked "Last updated" line is still the page's date.
+  EXPECT_EQ(Md("<html><head><title>T</title></head><body><main>"
+               "<div data-pagefind-ignore>Last updated <time "
+               "datetime=\"2026-10-22\">Oct 22</time></div><p>Body.</p>"
+               "</main></body></html>"),
+            "---\ntitle: T\ndate: 2026-10-22\n---\n\nBody.");
   // A content root carrying the marker, or inside a marked element, is kept.
   EXPECT_EQ(Md("<main data-pagefind-ignore><p>kept</p></main>"), "kept");
   EXPECT_EQ(Md("<div data-pagefind-ignore><main><p>inside</p></main></div>"),
