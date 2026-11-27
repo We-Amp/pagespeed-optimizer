@@ -2360,6 +2360,7 @@ jobs:
   # therefore stays in the findings file, and the issue stays open, until
   # the unit itself replays clean; a night on which the fuzzer simply does
   # not rediscover it no longer closes the issue. When that cache is missing
+  # or holds no units (an older entry after a failed save looks the same)
   # while a tracking issue is open, the earlier units cannot be re-verified:
   # the lane records that (an "unverified" marker carried in the same cache)
   # and suppresses auto-close until the issue is closed by hand.
@@ -2481,13 +2482,29 @@ jobs:
             -print_final_stats=1
           echo "FUZZ_RC=$?" >> "$GITHUB_ENV"
 
+      # Carry the earlier nights' needs-triage units into CRASH_DIR, so the
+      # classifier replays them on tonight's binary. Its own step so the
+      # token reaches only the carry's read-only open-issue lookup, not the
+      # replay binary or the classifier. Tonight's own artifact count is
+      # taken first, for the zero-artifact check below; the carry's
+      # findings entry goes to a side file the next step folds in.
+      - name: Carry earlier findings in
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPEN_CACHE_KEY: ${{ steps.open_findings.outputs.cache-matched-key }}
+        run: |
+          set -uo pipefail
+          mkdir -p "$CRASH_DIR"
+          echo "TONIGHT_ARTIFACTS=$(find "$CRASH_DIR" -type f | wc -l | tr -d ' ')" >> "$GITHUB_ENV"
+          : > "${FINDINGS}.carry"
+          bash tools/ci/carry-css-fuzz-findings.sh in \
+            "$OPEN_DIR" "$CRASH_DIR" "${FINDINGS}.carry" "$OPEN_CACHE_KEY" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
       # Bucket crash artifacts against the documented known-find classes;
       # only needs-triage items reach the findings file. An empty file means
       # clean, and the tracking issue closes on it.
       - name: Classify artifacts and write findings
-        env:
-          GH_TOKEN: ${{ github.token }}
-          OPEN_CACHE_KEY: ${{ steps.open_findings.outputs.cache-matched-key }}
         run: |
           set -uo pipefail
           echo "LANE_RAN=1" >> "$GITHUB_ENV"
@@ -2505,7 +2522,8 @@ jobs:
           # campaign never ran (bad flag, OOM before the first unit): that
           # must open or comment the tracking issue, since an empty findings
           # file would close a live issue on a night nothing ran.
-          n_artifacts="$(find "$CRASH_DIR" -type f | wc -l | tr -d ' ')"
+          # Counted before the carried units were added (previous step).
+          n_artifacts="${TONIGHT_ARTIFACTS:-$(find "$CRASH_DIR" -type f | wc -l | tr -d ' ')}"
           if [ "${FUZZ_RC:-1}" != "0" ] && [ "$n_artifacts" = "0" ]; then
             {
               echo "### libFuzzer campaign failed (rc=${FUZZ_RC}, zero artifacts)"
@@ -2514,12 +2532,19 @@ jobs:
               echo
             } >> "$FINDINGS"
           fi
-          # Carry the earlier nights' needs-triage units in AFTER the
-          # zero-artifact check above (they are not tonight's campaign
-          # output), so the classifier replays them on tonight's binary.
-          bash tools/ci/carry-css-fuzz-findings.sh in \
-            "$OPEN_DIR" "$CRASH_DIR" "$FINDINGS" "$OPEN_CACHE_KEY" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
+          # The carry step's entry, if any. A missing side file means the
+          # carry did not run, so the earlier units were not replayed: fail
+          # closed and keep the issue open.
+          if [ -f "${FINDINGS}.carry" ]; then
+            cat "${FINDINGS}.carry" >> "$FINDINGS"
+          else
+            {
+              echo "### earlier findings could not be re-verified (carry step did not run)"
+              echo
+              echo "The step that replays earlier needs-triage units did not run, so this run cannot clear them. This entry suppresses auto-close for the night. See the run log."
+              echo
+            } >> "$FINDINGS"
+          fi
           bash tools/ci/classify-css-fuzz-artifacts.sh \
             "$BIN_DIR/replay" "$CRASH_DIR" "$FINDINGS" \
             | tee -a "$GITHUB_STEP_SUMMARY"
@@ -2557,7 +2582,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/css-fuzz-open
-          key: css-fuzz-open-findings-v1-${{ github.run_id }}
+          key: css-fuzz-open-findings-v1-${{ github.run_id }}-${{ github.run_attempt }}
 
       # The small input of the report job: the findings text, and a marker
       # that the lane ran so a build-stage failure cannot close the issue.

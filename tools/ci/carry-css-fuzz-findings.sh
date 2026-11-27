@@ -19,12 +19,19 @@
 # `in` (before the classifier): copies every carried unit into CRASH_DIR, so
 # tools/ci/classify-css-fuzz-artifacts.sh replays it with tonight's units (a
 # unit that still fails is listed in FINDINGS_MD again; one that replays
-# clean is counted stale and dropped). It also guards the carry itself: when
-# the restore missed, or an earlier run left the `unverified` marker, and a
-# tracking issue is open (or the lookup fails), the earlier units cannot be
-# re-verified, so it sets the marker and appends an entry to FINDINGS_MD,
-# which keeps the issue open. Once no tracking issue is open the marker is
-# dropped.
+# clean is counted stale and dropped). It also guards the carry itself. A
+# cache hit that restored at least one unit is trusted. In every other case
+# (the restore missed, it restored a set with no units, or an earlier run
+# left the `unverified` marker) it looks up the open tracking issue: a set
+# with no units is also what a failed or colliding cache save leaves behind
+# when an older entry is restored. When a tracking issue is open, or the
+# lookup fails, the earlier units cannot be re-verified, so it sets the
+# marker and appends an entry to FINDINGS_MD, which keeps the issue open.
+# Once a lookup finds no tracking issue open, the marker is dropped.
+#
+# Fail closed by design: the marker sticks for as long as the lookup keeps
+# failing, or the issue stays open, so a broken lookup can hold the issue
+# open but can never close it.
 #
 # `out` (after the classifier): rewrites OPEN_DIR to hold exactly the units
 # FINDINGS_MD lists (the classifier names each as "### `<unit>`"), plus the
@@ -79,7 +86,9 @@ carry_in() {
   done
   echo "css-fuzz carry: ${carried} open finding unit(s) carried from earlier runs"
 
-  if [[ -n "$cache_key" && ! -e "$open_dir/$MARKER" ]]; then
+  # Trust only a hit that restored units: an empty restored set may be an
+  # older entry left by a failed or colliding save.
+  if [[ -n "$cache_key" && "$carried" -gt 0 && ! -e "$open_dir/$MARKER" ]]; then
     return 0
   fi
   local count
@@ -94,7 +103,7 @@ carry_in() {
   {
     echo "### earlier findings could not be re-verified"
     echo
-    echo "The open-findings cache was missing on a run while the tracking issue was open (open issues: ${count}), so the units it reported were not replayed. Auto-close stays off until this issue is closed by hand, after its units have been checked against main."
+    echo "The open-findings cache was missing or held no units on a run while the tracking issue was open (open issues: ${count}), so the units it reported were not replayed. Auto-close stays off until this issue is closed by hand, after its units have been checked against main."
     echo
   } >> "$findings"
   echo "css-fuzz carry: earlier units not re-verifiable; auto-close suppressed"
@@ -199,7 +208,26 @@ self_test() {
   check "miss+none open: no entry" test ! -s "$F"
   check "miss+none open: no marker" test ! -e "$O/$MARKER"
 
-  # 9. Entries the caller wrote before `in` survive (append mode).
+  # 9. Cache hit that restored no units (an older entry after a failed or
+  #    colliding save) while an issue is open: fail closed.
+  rm -rf "$O" "$C"
+  mkdir -p "$O"
+  touch "$O/.keep"
+  : > "$F"
+  CSS_FUZZ_OPEN_ISSUES_CMD='echo 1' carry_in "$O" "$C" "$F" "key-4" >/dev/null
+  check "hit+no units+open: findings entry" grep -q "could not be re-verified" "$F"
+  check "hit+no units+open: marker set" test -e "$O/$MARKER"
+
+  # 10. Same, but no issue open: a clean night, nothing to verify.
+  rm -rf "$O" "$C"
+  mkdir -p "$O"
+  touch "$O/.keep"
+  : > "$F"
+  CSS_FUZZ_OPEN_ISSUES_CMD='echo 0' carry_in "$O" "$C" "$F" "key-5" >/dev/null
+  check "hit+no units+none open: no entry" test ! -s "$F"
+  check "hit+no units+none open: no marker" test ! -e "$O/$MARKER"
+
+  # 11. Entries the caller wrote before `in` survive (append mode).
   printf 'replay floor red\n' > "$F"
   CSS_FUZZ_OPEN_ISSUES_CMD='echo 1' carry_in "$O" "$C" "$F" "" >/dev/null
   check "append: earlier entry kept" grep -q "replay floor red" "$F"
