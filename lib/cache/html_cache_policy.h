@@ -82,7 +82,14 @@ namespace pagespeed {
 //   7. Cache-Control (RFC 9111 §5.2.2).  `private` in either form (bare, or
 //      qualified as `private="Set-Cookie"`, §5.2.2.7) is refused: the
 //      qualified form restricts only the named fields, but the cheap error is
-//      the one this leans toward.  `no-store` (§5.2.2.5) is refused.
+//      the one this leans toward.  `no-store` (§5.2.2.5) is refused.  The
+//      targeted cache controls `Surrogate-Control` and `CDN-Cache-Control`
+//      (RFC 9213) refuse the same way when any line of theirs carries
+//      `private` or `no-store` (a member's value or parameters do not
+//      matter); the detail is the line's name in lowercase.  No other value
+//      of theirs is read, so none extends or shortens the lifetime; they are
+//      not carried by the sidecar, so rule 10 still refuses a response that
+//      sends one.
 //   8. Cookie request.  A request that carried a Cookie header is stored only
 //      when the response is explicitly shareable: `public` (§5.2.2.9) or
 //      an `s-maxage` above zero (§5.2.2.10, which also makes the response
