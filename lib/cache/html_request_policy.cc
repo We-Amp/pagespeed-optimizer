@@ -125,15 +125,14 @@ bool HeaderNameIs(std::string_view name, std::string_view lower) {
   return true;
 }
 
-// Whether a comma-separated field value holds `token` as one of its members
-// (OWS trimmed, case folded).
-bool HasListToken(std::string_view value, std::string_view token) {
-  while (true) {
-    const size_t comma = value.find(',');
-    if (EqualsIgnoreCase(TrimOws(value.substr(0, comma)), token)) return true;
-    if (comma == std::string_view::npos) return false;
-    value = value.substr(comma + 1);
+// Whether `value` contains `needle` (lowercase), ASCII case folded: the
+// test frameworks apply to an AJAX marker.
+bool ContainsIgnoreCase(std::string_view value, std::string_view needle) {
+  if (needle.size() > value.size()) return false;
+  for (size_t i = 0; i + needle.size() <= value.size(); ++i) {
+    if (EqualsIgnoreCase(value.substr(i, needle.size()), needle)) return true;
   }
+  return false;
 }
 
 constexpr std::array<std::string_view, 14> kStaticExtensions = {
@@ -210,8 +209,8 @@ constexpr std::array<std::string_view, 40> kBuiltinIgnorable = {
     "_hjAbsoluteSessionInProgress", "_hjIncludedInPageviewSample",
     "_hjIncludedInSessionSample", "_hjTLDTest", "_hjLocalStorageTest",
     "_hjSessionStorageTest", "_hjCookieTest", "_hjViewportId",
-    "_hjRecordingEnabled", "_hjRecordingLastActivity",
-    "_hjUserAttributesHash", "_hjClosedSurveyInvites", "_hjDonePolls",
+    "_hjRecordingEnabled", "_hjRecordingLastActivity", "_hjUserAttributesHash",
+    "_hjClosedSurveyInvites", "_hjDonePolls",
     // Microsoft Clarity.
     "_clck", "_clsk",
     // Matomo.
@@ -279,7 +278,7 @@ HtmlGuardVerdict HtmlRequestGuard(std::string_view raw_path,
       v.xfp = true;
     }
     if (HeaderNameIs(name, "x-requested-with") &&
-        HasListToken(value, "xmlhttprequest")) {
+        ContainsIgnoreCase(value, "xmlhttprequest")) {
       refused = true;
     }
     if ((HeaderNameIs(name, "x-microsoftajax") ||

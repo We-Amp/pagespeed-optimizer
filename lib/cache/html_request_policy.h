@@ -72,8 +72,8 @@ struct HtmlGuardVerdict {
 //
 // AJAX MARKERS.  A request a front end treats as AJAX may be answered with a
 // fragment, which must never be stored under the page's key nor answered with
-// the page: X-Requested-With holding XMLHttpRequest as one of its
-// comma-separated members (any case, whitespace trimmed), and
+// the page: X-Requested-With whose value contains XMLHttpRequest (any case,
+// as frameworks test it), and
 // X-MicrosoftAjax or X-Prototype-Version with a non-empty value.
 //
 // CACHE-DECEPTION PATHS.  `raw_path` is the request target as received; a

@@ -7330,8 +7330,8 @@ TEST(PageSpeedCApiPolicy, A113SidecarParamsReadNoByteOfThe115Fields) {
   std::memset(pairing, 0x5a, sizeof(pairing));
   const char* names[] = {"Cache-Control", "Referrer-Policy"};
   const char* values[] = {"max-age=30", "no-referrer"};
-  for (uint32_t poison : {uint32_t{PS_SIDECAR_WRITE_POLICY_BLOCK},
-                          uint32_t{0xFFFFFFFEu}}) {
+  for (uint32_t poison :
+       {uint32_t{PS_SIDECAR_WRITE_POLICY_BLOCK}, uint32_t{0xFFFFFFFEu}}) {
     ps_sidecar_write_params_t sp{};
     sp.struct_size = offsetof(ps_sidecar_write_params_t, origin_html_hash) +
                      sizeof(const uint8_t*);
@@ -7371,8 +7371,7 @@ TEST(PageSpeedCApiPolicy, CookieValuesBeyondTheCapacityBlock) {
   ps_html_cookie_span_t spans[2];
   ps_html_cookie_class_t out{};
   out.struct_size = sizeof(out);
-  ASSERT_EQ(ps_html_classify_cookies(lines, 1, 1, nullptr, 0, spans, 2,
-                                     &out),
+  ASSERT_EQ(ps_html_classify_cookies(lines, 1, 1, nullptr, 0, spans, 2, &out),
             0);
   EXPECT_EQ(out.cookie_class, PS_HTML_COOKIES_BLOCKING);
   EXPECT_EQ(out.ignorable_count, 3u);

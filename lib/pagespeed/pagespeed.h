@@ -1948,8 +1948,8 @@ typedef struct {
  * X-Url-Scheme, X-Forwarded-Server, X-Original-URI and X-Forwarded-Uri, with
  * any value; an X-Forwarded-Proto line whose trimmed value is not the keyed
  * scheme (case-insensitively; any line when the keyed scheme is neither http
- * nor https); X-Requested-With holding XMLHttpRequest as a comma-separated
- * member (any case); X-MicrosoftAjax or X-Prototype-Version with a non-empty
+ * nor https); X-Requested-With whose value contains XMLHttpRequest (any
+ * case); X-MicrosoftAjax or X-Prototype-Version with a non-empty
  * value. X-Forwarded-For and X-Real-IP are allowed. Every name is compared
  * case-insensitively with `_` read as `-`: CGI-style origins map both
  * spellings to the same variable.
