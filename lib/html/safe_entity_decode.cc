@@ -112,6 +112,18 @@ constexpr NamedEntity kNamedEntities[] = {
 // 31 bytes).
 constexpr std::size_t kMaxEntityNameLen = 32;
 
+// Longest name the standard accepts without a ';' ("frac12", "middot"),
+// derived from the table at compile time.
+constexpr std::size_t MaxLegacyNameLen() {
+  std::size_t n = 0;
+  for (const NamedEntity& e : kNamedEntities) {
+    if (e.legacy != 0 && e.name.size() > n) n = e.name.size();
+  }
+  return n;
+}
+constexpr std::size_t kMaxLegacyNameLen = MaxLegacyNameLen();
+static_assert(kMaxLegacyNameLen == 6, "the HTML Standard's legacy names");
+
 const NamedEntity* FindEntity(std::string_view name) {
   const auto* it = std::lower_bound(
       std::begin(kNamedEntities), std::end(kNamedEntities), name,
@@ -209,7 +221,7 @@ std::size_t DecodeReferenceAt(std::string_view s, std::size_t i,
   }
   // Without a ';' only the historical names are references, matched as the
   // longest one that prefixes the name ("&copy2026" is "(c)2026").
-  for (std::size_t len = std::min(name.size(), kMaxEntityNameLen); len >= 2;
+  for (std::size_t len = std::min(name.size(), kMaxLegacyNameLen); len >= 2;
        --len) {
     const NamedEntity* e = FindEntity(name.substr(0, len));
     if (e != nullptr && e->legacy != 0) {
