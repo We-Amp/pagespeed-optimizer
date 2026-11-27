@@ -26,13 +26,13 @@ inline constexpr std::string_view kDaemonHtmlPolicyCasesPath =
 
 // FNV-1a 64 of the file with every carriage return removed. Any edit to the
 // file must update this value in the same change.
-inline constexpr uint64_t kDaemonHtmlPolicyCasesFnv1a64 = 0xcc6fc836a302ec3aULL;
+inline constexpr uint64_t kDaemonHtmlPolicyCasesFnv1a64 = 0x4d43226a7ca7ace0ULL;
 
 // The rows the policy runner runs today and the rows it holds back as
 // pending. Both are pinned so a row cannot leave the run unnoticed: marking a
 // row pending, or adding a pending row, changes these in the same change.
 inline constexpr size_t kDaemonHtmlPolicyCasesRunRows = 218;
-inline constexpr size_t kDaemonHtmlPolicyCasesPendingRows = 655;
+inline constexpr size_t kDaemonHtmlPolicyCasesPendingRows = 683;
 
 // FNV-1a 64 (offset basis 0xcbf29ce484222325, prime 0x100000001b3).
 inline uint64_t PolicyCasesFnv1a64(std::string_view data) {
