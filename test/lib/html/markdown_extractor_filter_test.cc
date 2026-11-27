@@ -954,6 +954,55 @@ TEST_F(MarkdownExtractorFilterTest, EscapedMarkupStaysTextInProse) {
             "Use `<img>`");
 }
 
+namespace {
+
+// True when every `ch` in `md` is escaped: preceded by an odd number of
+// backslashes. This is how CommonMark (markdown-it, cmark-gfm) reads a
+// backslash run: pairs are literal backslashes, an odd one escapes the next
+// character. For test inputs without code spans or fences.
+bool EveryCharEscaped(std::string_view md, char ch) {
+  for (std::size_t i = 0; i < md.size(); ++i) {
+    if (md[i] != ch) continue;
+    std::size_t run = 0;
+    while (run < i && md[i - 1 - run] == '\\') ++run;
+    if (run % 2 == 0) return false;
+  }
+  return true;
+}
+
+}  // namespace
+
+// A backslash in page text is a literal backslash, so it cannot cancel the
+// escape of a following '<' or '|', even when the two come from different
+// text nodes.
+TEST_F(MarkdownExtractorFilterTest, LiteralBackslashCannotUnescapeMarkup) {
+  const std::string a =
+      Md("<main><p>a \\&lt;img src=x onerror=alert(1)&gt; b</p></main>");
+  EXPECT_EQ(a, "a \\\\\\<img src=x onerror=alert(1)> b");
+  EXPECT_TRUE(EveryCharEscaped(a, '<')) << a;
+  const std::string split =
+      Md("<main><p>a \\<span></span>&lt;b&gt;x</p></main>");
+  EXPECT_EQ(split, "a \\\\\\<b>x");
+  EXPECT_TRUE(EveryCharEscaped(split, '<')) << split;
+  const std::string h = Md("<main><h2>\\\\&lt;i&gt;</h2></main>");
+  EXPECT_TRUE(EveryCharEscaped(h, '<')) << h;
+  const std::string link =
+      Md("<main><p><a href=\"/x\">\\&lt;b&gt;</a></p></main>");
+  EXPECT_TRUE(EveryCharEscaped(link, '<')) << link;
+  const std::string alt =
+      Md("<main><p><img src=\"/i\" alt=\"\\&lt;b&gt;\"></p></main>");
+  EXPECT_EQ(alt, "![\\\\\\<b>](/i)");
+  // In a table cell a backslash before '|' must not turn the escaped pipe
+  // into a cell delimiter.
+  const std::string cell =
+      Md("<main><table><tr><td>x \\| y</td></tr></table></main>");
+  EXPECT_EQ(cell, "| x \\\\\\| y |\n| --- |");
+  EXPECT_TRUE(EveryCharEscaped(cell.substr(2, cell.find(" |\n") - 2), '|'))
+      << cell;
+  // A plain backslash in prose reads as one backslash.
+  EXPECT_EQ(Md("<main><p>C:\\path</p></main>"), "C:\\\\path");
+}
+
 // ---- link text and inline code are trimmed ----------------------------------
 
 TEST_F(MarkdownExtractorFilterTest, LinkTextIsTrimmed) {

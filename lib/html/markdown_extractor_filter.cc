@@ -304,7 +304,8 @@ std::string EscapeLinkText(std::string_view s) {
       case ']':
       case '(':
       case ')':
-      case '<':  // decoded text, never an HTML tag or autolink
+      case '<':   // decoded text, never an HTML tag or autolink
+      case '\\':  // a literal backslash, never an escape
         out.push_back('\\');
         out.push_back(c);
         break;
@@ -577,8 +578,11 @@ void MarkdownExtractorFilter::AppendText(std::string_view raw_text) {
     }
     // Decoded text stays text: a '<' (from "&lt;" or a literal one) is
     // escaped so no Markdown renderer reads it as an HTML tag or autolink, and
-    // an '&' that would read as a character reference is escaped likewise.
-    if (c == '<' || (c == '&' && StartsMarkdownReference(text, i))) {
+    // an '&' that would read as a character reference is escaped likewise. A
+    // literal backslash is always doubled, so it can never cancel one of these
+    // escapes (or a table cell's "\|"), even across text nodes.
+    if (c == '\\' || c == '<' ||
+        (c == '&' && StartsMarkdownReference(text, i))) {
       o->push_back('\\');
     }
     o->push_back(c);
