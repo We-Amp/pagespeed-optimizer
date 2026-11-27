@@ -664,6 +664,24 @@ void MarkdownExtractorFilter::AnchorBlockJoin() {
   o->append(": ");
 }
 
+bool MarkdownExtractorFilter::TrimLinkText(std::string* o, std::size_t open) {
+  // Whitespace at the end of the label moves after the link.
+  bool trailing = false;
+  while (o->size() > open + 1 && IsAsciiWs(o->back())) {
+    o->pop_back();
+    trailing = true;
+  }
+  // Whitespace at the start moves before it, so "Go<a> here</a>" still reads
+  // "Go [here](...)".
+  std::size_t b = open + 1;
+  while (b < o->size() && IsAsciiWs((*o)[b])) ++b;
+  if (b > open + 1) {
+    o->erase(open + 1, b - (open + 1));
+    if (open > 0 && !IsAsciiWs((*o)[open - 1])) o->insert(open, 1, ' ');
+  }
+  return trailing;
+}
+
 void MarkdownExtractorFilter::PreLineBreak() {
   std::string* o = Out();
   while (!o->empty() && (o->back() == ' ' || o->back() == '\t')) o->pop_back();
@@ -980,6 +998,12 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
       for (char& c : code_buf_) {
         if (c == '\n' || c == '\r') c = ' ';
       }
+      // Leading and trailing whitespace is source formatting, not code.
+      code_buf_ = Trim(code_buf_);
+      if (code_buf_.empty()) {
+        in_inline_code_ = false;
+        return;
+      }
       int n = LongestBacktickRun(code_buf_);
       std::string fence(std::max(1, n + 1), '`');
       bool pad = !code_buf_.empty() &&
@@ -1170,6 +1194,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
         // <i> do not count as text. aria-label is deliberately not used as text.
         // An
         // image inside the link counts as content, so image links are kept.
+        bool space_after = false;
         if (!anchor_open_pos_.empty()) {
           const OpenAnchor open = anchor_open_pos_.back();
           anchor_open_pos_.pop_back();
@@ -1177,10 +1202,14 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
             o->resize(open.pos);
             break;
           }
+          if (open.pos < o->size() && (*o)[open.pos] == '[') {
+            space_after = TrimLinkText(o, open.pos);
+          }
         }
         o->append("](");
         if (href != nullptr) o->append(SanitizeUrl(href));
         o->append(")");
+        if (space_after) o->push_back(' ');
       }
       break;
     default:

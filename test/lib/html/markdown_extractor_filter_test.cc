@@ -954,6 +954,27 @@ TEST_F(MarkdownExtractorFilterTest, EscapedMarkupStaysTextInProse) {
             "Use `<img>`");
 }
 
+// ---- link text and inline code are trimmed ----------------------------------
+
+TEST_F(MarkdownExtractorFilterTest, LinkTextIsTrimmed) {
+  EXPECT_EQ(Md("<main><p><a href=\"/download/\"> Download &amp; run </a> "
+               "<a href=\"/demo/\">\n  See the demo\n</a></p></main>"),
+            "[Download & run](/download/) [See the demo](/demo/)");
+  // The whitespace moves outside, so words stay apart.
+  EXPECT_EQ(Md("<p>Go<a href=\"/x\"> here </a>now.</p>"), "Go [here](/x) now.");
+  EXPECT_EQ(Md("<p><a href=\"/x\">a<br></a></p>"), "[a](/x)");
+  EXPECT_EQ(Md("<p><a href=\"/x\"> <img src=\"/i\" alt=\"i\"> </a></p>"),
+            "[![i](/i)](/x)");
+}
+
+TEST_F(MarkdownExtractorFilterTest, InlineCodeIsTrimmed) {
+  EXPECT_EQ(Md("<p>Set <code>\n             rewrite_images,inline_images\n"
+               "           </code> here</p>"),
+            "Set `rewrite_images,inline_images` here");
+  EXPECT_EQ(Md("<p><code>  x  </code></p>"), "`x`");
+  EXPECT_EQ(Md("<p>a<code>   </code>b</p>"), "ab");
+}
+
 // ---- output is always well-formed UTF-8 -----------------------------------
 
 // A literal no-break space (U+00A0, the two bytes C2 A0) reads as a space and
