@@ -209,6 +209,37 @@ bool HasVisibleText(std::string_view t) {
   return false;
 }
 
+// True when the '&' at t[i] begins text a Markdown renderer reads as a
+// character reference ("&lt;", "&#60;", "&#x3C;"). Such text came from the
+// page as escaped text (for example "&amp;lt;"), so its '&' is escaped to keep
+// it literal.
+bool StartsMarkdownReference(std::string_view t, std::size_t i) {
+  std::size_t j = i + 1;
+  if (j < t.size() && t[j] == '#') {
+    ++j;
+    const bool hex = j < t.size() && (t[j] == 'x' || t[j] == 'X');
+    if (hex) ++j;
+    const std::size_t start = j;
+    while (j < t.size() && j - start < 8 &&
+           ((t[j] >= '0' && t[j] <= '9') ||
+            (hex &&
+             ((t[j] >= 'a' && t[j] <= 'f') || (t[j] >= 'A' && t[j] <= 'F'))))) {
+      ++j;
+    }
+    return j > start && j < t.size() && t[j] == ';';
+  }
+  const std::size_t start = j;
+  while (j < t.size() && j - start < 33 &&
+         ((t[j] >= 'a' && t[j] <= 'z') || (t[j] >= 'A' && t[j] <= 'Z') ||
+          (t[j] >= '0' && t[j] <= '9'))) {
+    ++j;
+  }
+  // CommonMark reads only the standard's names as references ("&bogus;" is
+  // text as it stands).
+  return j > start && j < t.size() && t[j] == ';' &&
+         IsHtml5EntityName(t.substr(start, j - start));
+}
+
 std::string EscapeCell(std::string_view s) {
   std::string out;
   out.reserve(s.size());
@@ -273,6 +304,7 @@ std::string EscapeLinkText(std::string_view s) {
       case ']':
       case '(':
       case ')':
+      case '<':  // decoded text, never an HTML tag or autolink
         out.push_back('\\');
         out.push_back(c);
         break;
@@ -530,7 +562,8 @@ void MarkdownExtractorFilter::AppendText(std::string_view raw_text) {
     return;
   }
   bool prev_space = o->empty() || o->back() == ' ' || o->back() == '\n';
-  for (char c : text) {
+  for (std::size_t i = 0; i < text.size(); ++i) {
+    const char c = text[i];
     if (o->size() >= kMaxMarkdownBytes) {  // bound the staging buffer per char
       truncated_ = true;
       break;
@@ -540,10 +573,16 @@ void MarkdownExtractorFilter::AppendText(std::string_view raw_text) {
         o->push_back(' ');
         prev_space = true;
       }
-    } else {
-      o->push_back(c);
-      prev_space = false;
+      continue;
     }
+    // Decoded text stays text: a '<' (from "&lt;" or a literal one) is
+    // escaped so no Markdown renderer reads it as an HTML tag or autolink, and
+    // an '&' that would read as a character reference is escaped likewise.
+    if (c == '<' || (c == '&' && StartsMarkdownReference(text, i))) {
+      o->push_back('\\');
+    }
+    o->push_back(c);
+    prev_space = false;
   }
 }
 

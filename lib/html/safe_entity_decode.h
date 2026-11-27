@@ -32,6 +32,10 @@ std::string ToWellFormedUtf8(std::string_view s);
 // is never split.
 void FoldNbsp(std::string* s);
 
+// True iff `name` (without '&' and ';') is a named character reference of the
+// HTML Standard, such as "lt" or "mdash".
+bool IsHtml5EntityName(std::string_view name);
+
 // Decode the character references in text `s` for an agent-facing feed:
 //   - every named reference of the HTML Standard ("&mdash;", "&rarr;",
 //     "&NotEqualTilde;") and the historical names it accepts without a ';'

@@ -371,7 +371,7 @@ TEST_F(MarkdownExtractorFilterTest, GiantInlineCodeBounded) {
 // (1) Entity decode: body-text entities must be decoded so the agent reads the
 // human glyphs, not '&amp;'/'&lt;'. Decode runs BEFORE structural escaping.
 TEST_F(MarkdownExtractorFilterTest, DecodesHtmlEntities) {
-  EXPECT_EQ(Md("<p>Tom &amp; Jerry &lt;1ms&gt;</p>"), "Tom & Jerry <1ms>");
+  EXPECT_EQ(Md("<p>Tom &amp; Jerry &lt;1ms&gt;</p>"), "Tom & Jerry \\<1ms>");
 }
 
 // (1, security) Decode-then-escape preserves the structural-escape contract: a
@@ -379,9 +379,10 @@ TEST_F(MarkdownExtractorFilterTest, DecodesHtmlEntities) {
 // and must not let a decoded entity forge a markdown block at the start of a
 // paragraph. The decoded '<'/'>' are plain text in markdown (no breakout).
 TEST_F(MarkdownExtractorFilterTest, DecodedScriptStaysInertText) {
-  // The decoded text is literal '<script>alert(1)</script>' as body, not a tag.
+  // The decoded text is literal '<script>alert(1)</script>' as body, escaped
+  // so no Markdown renderer reads it as a tag.
   EXPECT_EQ(Md("<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>"),
-            "<script>alert(1)</script>");
+            "\\<script>alert(1)\\</script>");
   // A decoded leading block marker is still escaped after decode (no forged
   // heading): '&#35;' -> '#' must become '\#'.
   EXPECT_EQ(Md("<p>&#35; not a heading</p>"), "\\# not a heading");
@@ -462,8 +463,9 @@ TEST_F(MarkdownExtractorFilterTest, PreservesLiteralUtf8TextNode) {
 // contract, so the entities are exercised mid-text where no marker-escape fires.)
 TEST_F(MarkdownExtractorFilterTest, DecodesAsciiEntities) {
   EXPECT_EQ(Md("<main><p>&amp;</p></main>"), "&");
-  EXPECT_EQ(Md("<main><p>&lt;</p></main>"), "<");
-  EXPECT_EQ(Md("<main><p>a &amp; b &lt; c &gt; d</p></main>"), "a & b < c > d");
+  EXPECT_EQ(Md("<main><p>&lt;</p></main>"), "\\<");
+  EXPECT_EQ(Md("<main><p>a &amp; b &lt; c &gt; d</p></main>"),
+            "a & b \\< c > d");
 }
 
 // A named reference above U+007F (&middot;, &copy;, &eacute;) decodes to its
@@ -911,6 +913,45 @@ TEST_F(MarkdownExtractorFilterTest, FrontMatterTitleDecodesReferences) {
                "&amp; Helm</title></head><body><p>x</p></body></html>"),
             "---\ntitle: Download 2.10 \xE2\x80\x94 Apache, Docker & Helm\n"
             "---\n\nx");
+}
+
+// ---- escaped text stays text -----------------------------------------------
+
+// "&lt;img&gt;" in the page is the text "<img>". In the Markdown copy it is
+// escaped so no renderer turns it into a live tag, in prose and table cells.
+TEST_F(MarkdownExtractorFilterTest, EscapedMarkupStaysTextInCells) {
+  EXPECT_EQ(Md("<main><table><tr><th>Filter</th><th>What</th></tr>"
+               "<tr><td>insert_image_dimensions</td>"
+               "<td>Adds width and height attributes to &lt;img&gt; tags</td>"
+               "</tr><tr><td>inline_import_to_link</td>"
+               "<td>Converts &lt;style&gt;@import&lt;/style&gt; to "
+               "&lt;link&gt;</td></tr></table></main>"),
+            "| Filter | What |\n| --- | --- |\n"
+            "| insert_image_dimensions | Adds width and height attributes to "
+            "\\<img> tags |\n"
+            "| inline_import_to_link | Converts \\<style>@import\\</style> to "
+            "\\<link> |");
+}
+
+TEST_F(MarkdownExtractorFilterTest, EscapedMarkupStaysTextInProse) {
+  EXPECT_EQ(Md("<main><p>Use a &lt;picture&gt; element.</p></main>"),
+            "Use a \\<picture> element.");
+  EXPECT_EQ(Md("<main><h2>The &lt;img&gt; tag</h2></main>"),
+            "## The \\<img> tag");
+  EXPECT_EQ(Md("<main><p><a href=\"/x\">&lt;b&gt; tags</a></p></main>"),
+            "[\\<b> tags](/x)");
+  EXPECT_EQ(Md("<main><p>See &lt;https://example.com/&gt;</p></main>"),
+            "See \\<https://example.com/>");
+  EXPECT_EQ(Md("<main><p><img src=\"/i\" alt=\"&lt;b&gt;\"></p></main>"),
+            "![\\<b>](/i)");
+  // Text that reads as a reference keeps its '&' literal.
+  EXPECT_EQ(Md("<main><p>Write &amp;lt; or &amp;#60; or &amp;copy;</p></main>"),
+            "Write \\&lt; or \\&#60; or \\&copy;");
+  // A plain '&' needs nothing.
+  EXPECT_EQ(Md("<main><p>AT&amp;T &amp; co</p></main>"), "AT&T & co");
+  // Code keeps its text literal: no escape inside backticks or fences.
+  EXPECT_EQ(Md("<main><p>Use <code>&lt;img&gt;</code></p></main>"),
+            "Use `<img>`");
 }
 
 // ---- output is always well-formed UTF-8 -----------------------------------

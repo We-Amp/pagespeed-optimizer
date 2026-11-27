@@ -227,6 +227,10 @@ bool IsWellFormedUtf8(std::string_view s) {
   return WellFormedUtf8PrefixLen(s) == s.size();
 }
 
+bool IsHtml5EntityName(std::string_view name) {
+  return FindEntity(name) != nullptr;
+}
+
 std::string ToWellFormedUtf8(std::string_view s) {
   if (IsWellFormedUtf8(s)) return std::string(s);
   std::string out;

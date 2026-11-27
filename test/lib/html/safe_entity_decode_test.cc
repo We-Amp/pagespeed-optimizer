@@ -91,6 +91,15 @@ TEST_F(SafeEntityDecodeTest, UnknownReferenceLeftAloneRestDecoded) {
             "caf\xC3\xA9 & &unknownname; <");
 }
 
+TEST_F(SafeEntityDecodeTest, KnowsTheStandardNames) {
+  EXPECT_TRUE(IsHtml5EntityName("lt"));
+  EXPECT_TRUE(IsHtml5EntityName("mdash"));
+  EXPECT_TRUE(IsHtml5EntityName("CounterClockwiseContourIntegral"));
+  EXPECT_FALSE(IsHtml5EntityName("bogus"));
+  EXPECT_FALSE(IsHtml5EntityName("LT;"));
+  EXPECT_FALSE(IsHtml5EntityName(""));
+}
+
 // The historical names are references without a ';' too, matched as the
 // longest such prefix, as browsers read text.
 TEST_F(SafeEntityDecodeTest, LegacyNamesWithoutSemicolon) {
