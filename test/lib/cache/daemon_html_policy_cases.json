@@ -12769,13 +12769,11 @@
     {
       "id": "m2-store-surrogate-control-private-refuses",
       "runners": ["policy"],
-      "pending": "c-api-1.15",
       "why": "store: Surrogate-Control private is a policy line",
       "policy": {
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
-          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12800,13 +12798,11 @@
     {
       "id": "m2-store-surrogate-control-no-store-refuses",
       "runners": ["policy"],
-      "pending": "c-api-1.15",
       "why": "store: Surrogate-Control no-store is a policy line",
       "policy": {
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
-          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12831,13 +12827,11 @@
     {
       "id": "m2-store-cdn-cache-control-no-store-refuses",
       "runners": ["policy"],
-      "pending": "c-api-1.15",
       "why": "store: CDN-Cache-Control no-store is a policy line",
       "policy": {
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
-          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
