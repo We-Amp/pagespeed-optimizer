@@ -2309,6 +2309,8 @@ jobs:
           # The tools run below hold a write token: take them from main, never
           # from a dispatched branch.
           ref: main
+          # Nothing here talks to the remote; keep the token out of .git/config.
+          persist-credentials: false
 
       - name: Download the evidence
         id: evidence
@@ -2396,6 +2398,9 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job talks to the remote; keep the token out of .git/config.
+          persist-credentials: false
 
       - name: Ensure clang++-20
         run: |
@@ -2622,6 +2627,8 @@ jobs:
           # The tools run below hold a write token: take them from main, never
           # from a dispatched branch.
           ref: main
+          # Nothing here talks to the remote; keep the token out of .git/config.
+          persist-credentials: false
 
       - name: Download the findings
         id: findings
@@ -2921,6 +2928,8 @@ jobs:
           # The tools run below hold a write token: take them from main, never
           # from a dispatched branch.
           ref: main
+          # Nothing here talks to the remote; keep the token out of .git/config.
+          persist-credentials: false
 
       - name: Download the findings
         id: findings
@@ -3075,6 +3084,8 @@ jobs:
           # The tools run below hold a write token: take them from main, never
           # from a dispatched branch.
           ref: main
+          # Nothing here talks to the remote; keep the token out of .git/config.
+          persist-credentials: false
 
       - name: Download the findings
         id: findings
