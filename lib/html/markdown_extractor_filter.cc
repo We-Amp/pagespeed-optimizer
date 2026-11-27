@@ -119,6 +119,9 @@ bool IsArticleRoot(HtmlElement* el) {
 // Sectioning content or the main content root: a <header> inside one of these
 // is that section's heading block (its title, eyebrow and intro text), not the
 // page banner, so the soft strip keeps it.
+// On a page without <main>/<article>, a template that wraps the whole body in
+// a <section> therefore keeps its banner header text (a <nav> in it is still
+// dropped); with a content root, text outside it is not emitted at all.
 bool IsSectioningScope(HtmlElement* el) {
   const HtmlName::Keyword kw = el->keyword();
   return kw == HtmlName::kSection || kw == HtmlName::kAside ||
