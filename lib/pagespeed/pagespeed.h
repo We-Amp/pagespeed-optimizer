@@ -1943,17 +1943,23 @@ typedef struct {
  *
  * Refused, `request_header`: X-Forwarded-Host, X-Host, X-Original-Host,
  * X-Original-URL, X-Rewrite-URL, X-Forwarded-Port, X-Forwarded-Scheme,
- * X-Forwarded-Prefix, X-HTTP-Method-Override, X-Method-Override and
- * Forwarded, with any value; an X-Forwarded-Proto line whose trimmed value is
- * not the keyed scheme (case-insensitively); X-Requested-With:
- * XMLHttpRequest (any case); X-MicrosoftAjax or X-Prototype-Version with a
- * non-empty value. X-Forwarded-For and X-Real-IP are allowed.
+ * X-Forwarded-Prefix, X-HTTP-Method-Override, X-Method-Override, Forwarded,
+ * X-Forwarded-Ssl, Front-End-Https, X-HTTP-Method, X-Forwarded-Protocol,
+ * X-Url-Scheme, X-Forwarded-Server, X-Original-URI and X-Forwarded-Uri, with
+ * any value; an X-Forwarded-Proto line whose trimmed value is not the keyed
+ * scheme (case-insensitively; any line when the keyed scheme is neither http
+ * nor https); X-Requested-With holding XMLHttpRequest as a comma-separated
+ * member (any case); X-MicrosoftAjax or X-Prototype-Version with a non-empty
+ * value. X-Forwarded-For and X-Real-IP are allowed. Every name is compared
+ * case-insensitively with `_` read as `-`: CGI-style origins map both
+ * spellings to the same variable.
  *
  * Refused, `path`, before any header: a `;` in the path; `%2F` or `%5C` in
  * any case, or a raw backslash; a `.` or `..` segment, also with a dot
  * written %2e; a last path segment with a static-asset extension (css js png
- * jpg jpeg gif svg webp ico woff woff2 json txt xml, any case). The query is
- * not examined.
+ * jpg jpeg gif svg webp ico woff woff2 json txt xml, any case), read after
+ * percent-decoding the segment and dropping trailing dots and spaces. The
+ * query is not examined.
  *
  * Returns 0 with `*out` written up to its struct_size; -1 for a NULL
  * raw_path, keyed_scheme or out, NULL arrays or elements with `count` > 0, or
@@ -1983,14 +1989,17 @@ typedef struct {
   size_t struct_size;
   int cookie_class; /* PS_HTML_COOKIES_* */
   /* 1 when the request is blocking because a pair did not parse (no `=`, an
-   * empty or non-token name, a control byte, an unbalanced quote) or a line
-   * held no pair: log `malformed`, not a name. */
+   * empty or non-token name, a value outside the RFC 6265 cookie-octets once
+   * its surrounding quotes are removed: a space, comma, backslash, quote,
+   * control byte or byte above 0x7E) or a line held no pair: log
+   * `malformed`, not a name. */
   int malformed;
   /* The first blocking cookie's NAME; length 0 when there is none to name. */
   ps_html_cookie_span_t first_blocking;
-  /* How many ignore-listed values the request carried (only for
-   * PS_HTML_COOKIES_IGNORABLE_ONLY); the first `ignorable_capacity` of them
-   * are written to the caller's array. */
+  /* How many ignore-listed values the request carried; the first
+   * `ignorable_capacity` of them are written to the caller's array. When it
+   * exceeds the capacity the verdict is PS_HTML_COOKIES_BLOCKING (with
+   * `malformed` 0 and no name): the caller could not check every value. */
   size_t ignorable_count;
 } ps_html_cookie_class_t;
 
@@ -2003,9 +2012,15 @@ typedef struct {
  * `ignore_builtin` non-zero) or matches one of the operator's `additions`
  * (exact names, or prefixes with one trailing `*`; an addition
  * ps_html_ignore_cookie_guard refuses is ignored), and it is not a session
- * cookie. The built-in list, case-sensitive: _ga, _ga_*, _gid, _gat*,
- * _gcl_*, __utm*, _fbp, _fbc, _hj*, _clck, _clsk, _pk_id*, _pk_ses*,
- * _pk_ref*, _uet*. Session names, matched in any case and never ignorable:
+ * cookie. The built-in list, case-sensitive: _ga, _ga_*, _gid, _gat, _gat_*, _gcl_*, __utma, __utmb, __utmc, __utmt,
+ * __utmt_*, __utmv, __utmz, _fbp, _fbc, _hjid, _hjSession_*,
+ * _hjSessionUser_*, _hjFirstSeen, _hjAbsoluteSessionInProgress,
+ * _hjIncludedInPageviewSample, _hjIncludedInSessionSample, _hjTLDTest,
+ * _hjLocalStorageTest, _hjSessionStorageTest, _hjCookieTest, _hjViewportId,
+ * _hjRecordingEnabled, _hjRecordingLastActivity, _hjUserAttributesHash,
+ * _hjClosedSurveyInvites, _hjDonePolls, _clck, _clsk, _pk_id.*, _pk_ses.*,
+ * _pk_ref.*, _uetsid, _uetvid, _uetmsclkid (exact names, and the prefixes
+ * the vendors document). Session names, matched in any case and never ignorable:
  * PHPSESSID, JSESSIONID, ASP.NET_SessionId, .ASPXAUTH, .AspNetCore.*,
  * laravel_session, connect.sid, sessionid, csrftoken, XSRF-TOKEN, SESS*,
  * SSESS*, wordpress_*, wp-postpass_*, comment_author_*, woocommerce_*,
@@ -2014,7 +2029,12 @@ typedef struct {
  *
  * `ignorable_values` receives the listed cookies' values (without
  * surrounding quotes), for the caller's check that none of them is echoed
- * into a page it stores. It may be NULL with `ignorable_capacity` 0.
+ * into a page it stores. It may be NULL with `ignorable_capacity` 0. FAILS
+ * CLOSED: a request with more listed values than `ignorable_capacity` is
+ * reported blocking, because the values past the capacity could not be
+ * checked; pass room for every value the front end will check (a front end
+ * that wants only the class still needs a capacity for the listed cookies
+ * it may meet, or treats such a request as blocking).
  *
  * Returns 0 with `*out` written up to its struct_size; -1 for NULL lines or
  * elements with `line_count` > 0, NULL additions or elements with

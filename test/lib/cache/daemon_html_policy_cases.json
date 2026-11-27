@@ -27318,16 +27318,16 @@
       }
     },
     {
-      "id": "m2-cookie-listed-gat-ua-1",
+      "id": "m2-cookie-listed-gat-ua1234",
       "runners": [
         "policy"
       ],
-      "why": "cookie list: _gat_UA-1 is an analytics cookie",
+      "why": "cookie list: _gat_UA1234 is an analytics cookie",
       "policy": {
         "call": "cookies",
         "input": {
           "cookie_lines": [
-            "_gat_UA-1=v"
+            "_gat_UA1234=v"
           ],
           "ignore_builtin": true,
           "additions": []

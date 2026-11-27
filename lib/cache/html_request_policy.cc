@@ -91,7 +91,8 @@ std::string PercentDecode(std::string_view s) {
 
 // ---- the request guard -----------------------------------------------------
 
-constexpr std::array<std::string_view, 11> kUnkeyedHeaders = {
+// Lowercase, with `-`; a request's name is compared with `_` read as `-`.
+constexpr std::array<std::string_view, 19> kUnkeyedHeaders = {
     "x-forwarded-host",
     "x-host",
     "x-original-host",
@@ -102,7 +103,38 @@ constexpr std::array<std::string_view, 11> kUnkeyedHeaders = {
     "x-forwarded-prefix",
     "x-http-method-override",
     "x-method-override",
-    "forwarded"};
+    "forwarded",
+    "x-forwarded-ssl",
+    "front-end-https",
+    "x-http-method",
+    "x-forwarded-protocol",
+    "x-url-scheme",
+    "x-forwarded-server",
+    "x-original-uri",
+    "x-forwarded-uri"};
+
+// A request header name against a lowercase, `-`-spelled one: ASCII case is
+// folded and `_` reads as `-`, because CGI-style origins map both spellings
+// to the same variable.
+bool HeaderNameIs(std::string_view name, std::string_view lower) {
+  if (name.size() != lower.size()) return false;
+  for (size_t i = 0; i < name.size(); ++i) {
+    const char c = name[i] == '_' ? '-' : LowerAscii(name[i]);
+    if (c != lower[i]) return false;
+  }
+  return true;
+}
+
+// Whether a comma-separated field value holds `token` as one of its members
+// (OWS trimmed, case folded).
+bool HasListToken(std::string_view value, std::string_view token) {
+  while (true) {
+    const size_t comma = value.find(',');
+    if (EqualsIgnoreCase(TrimOws(value.substr(0, comma)), token)) return true;
+    if (comma == std::string_view::npos) return false;
+    value = value.substr(comma + 1);
+  }
+}
 
 constexpr std::array<std::string_view, 14> kStaticExtensions = {
     "css",  "js",  "png",  "jpg",   "jpeg", "gif", "svg",
@@ -135,7 +167,13 @@ bool PathRefused(std::string_view raw_path) {
     start = slash + 1;
   }
   // A static-asset name that answered text/html is the deception shape.
-  const std::string decoded_last = PercentDecode(last);
+  // Trailing dots and spaces are dropped first: some servers strip them, so
+  // `x.css.` and `x.css%20` name `x.css` there.
+  std::string decoded_last = PercentDecode(last);
+  while (!decoded_last.empty() &&
+         (decoded_last.back() == '.' || decoded_last.back() == ' ')) {
+    decoded_last.pop_back();
+  }
   const size_t dot = decoded_last.rfind('.');
   if (dot == std::string::npos) return false;
   const std::string_view ext = std::string_view(decoded_last).substr(dot + 1);
@@ -159,9 +197,27 @@ bool MatchesPattern(std::string_view name, std::string_view pattern,
   return fold ? EqualsIgnoreCase(name, pattern) : name == pattern;
 }
 
-constexpr std::array<std::string_view, 15> kBuiltinIgnorable = {
-    "_ga",  "_ga_*", "_gid",  "_gat*",   "_gcl_*",   "__utm*",   "_fbp", "_fbc",
-    "_hj*", "_clck", "_clsk", "_pk_id*", "_pk_ses*", "_pk_ref*", "_uet*"};
+// Exact names, or the prefixes the vendors document, so no unrelated cookie
+// that merely shares a few leading characters is ignored.
+constexpr std::array<std::string_view, 40> kBuiltinIgnorable = {
+    // Google Analytics and Ads.
+    "_ga", "_ga_*", "_gid", "_gat", "_gat_*", "_gcl_*", "__utma", "__utmb",
+    "__utmc", "__utmt", "__utmt_*", "__utmv", "__utmz",
+    // Meta.
+    "_fbp", "_fbc",
+    // Hotjar.
+    "_hjid", "_hjSession_*", "_hjSessionUser_*", "_hjFirstSeen",
+    "_hjAbsoluteSessionInProgress", "_hjIncludedInPageviewSample",
+    "_hjIncludedInSessionSample", "_hjTLDTest", "_hjLocalStorageTest",
+    "_hjSessionStorageTest", "_hjCookieTest", "_hjViewportId",
+    "_hjRecordingEnabled", "_hjRecordingLastActivity",
+    "_hjUserAttributesHash", "_hjClosedSurveyInvites", "_hjDonePolls",
+    // Microsoft Clarity.
+    "_clck", "_clsk",
+    // Matomo.
+    "_pk_id.*", "_pk_ses.*", "_pk_ref.*",
+    // Microsoft Advertising.
+    "_uetsid", "_uetvid", "_uetmsclkid"};
 
 constexpr std::array<std::string_view, 18> kSessionPatterns = {
     "PHPSESSID",
@@ -190,9 +246,11 @@ bool IsSessionName(std::string_view name) {
   return false;
 }
 
-bool IsControl(char c) {
+// RFC 6265 section 4.1.1 cookie-octet.
+bool IsCookieOctet(char c) {
   const auto u = static_cast<unsigned char>(c);
-  return u < 0x20 || u == 0x7F;
+  return u == 0x21 || (u >= 0x23 && u <= 0x2B) || (u >= 0x2D && u <= 0x3A) ||
+         (u >= 0x3C && u <= 0x5B) || (u >= 0x5D && u <= 0x7E);
 }
 
 }  // namespace
@@ -210,19 +268,22 @@ HtmlGuardVerdict HtmlRequestGuard(std::string_view raw_path,
     const std::string_view value = TrimOws(headers[i].value);
     bool refused = false;
     for (std::string_view unkeyed : kUnkeyedHeaders) {
-      if (EqualsIgnoreCase(name, unkeyed)) refused = true;
+      if (HeaderNameIs(name, unkeyed)) refused = true;
     }
-    if (EqualsIgnoreCase(name, "x-forwarded-proto") &&
-        !EqualsIgnoreCase(value, keyed_scheme)) {
+    // A keyed scheme other than http or https matches no value.
+    const bool known_scheme = EqualsIgnoreCase(keyed_scheme, "http") ||
+                              EqualsIgnoreCase(keyed_scheme, "https");
+    if (HeaderNameIs(name, "x-forwarded-proto") &&
+        (!known_scheme || !EqualsIgnoreCase(value, keyed_scheme))) {
       refused = true;
       v.xfp = true;
     }
-    if (EqualsIgnoreCase(name, "x-requested-with") &&
-        EqualsIgnoreCase(value, "xmlhttprequest")) {
+    if (HeaderNameIs(name, "x-requested-with") &&
+        HasListToken(value, "xmlhttprequest")) {
       refused = true;
     }
-    if ((EqualsIgnoreCase(name, "x-microsoftajax") ||
-         EqualsIgnoreCase(name, "x-prototype-version")) &&
+    if ((HeaderNameIs(name, "x-microsoftajax") ||
+         HeaderNameIs(name, "x-prototype-version")) &&
         !value.empty()) {
       refused = true;
     }
@@ -307,18 +368,19 @@ HtmlCookieVerdict ClassifyHtmlCookies(
         for (char c : name) {
           if (!IsTokenChar(c)) return block(li, line, {}, true);
         }
-        for (char c : value) {
-          if (IsControl(c)) return block(li, line, {}, true);
-        }
-        if (value.find('"') != std::string_view::npos) {
-          // RFC 6265 section 4.1.1: a value is quoted as a whole or not at
-          // all.
-          if (value.size() < 2 || value.front() != '"' || value.back() != '"' ||
-              value.substr(1, value.size() - 2).find('"') !=
-                  std::string_view::npos) {
+        // RFC 6265 section 4.1.1: a value is quoted as a whole or not at
+        // all, and holds cookie-octets only (no space, comma, backslash,
+        // quote, control byte or byte above 0x7E). Origin parsers split a
+        // value outside that grammar differently, some on a comma or a
+        // space, so it can hide a second cookie.
+        if (!value.empty() && value.front() == '"') {
+          if (value.size() < 2 || value.back() != '"') {
             return block(li, line, {}, true);
           }
           value = value.substr(1, value.size() - 2);
+        }
+        for (char c : value) {
+          if (!IsCookieOctet(c)) return block(li, line, {}, true);
         }
         bool ignorable = false;
         if (!IsSessionName(name)) {
@@ -355,6 +417,9 @@ uint64_t HtmlPolicyStamp(HtmlCredentialedPolicy credentialed,
   input += "credentialed=" + std::to_string(static_cast<int>(credentialed));
   input += "\nbuiltin=" + std::to_string(ignore_builtin ? 1 : 0);
   input += "\nlist=" + std::to_string(list_version);
+  // The list this library applies, whatever version its caller was built
+  // with, so a library that changes the list re-records every page.
+  input += "\nlibrary_list=" + std::to_string(kHtmlCookieListVersion);
   for (std::string_view a : sorted) {
     // Length-prefixed, so no addition can look like two.
     input += "\n" + std::to_string(a.size()) + ":";

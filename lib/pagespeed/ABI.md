@@ -332,15 +332,23 @@ both directions is stated here because nothing else enforces it: **a caller
 must not send `PS_HTML_CACHE_SERVE_CACHED_HTML` to a library whose
 `ps_version_minor()` is below 15.** A 1.14 library reads only the 1.14 prefix
 of a larger request and would serve HTML with no scope, no cap and a
-validation step the caller may not have.
+validation step the caller may not have. The same holds for the credentialed
+policy, the entry check and the request guard in every serve mode, not only in
+serve-cached-html: they exist only from 1.15, and a 1.14 library applies the
+earlier cookie rule (an explicitly shared response is stored and served for a
+cookie) and checks no entry record. A caller that relies on them in any mode
+gates on `ps_version_minor() >= 15`, or accepts the 1.14 rules on an older
+library.
 
 The entry bits `PS_FLAG_HTML_STORE_V2` (0x80, the last free bit of the flags
 byte) and `PS_FLAG_ANONYMOUS_RECORDED` (0x40, the bit other front ends already
 stamp for an anonymously recorded entry, with the same meaning) are written by
 `ps_html_store_write_params` and read back as `PS_HTML_FACTS_STORE_V2` and
 `PS_HTML_FACTS_ANONYMOUS_RECORDED`. An HTML original without the first, which
-is every one stored before 1.15, is `legacy_entry` for both bodies until the
-next clean miss records it again; that one-time miss is the upgrade's cost.
+is every one stored before 1.15, is `legacy_entry` for both bodies until a
+miss records it again. A caller whose re-store skip ignores the entry bits
+(an earlier module) keeps such an entry, unserved, until its re-store is due,
+at most half its lifetime; that is the upgrade's cost.
 The cookie rule became stricter in every serve mode at the same minor: a
 caller that sets the cookie bit for a request without the explicit-public bit
 gets `cookie_request` where 1.14 stored or served an explicitly shared page.

@@ -59,25 +59,32 @@ struct HtmlGuardVerdict {
 // request carrying one is neither stored nor answered:
 //   X-Forwarded-Host, X-Host, X-Original-Host, X-Original-URL, X-Rewrite-URL,
 //   X-Forwarded-Port, X-Forwarded-Scheme, X-Forwarded-Prefix,
-//   X-HTTP-Method-Override, X-Method-Override, Forwarded
-// (names compared case-insensitively, any value, an empty one included).
-// X-Forwarded-Proto is refused only when a line's value, trimmed and compared
-// case-insensitively, is not exactly the keyed scheme (a list, an empty value
-// or a second line that disagrees is refused).  X-Forwarded-For and X-Real-IP
-// are allowed.
+//   X-HTTP-Method-Override, X-Method-Override, Forwarded, X-Forwarded-Ssl,
+//   Front-End-Https, X-HTTP-Method, X-Forwarded-Protocol, X-Url-Scheme,
+//   X-Forwarded-Server, X-Original-URI, X-Forwarded-Uri
+// (any value, an empty one included).  Every name here and below is compared
+// case-insensitively with `_` read as `-`, because CGI-style origins map both
+// spellings to one variable.  X-Forwarded-Proto is refused only when a
+// line's value, trimmed and compared case-insensitively, is not exactly the
+// keyed scheme (a list, an empty value, a second line that disagrees, or a
+// keyed scheme other than http or https is refused).  X-Forwarded-For and
+// X-Real-IP are allowed.
 //
 // AJAX MARKERS.  A request a front end treats as AJAX may be answered with a
 // fragment, which must never be stored under the page's key nor answered with
-// the page: X-Requested-With whose trimmed value is XMLHttpRequest (any case),
-// and X-MicrosoftAjax or X-Prototype-Version with a non-empty value.
+// the page: X-Requested-With holding XMLHttpRequest as one of its
+// comma-separated members (any case, whitespace trimmed), and
+// X-MicrosoftAjax or X-Prototype-Version with a non-empty value.
 //
 // CACHE-DECEPTION PATHS.  `raw_path` is the request target as received; a
 // query (from the first `?`) is not examined except as said below.  Refused:
 // a `;` in the path; `%2F` or `%5C` in any case, or a raw `\`; a dot segment
 // (`.` or `..`, also with either dot percent-encoded as `%2e`); and a last
 // path segment whose extension (after its last `.`) is a static-asset one:
-// css js png jpg jpeg gif svg webp ico woff woff2 json txt xml (any case).
-// A path ending in `/` has an empty last segment.
+// css js png jpg jpeg gif svg webp ico woff woff2 json txt xml (any case),
+// read after percent-decoding the segment and dropping trailing dots and
+// spaces (which some servers strip).  A path ending in `/` has an empty last
+// segment.
 //
 // The first refusal in this order wins: the path, then each header line in
 // the caller's order.
@@ -106,8 +113,10 @@ struct HtmlCookieSpan {
 
 struct HtmlCookieVerdict {
   HtmlCookieClass cookie_class = HtmlCookieClass::kNone;
-  // A pair did not parse (no `=`, an empty or non-token name, a control
-  // byte, an unbalanced quote) or a line held no pair at all.
+  // A pair did not parse (no `=`, an empty or non-token name, a value
+  // outside the RFC 6265 cookie-octets once its surrounding quotes are
+  // removed: a space, comma, backslash, quote, control byte or byte above
+  // 0x7E) or a line held no pair at all.
   bool malformed = false;
   // The first blocking cookie's name; length 0 when there is none to name
   // (a malformed pair, an empty line).
@@ -121,8 +130,15 @@ struct HtmlCookieVerdict {
 // the built-in list (with `ignore_builtin`) or matches an operator addition,
 // and is not a session cookie.  The built-in list, case-sensitive, with `*`
 // a trailing wildcard:
-//   _ga _ga_* _gid _gat* _gcl_* __utm* _fbp _fbc _hj* _clck _clsk _pk_id*
-//   _pk_ses* _pk_ref* _uet*
+//   _ga _ga_* _gid _gat _gat_* _gcl_* __utma __utmb __utmc __utmt __utmt_*
+//   __utmv __utmz _fbp _fbc _hjid _hjSession_* _hjSessionUser_* _hjFirstSeen
+//   _hjAbsoluteSessionInProgress _hjIncludedInPageviewSample
+//   _hjIncludedInSessionSample _hjTLDTest _hjLocalStorageTest
+//   _hjSessionStorageTest _hjCookieTest _hjViewportId _hjRecordingEnabled
+//   _hjRecordingLastActivity _hjUserAttributesHash _hjClosedSurveyInvites
+//   _hjDonePolls _clck _clsk _pk_id.* _pk_ses.* _pk_ref.* _uetsid _uetvid
+//   _uetmsclkid
+// (exact names, and the prefixes the vendors document).
 // SESSION PATTERNS are tested first and are never ignorable, whatever the
 // additions (compared case-insensitively):
 //   PHPSESSID JSESSIONID ASP.NET_SessionId .ASPXAUTH .AspNetCore.*
@@ -130,7 +146,8 @@ struct HtmlCookieVerdict {
 //   wordpress_* wp-postpass_* comment_author_* woocommerce_*
 //   wp_woocommerce_session_* *_session
 // An addition that HtmlIgnoreCookieGuard refuses is ignored.  Pairs are split
-// on `;`, with optional whitespace around names and values; empty members are
+// on `;`, with optional whitespace around names and values (a value is then
+// RFC 6265 cookie-octets, optionally quoted as a whole); empty members are
 // skipped, but a line with no pair at all is blocking.  Scanning stops at the
 // first blocking cookie.
 HtmlCookieVerdict ClassifyHtmlCookies(

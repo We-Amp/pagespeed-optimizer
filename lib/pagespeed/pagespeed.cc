@@ -2153,6 +2153,14 @@ extern "C" int ps_html_classify_cookies(const char* const* lines,
     result.first_blocking = {v.first_blocking.line, v.first_blocking.offset,
                              v.first_blocking.length};
     result.ignorable_count = v.ignorable_values.size();
+    // Values the caller has no room for cannot be checked for an echo, so the
+    // request is not treated as anonymous: fail closed.
+    if (v.cookie_class == pagespeed::HtmlCookieClass::kIgnorableOnly &&
+        v.ignorable_values.size() > ignorable_capacity) {
+      result.cookie_class = PS_HTML_COOKIES_BLOCKING;
+      result.malformed = 0;
+      result.first_blocking = {0, 0, 0};
+    }
     for (size_t i = 0; i < v.ignorable_values.size() && i < ignorable_capacity;
          ++i) {
       const pagespeed::HtmlCookieSpan& span = v.ignorable_values[i];
@@ -2284,10 +2292,8 @@ extern "C" ps_error_t ps_cache_write_headers_sidecar_site(
   ps_sidecar_write_params_t p;
   std::memset(&p, 0, sizeof(p));
   std::memcpy(&p, params, std::min(params->struct_size, sizeof(p)));
-  if (params->struct_size < kSidecarWriteParamsSizeV1_15) {
-    p.policy_stamp = 0;
-    p.write_flags = 0;
-  }
+  // A 1.13 caller's struct ends before policy_stamp and write_flags, so both
+  // stay zero: the one gate is the copy above.
   if ((p.write_flags & ~PS_SIDECAR_WRITE_POLICY_BLOCK) != 0) {
     SetLastError(
         "ps_cache_write_headers_sidecar_site: unknown write_flags bits");
