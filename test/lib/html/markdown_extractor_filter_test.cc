@@ -1003,6 +1003,25 @@ TEST_F(MarkdownExtractorFilterTest, LiteralBackslashCannotUnescapeMarkup) {
   EXPECT_EQ(Md("<main><p>C:\\path</p></main>"), "C:\\\\path");
 }
 
+// Link, image and reference-definition syntax written as page text stays
+// text: its brackets are escaped, so it cannot form a live link or image or
+// close a link label early.
+TEST_F(MarkdownExtractorFilterTest, BracketsInTextAreEscaped) {
+  EXPECT_EQ(Md("<main><p>see [click](javascript:alert(1)) and "
+               "![p](https://t.example/p.png)</p></main>"),
+            "see \\[click\\](javascript:alert(1)) and "
+            "!\\[p\\](https://t.example/p.png)");
+  EXPECT_EQ(
+      Md("<main><p><a href=\"/ok\">x](javascript:alert(1)) [y</a></p></main>"),
+      "[x\\](javascript:alert(1)) \\[y](/ok)");
+  EXPECT_EQ(Md("<main><p>[a]: https://e.example/</p></main>"),
+            "\\[a\\]: https://e.example/");
+  EXPECT_EQ(Md("<main><table><tr><td>[x](/y)</td></tr></table></main>"),
+            "| \\[x\\](/y) |\n| --- |");
+  // Code keeps its brackets.
+  EXPECT_EQ(Md("<main><p><code>a[0]</code></p></main>"), "`a[0]`");
+}
+
 // ---- link text and inline code are trimmed ----------------------------------
 
 TEST_F(MarkdownExtractorFilterTest, LinkTextIsTrimmed) {

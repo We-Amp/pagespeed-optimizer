@@ -582,7 +582,9 @@ void MarkdownExtractorFilter::AppendText(std::string_view raw_text) {
     // an '&' that would read as a character reference is escaped likewise. A
     // literal backslash is always doubled, so it can never cancel one of these
     // escapes (or a table cell's "\|"), even across text nodes.
-    if (c == '\\' || c == '<' ||
+    // Brackets are escaped too, so link, image and reference-definition
+    // syntax written as text never forms a live link.
+    if (c == '\\' || c == '<' || c == '[' || c == ']' ||
         (c == '&' && StartsMarkdownReference(text, i))) {
       o->push_back('\\');
     }
