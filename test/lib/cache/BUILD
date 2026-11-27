@@ -227,6 +227,12 @@ gtest_test(
 )
 
 gtest_test(
+    name = "html_request_policy_test",
+    srcs = ["html_request_policy_test.cc"],
+    deps = ["//lib/cache:html_request_policy"],
+)
+
+gtest_test(
     name = "html_cache_decision_test",
     srcs = ["html_cache_decision_test.cc"],
     deps = [

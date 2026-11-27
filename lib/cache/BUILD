@@ -84,6 +84,19 @@ cc_library(
 )
 
 cc_library(
+    name = "html_request_policy",
+    srcs = ["html_request_policy.cc"],
+    hdrs = ["html_request_policy.h"],
+    visibility = ["//:internal"],
+    # Cyclone is here only for its bundled SHA-256 (the policy stamp); nothing
+    # in this target touches the cache.
+    deps = [
+        ":headers_sidecar",
+        "@cyclone",
+    ],
+)
+
+cc_library(
     name = "html_withheld_marker",
     srcs = ["html_withheld_marker.cc"],
     hdrs = ["html_withheld_marker.h"],
@@ -140,6 +153,7 @@ cc_binary(
         ":headers_sidecar",
         ":html_cache_decision",
         ":html_cache_policy",
+        ":html_request_policy",
         ":origin_cache_control",
         ":vary_storability",
         "//lib/classify:alternate_metadata",
@@ -160,6 +174,7 @@ cc_library(
         ":headers_sidecar",
         ":html_cache_decision",
         ":html_cache_policy",
+        ":html_request_policy",
         ":origin_cache_control",
         ":vary_storability",
         "//lib/classify:alternate_metadata",

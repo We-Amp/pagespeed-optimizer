@@ -829,12 +829,18 @@ class PageSpeedCache {
   // when it carries no field, because "nothing to carry" is then something a
   // reader can prove for that original rather than infer from a miss.  A
   // refusal writes nothing, paired or not.
+  //
+  // POLICY FORM.  A `policy_stamp` writes payload format 3 instead (needs a
+  // pairing hash, else InvalidArgument): the stamp, and the response's
+  // Cache-Control and Expires lines carried verbatim.  A block that does not
+  // fit with them is not stored and reported as a fall-through.
   [[nodiscard]] std::expected<HeadersSidecarWrite, cyclone::CacheError>
   WriteHeadersSidecar(std::string_view url, std::string_view hostname,
                       std::string_view scheme,
                       std::span<const HeaderField> headers,
                       std::string_view site = {},
-                      std::span<const std::byte> pairing_hash = {});
+                      std::span<const std::byte> pairing_hash = {},
+                      std::optional<uint64_t> policy_stamp = std::nullopt);
 
   // Read the header sidecar by EXACT ID.  Like the durable original, it is
   // never selectable — a block of headers is not a representation and must

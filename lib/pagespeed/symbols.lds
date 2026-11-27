@@ -194,3 +194,15 @@ PAGESPEED_1.14 {
     ps_if_none_match_matches_weak;
     ps_read_shared_config_html_mode;
 } PAGESPEED_1.13;
+
+PAGESPEED_1.15 {
+  global:
+    /* serving cached HTML: request policy, policy stamp, header block stamp */
+    ps_header_block_policy_stamp;
+    ps_html_stored_facts_from_reads_ex;
+    ps_html_request_guard;
+    ps_html_classify_cookies;
+    ps_html_ignore_cookie_guard;
+    ps_html_policy_stamp;
+    ps_html_unsafe_method_invalidates;
+} PAGESPEED_1.14;

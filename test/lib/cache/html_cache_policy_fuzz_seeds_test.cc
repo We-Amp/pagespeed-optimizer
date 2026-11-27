@@ -211,7 +211,10 @@ TEST(HtmlCachePolicyFuzzSeedsTest, SeedsReachTheServeRequestReasons) {
        {HtmlServeReason::kMethod, HtmlServeReason::kRange,
         HtmlServeReason::kCors, HtmlServeReason::kNoTransform,
         HtmlServeReason::kWithheld, HtmlServeReason::kClientNoCache,
-        HtmlServeReason::kParentStale, HtmlServeReason::kFresh}) {
+        HtmlServeReason::kParentStale, HtmlServeReason::kFresh,
+        HtmlServeReason::kScope, HtmlServeReason::kCapped,
+        HtmlServeReason::kConditional, HtmlServeReason::kCredentialed,
+        HtmlServeReason::kLegacyEntry, HtmlServeReason::kPolicyMismatch}) {
     EXPECT_TRUE(reasons.count(r) != 0)
         << "no seed reaches " << HtmlServeReasonName(r);
   }

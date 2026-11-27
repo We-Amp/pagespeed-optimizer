@@ -146,6 +146,13 @@ inline constexpr uint8_t kHeadersSidecarFormatVersion = 1;  // kHeadersSidecar
 // block that belongs to the stored original from one that does not.  A build
 // that knows only format 1 reads it as absent, which is the safe answer.
 inline constexpr uint8_t kHeadersSidecarPairedFormatVersion = 2;
+// The policy form (PS_API 1.15): format 2 plus the 8-byte stamp of the
+// credentialed policy the page was stored under, written by a front end's own
+// HTML store, whose block also carries the origin's Cache-Control and Expires
+// lines.  The version range below the entry-metadata versions (1 and 2 taken)
+// has one value left, 0, which this form spends.  A build that knows only
+// formats 1 and 2 reads it as absent, which is the safe answer.
+inline constexpr uint8_t kHeadersSidecarPolicyFormatVersion = 0;
 inline constexpr uint8_t kNegativeVerdictFormatVersion = 1;  // kNegativeVerdict
 // Payload format version of the kDeclineTombstone class.  v2 added the
 // quality-search generation byte that the payload carries after this one.

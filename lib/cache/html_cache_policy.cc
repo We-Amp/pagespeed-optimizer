@@ -477,7 +477,9 @@ std::string_view HtmlStoreReasonName(HtmlStoreReason reason) {
        "url",
        "personalisation_signal",
        "no_transform",
-       "mode"};
+       "mode",
+       "request_header",
+       "path"};
   const auto index = static_cast<size_t>(reason);
   return index < kNames.size() ? kNames[index] : "unknown";
 }
@@ -516,7 +518,15 @@ std::string_view HtmlServeReasonName(HtmlServeReason reason) {
        "cors",
        "no_transform",
        "withheld",
-       "skew"};
+       "skew",
+       "scope",
+       "capped",
+       "conditional",
+       "credentialed",
+       "legacy_entry",
+       "policy_mismatch",
+       "request_header",
+       "path"};
   const auto index = static_cast<size_t>(reason);
   return index < kNames.size() ? kNames[index] : "unknown";
 }
@@ -739,6 +749,8 @@ HtmlStoreVerdict ApplyStoreRules(const HtmlStoreRequest& request,
                                  const HtmlStoreResponse& response,
                                  const HtmlStorePolicy& policy) {
   HtmlStoreVerdict v;
+  v.request_anonymous = !request.has_authorization &&
+                        !request.authenticated_user && !request.has_cookie;
   const std::span<const HeaderField> headers = response.headers;
 
   // 1. Method, status, completeness.
@@ -829,8 +841,11 @@ HtmlStoreVerdict ApplyStoreRules(const HtmlStoreRequest& request,
     }
   }
 
-  // 8. Cookie request.
-  if (!HtmlCookieRequestMayShare(request.has_cookie, v.explicit_shared)) {
+  // 8. Cookie request: a blocking cookie stores only under the
+  // explicit-public policy, and only an explicitly shareable response.
+  if (request.has_cookie &&
+      !(request.explicit_public &&
+        HtmlCookieRequestMayShare(request.has_cookie, v.explicit_shared))) {
     return Refuse(std::move(v), HtmlStoreReason::kCookieRequest);
   }
 
@@ -991,6 +1006,12 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
     return done(kFall, HtmlServeReason::kMode);
   }
   const bool cached_html = request.mode == HtmlCacheMode::kServeCachedHtml;
+  // The path this request takes: the HTML one in kServeCachedHtml for a
+  // request without a Markdown preference, or one asking again after a
+  // Markdown fall-through; the Markdown one for every other preference.
+  const bool html_path =
+      cached_html && (!request.wants_markdown || request.html_fallback);
+  const bool markdown_path = request.wants_markdown && !html_path;
 
   // 1a. Request shape.
   if (!request.method_cacheable) return done(kFall, HtmlServeReason::kMethod);
@@ -1016,8 +1037,12 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
   if (request.has_authorization || request.authenticated_user) {
     return done(kFall, HtmlServeReason::kAuthRequest);
   }
-  // 4. Cookie request.
-  if (!HtmlCookieRequestMayShare(request.has_cookie, stored.explicit_shared)) {
+  // 4. Cookie request: a blocking cookie is answered only under the
+  // explicit-public policy, and only from an explicitly shareable entry.
+  if (request.has_cookie &&
+      !(request.explicit_public &&
+        HtmlCookieRequestMayShare(request.has_cookie,
+                                  stored.explicit_shared))) {
     return done(kFall, HtmlServeReason::kCookieRequest);
   }
   // 5. Client no-cache.
@@ -1035,6 +1060,27 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
     return done(kFall, HtmlServeReason::kSidecarMissing);
   }
 
+  // 7a. The entry's own record, the same for both bodies.
+  if (!stored.store_v2) return done(kFall, HtmlServeReason::kLegacyEntry);
+  if (stored.entry_policy_stamp != request.policy_stamp) {
+    return done(kFall, HtmlServeReason::kPolicyMismatch);
+  }
+  if (!stored.anonymous_recorded &&
+      !(request.explicit_public && stored.explicit_shared)) {
+    return done(kFall, HtmlServeReason::kCredentialed);
+  }
+
+  // 7b. Serve scope, on the HTML path.  An agent class outside the known
+  // range is unknown.
+  if (html_path) {
+    const bool known_agent =
+        request.agent_class >= 1 && request.agent_class <= kHtmlMaxAgentClass;
+    const bool admitted = request.scope == HtmlServeScope::kAll ||
+                          known_agent ||
+                          (request.html_fallback && request.wants_markdown);
+    if (!admitted) return done(kFall, HtmlServeReason::kScope);
+  }
+
   // 8. Freshness.  Stale entries are never served.
   const bool must_validate = stored.needs_validation || stored.lifetime_s == 0;
   const int64_t lifetime = static_cast<int64_t>(stored.lifetime_s);
@@ -1048,25 +1094,37 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
       fresh = false;
     }
   }
-  // A 304 the origin answered just now counts only in kServeCachedHtml, which
-  // has a validation step; kServeVariants has none, so the flag is not
-  // consulted there.
-  const bool validated = cached_html && stored.validated_this_request;
+  // A 304 the origin answered just now counts only in kServeCachedHtml with
+  // its validation step; kServeVariants and fresh-only serving have none, so
+  // the flag is not consulted there.
+  const bool validates = cached_html && !request.fresh_only;
+  const bool validated = validates && stored.validated_this_request;
   if (!fresh && !validated) {
     const HtmlServeAction action =
-        cached_html ? HtmlServeAction::kValidate : kFall;
-    if (request.wants_markdown) {
-      return done(action, HtmlServeReason::kParentStale);
-    }
-    return done(action, must_validate ? HtmlServeReason::kNeedsValidation
-                                      : HtmlServeReason::kStale);
+        validates ? HtmlServeAction::kValidate : kFall;
+    if (markdown_path) return done(action, HtmlServeReason::kParentStale);
+    // With a validation step, a lifetime of 0 is the same condition as
+    // no-cache.  Without one (fresh-only), only an entry that itself asks to
+    // be validated says so; one whose lifetime has run out, 0 included, is
+    // stale.
+    const bool needs =
+        request.fresh_only ? stored.needs_validation : must_validate;
+    return done(action, needs ? HtmlServeReason::kNeedsValidation
+                              : HtmlServeReason::kStale);
+  }
+  // The operator's cap, on the HTML path only: it shortens the origin's
+  // lifetime and never extends it (an entry past its lifetime is stale
+  // above, whatever the cap).
+  if (html_path && request.html_max_lifetime_s != 0 &&
+      age >= static_cast<int64_t>(request.html_max_lifetime_s)) {
+    return done(kFall, HtmlServeReason::kCapped);
   }
 
   // 9. Markdown.  The copy is served only while age < min(lifetime,
   // render_ttl_s).  An entry the origin confirmed this request drops the
   // parent-lifetime term (the parent was just confirmed) and keeps the
   // render bound, so a copy older than its own lifetime is still refused.
-  if (request.wants_markdown) {
+  if (markdown_path) {
     if (stored.no_transform || request.request_no_transform) {
       return done(kFall, HtmlServeReason::kNoTransform);
     }
@@ -1081,8 +1139,14 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
     return done(HtmlServeAction::kServeMarkdown, HtmlServeReason::kFresh);
   }
 
-  // 10. HTML.
-  if (cached_html) {
+  // 10. HTML.  A stored no-transform does not refuse: the stored page goes
+  // through the same rewriter as a miss, which honours it.  A request that
+  // forbids transformation, or that is conditional, goes to the origin.
+  if (html_path) {
+    if (request.request_no_transform) {
+      return done(kFall, HtmlServeReason::kNoTransform);
+    }
+    if (request.conditional) return done(kFall, HtmlServeReason::kConditional);
     return done(HtmlServeAction::kServeHtml, HtmlServeReason::kFresh);
   }
   return done(kFall, HtmlServeReason::kMode);

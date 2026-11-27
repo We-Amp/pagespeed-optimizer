@@ -67,6 +67,21 @@ extern "C" {
  * ps_read_shared_config_html_mode; the serve mode values of
  * ps_html_cache_mode_t, which ps_html_store_classify now accepts with the
  * store actions 1 and 2; and PS_NOTIFY_FLAG_HTML_STORED.
+ * 1.15 adds serving cached HTML: the serve scope, agent class, freshness
+ * cap and policy stamp fields of ps_html_serve_request_t, the
+ * entry_policy_stamp field of ps_html_stored_facts_t, the
+ * PS_HTML_SERVE_REQUEST_FRESH_ONLY, _HTML_FALLBACK, _CONDITIONAL and
+ * _EXPLICIT_PUBLIC bits, PS_HTML_STORE_REQUEST_EXPLICIT_PUBLIC,
+ * PS_HTML_STORE_FLAG_REQUEST_ANONYMOUS, PS_HTML_FACTS_STORE_V2 and
+ * PS_HTML_FACTS_ANONYMOUS_RECORDED, PS_FLAG_HTML_STORE_V2 and
+ * PS_FLAG_ANONYMOUS_RECORDED, the new serve and store reasons, the
+ * policy_stamp and write_flags fields of ps_sidecar_write_params_t (header
+ * block format 3), ps_header_block_policy_stamp,
+ * ps_html_stored_facts_from_reads_ex, ps_html_request_guard,
+ * ps_html_classify_cookies, ps_html_ignore_cookie_guard,
+ * ps_html_policy_stamp and ps_html_unsafe_method_invalidates. It also makes
+ * the store and serve verdicts for a cookie-bearing request stricter in every
+ * serve mode (see ps_html_store_classify).
  *
  * A published constant is ABI surface too (see ABI.md), so a minor that adds
  * only one still moves the number: it is what a consumer compiles against to
@@ -80,7 +95,7 @@ extern "C" {
  * checked-in record of the current surface and is what the gate compares
  * against. */
 #define PS_API_VERSION_MAJOR 1
-#define PS_API_VERSION_MINOR 14
+#define PS_API_VERSION_MINOR 15
 #define PS_API_VERSION_PATCH 0
 
 PS_EXPORT int ps_version_major(void);
@@ -299,6 +314,22 @@ PS_EXPORT int ps_normalize_hostname(const char* hostname, char* out_buf,
  * them). */
 #define PS_FLAG_HEADERS_CLASSIFIED 0x10
 #define PS_FLAG_HEADERS_SIDECAR_REQUIRED 0x20
+
+/* An HTML durable original recorded by ps_html_store_write_params under the
+ * PS_API 1.15 credentialed policy, and whether the request it was recorded
+ * from was anonymous (no Authorization, no authenticated user, no cookie
+ * outside the ignore list in force). ps_html_stored_facts_from_reads reports
+ * them as PS_HTML_FACTS_STORE_V2 and PS_HTML_FACTS_ANONYMOUS_RECORDED, and
+ * ps_html_serve_classify answers only from an entry that carries the first
+ * (`legacy_entry` otherwise) and, under the anonymous-only policy, the
+ * second (`credentialed` otherwise). A front end does not set them itself.
+ *
+ * PS_FLAG_ANONYMOUS_RECORDED is the bit other front ends already stamp on
+ * an entry recorded from an anonymous request, with the same meaning; on an
+ * HTML original it counts only together with PS_FLAG_HTML_STORE_V2.
+ * Available from PS_API 1.15. */
+#define PS_FLAG_ANONYMOUS_RECORDED 0x40
+#define PS_FLAG_HTML_STORE_V2 0x80
 
 /* ---------- origin Cache-Control flags ---------- */
 
@@ -1166,7 +1197,24 @@ typedef struct {
   const char* scheme;
   const char* site;
   const uint8_t* origin_html_hash;
+  /* PS_API 1.15, read only with PS_SIDECAR_WRITE_POLICY_BLOCK: the stamp of
+   * the credentialed policy the page is stored under (ps_html_policy_stamp),
+   * 0 for none. */
+  uint64_t policy_stamp;
+  /* PS_API 1.15: PS_SIDECAR_WRITE_* bits. Unknown bits are refused. */
+  uint32_t write_flags;
 } ps_sidecar_write_params_t;
+
+/* Store the block as header block format 3, for a front end's own HTML store
+ * (the module's): it carries `policy_stamp`, and the response's
+ * Cache-Control and Expires lines verbatim in their received order among the
+ * other carried lines, so a hit can replay the origin's own freshness lines
+ * rather than a rebuilt one. Needs a pairing hash. A reader before PS_API
+ * 1.15 reads a format-3 block as absent (PS_ERR_NOT_FOUND from
+ * ps_headers_sidecar_read), which a serve path treats as a missing block. A
+ * block that would exceed the size ceiling with those lines is not stored
+ * and reported as PS_SIDECAR_FALL_THROUGH. Available from PS_API 1.15. */
+#define PS_SIDECAR_WRITE_POLICY_BLOCK 1u
 
 /* ps_cache_write_headers_sidecar in the keyspace of one site, optionally
  * paired with a durable original. Available from PS_API 1.13.
@@ -1187,7 +1235,10 @@ typedef struct {
  *
  * PS_ERR_INVALID_ARG for a NULL cache or params, a struct_size below the 1.13
  * size, a NULL url or hostname, a malformed site, an all-zero hash, or a holed
- * header array; neither out-param is written then. */
+ * header array, and (PS_API 1.15) an unknown write_flags bit or
+ * PS_SIDECAR_WRITE_POLICY_BLOCK without a pairing hash; neither out-param is
+ * written then. A struct_size below the 1.15 size reads write_flags and
+ * policy_stamp as 0. */
 PS_EXPORT PS_NODISCARD ps_error_t ps_cache_write_headers_sidecar_site(
     ps_cache_t* cache, const ps_sidecar_write_params_t* params,
     const char* const* names, const char* const* values, size_t count,
@@ -1249,6 +1300,13 @@ PS_EXPORT const uint8_t* ps_header_block_pairing_hash(
 PS_EXPORT int ps_header_block_pairing(const ps_header_block_t* block,
                                       const uint8_t* entry_hash);
 
+/* The policy stamp a format-3 block carries (PS_SIDECAR_WRITE_POLICY_BLOCK).
+ * Returns 1 with `*out` set when the block carries one, 0 with `*out` set to
+ * 0 for a block of an earlier format, and -1 for a NULL argument. Available
+ * from PS_API 1.15. */
+PS_EXPORT int ps_header_block_policy_stamp(const ps_header_block_t* block,
+                                           uint64_t* out);
+
 /* Free a block from ps_headers_sidecar_read. No-op for NULL. */
 PS_EXPORT void ps_header_block_free(ps_header_block_t* block);
 
@@ -1289,12 +1347,17 @@ typedef enum ps_html_cache_mode_t {
 #define PS_HTML_STORE_FLAG_EXPLICIT_SHARED 8u
 #define PS_HTML_STORE_FLAG_SIDECAR_EVALUATED 16u
 #define PS_HTML_STORE_FLAG_CC_EVALUATED 32u
+/* PS_API 1.15: the request carried no credential and no blocking cookie.
+ * ps_html_store_write_params records it on the entry. */
+#define PS_HTML_STORE_FLAG_REQUEST_ANONYMOUS 64u
 
 /* Bits of the `request_flags` argument of ps_html_store_classify. */
 #define PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION 1u
 #define PS_HTML_STORE_REQUEST_AUTHENTICATED_USER 2u
 #define PS_HTML_STORE_REQUEST_HAS_COOKIE 4u
 #define PS_HTML_STORE_REQUEST_NO_STORE 8u
+/* PS_API 1.15: the operator's credentialed policy is explicit-public. */
+#define PS_HTML_STORE_REQUEST_EXPLICIT_PUBLIC 16u
 
 /* Report whether a text/html response would be stored. Available from
  * PS_API 1.12. A pure function of its arguments: no cache handle, no I/O, no
@@ -1306,8 +1369,17 @@ typedef enum ps_html_cache_mode_t {
  * NUL-terminated. `request_flags` carries the
  * PS_HTML_STORE_REQUEST_* bits: the request carried Authorization or
  * Proxy-Authorization (1), the server authenticated the request (2), the
- * request carried a Cookie or Cookie2 header (4), the request's Cache-Control
- * carried no-store (8, RFC 9111 section 5.2.1.5). Unknown bits are ignored.
+ * request carried a blocking cookie (4: from PS_API 1.15 set it only when
+ * ps_html_classify_cookies says blocking), the request's Cache-Control
+ * carried no-store (8, RFC 9111 section 5.2.1.5), the operator's
+ * credentialed policy is explicit-public (16, PS_API 1.15). Unknown bits are
+ * ignored.
+ *
+ * PS_API 1.15 CHANGES THE COOKIE RULE in every serve mode: a request with a
+ * blocking cookie is refused (`cookie_request`) unless bit 16 is set and the
+ * response is explicitly shareable (`public` or a valid s-maxage). Before
+ * 1.15 such a response was stored without bit 16. A caller should also run
+ * ps_html_request_guard on the request first, and refuse with its reason.
  * `names[i]` / `values[i]` are the
  * origin's response header lines AS RECEIVED, one entry per line, before any
  * header your server adds, in the form ps_headers_sidecar_classify takes (the
@@ -1337,13 +1409,16 @@ typedef enum ps_html_cache_mode_t {
  * turns it into the closed set of names (none, method, status, incomplete,
  * auth_request, cookie_request, set_cookie, private, no_store, no_lifetime,
  * vary, headers, nonce_csp, nonce_link, content_type, encoding, size, url,
- * personalisation_signal, no_transform, mode). The detail (the header name for
+ * personalisation_signal, no_transform, mode; PS_API 1.15 appends
+ * request_header and path, which ps_html_request_guard decides and this call
+ * never returns). The detail (the header name for
  * `headers`, the Vary token for `vary`, `request` for a no_store caused
  * by the request, the signal name for `personalisation_signal`) is copied into `detail_buf`, NUL-terminated and
  * truncated to `detail_capacity`; `*out_detail_len` is the untruncated length
  * (the detail is RFC 9110 token characters only, anything else having become `_`, at most 128 bytes, so a reason code built from it always fits the `reason` grammar of ps_html_decision_format). `detail_buf` may be NULL
  * with `detail_capacity` 0. `*out_lifetime_s` is the explicit freshness
- * lifetime (0 when none), `*out_flags` carries the PS_HTML_STORE_FLAG_* bits,
+ * lifetime (0 when none), `*out_flags` carries the PS_HTML_STORE_FLAG_* bits
+ * (PS_HTML_STORE_FLAG_REQUEST_ANONYMOUS is reported for every mode but off),
  * `*out_cc_flags` the parsed Cache-Control bits (PS_CC_ORIGIN_*), meaningful
  * only with PS_HTML_STORE_FLAG_CC_EVALUATED, and `*out_sidecar` the header-set
  * verdict as ps_headers_sidecar_classify reports it, meaningful only with
@@ -1354,8 +1429,9 @@ typedef enum ps_html_cache_mode_t {
  * its own lifetime or carries a validator, never on a guessed one (two
  * max-age or two s-maxage directives conflict and count as lifetime 0); the
  * request and the response must show no sign of being personalised (a
- * request with a cookie is stored only when the response is explicitly
- * public or carries a valid s-maxage); and the only Vary
+ * request with a blocking cookie is stored only under the explicit-public
+ * policy and when the response is explicitly public or carries a valid
+ * s-maxage); and the only Vary
  * it admits is Accept-Encoding. Those rules are not configurable. */
 PS_EXPORT int ps_html_store_classify(
     int mode, const char* method, const char* url_path, uint32_t request_flags,
@@ -1417,6 +1493,15 @@ PS_EXPORT int ps_html_store_classify(
  * store side: a report-only line takes a report-only action, a store reason
  * and no serve key, as above.
  *
+ * PS_API 1.15 appends three keys, after vhost_added, admitted only on a
+ * serve-side line: scope (agents or all), agent_class (0 to 3) and detail
+ * (the NAME of the cookie or request header a refusal is about, an RFC 9110
+ * token of at most 128 bytes, never a value). Every 1.15 serve and store
+ * reason name is admitted where the reasons of its side are, and reason may
+ * also carry cookie_echo, which a front end's own engine decides. One reason
+ * per refused cookie or header, with the name in detail: a caller needs no
+ * reason of its own per name.
+ *
  * The line (no trailing newline) is written to `buf` NUL-terminated, and
  * `*out_len` receives its length. Returns 0 on success; -1 for a malformed
  * call (NULL arrays or elements with `count` > 0, a NULL `out_len`, a NULL
@@ -1456,7 +1541,18 @@ PS_EXPORT const char* ps_html_store_reason_name(int reason);
  * sets it to sizeof() as the caller's build sees it. A request or facts struct
  * smaller than its PS_API 1.14 size is a malformed call; a larger one is read
  * only as far as this library knows it. The verdict is written only as far as
- * the smaller of the two sizes reaches. */
+ * the smaller of the two sizes reaches.
+ *
+ * A request or facts struct of the PS_API 1.14 size (or any size short of the
+ * 1.15 one) reads every 1.15 field as zero and ignores the 1.15 request bits:
+ * scope agents, agent class unknown, no cap, no policy stamp. In
+ * PS_HTML_CACHE_SERVE_CACHED_HTML that refuses every HTML request (`scope`).
+ *
+ * A CALLER MUST NOT SEND PS_HTML_CACHE_SERVE_CACHED_HTML TO A LIBRARY BELOW
+ * PS_API 1.15 (check ps_version_minor() at run time). An older library reads
+ * only the 1.14 prefix of a larger struct, so it would ignore the scope, the
+ * agent class, the cap and the fresh-only bit, and serve HTML to every
+ * request it has a fresh entry for. */
 
 /* What ps_html_serve_classify returns in `action`. */
 #define PS_HTML_SERVE_ACTION_FALL_THROUGH 0
@@ -1474,6 +1570,29 @@ PS_EXPORT const char* ps_html_store_reason_name(int reason);
 #define PS_HTML_SERVE_REQUEST_HAS_RANGE 8u
 #define PS_HTML_SERVE_REQUEST_HAS_IF_RANGE 16u
 #define PS_HTML_SERVE_REQUEST_HAS_ORIGIN 32u
+/* PS_API 1.15. No validation step: a not-fresh entry falls through with its
+ * reason instead of PS_HTML_SERVE_ACTION_VALIDATE, and
+ * PS_HTML_FACTS_VALIDATED_THIS_REQUEST is not consulted. */
+#define PS_HTML_SERVE_REQUEST_FRESH_ONLY 64u
+/* PS_API 1.15. Ask again for HTML after a Markdown fall-through, with the
+ * same Accept and facts (PS_HTML_CACHE_SERVE_CACHED_HTML only). */
+#define PS_HTML_SERVE_REQUEST_HTML_FALLBACK 128u
+/* PS_API 1.15. The request arrived with If-None-Match, If-Modified-Since,
+ * If-Match or If-Unmodified-Since (before any front end removed its own
+ * tags). HTML falls through (`conditional`); the Markdown path is unchanged. */
+#define PS_HTML_SERVE_REQUEST_CONDITIONAL 256u
+/* PS_API 1.15. The operator's credentialed policy is explicit-public. */
+#define PS_HTML_SERVE_REQUEST_EXPLICIT_PUBLIC 512u
+
+/* ps_html_serve_request_t::serve_scope (PS_API 1.15). Any other value reads
+ * as PS_HTML_SERVE_SCOPE_AGENTS. */
+#define PS_HTML_SERVE_SCOPE_AGENTS 0
+#define PS_HTML_SERVE_SCOPE_ALL 1
+
+/* The highest ps_html_serve_request_t::agent_class (PS_API 1.15). 0 is an
+ * unknown client; 1 to 3 are the known-agent classes a front end assigns; a
+ * larger value reads as 0. */
+#define PS_HTML_AGENT_CLASS_MAX 3
 
 /* One request, as ps_html_serve_classify sees it. Zero everywhere is a valid
  * request in the off mode. Header values are the request's lines AS
@@ -1491,6 +1610,16 @@ typedef struct {
   const char* if_none_match;
   uint32_t request_flags; /* PS_HTML_SERVE_REQUEST_* */
   uint32_t now_seconds;   /* the request's time */
+  /* PS_API 1.15. */
+  int serve_scope; /* PS_HTML_SERVE_SCOPE_*: who the HTML path answers */
+  int agent_class; /* 0 unknown, 1 to PS_HTML_AGENT_CLASS_MAX */
+  /* The operator's cap on a served HTML entry's age, in seconds; 0 = none.
+   * It only shortens the origin's lifetime. The Markdown path ignores it. */
+  uint32_t html_max_lifetime_s;
+  uint32_t reserved; /* zero */
+  /* The stamp of the credentialed policy in force (ps_html_policy_stamp);
+   * 0 = none. Compared with the entry's own. */
+  uint64_t policy_stamp;
 } ps_html_serve_request_t;
 
 /* Bits of ps_html_stored_facts_t::flags. */
@@ -1513,6 +1642,10 @@ typedef struct {
 #define PS_HTML_FACTS_NO_TRANSFORM 0x400u
 /* The deriver refused to build a copy for this content. */
 #define PS_HTML_FACTS_WITHHELD 0x800u
+/* PS_API 1.15: the entry carries PS_FLAG_HTML_STORE_V2 and
+ * PS_FLAG_ANONYMOUS_RECORDED. */
+#define PS_HTML_FACTS_STORE_V2 0x1000u
+#define PS_HTML_FACTS_ANONYMOUS_RECORDED 0x2000u
 
 /* Why a copy was withheld (ps_html_stored_facts_t::withheld_reason). */
 #define PS_HTML_WITHHELD_BELOW_FLOOR 1   /* too little text to be useful */
@@ -1542,6 +1675,9 @@ typedef struct {
   /* The hash of the Markdown copy's bytes; all zero when not known, in which
    * case no entity tag can be made and no 304 is answered. */
   uint8_t markdown_hash[PS_HTML_HASH_BYTES];
+  /* PS_API 1.15: the policy stamp the entry's header block carries
+   * (ps_header_block_policy_stamp); 0 = none. */
+  uint64_t entry_policy_stamp;
 } ps_html_stored_facts_t;
 
 /* Characters in a Markdown entity tag, W/"psm-" plus 16 hex digits and the
@@ -1581,13 +1717,27 @@ typedef struct {
  *   3. No entry (`absent`). An entry stored more than 5 seconds after the
  *      request's time (`skew`): its age cannot be known, and calling it 0
  *      would turn a clock step into freshness.
- *   4. Credentials (`auth_request`); a cookie unless the entry was
- *      explicitly shared (`cookie_request`); the client's no-cache, or
- *      Pragma: no-cache with no Cache-Control (`client_no_cache`); the
- *      caller's purge (`purged`); headers the entry cannot reproduce
+ *   4. Credentials (`auth_request`); a blocking cookie unless the
+ *      explicit-public policy is in force and the entry was explicitly
+ *      shared (`cookie_request`); the client's no-cache, or Pragma: no-cache
+ *      with no Cache-Control (`client_no_cache`); the caller's purge
+ *      (`purged`); headers the entry cannot reproduce
  *      (`headers_not_reproducible`, `sidecar_missing`).
+ *   4a. (PS_API 1.15, both bodies) The entry's record: no
+ *      PS_HTML_FACTS_STORE_V2 (`legacy_entry`); an entry_policy_stamp other
+ *      than the request's policy_stamp, where zero on both sides is equal
+ *      (`policy_mismatch`); no PS_HTML_FACTS_ANONYMOUS_RECORDED unless the
+ *      explicit-public policy is in force and the entry was explicitly
+ *      shared (`credentialed`).
+ *   4b. (PS_API 1.15, the HTML path) The scope: `all` admits every request,
+ *      `agents` an agent class from 1 to 3 or, with
+ *      PS_HTML_SERVE_REQUEST_HTML_FALLBACK, a Markdown preference (`scope`).
  *   5. Freshness (RFC 9111 section 4.2). Stale entries are never served. The
- *      request's max-age and min-fresh are honoured; max-stale is not.
+ *      request's max-age and min-fresh are honoured; max-stale is not. With
+ *      PS_HTML_SERVE_REQUEST_FRESH_ONLY a not-fresh entry falls through with
+ *      its reason (`stale`, `needs_validation`, `parent_stale`) instead of
+ *      validating. On the HTML path an entry whose age has reached
+ *      html_max_lifetime_s then falls through (`capped`).
  *   6. Markdown. The request selects it only by preference (the rule of
  *      ps_wants_agent_markdown, applied here to `accept`). The copy is served
  *      only from a fresh parent (else `parent_stale`); never for a parent
@@ -1599,7 +1749,14 @@ typedef struct {
  *      copy's render lifetime (`parent_stale`). The copy is not separately
  *      limited by its own age: the binding hash is what ties it to the
  *      content it was made from, so a change of content unbinds it.
- *   7. HTML is served only in PS_HTML_CACHE_SERVE_CACHED_HTML.
+ *   7. HTML is served only in PS_HTML_CACHE_SERVE_CACHED_HTML, on the HTML
+ *      path: a request without a Markdown preference, or one carrying
+ *      PS_HTML_SERVE_REQUEST_HTML_FALLBACK, which skips rule 6 and repeats
+ *      every refusal the two paths share. A stored no-transform does not
+ *      refuse HTML (the page passes the same rewriter as a miss, which
+ *      honours it); a request whose Cache-Control carries no-transform does
+ *      (`no_transform`), and so does a conditional request (`conditional`):
+ *      the origin answers it. wants_markdown is 0 on the HTML path.
  *
  * HEAD gets exactly the verdict GET would get, entity tag included, and the
  * caller sends no body; a HEAD whose If-None-Match matches may be answered
@@ -1620,8 +1777,10 @@ PS_EXPORT int ps_html_serve_classify(const ps_html_serve_request_t* request,
 /* The closed-set name for a reason ps_html_serve_classify wrote: fresh, mode,
  * auth_request, cookie_request, client_no_cache, needs_validation, stale,
  * headers_not_reproducible, sidecar_missing, purged, absent, binding_stale,
- * parent_stale, method, range, cors, no_transform, withheld, skew. New
- * reasons are appended. Returns a static string, or NULL for a value outside
+ * parent_stale, method, range, cors, no_transform, withheld, skew; PS_API
+ * 1.15 appends scope, capped, conditional, credentialed, legacy_entry,
+ * policy_mismatch, request_header and path (the last two decided by
+ * ps_html_request_guard, never returned here). New reasons are appended. Returns a static string, or NULL for a value outside
  * the set; a caller must treat a reason it does not know as a fall-through.
  * Available from PS_API 1.14. */
 PS_EXPORT const char* ps_html_serve_reason_name(int reason);
@@ -1654,7 +1813,9 @@ PS_EXPORT const char* ps_html_serve_reason_name(int reason);
  * struct_size are written; a field appended later (such as a content hash) is
  * the caller's to set. The class, the content type, the origin state and the
  * flags are set; the caller's own content_length is replaced by
- * `content_length`.
+ * `content_length`. From PS_API 1.15 the flags always carry
+ * PS_FLAG_HTML_STORE_V2, and PS_FLAG_ANONYMOUS_RECORDED when `store_flags`
+ * carries PS_HTML_STORE_FLAG_REQUEST_ANONYMOUS.
  *
  * Returns 0, or -1 for a malformed call or an Age the rules above refuse (an
  * action that does not store, a capture_start_ms below 1000, a NULL params or
@@ -1678,6 +1839,11 @@ PS_EXPORT int ps_html_store_write_params(
  * The HTML entry counts as present only when it is an HTML page this API
  * stored: an origin content type of text/html and the flags
  * ps_html_store_write_params sets. Anything else at that id is absent here.
+ * PS_HTML_FACTS_STORE_V2 and PS_HTML_FACTS_ANONYMOUS_RECORDED mirror the
+ * entry's PS_FLAG_HTML_STORE_V2 and PS_FLAG_ANONYMOUS_RECORDED (PS_API 1.15),
+ * so an entry stored before 1.15, or by another front end, has neither.
+ * This form reports entry_policy_stamp 0; ps_html_stored_facts_from_reads_ex
+ * reads it from the header block.
  *
  * The withheld record is tested FIRST: one for the stored content's hash and
  * this library's own deriver version sets PS_HTML_FACTS_WITHHELD and leaves
@@ -1698,6 +1864,16 @@ PS_EXPORT int ps_html_stored_facts_from_reads(
     const ps_read_result_t* original, const ps_read_result_t* markdown,
     const ps_read_result_t* withheld_marker, int sidecar_present,
     ps_html_stored_facts_t* out);
+
+/* ps_html_stored_facts_from_reads, with the page's header block: `sidecar`
+ * is the block ps_headers_sidecar_read returned (NULL when there was none),
+ * and entry_policy_stamp is filled from it (ps_header_block_policy_stamp; 0
+ * for a block without one). Everything else is as above. Available from
+ * PS_API 1.15. */
+PS_EXPORT int ps_html_stored_facts_from_reads_ex(
+    const ps_read_result_t* original, const ps_read_result_t* markdown,
+    const ps_read_result_t* withheld_marker, int sidecar_present,
+    const ps_header_block_t* sidecar, ps_html_stored_facts_t* out);
 
 /* The Markdown copy's weak entity tag: W/"psm-" followed by 16 lowercase hex
  * digits, the first 8 bytes of SHA-256(binding_hash || markdown_hash), and a
@@ -1729,6 +1905,185 @@ PS_EXPORT int ps_html_markdown_etag(const uint8_t* binding_hash,
  * Available from PS_API 1.14. */
 PS_EXPORT int ps_if_none_match_matches_weak(const char* if_none_match,
                                             const char* etag);
+
+/* ---------- HTML request policy (PS_API 1.15) ----------
+ *
+ * The checks a front end runs on the REQUEST before it reads or records a
+ * page, decided by the library so every front end answers the same way. Pure
+ * functions, like the classifiers: no I/O, no state, no clock, and the
+ * last-error message is never touched. */
+
+/* What ps_html_request_guard reports in `reason`. */
+#define PS_HTML_GUARD_NONE 0
+#define PS_HTML_GUARD_REQUEST_HEADER 1
+#define PS_HTML_GUARD_PATH 2
+
+typedef struct {
+  size_t struct_size;
+  int reason; /* PS_HTML_GUARD_* */
+  /* The index of the refused line in the caller's header arrays, or -1 (a
+   * path refusal, or none). Log its NAME, never its value. */
+  int header_index;
+  /* 1 when the refusal is an X-Forwarded-Proto that does not name the keyed
+   * scheme: behind a TLS-terminating proxy the server must be told to trust
+   * the header, and a caller may say so once. */
+  int xfp;
+} ps_html_request_guard_t;
+
+/* Whether a request may be stored or answered at all, judged by headers the
+ * cache key does not contain and by the shape of its path. Call it once per
+ * request, before any read, for the store side and the serve side alike, and
+ * treat a refusal as the verdict: `request_header` or `path`, a refusal for
+ * the store and a fall-through for the serve.
+ *
+ * `raw_path` is the request target as received (path and query, not
+ * normalised). `names[i]` / `values[i]` are every request header line as
+ * received, one entry per line. `keyed_scheme` is the scheme the cache key
+ * uses ("http" or "https").
+ *
+ * Refused, `request_header`: X-Forwarded-Host, X-Host, X-Original-Host,
+ * X-Original-URL, X-Rewrite-URL, X-Forwarded-Port, X-Forwarded-Scheme,
+ * X-Forwarded-Prefix, X-HTTP-Method-Override, X-Method-Override, Forwarded,
+ * X-Forwarded-Ssl, Front-End-Https, X-HTTP-Method, X-Forwarded-Protocol,
+ * X-Url-Scheme, X-Forwarded-Server, X-Original-URI and X-Forwarded-Uri, with
+ * any value; an X-Forwarded-Proto line whose trimmed value is not the keyed
+ * scheme (case-insensitively; any line when the keyed scheme is neither http
+ * nor https); X-Requested-With whose value contains XMLHttpRequest (any
+ * case); X-MicrosoftAjax or X-Prototype-Version with a non-empty
+ * value. X-Forwarded-For and X-Real-IP are allowed. Every name is compared
+ * case-insensitively with `_` read as `-`: CGI-style origins map both
+ * spellings to the same variable.
+ *
+ * Refused, `path`, before any header: a `;` in the path; `%2F` or `%5C` in
+ * any case, or a raw backslash; a `.` or `..` segment, also with a dot
+ * written %2e; a last path segment with a static-asset extension (css js png
+ * jpg jpeg gif svg webp ico woff woff2 json txt xml, any case), read after
+ * percent-decoding the segment and dropping trailing dots and spaces. The
+ * query is not examined.
+ *
+ * Returns 0 with `*out` written up to its struct_size; -1 for a NULL
+ * raw_path, keyed_scheme or out, NULL arrays or elements with `count` > 0, or
+ * a struct_size below the size of this struct. */
+PS_EXPORT int ps_html_request_guard(const char* raw_path,
+                                    const char* const* names,
+                                    const char* const* values, size_t count,
+                                    const char* keyed_scheme,
+                                    ps_html_request_guard_t* out);
+
+/* What ps_html_classify_cookies reports in `cookie_class`. */
+#define PS_HTML_COOKIES_NONE 0
+#define PS_HTML_COOKIES_IGNORABLE_ONLY 1
+#define PS_HTML_COOKIES_BLOCKING 2
+
+/* The built-in ignore list's version, an input to ps_html_policy_stamp. */
+#define PS_HTML_COOKIE_LIST_VERSION 1
+
+/* A byte range in one of the caller's cookie lines. */
+typedef struct {
+  size_t line;
+  size_t offset;
+  size_t length;
+} ps_html_cookie_span_t;
+
+typedef struct {
+  size_t struct_size;
+  int cookie_class; /* PS_HTML_COOKIES_* */
+  /* 1 when the request is blocking because a pair did not parse (no `=`, an
+   * empty or non-token name, a value outside the RFC 6265 cookie-octets once
+   * its surrounding quotes are removed: a space, comma, backslash, quote,
+   * control byte or byte above 0x7E) or a line held no pair: log
+   * `malformed`, not a name. */
+  int malformed;
+  /* The first blocking cookie's NAME; length 0 when there is none to name. */
+  ps_html_cookie_span_t first_blocking;
+  /* How many ignore-listed values the request carried; the first
+   * `ignorable_capacity` of them are written to the caller's array. When it
+   * exceeds the capacity the verdict is PS_HTML_COOKIES_BLOCKING (with
+   * `malformed` 0 and no name): the caller could not check every value. */
+  size_t ignorable_count;
+} ps_html_cookie_class_t;
+
+/* Sort the request's Cookie lines (`lines[i]`, every Cookie line as received,
+ * in order) into none, ignorable-only or blocking. Set
+ * PS_HTML_STORE_REQUEST_HAS_COOKIE and PS_HTML_SERVE_REQUEST_HAS_COOKIE only
+ * for blocking: an ignorable-only request is anonymous.
+ *
+ * A cookie is ignorable when its name is on the built-in list (with
+ * `ignore_builtin` non-zero) or matches one of the operator's `additions`
+ * (exact names, or prefixes with one trailing `*`; an addition
+ * ps_html_ignore_cookie_guard refuses is ignored), and it is not a session
+ * cookie. The built-in list, case-sensitive: _ga, _ga_*, _gid, _gat, _gat_*, _gcl_*, __utma, __utmb, __utmc, __utmt,
+ * __utmt_*, __utmv, __utmz, _fbp, _fbc, _hjid, _hjSession_*,
+ * _hjSessionUser_*, _hjFirstSeen, _hjAbsoluteSessionInProgress,
+ * _hjIncludedInPageviewSample, _hjIncludedInSessionSample, _hjTLDTest,
+ * _hjLocalStorageTest, _hjSessionStorageTest, _hjCookieTest, _hjViewportId,
+ * _hjRecordingEnabled, _hjRecordingLastActivity, _hjUserAttributesHash,
+ * _hjClosedSurveyInvites, _hjDonePolls, _clck, _clsk, _pk_id.*, _pk_ses.*,
+ * _pk_ref.*, _uetsid, _uetvid, _uetmsclkid (exact names, and the prefixes
+ * the vendors document). Session names, matched in any case and never ignorable:
+ * PHPSESSID, JSESSIONID, ASP.NET_SessionId, .ASPXAUTH, .AspNetCore.*,
+ * laravel_session, connect.sid, sessionid, csrftoken, XSRF-TOKEN, SESS*,
+ * SSESS*, wordpress_*, wp-postpass_*, comment_author_*, woocommerce_*,
+ * wp_woocommerce_session_*, *_session. Any other cookie is blocking, and so
+ * is an empty or unparseable line.
+ *
+ * `ignorable_values` receives the listed cookies' values (without
+ * surrounding quotes), for the caller's check that none of them is echoed
+ * into a page it stores. It may be NULL with `ignorable_capacity` 0. FAILS
+ * CLOSED: a request with more listed values than `ignorable_capacity` is
+ * reported blocking, because the values past the capacity could not be
+ * checked; pass room for every value the front end will check (a front end
+ * that wants only the class still needs a capacity for the listed cookies
+ * it may meet, or treats such a request as blocking).
+ *
+ * Returns 0 with `*out` written up to its struct_size; -1 for NULL lines or
+ * elements with `line_count` > 0, NULL additions or elements with
+ * `addition_count` > 0, a NULL out or a struct_size below this struct's, or
+ * a NULL ignorable_values with a non-zero capacity. */
+PS_EXPORT int ps_html_classify_cookies(const char* const* lines,
+                                       size_t line_count, int ignore_builtin,
+                                       const char* const* additions,
+                                       size_t addition_count,
+                                       ps_html_cookie_span_t* ignorable_values,
+                                       size_t ignorable_capacity,
+                                       ps_html_cookie_class_t* out);
+
+/* The config-load check on one ignore-list addition. Returns 1 when it is
+ * accepted, 0 when it is refused, -1 for a NULL addition. Refused: empty; `*`
+ * alone; a `*` other than one trailing one; fewer than 3 characters before
+ * the `*`; a character outside an RFC 9110 token; a name that matches a
+ * session name (any case); a prefix that would cover the fixed leading part
+ * of one, or lies inside it. `*out_warning`, when not NULL, is 1 for an
+ * accepted prefix: it may still match a session-shaped name, which
+ * classification then blocks. A front end refuses the whole configuration on
+ * a refused addition and names it. */
+PS_EXPORT int ps_html_ignore_cookie_guard(const char* addition,
+                                          int* out_warning);
+
+/* The operator's credentialed policy (ps_html_policy_stamp). */
+#define PS_HTML_CREDENTIALED_ANONYMOUS_ONLY 0
+#define PS_HTML_CREDENTIALED_EXPLICIT_PUBLIC 1
+
+/* The stamp of a credentialed policy: a non-zero 64-bit value of
+ * `credentialed` (PS_HTML_CREDENTIALED_*), the built-in list switch and
+ * version (pass PS_HTML_COOKIE_LIST_VERSION) and the additions as a set
+ * (order and repeats do not change it). Compute it once per configuration,
+ * write it with every page (PS_SIDECAR_WRITE_POLICY_BLOCK) and send it with
+ * every serve request; an entry stored under another stamp is not served.
+ * Returns 0 with `*out` set; -1 for an unknown `credentialed`, NULL
+ * additions or elements with `addition_count` > 0, or a NULL out. */
+PS_EXPORT int ps_html_policy_stamp(int credentialed, int ignore_builtin,
+                                   uint32_t list_version,
+                                   const char* const* additions,
+                                   size_t addition_count, uint64_t* out);
+
+/* Whether the response to a request invalidates the stored page for its URL
+ * (RFC 9111 section 4.4): 1 when the final status is 200 to 399 and the
+ * method is not GET, HEAD, OPTIONS or TRACE (compared case-sensitively, RFC
+ * 9110 section 9.1; NULL or empty counts as unsafe), 0 otherwise. Finding the
+ * targets (the request URL, and same-host Location and Content-Location)
+ * and fencing them are the caller's. Available from PS_API 1.15. */
+PS_EXPORT int ps_html_unsafe_method_invalidates(const char* method, int status);
 
 /* The worker's HTML mode, as published in the shared config. */
 #define PS_HTML_MODE_OFF 0

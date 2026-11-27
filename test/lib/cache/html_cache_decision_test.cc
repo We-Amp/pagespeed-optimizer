@@ -38,10 +38,11 @@ std::optional<std::string> Format(const Fields& fields) {
 
 TEST(HtmlCacheDecisionTest, KeysAreTheClosedCanonicalSet) {
   const std::vector<std::string_view> expected = {
-      "ts_ms",  "host",    "path",    "mode",       "action",
-      "reason", "status",  "size",    "lifetime_s", "validators",
-      "cc",     "vary",    "sidecar", "request",    "personalisation",
-      "before", "variant", "binding", "age_s",      "vhost_added"};
+      "ts_ms",  "host",        "path",    "mode",       "action",
+      "reason", "status",      "size",    "lifetime_s", "validators",
+      "cc",     "vary",        "sidecar", "request",    "personalisation",
+      "before", "variant",     "binding", "age_s",      "vhost_added",
+      "scope",  "agent_class", "detail"};
   const auto keys = HtmlCacheDecisionKeys();
   ASSERT_EQ(keys.size(), expected.size());
   for (size_t i = 0; i < expected.size(); ++i) EXPECT_EQ(keys[i], expected[i]);
@@ -53,9 +54,22 @@ TEST(HtmlCacheDecisionTest, NoKeyCanCarryAPrivateValue) {
          {"body", "cookie", "user_agent", "remote_addr", "value", "header",
           "headers", "ip", "client", "agent", "referer", "authorization",
           "query", "content"}) {
+      // agent_class is a digit from 0 to 3 (the grammar is the closed set,
+      // checked below), never a user agent.
+      if (key == "agent_class" && banned == "agent") continue;
       EXPECT_EQ(key.find(banned), std::string_view::npos)
           << key << " contains " << banned;
     }
+  }
+  for (std::string_view v : {"0", "1", "2", "3"}) {
+    EXPECT_TRUE(HtmlCacheDecisionValueFits("agent_class", v)) << v;
+  }
+  for (std::string_view v : {"4", "10", "Mozilla/5.0", "GPTBot", "-1", ""}) {
+    EXPECT_FALSE(HtmlCacheDecisionValueFits("agent_class", v)) << v;
+  }
+  // detail names a cookie or a header, never carries a value.
+  for (std::string_view v : {"sid=abc12345", "a b", "a;b", "a,b", "x\x01"}) {
+    EXPECT_FALSE(HtmlCacheDecisionValueFits("detail", v)) << v;
   }
   // And the formatter enforces it: those names are refused.
   for (std::string_view banned :
@@ -103,7 +117,10 @@ TEST(HtmlCacheDecisionTest, EveryKeyRoundTrips) {
                       {"variant", "0x7C"},
                       {"binding", "live"},
                       {"age_s", "7"},
-                      {"vhost_added", "x-frame-options"}};
+                      {"vhost_added", "x-frame-options"},
+                      {"scope", "agents"},
+                      {"agent_class", "3"},
+                      {"detail", "X-Forwarded-Host"}};
   ASSERT_EQ(all.size(), HtmlCacheDecisionKeys().size());
   const std::string line = Format(all).value();
   EXPECT_EQ(line.front(), '{');

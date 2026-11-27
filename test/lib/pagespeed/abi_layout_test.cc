@@ -83,13 +83,16 @@ static_assert(offsetof(ps_write_params_t, origin_html_hash) == 80);
 // ---------------------------------------------------------------------------
 // ps_sidecar_write_params_t -- added whole at 1.13.
 // ---------------------------------------------------------------------------
-static_assert(sizeof(ps_sidecar_write_params_t) == 48);
+static_assert(sizeof(ps_sidecar_write_params_t) == 64);
 static_assert(offsetof(ps_sidecar_write_params_t, struct_size) == 0);
 static_assert(offsetof(ps_sidecar_write_params_t, url) == 8);
 static_assert(offsetof(ps_sidecar_write_params_t, hostname) == 16);
 static_assert(offsetof(ps_sidecar_write_params_t, scheme) == 24);
 static_assert(offsetof(ps_sidecar_write_params_t, site) == 32);
 static_assert(offsetof(ps_sidecar_write_params_t, origin_html_hash) == 40);
+// --- appended at 1.15; nothing above may move ---
+static_assert(offsetof(ps_sidecar_write_params_t, policy_stamp) == 48);
+static_assert(offsetof(ps_sidecar_write_params_t, write_flags) == 56);
 
 // ---------------------------------------------------------------------------
 // ps_cache_config_t -- mirrored field-by-field by the .NET binding.
@@ -236,7 +239,7 @@ static_assert(offsetof(ps_cache_control_t, cc_flags) == 16);
 // tag buffer of the verdict are fixed-size, so no pointer crosses the
 // boundary in either direction for them.
 // ---------------------------------------------------------------------------
-static_assert(sizeof(ps_html_serve_request_t) == 64);
+static_assert(sizeof(ps_html_serve_request_t) == 88);
 static_assert(offsetof(ps_html_serve_request_t, struct_size) == 0);
 static_assert(offsetof(ps_html_serve_request_t, mode) == 8);
 static_assert(offsetof(ps_html_serve_request_t, method) == 16);
@@ -246,8 +249,14 @@ static_assert(offsetof(ps_html_serve_request_t, pragma) == 40);
 static_assert(offsetof(ps_html_serve_request_t, if_none_match) == 48);
 static_assert(offsetof(ps_html_serve_request_t, request_flags) == 56);
 static_assert(offsetof(ps_html_serve_request_t, now_seconds) == 60);
+// --- appended at 1.15; nothing above may move ---
+static_assert(offsetof(ps_html_serve_request_t, serve_scope) == 64);
+static_assert(offsetof(ps_html_serve_request_t, agent_class) == 68);
+static_assert(offsetof(ps_html_serve_request_t, html_max_lifetime_s) == 72);
+static_assert(offsetof(ps_html_serve_request_t, reserved) == 76);
+static_assert(offsetof(ps_html_serve_request_t, policy_stamp) == 80);
 
-static_assert(sizeof(ps_html_stored_facts_t) == 96);
+static_assert(sizeof(ps_html_stored_facts_t) == 104);
 static_assert(offsetof(ps_html_stored_facts_t, struct_size) == 0);
 static_assert(offsetof(ps_html_stored_facts_t, flags) == 8);
 static_assert(offsetof(ps_html_stored_facts_t, stored_at) == 12);
@@ -257,6 +266,8 @@ static_assert(offsetof(ps_html_stored_facts_t, render_ttl_s) == 24);
 static_assert(offsetof(ps_html_stored_facts_t, withheld_reason) == 28);
 static_assert(offsetof(ps_html_stored_facts_t, binding_hash) == 32);
 static_assert(offsetof(ps_html_stored_facts_t, markdown_hash) == 64);
+// --- appended at 1.15; nothing above may move ---
+static_assert(offsetof(ps_html_stored_facts_t, entry_policy_stamp) == 96);
 
 static_assert(sizeof(ps_html_serve_verdict_t) == 64);
 static_assert(offsetof(ps_html_serve_verdict_t, struct_size) == 0);
@@ -267,6 +278,28 @@ static_assert(offsetof(ps_html_serve_verdict_t, wants_markdown) == 20);
 static_assert(offsetof(ps_html_serve_verdict_t, age_s) == 24);
 static_assert(offsetof(ps_html_serve_verdict_t, not_modified) == 28);
 static_assert(offsetof(ps_html_serve_verdict_t, etag) == 32);
+
+// ---------------------------------------------------------------------------
+// HTML request policy structs (new at 1.15). Each carries struct_size; fields
+// are appended only.
+// ---------------------------------------------------------------------------
+static_assert(sizeof(ps_html_request_guard_t) == 24);
+static_assert(offsetof(ps_html_request_guard_t, struct_size) == 0);
+static_assert(offsetof(ps_html_request_guard_t, reason) == 8);
+static_assert(offsetof(ps_html_request_guard_t, header_index) == 12);
+static_assert(offsetof(ps_html_request_guard_t, xfp) == 16);
+
+static_assert(sizeof(ps_html_cookie_span_t) == 24);
+static_assert(offsetof(ps_html_cookie_span_t, line) == 0);
+static_assert(offsetof(ps_html_cookie_span_t, offset) == 8);
+static_assert(offsetof(ps_html_cookie_span_t, length) == 16);
+
+static_assert(sizeof(ps_html_cookie_class_t) == 48);
+static_assert(offsetof(ps_html_cookie_class_t, struct_size) == 0);
+static_assert(offsetof(ps_html_cookie_class_t, cookie_class) == 8);
+static_assert(offsetof(ps_html_cookie_class_t, malformed) == 12);
+static_assert(offsetof(ps_html_cookie_class_t, first_blocking) == 16);
+static_assert(offsetof(ps_html_cookie_class_t, ignorable_count) == 40);
 
 // ---------------------------------------------------------------------------
 // The version triple itself is part of the contract: the gate reads it from

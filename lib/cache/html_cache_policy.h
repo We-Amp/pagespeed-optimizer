@@ -90,13 +90,17 @@ namespace pagespeed {
 //      of theirs is read, so none extends or shortens the lifetime; they are
 //      not carried by the sidecar, so rule 10 still refuses a response that
 //      sends one.
-//   8. Cookie request.  A request that carried a Cookie header is stored only
-//      when the response is explicitly shareable: `public` (§5.2.2.9) or
-//      an `s-maxage` above zero (§5.2.2.10, which also makes the response
-//      shareable; `s-maxage=0` or a malformed value asserts nothing).  A
-//      page that varies on the cookie it was fetched with could otherwise be
-//      served to clients holding a different cookie.  See THE COOKIE RULE
-//      below.
+//   8. Cookie request.  `has_cookie` means the request carried a cookie the
+//      caller could not ignore (the caller sorts the Cookie lines with
+//      ClassifyHtmlCookies and sets it only for a blocking one).  Such a
+//      request is never stored unless the operator chose the explicit-public
+//      policy (`explicit_public`), and then only when the response is
+//      explicitly shareable: `public` (§5.2.2.9) or an `s-maxage` above zero
+//      (§5.2.2.10, which also makes the response shareable; `s-maxage=0` or
+//      a malformed value asserts nothing).  A page that varies on the cookie
+//      it was fetched with could otherwise be served to clients holding a
+//      different cookie.  A request with no credential and no blocking cookie
+//      is reported as `request_anonymous`, which the stored entry records.
 //   9. Vary (RFC 9110 §12.5.5).  Every Vary line is joined with `, ` and
 //      split into lowercase tokens (RFC 9110 §5.3, §5.6.1).  The set must be
 //      a subset of {accept-encoding}.  Any other token, including `*` and
@@ -164,14 +168,27 @@ namespace pagespeed {
 //      counting it as age 0 would make a clock step look like freshness.
 //   3. Credentials.  A request with Authorization or an authenticated user is
 //      never answered from the cache (RFC 9111 §3.5).
-//   4. Cookie request.  A request with a Cookie header is answered only from
-//      an entry that was explicitly shareable.
+//   4. Cookie request.  A request with a blocking cookie is answered only
+//      under the explicit-public policy, and then only from an entry that was
+//      explicitly shareable.
 //   5. Client no-cache (RFC 9111 §5.2.1.4).  `Cache-Control: no-cache` on the
 //      request, or `Pragma: no-cache` when the request carries no
 //      Cache-Control at all (§5.4), bypasses the cache.
 //   6. Purged.  An entry the caller's purge state covers is not served.
 //   7. Header replay.  An entry whose headers cannot be reproduced, or whose
 //      stored header block could not be read, is not served.
+//   7a. The entry's own record, for both bodies.  An entry this policy did
+//      not record (`store_v2` clear) is `legacy_entry`; one recorded under
+//      another credentialed policy (`entry_policy_stamp` differs from the
+//      request's `policy_stamp`; zero on both sides is equal) is
+//      `policy_mismatch`; one recorded from a request that was not anonymous
+//      is `credentialed`, unless the explicit-public policy is in force and
+//      the entry was explicitly shareable.  Each is a fall-through, so the
+//      next clean miss records the page again.
+//   7b. Serve scope (the HTML path of kServeCachedHtml only).  Scope `all`
+//      admits every request; scope `agents` admits a known agent class (1 to
+//      3) and, on the HTML fallback, a request whose Accept prefers
+//      Markdown.  Anything else is `scope`.
 //   8. Freshness (RFC 9111 §4.2, §4.2.3).  The current age is the age at
 //      store plus the time since it was stored.  The caller supplies an
 //      initial age already corrected for the origin's Age and the apparent
@@ -189,6 +206,13 @@ namespace pagespeed {
 //      `kServeCachedHtml`;
 //      `kServeVariants` has no validation step, so there the flag is not
 //      consulted and the entry is as fresh as its stored lifetime says.
+//      `fresh_only` removes the validation step: a not-fresh entry falls
+//      through instead of kValidate, and the 304 flag is not consulted; its
+//      reason is kNeedsValidation only for an entry stored with
+//      `needs_validation`, and kStale otherwise (a lifetime of 0 included).  On the HTML path the operator's cap
+//      (`html_max_lifetime_s`, 0 = none) then applies: an entry whose age has
+//      reached the cap falls through as `capped`.  The cap only ever shortens
+//      the origin's lifetime; the Markdown path never reads it.
 //   9. Markdown.  A request for the Markdown copy is served it only while the
 //      HTML parent is fresh, the copy exists, its recorded parent hash still
 //      matches the live content, and the copy is within its own lifetime
@@ -206,8 +230,12 @@ namespace pagespeed {
 //      `kServeCachedHtml`, a fall-through in `kServeVariants`), not the HTML
 //      request's stale or needs-validation reason, so the Markdown path is
 //      countable on its own.  A Markdown fall-through never degrades to
-//      serving HTML here: the caller serves the origin path.
-//  10. HTML.  In `kServeCachedHtml` a fresh entry is served.  In
+//      serving HTML here: the caller serves the origin path, or asks again
+//      with `html_fallback` set, which takes the HTML path (rules 7b, 8 and
+//      10) for the same request and repeats every refusal the two share.
+//  10. HTML.  In `kServeCachedHtml` a fresh entry is served, unless the
+//      request carried `Cache-Control: no-transform` (`no_transform`) or a
+//      conditional (`conditional`: the origin answers it).  In
 //      `kServeVariants` the HTML still comes from the origin.
 
 enum class HtmlCacheMode : uint8_t {
@@ -251,17 +279,25 @@ enum class HtmlStoreReason : uint8_t {
   kPersonalisationSignal,
   kNoTransform,
   kMode,
+  // Appended (C API 1.15).  The numeric values are ABI: append only.  Both
+  // come from HtmlRequestGuard, which a caller runs before the classifier.
+  kRequestHeader,
+  kPath,
 };
 
-inline constexpr uint8_t kHtmlStoreReasonCount = 21;
+inline constexpr uint8_t kHtmlStoreReasonCount = 23;
 
 struct HtmlStoreRequest {
   std::string_view method;          // "GET"; the caller normalises case
   std::string_view url_path;        // path as the cache key would see it
   bool has_authorization = false;   // Authorization or Proxy-Authorization
   bool authenticated_user = false;  // the server authenticated the request
-  bool has_cookie = false;          // Cookie or Cookie2 present
+  // A blocking cookie (ClassifyHtmlCookies), not merely a Cookie header.
+  bool has_cookie = false;
   bool request_no_store = false;  // the request carried Cache-Control: no-store
+  // The operator's credentialed policy is explicit-public: a request with a
+  // blocking cookie may be stored when the response is explicitly shareable.
+  bool explicit_public = false;
 };
 
 struct HtmlStoreResponse {
@@ -298,7 +334,10 @@ struct HtmlStoreVerdict {
   bool needs_validation = false;  // lifetime 0, or no-cache in either form
   bool has_validators = false;    // a non-empty ETag or Last-Modified present
   bool explicit_shared = false;   // public, or an s-maxage above zero
-  uint16_t cc_flags = 0;          // the accumulated kCCOrigin* bits
+  // No credential and no blocking cookie on the request: the entry stored
+  // from this response is recorded as anonymous.
+  bool request_anonymous = false;
+  uint16_t cc_flags = 0;                 // the accumulated kCCOrigin* bits
   std::vector<std::string> vary_tokens;  // lowercased, from the Vary lines
   // True once the header set reached the sidecar gate (rule 9); before that
   // `sidecar` holds its default and means nothing.
@@ -375,9 +414,28 @@ enum class HtmlServeReason : uint8_t {
   kNoTransform,
   kWithheld,
   kSkew,
+  // Appended (C API 1.15).
+  kScope,
+  kCapped,
+  kConditional,
+  kCredentialed,
+  kLegacyEntry,
+  kPolicyMismatch,
+  kRequestHeader,
+  kPath,
 };
 
-inline constexpr uint8_t kHtmlServeReasonCount = 19;
+inline constexpr uint8_t kHtmlServeReasonCount = 27;
+
+// Who the HTML path of kServeCachedHtml answers (rule 7b).
+enum class HtmlServeScope : uint8_t {
+  kAgents = 0,  // known agent classes, and a Markdown preference on fallback
+  kAll = 1,     // every request
+};
+
+// The highest known agent class; 0 is unknown and anything above this reads
+// as 0.
+inline constexpr uint8_t kHtmlMaxAgentClass = 3;
 
 // How far in the future an entry's stored_at may lie before serve rule 2a
 // refuses it.  Covers clock disagreement between the processes that write and
@@ -403,6 +461,22 @@ struct HtmlServeRequest {
   // 5.2.1.6): the Markdown copy is a transformation, so it is not served.
   bool request_no_transform = false;
   uint32_t now_seconds = 0;
+  // Rule 7b.  `agent_class` above kHtmlMaxAgentClass reads as 0.
+  HtmlServeScope scope = HtmlServeScope::kAgents;
+  uint8_t agent_class = 0;
+  // Rule 8: the HTML path's cap on the entry's age, 0 = no cap.
+  uint32_t html_max_lifetime_s = 0;
+  // Rule 8: no validation step; kValidate becomes a fall-through.
+  bool fresh_only = false;
+  // Rule 9: ask for HTML after a Markdown fall-through (kServeCachedHtml).
+  bool html_fallback = false;
+  // Rule 10: the request arrived with If-None-Match, If-Modified-Since,
+  // If-Match or If-Unmodified-Since.
+  bool conditional = false;
+  // Rules 4 and 7a: the operator's credentialed policy is explicit-public.
+  bool explicit_public = false;
+  // Rule 7a: the stamp of the policy in force, 0 = none.
+  uint64_t policy_stamp = 0;
 };
 
 struct StoredHtmlFacts {
@@ -429,6 +503,10 @@ struct StoredHtmlFacts {
   bool no_transform = false;
   // The deriver refused to build a copy for this parent's content (rule 9).
   bool withheld = false;
+  // Rule 7a.  Both default to false: an entry is only what it can prove.
+  bool store_v2 = false;            // recorded under this policy
+  bool anonymous_recorded = false;  // recorded from an anonymous request
+  uint64_t entry_policy_stamp = 0;  // the policy stamp it was recorded under
 };
 
 // Fold a request's Cache-Control value (every line joined with ", ") into

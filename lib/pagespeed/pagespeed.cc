@@ -32,6 +32,7 @@
 #include "lib/cache/headers_sidecar.h"
 #include "lib/cache/html_cache_decision.h"
 #include "lib/cache/html_cache_policy.h"
+#include "lib/cache/html_request_policy.h"
 #include "lib/cache/html_withheld_marker.h"
 #include "lib/cache/origin_cache_control.h"
 #include "lib/cache/vary_storability.h"
@@ -1400,6 +1401,8 @@ extern "C" int ps_html_store_classify(
         (request_flags & PS_HTML_STORE_REQUEST_HAS_COOKIE) != 0;
     request.request_no_store =
         (request_flags & PS_HTML_STORE_REQUEST_NO_STORE) != 0;
+    request.explicit_public =
+        (request_flags & PS_HTML_STORE_REQUEST_EXPLICIT_PUBLIC) != 0;
     pagespeed::HtmlStoreResponse response;
     response.status = status;
     response.headers = fields;
@@ -1425,6 +1428,7 @@ extern "C" int ps_html_store_classify(
     if (v.explicit_shared) flags |= PS_HTML_STORE_FLAG_EXPLICIT_SHARED;
     if (v.sidecar_evaluated) flags |= PS_HTML_STORE_FLAG_SIDECAR_EVALUATED;
     if (v.cc_evaluated) flags |= PS_HTML_STORE_FLAG_CC_EVALUATED;
+    if (v.request_anonymous) flags |= PS_HTML_STORE_FLAG_REQUEST_ANONYMOUS;
     *out_flags = flags;
     *out_cc_flags = v.cc_flags;
     *out_sidecar =
@@ -1506,16 +1510,37 @@ constexpr size_t kServeRequestSizeV1_13 =
         offsetof(ps_html_serve_request_t, now_seconds) + sizeof(uint32_t));
 constexpr size_t kStoredFactsSizeV1_13 = RoundUpToAlign<ps_html_stored_facts_t>(
     offsetof(ps_html_stored_facts_t, markdown_hash) + PS_HTML_HASH_BYTES);
-static_assert(kServeRequestSizeV1_13 == sizeof(ps_html_serve_request_t),
-              "ps_html_serve_request_t grew: keep this constant at its 1.14 "
+// The PS_API 1.15 sizes: a struct at least this large carries every 1.15
+// field; a smaller one (a 1.14 caller) reads them all as zero.
+constexpr size_t kServeRequestSizeV1_15 =
+    RoundUpToAlign<ps_html_serve_request_t>(
+        offsetof(ps_html_serve_request_t, policy_stamp) + sizeof(uint64_t));
+constexpr size_t kStoredFactsSizeV1_15 = RoundUpToAlign<ps_html_stored_facts_t>(
+    offsetof(ps_html_stored_facts_t, entry_policy_stamp) + sizeof(uint64_t));
+static_assert(kServeRequestSizeV1_13 <= sizeof(ps_html_serve_request_t),
+              "ps_html_serve_request_t only ever grows");
+static_assert(kStoredFactsSizeV1_13 <= sizeof(ps_html_stored_facts_t),
+              "ps_html_stored_facts_t only ever grows");
+static_assert(kServeRequestSizeV1_15 == sizeof(ps_html_serve_request_t),
+              "ps_html_serve_request_t grew: keep this constant at its 1.15 "
               "value and relax to the >= form");
-static_assert(kStoredFactsSizeV1_13 == sizeof(ps_html_stored_facts_t),
-              "ps_html_stored_facts_t grew: keep this constant at its 1.14 "
+static_assert(kStoredFactsSizeV1_15 == sizeof(ps_html_stored_facts_t),
+              "ps_html_stored_facts_t grew: keep this constant at its 1.15 "
               "value and relax to the >= form");
-static_assert(sizeof(void*) != 8 || sizeof(ps_html_serve_request_t) == 64,
-              "ps_html_serve_request_t is 64 bytes on 64-bit targets");
-static_assert(sizeof(ps_html_stored_facts_t) == 96 || sizeof(size_t) != 8,
-              "ps_html_stored_facts_t is 96 bytes on 64-bit targets");
+static_assert(offsetof(ps_html_serve_request_t, serve_scope) >=
+                  kServeRequestSizeV1_13,
+              "the 1.15 request fields lie past the 1.14 prefix");
+static_assert(offsetof(ps_html_stored_facts_t, entry_policy_stamp) >=
+                  kStoredFactsSizeV1_13,
+              "the 1.15 facts field lies past the 1.14 prefix");
+static_assert(sizeof(void*) != 8 || kServeRequestSizeV1_13 == 64,
+              "ps_html_serve_request_t was 64 bytes at 1.14 on 64-bit targets");
+static_assert(sizeof(size_t) != 8 || kStoredFactsSizeV1_13 == 96,
+              "ps_html_stored_facts_t was 96 bytes at 1.14 on 64-bit targets");
+static_assert(sizeof(void*) != 8 || sizeof(ps_html_serve_request_t) == 88,
+              "ps_html_serve_request_t is 88 bytes on 64-bit targets");
+static_assert(sizeof(ps_html_stored_facts_t) == 104 || sizeof(size_t) != 8,
+              "ps_html_stored_facts_t is 104 bytes on 64-bit targets");
 static_assert(sizeof(ps_html_serve_verdict_t) == 64 || sizeof(size_t) != 8,
               "ps_html_serve_verdict_t is 64 bytes on 64-bit targets");
 
@@ -1540,6 +1565,50 @@ static_assert(PS_HTML_STORE_ACTION_STORE ==
 static_assert(PS_HTML_STORE_ACTION_STORE_NO_NOTIFY ==
                   static_cast<int>(pagespeed::HtmlStoreAction::kStoreNoNotify),
               "store action values are the policy's");
+static_assert(PS_HTML_SERVE_SCOPE_AGENTS ==
+                      static_cast<int>(pagespeed::HtmlServeScope::kAgents) &&
+                  PS_HTML_SERVE_SCOPE_ALL ==
+                      static_cast<int>(pagespeed::HtmlServeScope::kAll),
+              "serve scope values are the policy's");
+static_assert(PS_HTML_AGENT_CLASS_MAX == pagespeed::kHtmlMaxAgentClass,
+              "the agent classes are the policy's");
+static_assert(PS_HTML_COOKIE_LIST_VERSION == pagespeed::kHtmlCookieListVersion,
+              "the published list version is the policy's");
+static_assert(
+    PS_HTML_GUARD_REQUEST_HEADER ==
+            static_cast<int>(pagespeed::HtmlGuardReason::kRequestHeader) &&
+        PS_HTML_GUARD_PATH ==
+            static_cast<int>(pagespeed::HtmlGuardReason::kPath),
+    "guard reason values are the policy's");
+static_assert(PS_HTML_COOKIES_BLOCKING ==
+                  static_cast<int>(pagespeed::HtmlCookieClass::kBlocking),
+              "cookie class values are the policy's");
+// The entry bits are the metadata's own, and 0x80 was the last free one.
+static_assert(PS_FLAG_ANONYMOUS_RECORDED ==
+                  AlternateMetadata::kFlagAnonymousRecorded,
+              "PS_FLAG_ANONYMOUS_RECORDED is the metadata's anonymous bit");
+static_assert(PS_FLAG_HTML_STORE_V2 == AlternateMetadata::kFlagHtmlStoreV2,
+              "PS_FLAG_HTML_STORE_V2 is the metadata's store-v2 bit");
+// The 1.15 request and facts bits do not overlap the 1.14 ones.
+static_assert(
+    ((PS_HTML_SERVE_REQUEST_FRESH_ONLY | PS_HTML_SERVE_REQUEST_HTML_FALLBACK |
+      PS_HTML_SERVE_REQUEST_CONDITIONAL |
+      PS_HTML_SERVE_REQUEST_EXPLICIT_PUBLIC) &
+     (PS_HTML_SERVE_REQUEST_HAS_AUTHORIZATION |
+      PS_HTML_SERVE_REQUEST_AUTHENTICATED_USER |
+      PS_HTML_SERVE_REQUEST_HAS_COOKIE | PS_HTML_SERVE_REQUEST_HAS_RANGE |
+      PS_HTML_SERVE_REQUEST_HAS_IF_RANGE | PS_HTML_SERVE_REQUEST_HAS_ORIGIN)) ==
+        0,
+    "the 1.15 serve request bits are new bits");
+static_assert(((PS_HTML_FACTS_STORE_V2 | PS_HTML_FACTS_ANONYMOUS_RECORDED) &
+               (PS_HTML_FACTS_PRESENT | PS_HTML_FACTS_NEEDS_VALIDATION |
+                PS_HTML_FACTS_EXPLICIT_SHARED |
+                PS_HTML_FACTS_HEADERS_NOT_REPRODUCIBLE |
+                PS_HTML_FACTS_SIDECAR_REQUIRED | PS_HTML_FACTS_SIDECAR_PRESENT |
+                PS_HTML_FACTS_PURGED | PS_HTML_FACTS_VALIDATED_THIS_REQUEST |
+                PS_HTML_FACTS_VARIANT_PRESENT | PS_HTML_FACTS_BINDING_LIVE |
+                PS_HTML_FACTS_NO_TRANSFORM | PS_HTML_FACTS_WITHHELD)) == 0,
+              "the 1.15 facts bits are new bits");
 
 // The copy's default lifetime bound, for a caller that leaves render_ttl_s 0.
 // Inside the policy 0 is a real bound (it refuses every copy), so the
@@ -1701,6 +1770,24 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
       }
     }
     r.now_seconds = request->now_seconds;
+    // The 1.15 fields and bits, only from a caller that sent them: a shorter
+    // struct is a 1.14 caller, whose request reads as scope agents with an
+    // unknown class, no cap, no stamp and none of the new bits.
+    if (request->struct_size >= kServeRequestSizeV1_15) {
+      r.scope = request->serve_scope == PS_HTML_SERVE_SCOPE_ALL
+                    ? pagespeed::HtmlServeScope::kAll
+                    : pagespeed::HtmlServeScope::kAgents;
+      r.agent_class = (request->agent_class >= 1 &&
+                       request->agent_class <= PS_HTML_AGENT_CLASS_MAX)
+                          ? static_cast<uint8_t>(request->agent_class)
+                          : 0;
+      r.html_max_lifetime_s = request->html_max_lifetime_s;
+      r.policy_stamp = request->policy_stamp;
+      r.fresh_only = (rf & PS_HTML_SERVE_REQUEST_FRESH_ONLY) != 0;
+      r.html_fallback = (rf & PS_HTML_SERVE_REQUEST_HTML_FALLBACK) != 0;
+      r.conditional = (rf & PS_HTML_SERVE_REQUEST_CONDITIONAL) != 0;
+      r.explicit_public = (rf & PS_HTML_SERVE_REQUEST_EXPLICIT_PUBLIC) != 0;
+    }
 
     const uint32_t ff = facts->flags;
     pagespeed::StoredHtmlFacts f;
@@ -1722,6 +1809,11 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
     f.withheld = (ff & PS_HTML_FACTS_WITHHELD) != 0;
     f.render_ttl_s = facts->render_ttl_s == 0 ? kDefaultRenderTtlSeconds
                                               : facts->render_ttl_s;
+    f.store_v2 = (ff & PS_HTML_FACTS_STORE_V2) != 0;
+    f.anonymous_recorded = (ff & PS_HTML_FACTS_ANONYMOUS_RECORDED) != 0;
+    f.entry_policy_stamp = facts->struct_size >= kStoredFactsSizeV1_15
+                               ? facts->entry_policy_stamp
+                               : 0;
 
     const pagespeed::HtmlServeVerdict v = pagespeed::ClassifyHtmlForServe(r, f);
 
@@ -1730,7 +1822,11 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
     result.action = static_cast<int>(v.action);
     result.reason = static_cast<int>(v.reason);
     result.enforce = v.enforce ? 1 : 0;
-    result.wants_markdown = r.wants_markdown ? 1 : 0;
+    // The HTML path (a request without a Markdown preference, or the HTML
+    // fallback in kServeCachedHtml) does not select the copy.
+    const bool html_path =
+        r.mode == pagespeed::HtmlCacheMode::kServeCachedHtml && r.html_fallback;
+    result.wants_markdown = r.wants_markdown && !html_path ? 1 : 0;
     result.age_s = v.age_s;
     if (v.action == pagespeed::HtmlServeAction::kServeMarkdown &&
         !AllZeroBytes(facts->binding_hash, PS_HTML_HASH_BYTES) &&
@@ -1816,8 +1912,13 @@ extern "C" int ps_html_store_write_params(
   params->content_length = content_length;
   params->full_mask = PS_SENTINEL_ORIGINAL;
   params->content_type = PS_CONTENT_HTML;
-  uint8_t flags = PS_FLAG_HEADERS_CLASSIFIED;
+  // Recorded under the 1.15 credentialed policy, and anonymous only when the
+  // classifier said the request was.
+  uint8_t flags = PS_FLAG_HEADERS_CLASSIFIED | PS_FLAG_HTML_STORE_V2;
   if (sidecar_stored != 0) flags |= PS_FLAG_HEADERS_SIDECAR_REQUIRED;
+  if ((store_flags & PS_HTML_STORE_FLAG_REQUEST_ANONYMOUS) != 0) {
+    flags |= PS_FLAG_ANONYMOUS_RECORDED;
+  }
   params->flags = flags;
   params->origin_ct = origin_content_type;
   params->origin_etag = nullptr;
@@ -1837,10 +1938,13 @@ extern "C" int ps_html_store_write_params(
   return 0;
 }
 
-extern "C" int ps_html_stored_facts_from_reads(
-    const ps_read_result_t* original, const ps_read_result_t* markdown,
-    const ps_read_result_t* withheld_marker, int sidecar_present,
-    ps_html_stored_facts_t* out) {
+namespace {
+
+int StoredFactsFromReads(const ps_read_result_t* original,
+                         const ps_read_result_t* markdown,
+                         const ps_read_result_t* withheld_marker,
+                         int sidecar_present, uint64_t entry_policy_stamp,
+                         ps_html_stored_facts_t* out) {
   try {
     if (out == nullptr || out->struct_size < kStoredFactsSizeV1_13) return -1;
     ps_html_stored_facts_t facts{};
@@ -1876,6 +1980,13 @@ extern "C" int ps_html_stored_facts_from_reads(
       if ((cc & PS_CC_ORIGIN_NO_TRANSFORM) != 0) {
         flags |= PS_HTML_FACTS_NO_TRANSFORM;
       }
+      if ((meta->flags & AlternateMetadata::kFlagHtmlStoreV2) != 0) {
+        flags |= PS_HTML_FACTS_STORE_V2;
+      }
+      if ((meta->flags & AlternateMetadata::kFlagAnonymousRecorded) != 0) {
+        flags |= PS_HTML_FACTS_ANONYMOUS_RECORDED;
+      }
+      facts.entry_policy_stamp = entry_policy_stamp;
       std::memcpy(facts.binding_hash, meta->origin_html_hash.data(),
                   PS_HTML_HASH_BYTES);
       const bool bound = !AllZeroBytes(facts.binding_hash, PS_HTML_HASH_BYTES);
@@ -1920,6 +2031,16 @@ extern "C" int ps_html_stored_facts_from_reads(
   }
 }
 
+}  // namespace
+
+extern "C" int ps_html_stored_facts_from_reads(
+    const ps_read_result_t* original, const ps_read_result_t* markdown,
+    const ps_read_result_t* withheld_marker, int sidecar_present,
+    ps_html_stored_facts_t* out) {
+  return StoredFactsFromReads(original, markdown, withheld_marker,
+                              sidecar_present, 0, out);
+}
+
 extern "C" int ps_html_markdown_etag(const uint8_t* binding_hash,
                                      const uint8_t* markdown_hash, char* buf,
                                      size_t capacity, size_t* out_len) {
@@ -1955,6 +2076,140 @@ extern "C" int ps_if_none_match_matches_weak(const char* if_none_match,
   } catch (...) {
     return -1;
   }
+}
+
+// ---- HTML request policy (PS_API 1.15) ----
+//
+// Thin adapters over lib/cache/html_request_policy.h.  Pure: nothing here
+// touches the last-error message.
+
+namespace {
+
+// NULL arrays, or a NULL element, with a non-zero count are malformed.
+bool CollectStrings(const char* const* items, size_t count,
+                    std::vector<std::string_view>* out) {
+  if (count == 0) return true;
+  if (items == nullptr) return false;
+  out->reserve(count);
+  for (size_t i = 0; i < count; ++i) {
+    if (items[i] == nullptr) return false;
+    out->emplace_back(items[i]);
+  }
+  return true;
+}
+
+}  // namespace
+
+extern "C" int ps_html_request_guard(const char* raw_path,
+                                     const char* const* names,
+                                     const char* const* values, size_t count,
+                                     const char* keyed_scheme,
+                                     ps_html_request_guard_t* out) {
+  try {
+    if (raw_path == nullptr || keyed_scheme == nullptr || out == nullptr ||
+        out->struct_size < sizeof(ps_html_request_guard_t)) {
+      return -1;
+    }
+    std::vector<HeaderField> fields;
+    if (!CollectHeaderFields(names, values, count, &fields)) return -1;
+    const pagespeed::HtmlGuardVerdict v =
+        pagespeed::HtmlRequestGuard(raw_path, fields, keyed_scheme);
+    ps_html_request_guard_t result{};
+    result.struct_size = out->struct_size;
+    result.reason = static_cast<int>(v.reason);
+    result.header_index = static_cast<int>(v.header_index);
+    result.xfp = v.xfp ? 1 : 0;
+    std::memcpy(out, &result, sizeof(result));
+    return 0;
+  } catch (...) {
+    return -1;
+  }
+}
+
+extern "C" int ps_html_classify_cookies(const char* const* lines,
+                                        size_t line_count, int ignore_builtin,
+                                        const char* const* additions,
+                                        size_t addition_count,
+                                        ps_html_cookie_span_t* ignorable_values,
+                                        size_t ignorable_capacity,
+                                        ps_html_cookie_class_t* out) {
+  try {
+    if (out == nullptr || out->struct_size < sizeof(ps_html_cookie_class_t)) {
+      return -1;
+    }
+    if (ignorable_values == nullptr && ignorable_capacity != 0) return -1;
+    std::vector<std::string_view> line_views;
+    std::vector<std::string_view> addition_views;
+    if (!CollectStrings(lines, line_count, &line_views) ||
+        !CollectStrings(additions, addition_count, &addition_views)) {
+      return -1;
+    }
+    const pagespeed::HtmlCookieVerdict v = pagespeed::ClassifyHtmlCookies(
+        line_views, ignore_builtin != 0, addition_views);
+    ps_html_cookie_class_t result{};
+    result.struct_size = out->struct_size;
+    result.cookie_class = static_cast<int>(v.cookie_class);
+    result.malformed = v.malformed ? 1 : 0;
+    result.first_blocking = {v.first_blocking.line, v.first_blocking.offset,
+                             v.first_blocking.length};
+    result.ignorable_count = v.ignorable_values.size();
+    // Values the caller has no room for cannot be checked for an echo, so the
+    // request is not treated as anonymous: fail closed.
+    if (v.cookie_class == pagespeed::HtmlCookieClass::kIgnorableOnly &&
+        v.ignorable_values.size() > ignorable_capacity) {
+      result.cookie_class = PS_HTML_COOKIES_BLOCKING;
+      result.malformed = 0;
+      result.first_blocking = {0, 0, 0};
+    }
+    for (size_t i = 0; i < v.ignorable_values.size() && i < ignorable_capacity;
+         ++i) {
+      const pagespeed::HtmlCookieSpan& span = v.ignorable_values[i];
+      ignorable_values[i] = {span.line, span.offset, span.length};
+    }
+    std::memcpy(out, &result, sizeof(result));
+    return 0;
+  } catch (...) {
+    return -1;
+  }
+}
+
+extern "C" int ps_html_ignore_cookie_guard(const char* addition,
+                                           int* out_warning) {
+  if (addition == nullptr) return -1;
+  const pagespeed::HtmlIgnoreCookieGuardVerdict v =
+      pagespeed::HtmlIgnoreCookieGuard(addition);
+  if (out_warning != nullptr) *out_warning = v.warning ? 1 : 0;
+  return v.accepted ? 1 : 0;
+}
+
+extern "C" int ps_html_policy_stamp(int credentialed, int ignore_builtin,
+                                    uint32_t list_version,
+                                    const char* const* additions,
+                                    size_t addition_count, uint64_t* out) {
+  try {
+    if (out == nullptr) return -1;
+    if (credentialed != PS_HTML_CREDENTIALED_ANONYMOUS_ONLY &&
+        credentialed != PS_HTML_CREDENTIALED_EXPLICIT_PUBLIC) {
+      return -1;
+    }
+    std::vector<std::string_view> addition_views;
+    if (!CollectStrings(additions, addition_count, &addition_views)) return -1;
+    *out = pagespeed::HtmlPolicyStamp(
+        static_cast<pagespeed::HtmlCredentialedPolicy>(credentialed),
+        ignore_builtin != 0, list_version, addition_views);
+    return 0;
+  } catch (...) {
+    return -1;
+  }
+}
+
+extern "C" int ps_html_unsafe_method_invalidates(const char* method,
+                                                 int status) {
+  return pagespeed::HtmlUnsafeMethodInvalidates(
+             method == nullptr ? std::string_view() : std::string_view(method),
+             status)
+             ? 1
+             : 0;
 }
 
 extern "C" ps_error_t ps_cache_write_headers_sidecar(
@@ -2005,10 +2260,18 @@ namespace {
 constexpr size_t kSidecarWriteParamsSizeV1_13 =
     offsetof(ps_sidecar_write_params_t, origin_html_hash) +
     sizeof(const uint8_t*);
-static_assert(kSidecarWriteParamsSizeV1_13 == sizeof(ps_sidecar_write_params_t),
-              "ps_sidecar_write_params_t's 1.13 size is the whole struct; when "
-              "a field is appended keep this at the 1.13 size and read the new "
-              "field only when struct_size covers it.");
+// The 1.15 fields are read only when struct_size covers them.
+constexpr size_t kSidecarWriteParamsSizeV1_15 =
+    RoundUpToAlign<ps_sidecar_write_params_t>(
+        offsetof(ps_sidecar_write_params_t, write_flags) + sizeof(uint32_t));
+static_assert(kSidecarWriteParamsSizeV1_13 <= sizeof(ps_sidecar_write_params_t),
+              "ps_sidecar_write_params_t only ever grows");
+static_assert(offsetof(ps_sidecar_write_params_t, policy_stamp) >=
+                  kSidecarWriteParamsSizeV1_13,
+              "the 1.15 fields lie past the 1.13 prefix");
+static_assert(kSidecarWriteParamsSizeV1_15 == sizeof(ps_sidecar_write_params_t),
+              "ps_sidecar_write_params_t grew: keep this constant at its 1.15 "
+              "size and read a new field only when struct_size covers it.");
 
 }  // namespace
 
@@ -2024,9 +2287,26 @@ extern "C" ps_error_t ps_cache_write_headers_sidecar_site(
         "than the 1.13 ps_sidecar_write_params_t");
     return PS_ERR_INVALID_ARG;
   }
+  // Only as much as the caller's struct holds: a field past its size reads
+  // as zero.
   ps_sidecar_write_params_t p;
   std::memset(&p, 0, sizeof(p));
-  std::memcpy(&p, params, sizeof(p));
+  std::memcpy(&p, params, std::min(params->struct_size, sizeof(p)));
+  // A 1.13 caller's struct ends before policy_stamp and write_flags, so both
+  // stay zero: the one gate is the copy above.
+  if ((p.write_flags & ~PS_SIDECAR_WRITE_POLICY_BLOCK) != 0) {
+    SetLastError(
+        "ps_cache_write_headers_sidecar_site: unknown write_flags bits");
+    return PS_ERR_INVALID_ARG;
+  }
+  const bool policy_block =
+      (p.write_flags & PS_SIDECAR_WRITE_POLICY_BLOCK) != 0;
+  if (policy_block && p.origin_html_hash == nullptr) {
+    SetLastError(
+        "ps_cache_write_headers_sidecar_site: a policy block must be paired "
+        "with its original (origin_html_hash)");
+    return PS_ERR_INVALID_ARG;
+  }
 
   ps_error_t err = ValidateUrlHostname(p.url, p.hostname);
   if (err != PS_OK) return err;
@@ -2059,7 +2339,8 @@ extern "C" ps_error_t ps_cache_write_headers_sidecar_site(
   try {
     auto result = cache->cache->WriteHeadersSidecar(
         p.url, p.hostname, p.scheme != nullptr ? p.scheme : "", fields,
-        site_view, pairing);
+        site_view, pairing,
+        policy_block ? std::optional<uint64_t>(p.policy_stamp) : std::nullopt);
     if (!result.has_value()) {
       SetLastError("WriteHeadersSidecar failed");
       return MapError(result.error());
@@ -2085,6 +2366,8 @@ struct ps_header_block_s {
   std::vector<std::string> values;
   bool paired = false;
   std::array<uint8_t, AlternateMetadata::kHashSize> pairing_hash{};
+  bool has_policy_stamp = false;  // a format-3 block
+  uint64_t policy_stamp = 0;
 };
 
 extern "C" ps_error_t ps_headers_sidecar_read(
@@ -2121,6 +2404,10 @@ extern "C" ps_error_t ps_headers_sidecar_read(
       block->paired = true;
       std::memcpy(block->pairing_hash.data(), parsed->pairing_hash->data(),
                   block->pairing_hash.size());
+    }
+    if (parsed->policy_stamp.has_value()) {
+      block->has_policy_stamp = true;
+      block->policy_stamp = *parsed->policy_stamp;
     }
     *out = block.release();
     return PS_OK;
@@ -2169,6 +2456,24 @@ extern "C" int ps_header_block_pairing(const ps_header_block_t* block,
 }
 
 extern "C" void ps_header_block_free(ps_header_block_t* block) { delete block; }
+
+extern "C" int ps_header_block_policy_stamp(const ps_header_block_t* block,
+                                            uint64_t* out) {
+  if (block == nullptr || out == nullptr) return -1;
+  *out = block->has_policy_stamp ? block->policy_stamp : 0;
+  return block->has_policy_stamp ? 1 : 0;
+}
+
+extern "C" int ps_html_stored_facts_from_reads_ex(
+    const ps_read_result_t* original, const ps_read_result_t* markdown,
+    const ps_read_result_t* withheld_marker, int sidecar_present,
+    const ps_header_block_t* sidecar, ps_html_stored_facts_t* out) {
+  const uint64_t stamp = (sidecar != nullptr && sidecar->has_policy_stamp)
+                             ? sidecar->policy_stamp
+                             : 0;
+  return StoredFactsFromReads(original, markdown, withheld_marker,
+                              sidecar_present, stamp, out);
+}
 
 extern "C" ps_error_t ps_cache_write_sentinel(
     ps_cache_t* cache, const char* url, const char* hostname,

@@ -306,6 +306,12 @@ constexpr uint8_t kVariantInheritedFlags =
     AlternateMetadata::kFlagHeadersSidecarRequired |
     AlternateMetadata::kFlagAnonymousRecorded;
 
+// The HTML store's policy bit belongs to the original it was recorded on and
+// says nothing about a derived variant.
+static_assert((kVariantInheritedFlags & AlternateMetadata::kFlagHtmlStoreV2) ==
+                  0,
+              "a variant never inherits the HTML store-v2 bit");
+
 uint8_t InheritedVariantFlags(const AlternateMetadata& source) {
   return source.flags & kVariantInheritedFlags;
 }
