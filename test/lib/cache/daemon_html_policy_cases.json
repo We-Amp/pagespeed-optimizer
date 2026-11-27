@@ -16459,6 +16459,646 @@
       }
     },
     {
+      "id": "m2-request-header-x-forwarded-port-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Port is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-Port", "8443"]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-port-store",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Port is refused",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Port", "8443"]
+            ],
+            "keyed_scheme": "https"
+          }
+        },
+        "expect": {
+          "action": "refuse",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-port-serve-html",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Port is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Port", "8443"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-port-serve-markdown",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Port is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Port", "8443"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-scheme-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Scheme is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-Scheme", "http"]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-scheme-store",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Scheme is refused",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Scheme", "http"]
+            ],
+            "keyed_scheme": "https"
+          }
+        },
+        "expect": {
+          "action": "refuse",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-scheme-serve-html",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Scheme is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Scheme", "http"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-scheme-serve-markdown",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Scheme is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Scheme", "http"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-prefix-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Prefix is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-Prefix", "/other"]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-prefix-store",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Prefix is refused",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Prefix", "/other"]
+            ],
+            "keyed_scheme": "https"
+          }
+        },
+        "expect": {
+          "action": "refuse",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-prefix-serve-html",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Prefix is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Prefix", "/other"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-prefix-serve-markdown",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Prefix is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Forwarded-Prefix", "/other"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-original-host-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Original-Host is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Original-Host", "attacker.example"]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-original-host-store",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Original-Host is refused",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Original-Host", "attacker.example"]
+            ],
+            "keyed_scheme": "https"
+          }
+        },
+        "expect": {
+          "action": "refuse",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-original-host-serve-html",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Original-Host is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Original-Host", "attacker.example"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-original-host-serve-markdown",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Original-Host is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              ["X-Original-Host", "attacker.example"]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "request_header"
+        }
+      }
+    },
+    {
       "id": "m2-request-header-lower-case-name-guard",
       "runners": ["policy"],
       "pending": "c-api-1.15",
@@ -18070,6 +18710,310 @@
           "request_flags": ["fresh_only"],
           "request_guard": {
             "raw_path": "/fresh%5cx.css",
+            "headers": [],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /fresh\\x.css is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/fresh\\x.css",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-store",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /fresh\\x.css is refused",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/fresh\\x.css",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "request_guard": {
+            "raw_path": "/fresh\\x.css",
+            "headers": [],
+            "keyed_scheme": "https"
+          }
+        },
+        "expect": {
+          "action": "refuse",
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-serve-html",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /fresh\\x.css is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/fresh\\x.css",
+            "headers": [],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-serve-markdown",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /fresh\\x.css is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/fresh\\x.css",
+            "headers": [],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-plain-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a\\page is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a\\page",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-plain-store",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a\\page is refused",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/a\\page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "request_guard": {
+            "raw_path": "/a\\page",
+            "headers": [],
+            "keyed_scheme": "https"
+          }
+        },
+        "expect": {
+          "action": "refuse",
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-plain-serve-html",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a\\page is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/a\\page",
+            "headers": [],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-raw-backslash-plain-serve-markdown",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a\\page is refused",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request_guard": {
+            "raw_path": "/a\\page",
             "headers": [],
             "keyed_scheme": "https"
           },
