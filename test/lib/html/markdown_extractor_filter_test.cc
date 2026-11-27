@@ -788,6 +788,42 @@ TEST_F(MarkdownExtractorFilterTest,
   EXPECT_EQ(md.find("hidden note"), std::string::npos) << md;
 }
 
+// ---- <header> inside a section is content ---------------------------------
+
+// A docs or example page puts its only H1 in a <header> inside <main>. That is
+// the page's heading block, not the site banner: its eyebrow and H1 stay.
+TEST_F(MarkdownExtractorFilterTest, HeaderInsideMainKeepsH1) {
+  EXPECT_EQ(Md("<body><header><a href=\"/\">Site</a><nav>menu</nav></header>"
+               "<main><header class=\"section-header\">"
+               "<p class=\"eyebrow\">filter \xC2\xB7 CSS filters</p>"
+               "<h1 id=\"filter\">Move CSS above scripts</h1></header>"
+               "<dl><dt>Category:</dt><dd>CSS</dd></dl></main>"
+               "<footer>foot</footer></body>"),
+            "filter \xC2\xB7 CSS filters\n\n# Move CSS above scripts\n\n"
+            "**Category:**\n\nCSS");
+}
+
+// Landing-page sections carry their H2 and intro text in a <header>.
+TEST_F(MarkdownExtractorFilterTest, HeaderInsideSectionKeepsHeading) {
+  EXPECT_EQ(Md("<main><section><header class=\"section-header\">"
+               "<h2>Install. Configure. Verify.</h2><p>Three steps.</p>"
+               "</header><p>Body.</p></section></main>"),
+            "## Install. Configure. Verify.\n\nThree steps.\n\nBody.");
+  // The same without a <main>: a section's header is still content.
+  EXPECT_EQ(Md("<header>Banner</header><section><header><h2>Why</h2></header>"
+               "<p>Because.</p></section>"),
+            "## Why\n\nBecause.");
+}
+
+// The page banner <header> stays chrome, and <nav> and a section <footer>
+// are still stripped inside <main>.
+TEST_F(MarkdownExtractorFilterTest, BannerHeaderAndNavInMainStillStripped) {
+  EXPECT_EQ(Md("<header><h1>Site name</h1></header>"
+               "<main><nav>Docs menu</nav><h1>Page</h1><p>text</p>"
+               "<footer>Edit this page</footer></main>"),
+            "# Page\n\ntext");
+}
+
 // ---- output is always well-formed UTF-8 -----------------------------------
 
 // A literal no-break space (U+00A0, the two bytes C2 A0) reads as a space and

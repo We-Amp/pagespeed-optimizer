@@ -158,6 +158,9 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   int content_root_depth_ =
       0;                   // depth inside a <main>/<article>/role=main root
   int article_depth_ = 0;  // depth inside an <article>/role=article subtree
+  // Depth inside <main>/<article>/<section>/<aside> (or role=main/article),
+  // where a <header> is content rather than the page banner.
+  int sectioning_depth_ = 0;
   // Per open <a>: the output offset of its '[' and whether any visible text or
   // image was emitted inside it, so a link with none can be dropped at </a>
   // instead of emitting '[](href)'.

@@ -116,6 +116,15 @@ bool IsArticleRoot(HtmlElement* el) {
   return el->keyword() == HtmlName::kArticle || RoleIs(el, "article");
 }
 
+// Sectioning content or the main content root: a <header> inside one of these
+// is that section's heading block (its title, eyebrow and intro text), not the
+// page banner, so the soft strip keeps it.
+bool IsSectioningScope(HtmlElement* el) {
+  const HtmlName::Keyword kw = el->keyword();
+  return kw == HtmlName::kSection || kw == HtmlName::kAside ||
+         IsArticleRoot(el) || IsContentRoot(el);
+}
+
 // Block-level keywords whose structural emission must be flattened away when the
 // element is wrapped inside an open <a> (Issue F (5)).
 bool IsBlockKeyword(HtmlName::Keyword kw) {
@@ -398,6 +407,7 @@ void MarkdownExtractorFilter::StartDocument() {
   time_depth_ = 0;
   content_root_depth_ = 0;
   article_depth_ = 0;
+  sectioning_depth_ = 0;
   anchor_depth_ = 0;
   anchor_open_pos_.clear();
   item_open_ = false;
@@ -595,12 +605,15 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
     return;
   }
   // Issue F (3): an <article>-scoped <header>/<footer> is content (blog
-  // title/date/byline), not chrome — do NOT soft-strip it. A page-level
-  // <header>/<footer>/<nav> (article_depth_ == 0) is still stripped, and <nav>
-  // is always chrome even inside an article.
+  // title/date/byline), not chrome — do NOT soft-strip it. A <header> inside
+  // <main>, <section> or <aside> is likewise that section's heading block (a
+  // docs page's H1, a landing section's H2 and intro). Only the page-level
+  // banner <header> and page or section <footer>s are stripped, and <nav> is
+  // always chrome.
   const bool article_scoped_chrome =
-      article_depth_ > 0 &&
-      (kw == HtmlName::kHeader || kw == HtmlName::kFooter);
+      (article_depth_ > 0 &&
+       (kw == HtmlName::kHeader || kw == HtmlName::kFooter)) ||
+      (sectioning_depth_ > 0 && kw == HtmlName::kHeader);
   if (strip_soft_chrome_ && IsSoftStripKeyword(kw) && !article_scoped_chrome) {
     ++soft_skip_depth_;
     return;
@@ -611,6 +624,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
   // from outside opens the root.
   if (IsContentRoot(element)) ++content_root_depth_;
   if (IsArticleRoot(element)) ++article_depth_;
+  if (IsSectioningScope(element)) ++sectioning_depth_;
 
   // Issue F (3): capture the first <time datetime> as the front-matter date and
   // SUPPRESS its visible text (a timestamp is metadata, not citation body).
@@ -839,6 +853,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
   // close handling so a </main> still flushes its own block while "inside".
   const bool closing_content_root = IsContentRoot(element);
   const bool closing_article_root = IsArticleRoot(element);
+  const bool closing_sectioning = IsSectioningScope(element);
 
   // Content-root gate (Issue F (4)): outside a content root, suppress the
   // structural close handling too (its text was already dropped). Still close
@@ -846,6 +861,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
   if (OutsideContentRoot()) {
     if (closing_content_root && content_root_depth_ > 0) --content_root_depth_;
     if (closing_article_root && article_depth_ > 0) --article_depth_;
+    if (closing_sectioning && sectioning_depth_ > 0) --sectioning_depth_;
     return;
   }
 
@@ -857,6 +873,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
       kw != HtmlName::kA) {
     if (closing_content_root && content_root_depth_ > 0) --content_root_depth_;
     if (closing_article_root && article_depth_ > 0) --article_depth_;
+    if (closing_sectioning && sectioning_depth_ > 0) --sectioning_depth_;
     return;
   }
 
@@ -875,6 +892,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
   if (InListItemBlock() && IsListItemFoldKeyword(kw)) {
     if (closing_content_root && content_root_depth_ > 0) --content_root_depth_;
     if (closing_article_root && article_depth_ > 0) --article_depth_;
+    if (closing_sectioning && sectioning_depth_ > 0) --sectioning_depth_;
     return;
   }
 
@@ -1012,6 +1030,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
   // closing main/article still flushed its own block while "inside" the root.
   if (closing_content_root && content_root_depth_ > 0) --content_root_depth_;
   if (closing_article_root && article_depth_ > 0) --article_depth_;
+  if (closing_sectioning && sectioning_depth_ > 0) --sectioning_depth_;
 }
 
 void MarkdownExtractorFilter::Characters(HtmlCharactersNode* characters) {
