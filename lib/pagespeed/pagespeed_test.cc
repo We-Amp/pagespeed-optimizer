@@ -7238,6 +7238,152 @@ TEST(PageSpeedCApiPolicy, AShortVerdictNeverHoldsAPartialTag) {
   for (size_t i = cut; i < sizeof(buf); ++i) EXPECT_EQ(buf[i], 0x5A) << i;
 }
 
+// A caller built against 1.14 hands over a struct whose bytes past its
+// struct_size are whatever lies beside it. None of them, and none of the 1.15
+// request bits it may carry by accident, reaches the policy.
+TEST(PageSpeedCApiPolicy, A114RequestReadsNoByteOrBitOfThe115Surface) {
+  ps_html_serve_request_t wide{};
+  wide.struct_size = kServeRequestSize114;
+  wide.method = "GET";
+  wide.accept = "text/html";
+  wide.now_seconds = 1000;
+  // Past the 1.14 prefix: everything that would admit HTML.
+  wide.serve_scope = PS_HTML_SERVE_SCOPE_ALL;
+  wide.agent_class = 1;
+  wide.html_max_lifetime_s = 1;
+  wide.policy_stamp = 0x5a17c0de00000001ULL;
+  // Inside the prefix: the 1.15 bits a 1.14 caller could set by mistake.
+  wide.request_flags =
+      PS_HTML_SERVE_REQUEST_FRESH_ONLY | PS_HTML_SERVE_REQUEST_EXPLICIT_PUBLIC;
+  ps_html_stored_facts_t facts{};
+  facts.struct_size = sizeof(facts);
+  facts.flags = PS_HTML_FACTS_PRESENT | PS_HTML_FACTS_STORE_V2 |
+                PS_HTML_FACTS_ANONYMOUS_RECORDED |
+                PS_HTML_FACTS_EXPLICIT_SHARED;
+  facts.stored_at = 990;
+  facts.lifetime_s = 300;
+  ps_html_serve_verdict_t v{};
+  v.struct_size = sizeof(v);
+
+  wide.mode = PS_HTML_CACHE_SERVE_CACHED_HTML;
+  ASSERT_EQ(ps_html_serve_classify(&wide, &facts, &v), 0);
+  EXPECT_STREQ(ps_html_serve_reason_name(v.reason), "scope");
+
+  // In serve-variants a blocking cookie on a shared entry still refuses:
+  // the explicit-public bit of a 1.14 caller is not read.
+  wide.mode = PS_HTML_CACHE_SERVE_VARIANTS;
+  wide.accept = "text/markdown";
+  wide.request_flags |= PS_HTML_SERVE_REQUEST_HAS_COOKIE;
+  facts.flags |= PS_HTML_FACTS_VARIANT_PRESENT | PS_HTML_FACTS_BINDING_LIVE;
+  ASSERT_EQ(ps_html_serve_classify(&wide, &facts, &v), 0);
+  EXPECT_STREQ(ps_html_serve_reason_name(v.reason), "cookie_request");
+
+  // The same request at the 1.15 size reads them all.
+  wide.struct_size = sizeof(wide);
+  ASSERT_EQ(ps_html_serve_classify(&wide, &facts, &v), 0);
+  EXPECT_STREQ(ps_html_serve_reason_name(v.reason), "policy_mismatch");
+}
+
+// 1.14-size facts: an entry_policy_stamp past the prefix is not read, so a
+// request without a stamp still matches.
+TEST(PageSpeedCApiPolicy, A114FactsStructReadsNoEntryStamp) {
+  constexpr size_t kFactsSize114 =
+      (offsetof(ps_html_stored_facts_t, markdown_hash) + PS_HTML_HASH_BYTES +
+       alignof(ps_html_stored_facts_t) - 1) /
+      alignof(ps_html_stored_facts_t) * alignof(ps_html_stored_facts_t);
+  ps_html_serve_request_t request{};
+  request.struct_size = sizeof(request);
+  request.mode = PS_HTML_CACHE_SERVE_CACHED_HTML;
+  request.method = "GET";
+  request.accept = "text/html";
+  request.now_seconds = 1000;
+  request.serve_scope = PS_HTML_SERVE_SCOPE_ALL;
+  ps_html_stored_facts_t facts{};
+  facts.struct_size = kFactsSize114;
+  facts.flags = PS_HTML_FACTS_PRESENT | PS_HTML_FACTS_STORE_V2 |
+                PS_HTML_FACTS_ANONYMOUS_RECORDED;
+  facts.stored_at = 990;
+  facts.lifetime_s = 300;
+  facts.entry_policy_stamp = 0x5a17c0de00000001ULL;
+  ps_html_serve_verdict_t v{};
+  v.struct_size = sizeof(v);
+  ASSERT_EQ(ps_html_serve_classify(&request, &facts, &v), 0);
+  EXPECT_STREQ(ps_html_serve_reason_name(v.reason), "fresh");
+  facts.struct_size = sizeof(facts);
+  ASSERT_EQ(ps_html_serve_classify(&request, &facts, &v), 0);
+  EXPECT_STREQ(ps_html_serve_reason_name(v.reason), "policy_mismatch");
+}
+
+// Sidecar params of the 1.13 size inside a wider buffer whose bytes past the
+// struct ask for a policy block, or carry bits no build knows: the library
+// reads none of them, writes the paired block of format 2, and succeeds.
+TEST(PageSpeedCApiPolicy, A113SidecarParamsReadNoByteOfThe115Fields) {
+  const std::string dir = pagespeed::test::MakeTempDir();
+  const std::string volume = dir + "/params.vol";
+  ps_cache_config_t config;
+  ps_cache_config_init(&config);
+  config.volume_path = volume.c_str();
+  config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  ps_cache_t* cache = nullptr;
+  ASSERT_EQ(ps_cache_open(&config, &cache), PS_OK);
+  uint8_t pairing[PS_HTML_HASH_BYTES];
+  std::memset(pairing, 0x5a, sizeof(pairing));
+  const char* names[] = {"Cache-Control", "Referrer-Policy"};
+  const char* values[] = {"max-age=30", "no-referrer"};
+  for (uint32_t poison : {uint32_t{PS_SIDECAR_WRITE_POLICY_BLOCK},
+                          uint32_t{0xFFFFFFFEu}}) {
+    ps_sidecar_write_params_t sp{};
+    sp.struct_size = offsetof(ps_sidecar_write_params_t, origin_html_hash) +
+                     sizeof(const uint8_t*);
+    sp.url = "/params.html";
+    sp.hostname = "params.example";
+    sp.scheme = "https";
+    sp.site = kPolicySite;
+    sp.origin_html_hash = pairing;
+    sp.policy_stamp = 0x5a17c0de00000001ULL;
+    sp.write_flags = poison;
+    int verdict = -1;
+    int stored = 0;
+    ASSERT_EQ(ps_cache_write_headers_sidecar_site(cache, &sp, names, values, 2,
+                                                  &verdict, &stored),
+              PS_OK)
+        << poison;
+    EXPECT_EQ(stored, 1) << poison;
+    ps_header_block_t* block = nullptr;
+    ASSERT_EQ(ps_headers_sidecar_read(cache, sp.url, sp.hostname, sp.scheme,
+                                      sp.site, &block),
+              PS_OK);
+    uint64_t stamp = 1;
+    EXPECT_EQ(ps_header_block_policy_stamp(block, &stamp), 0) << poison;
+    EXPECT_EQ(stamp, 0u);
+    // Format 2 carries no Cache-Control line: only the 1.15 form does.
+    EXPECT_EQ(ps_header_block_count(block), 1u) << poison;
+    ps_header_block_free(block);
+  }
+  ps_cache_close(cache);
+  std::filesystem::remove_all(dir);
+}
+
+// More ignore-listed values than the caller's array holds: the echo check
+// could not see them all, so the request is blocking.
+TEST(PageSpeedCApiPolicy, CookieValuesBeyondTheCapacityBlock) {
+  const char* lines[] = {"_ga=a1; _gid=b2; _fbp=c3"};
+  ps_html_cookie_span_t spans[2];
+  ps_html_cookie_class_t out{};
+  out.struct_size = sizeof(out);
+  ASSERT_EQ(ps_html_classify_cookies(lines, 1, 1, nullptr, 0, spans, 2,
+                                     &out),
+            0);
+  EXPECT_EQ(out.cookie_class, PS_HTML_COOKIES_BLOCKING);
+  EXPECT_EQ(out.ignorable_count, 3u);
+  EXPECT_EQ(out.first_blocking.length, 0u);
+  ps_html_cookie_span_t room[3];
+  ASSERT_EQ(ps_html_classify_cookies(lines, 1, 1, nullptr, 0, room, 3, &out),
+            0);
+  EXPECT_EQ(out.cookie_class, PS_HTML_COOKIES_IGNORABLE_ONLY);
+  EXPECT_EQ(out.ignorable_count, 3u);
+}
+
 TEST(PageSpeedCApiPolicy, StoredFactsRefuseAShortStructAndReadAbsent) {
   ps_html_stored_facts_t facts{};
   facts.struct_size = 16;

@@ -26923,6 +26923,1434 @@
           "age_s": 300
         }
       }
+    },
+    {
+      "id": "m2-cookie-comma-in-value",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: a comma in a value blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=1, PHPSESSID=abc"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-space-in-value",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: a space in a value blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=1 PHPSESSID=abc"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-backslash-in-value",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: a backslash in a value blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=a\\b"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-inner-quote-in-value",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: an inner quote blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=a\"b"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-quoted-inner-quote",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: a quote inside a quoted value blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=\"a\"b\""
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-quoted-space",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: a space inside a quoted value blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=\"a b\""
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-high-byte-in-value",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: a byte above 0x7E blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=café"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-merged-lines-session-blocks",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie grammar: lines merged with a comma block",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_ga=GA1.2.3, PHPSESSID=abc; _gid=x"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-gateway-token",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _gateway_token is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_gateway_token=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_gateway_token"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-gatekeeper",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _gatekeeper is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_gatekeeper=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_gatekeeper"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-hjwt",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _hjwt is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_hjwt=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_hjwt"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-hj",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _hj is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_hj=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_hj"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-pk-idx",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _pk_idx is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_pk_idx=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_pk_idx"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-pk-sess",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _pk_sess is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_pk_sess=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_pk_sess"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-pk-refx",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _pk_refx is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_pk_refx=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_pk_refx"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-uetfoo",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _uetfoo is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_uetfoo=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "_uetfoo"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-utmfoo",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utmfoo is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utmfoo=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "__utmfoo"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-narrow-utm",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utm is not an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utm=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "__utm"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-gat",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _gat is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_gat=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-gat-ua-1",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _gat_UA-1 is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_gat_UA-1=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-hjid",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _hjid is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_hjid=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-hjsession-123",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _hjSession_123 is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_hjSession_123=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-hjsessionuser-123",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _hjSessionUser_123 is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_hjSessionUser_123=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-hjfirstseen",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _hjFirstSeen is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_hjFirstSeen=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-hjabsolutesessioninprogress",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _hjAbsoluteSessionInProgress is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_hjAbsoluteSessionInProgress=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-pk-id-1-ab",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _pk_id.1.ab is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_pk_id.1.ab=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-pk-ses-1-ab",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _pk_ses.1.ab is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_pk_ses.1.ab=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-pk-ref-1-ab",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _pk_ref.1.ab is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_pk_ref.1.ab=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-uetsid",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _uetsid is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_uetsid=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-uetvid",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: _uetvid is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "_uetvid=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-utma",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utma is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utma=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-utmb",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utmb is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utmb=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-utmc",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utmc is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utmc=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-utmt",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utmt is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utmt=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-utmt-p",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utmt_p is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utmt_p=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-utmv",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utmv is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utmv=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-listed-utmz",
+      "runners": [
+        "policy"
+      ],
+      "why": "cookie list: __utmz is an analytics cookie",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": [
+            "__utmz=v"
+          ],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": [
+            "v"
+          ]
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-forwarded-host",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Forwarded-Host is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Forwarded_Host",
+              "attacker.example"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-original-url",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of x-original-url is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "x_original_url",
+              "/admin"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-forwarded-prefix",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Forwarded-Prefix is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Forwarded_Prefix",
+              "/o"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-http-method-override",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-HTTP-Method-Override is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_HTTP_Method_Override",
+              "PUT"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-host",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Host is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Host",
+              "a.example"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-forwarded-port",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of x-forwarded-port is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "x-forwarded_port",
+              "8443"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-microsoftajax",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-MicrosoftAjax is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_MicrosoftAjax",
+              "Delta=true"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-prototype-version",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Prototype-Version is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Prototype_Version",
+              "1.7"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-forwarded-proto",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Forwarded-Proto is compared",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Forwarded_Proto",
+              "http"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0,
+          "xfp": true
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-forwarded-proto-equal",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Forwarded-Proto that matches",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Forwarded_Proto",
+              "https"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-requested-with",
+      "runners": [
+        "policy"
+      ],
+      "why": "ajax marker: underscore spelling of X-Requested-With",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Requested_With",
+              "XMLHttpRequest"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-underscore-x-forwarded-for-allowed",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Forwarded-For is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Forwarded_For",
+              "192.0.2.1"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-x-forwarded-ssl",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Forwarded-Ssl is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Forwarded-Ssl",
+              "on"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-front-end-https",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: Front-End-Https is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "Front-End-Https",
+              "on"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-x-http-method",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-HTTP-Method is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-HTTP-Method",
+              "PUT"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-x-forwarded-protocol",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Forwarded-Protocol is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Forwarded-Protocol",
+              "https"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-x-url-scheme",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Url-Scheme is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Url-Scheme",
+              "https"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-x-forwarded-server",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Forwarded-Server is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Forwarded-Server",
+              "a.example"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-x-original-uri",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URI is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URI",
+              "/admin"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-guard-header-x-forwarded-uri",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Forwarded-Uri is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Forwarded-Uri",
+              "/admin"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-ajax-marker-token-first",
+      "runners": [
+        "policy"
+      ],
+      "why": "ajax marker: XMLHttpRequest as the first token",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Requested-With",
+              "XMLHttpRequest, x"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-ajax-marker-token-later",
+      "runners": [
+        "policy"
+      ],
+      "why": "ajax marker: XMLHttpRequest as a later token",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Requested-With",
+              " x , xmlhttprequest "
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-ajax-marker-token-near-miss",
+      "runners": [
+        "policy"
+      ],
+      "why": "ajax marker: a longer token is not the marker",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Requested-With",
+              "XMLHttpRequestX, com.example.app"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-path-trailing-dot-after-extension",
+      "runners": [
+        "policy"
+      ],
+      "why": "deception path: a trailing dot after a static extension",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page.php/x.css.",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-trailing-dots-after-extension",
+      "runners": [
+        "policy"
+      ],
+      "why": "deception path: trailing dots after a static extension",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a/x.js..",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-encoded-space-after-extension",
+      "runners": [
+        "policy"
+      ],
+      "why": "deception path: an encoded space after a static extension",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page.php/x.css%20",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-encoded-dot-after-extension",
+      "runners": [
+        "policy"
+      ],
+      "why": "deception path: an encoded dot after a static extension",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a/x.png%2e",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-trailing-dot-no-extension",
+      "runners": [
+        "policy"
+      ],
+      "why": "deception path: a trailing dot without an extension is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page.",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
     }
   ]
 }
