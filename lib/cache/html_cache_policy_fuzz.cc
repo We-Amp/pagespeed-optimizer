@@ -345,6 +345,7 @@ HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
   const std::vector<HeaderField> fields = Fields(parsed);
   // The request guard first, as a caller runs it: its refusal is the verdict.
   std::vector<HeaderField> request_headers;
+  request_headers.reserve(parsed.req_headers.size());
   for (const auto& [name, value] : parsed.req_headers) {
     request_headers.push_back({name, value});
   }

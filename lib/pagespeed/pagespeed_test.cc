@@ -6650,6 +6650,7 @@ std::vector<std::string> StringList(const nlohmann::json& v) {
 
 std::vector<const char*> Pointers(const std::vector<std::string>& v) {
   std::vector<const char*> out;
+  out.reserve(v.size());
   for (const std::string& item : v) out.push_back(item.c_str());
   return out;
 }
