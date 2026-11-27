@@ -28240,11 +28240,11 @@
       }
     },
     {
-      "id": "m2-ajax-marker-token-near-miss",
+      "id": "m2-ajax-marker-substring-longer-value",
       "runners": [
         "policy"
       ],
-      "why": "ajax marker: a longer token is not the marker",
+      "why": "ajax marker: a value containing XMLHttpRequest is the marker",
       "policy": {
         "call": "guard",
         "input": {
@@ -28258,7 +28258,7 @@
           "keyed_scheme": "https"
         },
         "expect": {
-          "reason": "none"
+          "reason": "request_header"
         }
       }
     },
