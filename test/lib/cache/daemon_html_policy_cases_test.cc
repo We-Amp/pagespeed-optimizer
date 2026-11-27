@@ -7,6 +7,12 @@
 // that row labels stay public-safe, that the Accept rows match the shared
 // vector file line for line, and that the file matches its hash pin. It runs
 // no policy: the policy runner asserts the rows against the library.
+//
+// A pending row (one marked with kPendingSurface) states a verdict of the
+// C API 1.15 surface before the library has it. The policy runner skips it and
+// counts it apart; this check still checks it, against the 1.15 key and value
+// sets, and refuses those keys and values on a row that is not pending, which
+// the runner would otherwise run while ignoring them.
 
 #include "test/lib/cache/daemon_html_policy_cases.h"
 
@@ -14,6 +20,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <fstream>
 #include <map>
 #include <nlohmann/json.hpp>
@@ -100,6 +107,35 @@ class Checker {
       }
     }
   }
+  void Stamp(const std::string& where, const json& obj, const char* key) {
+    if (!obj.contains(key)) return;
+    static const std::regex kStamp("[0-9a-f]{16}");
+    if (!obj[key].is_string() ||
+        !std::regex_match(obj[key].get<std::string>(), kStamp)) {
+      Fail(where, std::string(key) + " is not 16 lowercase hex characters");
+    }
+  }
+  void HeaderLines(const std::string& where, const json& obj, const char* key,
+                   bool allow_empty_name) {
+    if (!obj.contains(key)) return;
+    bool ok = obj[key].is_array();
+    if (ok) {
+      for (const json& line : obj[key]) {
+        ok = ok && line.is_array() && line.size() == 2 && line[0].is_string() &&
+             line[1].is_string() &&
+             (allow_empty_name || !line[0].get<std::string>().empty());
+      }
+    }
+    if (!ok) Fail(where, std::string(key) + " is not a list of [name, value]");
+  }
+  void Strings(const std::string& where, const json& obj, const char* key) {
+    if (!obj.contains(key)) return;
+    bool ok = obj[key].is_array();
+    if (ok) {
+      for (const json& v : obj[key]) ok = ok && v.is_string();
+    }
+    if (!ok) Fail(where, std::string(key) + " is not a list of strings");
+  }
   void Hash(const std::string& where, const json& obj, const char* key,
             bool nullable) {
     if (!obj.contains(key)) return;
@@ -175,6 +211,45 @@ const StringSet kServeReasons = {"fresh",
                                  "withheld",
                                  "skew"};
 const StringSet kOutcomes = {"markdown_200", "markdown_304", "fall_through"};
+
+// The one pending value: rows for the C API 1.15 surface.
+constexpr char kPendingSurface[] = "c-api-1.15";
+
+// What the 1.15 surface adds to the sets above. Only a pending row may use it.
+const StringSet kServeReasons115 = {
+    "scope",        "capped",          "conditional",    "credentialed",
+    "legacy_entry", "policy_mismatch", "request_header", "path"};
+const StringSet kStoreReasons115 = {"request_header", "path"};
+const StringSet kStoreFlags115 = {"request_anonymous"};
+const StringSet kRequestFlags115 = {"explicit_public"};
+const StringSet kServeRequestFlags115 = {"fresh_only", "html_fallback",
+                                         "conditional", "explicit_public"};
+const StringSet kScopes115 = {"agents", "all"};
+const StringSet kStructSizes115 = {"1.14", "1.15"};
+const StringSet kEntryFlags115 = {"store_v2", "anonymous_recorded"};
+const StringSet kWrittenBy115 = {"front", "module_v1", "module_v2_no_stamp",
+                                 "module_v2_anonymous",
+                                 "module_v2_credentialed"};
+const StringSet kGuardReasons115 = {"none", "request_header", "path"};
+const StringSet kCookieClasses115 = {"none", "ignorable_only", "blocking"};
+const StringSet kCredentialed115 = {"anonymous-only", "explicit-public"};
+const StringSet kListVersions115 = {"current", "next"};
+// The calls only the 1.15 surface answers.
+const StringSet kCalls115 = {"store_write",  "guard", "cookies",
+                             "ignore_guard", "stamp", "invalidate",
+                             "format"};
+
+StringSet Union(const StringSet& a, const StringSet& b) {
+  StringSet out = a;
+  out.insert(b.begin(), b.end());
+  return out;
+}
+
+// The set a row may use: the base set, plus the 1.15 additions on a pending
+// row.
+StringSet For(bool pending, const StringSet& base, const StringSet& added) {
+  return pending ? Union(base, added) : base;
+}
 const StringSet kMethods = {"GET",    "HEAD",    "POST", "PUT",
                             "DELETE", "OPTIONS", "PATCH"};
 const StringSet kContents = {"html", "css", "js", "image", "other"};
@@ -182,43 +257,86 @@ const StringSet kDeriverVersions = {"current", "previous"};
 const StringSet kWithheldReasons = {"below_floor", "too_large", "encoded",
                                     "hash_mismatch", "extract_failed"};
 
+// The request guard's input (call guard, and request_guard on store and serve).
+void CheckGuardInput(Checker& c, const std::string& w, const json& g) {
+  c.Keys(w, g, {"raw_path", "headers", "keyed_scheme"},
+         {"raw_path", "headers", "keyed_scheme"});
+  c.Str(w, g, "raw_path");
+  c.HeaderLines(w, g, "headers", /*allow_empty_name=*/false);
+  c.OneOf(w, g, "keyed_scheme", {"http", "https"});
+}
+
 void CheckStore(Checker& c, const std::string& w, const json& in,
-                const json& ex) {
-  c.Keys(w + " input", in,
-         {"mode", "method", "url_path", "request", "status", "headers", "body",
-          "body_bytes", "body_complete", "max_body_bytes", "now_s"},
-         {"mode", "method", "url_path", "request", "status", "headers", "body",
-          "body_complete", "max_body_bytes", "now_s"});
+                const json& ex, bool pending, bool write) {
+  StringSet keys = {"mode",          "method",         "url_path", "request",
+                    "status",        "headers",        "body",     "body_bytes",
+                    "body_complete", "max_body_bytes", "now_s"};
+  if (pending) {
+    keys.insert("request_guard");
+    keys.insert("credentialed");
+  }
+  if (write) {
+    keys.insert("policy_stamp");
+    keys.insert("capture_start_ms");
+    keys.insert("sidecar_format3");
+  }
+  StringSet required = {
+      "mode",    "method", "url_path",      "request",        "status",
+      "headers", "body",   "body_complete", "max_body_bytes", "now_s"};
+  if (write) {
+    required.insert("policy_stamp");
+    required.insert("capture_start_ms");
+  }
+  c.Keys(w + " input", in, keys, required);
   if (in.contains("mode") && !in["mode"].is_number_integer()) {
     c.OneOf(w + " input", in, "mode", kModes);
   }
   c.OneOf(w + " input", in, "method", kMethods);
   c.Str(w + " input", in, "url_path");
-  c.SubsetOf(w + " input", in, "request", kRequestFlags);
+  c.SubsetOf(w + " input", in, "request",
+             For(pending, kRequestFlags, kRequestFlags115));
   c.Uint(w + " input", in, "status");
   c.Str(w + " input", in, "body");
   c.Uint(w + " input", in, "body_bytes");
   c.Bool(w + " input", in, "body_complete");
   c.Uint(w + " input", in, "max_body_bytes");
   c.Uint(w + " input", in, "now_s");
-  if (in.contains("headers")) {
-    bool ok = in["headers"].is_array();
-    if (ok) {
-      for (const json& line : in["headers"]) {
-        ok = ok && line.is_array() && line.size() == 2 && line[0].is_string() &&
-             line[1].is_string() && !line[0].get<std::string>().empty();
-      }
-    }
-    if (!ok) c.Fail(w + " input", "headers is not a list of [name, value]");
+  c.Stamp(w + " input", in, "policy_stamp");
+  c.Uint(w + " input", in, "capture_start_ms");
+  c.Bool(w + " input", in, "sidecar_format3");
+  c.OneOf(w + " input", in, "credentialed", kCredentialed115);
+  c.HeaderLines(w + " input", in, "headers", /*allow_empty_name=*/false);
+  if (in.contains("request_guard")) {
+    CheckGuardInput(c, w + " request_guard", in["request_guard"]);
   }
-  c.Keys(w + " expect", ex,
-         {"action", "reason", "detail", "lifetime_s", "flags", "cc_flags"},
-         {"action"});
+  const StringSet reasons = For(pending, kStoreReasons, kStoreReasons115);
+  if (write) {
+    c.Keys(w + " expect", ex,
+           {"action", "reason", "written", "entry_flags", "entry_flags_clear",
+            "policy_stamp"},
+           {"action", "written"});
+    c.OneOf(w + " expect", ex, "action", kStoreActions);
+    c.OneOf(w + " expect", ex, "reason", reasons);
+    c.Bool(w + " expect", ex, "written");
+    c.SubsetOf(w + " expect", ex, "entry_flags", kEntryFlags115);
+    c.SubsetOf(w + " expect", ex, "entry_flags_clear", kEntryFlags115);
+    c.Stamp(w + " expect", ex, "policy_stamp");
+    if (ex.value("written", false) != ex.contains("entry_flags")) {
+      c.Fail(w + " expect", "entry_flags is asserted exactly when written");
+    }
+    return;
+  }
+  StringSet expect_keys = {"action",     "reason", "detail",
+                           "lifetime_s", "flags",  "cc_flags"};
+  if (pending) expect_keys.insert("flags_clear");
+  c.Keys(w + " expect", ex, expect_keys, {"action"});
   c.OneOf(w + " expect", ex, "action", kStoreActions);
-  c.OneOf(w + " expect", ex, "reason", kStoreReasons);
+  c.OneOf(w + " expect", ex, "reason", reasons);
   c.Str(w + " expect", ex, "detail");
   c.Uint(w + " expect", ex, "lifetime_s");
-  c.SubsetOf(w + " expect", ex, "flags", kStoreFlags);
+  const StringSet flags = For(pending, kStoreFlags, kStoreFlags115);
+  c.SubsetOf(w + " expect", ex, "flags", flags);
+  c.SubsetOf(w + " expect", ex, "flags_clear", flags);
   c.SubsetOf(w + " expect", ex, "cc_flags", kCcFlags);
 }
 
@@ -229,13 +347,7 @@ void CheckServeRequest(Checker& c, const std::string& w, const json& r) {
           "if_none_match", "now_s"},
          {"method", "now_s"});
   c.OneOf(w, r, "method", kMethods);
-  if (r.contains("accept")) {
-    bool ok = r["accept"].is_array();
-    if (ok) {
-      for (const json& line : r["accept"]) ok = ok && line.is_string();
-    }
-    if (!ok) c.Fail(w, "accept is not a list of strings");
-  }
+  c.Strings(w, r, "accept");
   for (const char* key : {"authorization", "authenticated_user", "cookie",
                           "range", "if_range", "origin"}) {
     c.Bool(w, r, key);
@@ -246,39 +358,66 @@ void CheckServeRequest(Checker& c, const std::string& w, const json& r) {
   c.Uint(w, r, "now_s");
 }
 
+// serve_scope is a name from the set, or an integer for a value outside it.
+void CheckScopeAndClass(Checker& c, const std::string& w, const json& in) {
+  if (in.contains("serve_scope") && !in["serve_scope"].is_number_unsigned()) {
+    c.OneOf(w, in, "serve_scope", kScopes115);
+  }
+  c.Uint(w, in, "agent_class");
+  c.SubsetOf(w, in, "request_flags", kServeRequestFlags115);
+  c.Stamp(w, in, "policy_stamp");
+}
+
 void CheckServe(Checker& c, const std::string& w, const json& in,
-                const json& ex) {
-  c.Keys(w + " input", in, {"mode", "request", "stored"},
-         {"mode", "request", "stored"});
+                const json& ex, bool pending) {
+  StringSet keys = {"mode", "request", "stored"};
+  if (pending) {
+    keys.insert({"struct_size", "serve_scope", "agent_class",
+                 "html_max_lifetime_s", "request_flags", "policy_stamp",
+                 "request_guard"});
+  }
+  c.Keys(w + " input", in, keys, {"mode", "request", "stored"});
   if (in.contains("mode") && !in["mode"].is_number_integer()) {
     c.OneOf(w + " input", in, "mode", kModes);
+  }
+  c.OneOf(w + " input", in, "struct_size", kStructSizes115);
+  CheckScopeAndClass(c, w + " input", in);
+  c.Uint(w + " input", in, "html_max_lifetime_s");
+  if (in.contains("request_guard")) {
+    CheckGuardInput(c, w + " request_guard", in["request_guard"]);
   }
   if (in.contains("request"))
     CheckServeRequest(c, w + " request", in["request"]);
   if (in.contains("stored")) {
     const json& s = in["stored"];
-    const StringSet keys = {"present",
-                            "stored_at",
-                            "age_at_store",
-                            "lifetime_s",
-                            "needs_validation",
-                            "explicit_shared",
-                            "headers_not_reproducible",
-                            "sidecar_required",
-                            "sidecar_present",
-                            "purged",
-                            "cc_flags",
-                            "variant_present",
-                            "binding_live",
-                            "withheld",
-                            "render_ttl_s",
-                            "binding_hash",
-                            "markdown_hash"};
-    c.Keys(w + " stored", s, keys, keys);
+    const StringSet required = {"present",
+                                "stored_at",
+                                "age_at_store",
+                                "lifetime_s",
+                                "needs_validation",
+                                "explicit_shared",
+                                "headers_not_reproducible",
+                                "sidecar_required",
+                                "sidecar_present",
+                                "purged",
+                                "cc_flags",
+                                "variant_present",
+                                "binding_live",
+                                "withheld",
+                                "render_ttl_s",
+                                "binding_hash",
+                                "markdown_hash"};
+    StringSet allowed = required;
+    if (pending) {
+      allowed.insert({"store_v2", "anonymous_recorded",
+                      "validated_this_request", "entry_policy_stamp"});
+    }
+    c.Keys(w + " stored", s, allowed, required);
     for (const char* key :
          {"present", "needs_validation", "explicit_shared",
           "headers_not_reproducible", "sidecar_required", "sidecar_present",
-          "purged", "variant_present", "binding_live", "withheld"}) {
+          "purged", "variant_present", "binding_live", "withheld", "store_v2",
+          "anonymous_recorded", "validated_this_request"}) {
       c.Bool(w + " stored", s, key);
     }
     for (const char* key :
@@ -288,14 +427,18 @@ void CheckServe(Checker& c, const std::string& w, const json& in,
     c.SubsetOf(w + " stored", s, "cc_flags", kCcFlags);
     c.Hash(w + " stored", s, "binding_hash", false);
     c.Hash(w + " stored", s, "markdown_hash", false);
+    c.Stamp(w + " stored", s, "entry_policy_stamp");
   }
-  c.Keys(w + " expect", ex,
-         {"action", "reason", "enforce", "wants_markdown", "age_s", "outcome"},
-         {"action"});
+  StringSet expect_keys = {"action",         "reason", "enforce",
+                           "wants_markdown", "age_s",  "outcome"};
+  if (pending) expect_keys.insert("not_modified");
+  c.Keys(w + " expect", ex, expect_keys, {"action"});
   c.OneOf(w + " expect", ex, "action", kServeActions);
-  c.OneOf(w + " expect", ex, "reason", kServeReasons);
+  c.OneOf(w + " expect", ex, "reason",
+          For(pending, kServeReasons, kServeReasons115));
   c.Bool(w + " expect", ex, "enforce");
   c.Bool(w + " expect", ex, "wants_markdown");
+  c.Bool(w + " expect", ex, "not_modified");
   c.Uint(w + " expect", ex, "age_s");
   c.OneOf(w + " expect", ex, "outcome", kOutcomes);
   if (ex.value("outcome", "") == "markdown_304" &&
@@ -305,25 +448,43 @@ void CheckServe(Checker& c, const std::string& w, const json& in,
 }
 
 void CheckFacts(Checker& c, const std::string& w, const json& in,
-                const json& ex) {
-  c.Keys(w + " input", in, {"volume", "now_s"}, {"volume", "now_s"});
+                const json& ex, bool pending) {
+  c.Keys(w + " input", in, For(pending, {"volume", "now_s"}, {"serve_request"}),
+         {"volume", "now_s"});
   c.Uint(w + " input", in, "now_s");
+  if (in.contains("serve_request")) {
+    const json& r = in["serve_request"];
+    c.Keys(w + " serve_request", r,
+           {"mode", "accept", "serve_scope", "agent_class", "request_flags",
+            "policy_stamp", "struct_size"},
+           {"mode"});
+    c.OneOf(w + " serve_request", r, "struct_size", kStructSizes115);
+    c.OneOf(w + " serve_request", r, "mode", kModes);
+    c.Strings(w + " serve_request", r, "accept");
+    CheckScopeAndClass(c, w + " serve_request", r);
+  }
   if (in.contains("volume")) {
     const json& v = in["volume"];
     c.Keys(w + " volume", v,
-           {"original", "markdown", "withheld_marker", "sidecar"}, {"sidecar"});
+           For(pending, {"original", "markdown", "withheld_marker", "sidecar"},
+               {"sidecar_policy_stamp"}),
+           {"sidecar"});
     c.Bool(w + " volume", v, "sidecar");
+    c.Stamp(w + " volume", v, "sidecar_policy_stamp");
     if (v.contains("original")) {
       const json& o = v["original"];
       c.Keys(w + " original", o,
-             {"stored_at", "lifetime_s", "cc_flags", "origin_html_hash",
-              "sidecar_required"},
+             For(pending,
+                 {"stored_at", "lifetime_s", "cc_flags", "origin_html_hash",
+                  "sidecar_required"},
+                 {"written_by"}),
              {"stored_at", "lifetime_s", "cc_flags", "origin_html_hash"});
       c.Bool(w + " original", o, "sidecar_required");
       c.Uint(w + " original", o, "stored_at");
       c.Uint(w + " original", o, "lifetime_s");
       c.SubsetOf(w + " original", o, "cc_flags", kCcFlags);
       c.Hash(w + " original", o, "origin_html_hash", true);
+      c.OneOf(w + " original", o, "written_by", kWrittenBy115);
     }
     if (v.contains("markdown")) {
       const json& m = v["markdown"];
@@ -343,10 +504,12 @@ void CheckFacts(Checker& c, const std::string& w, const json& in,
     }
   }
   c.Keys(w + " expect", ex,
-         {"present", "variant_present", "binding_live", "withheld",
-          "explicit_shared", "sidecar_present", "sidecar_required",
-          "needs_validation", "stored_at", "age_at_store", "lifetime_s",
-          "cc_flags", "serve", "etag"},
+         For(pending,
+             {"present", "variant_present", "binding_live", "withheld",
+              "explicit_shared", "sidecar_present", "sidecar_required",
+              "needs_validation", "stored_at", "age_at_store", "lifetime_s",
+              "cc_flags", "serve", "etag"},
+             {"store_v2", "anonymous_recorded", "entry_policy_stamp"}),
          {"present"});
   if (ex.contains("etag") && !ex["etag"].is_null()) {
     static const std::regex kFactsTag("W/\"psm-[0-9a-f]{16}\"");
@@ -355,20 +518,104 @@ void CheckFacts(Checker& c, const std::string& w, const json& in,
       c.Fail(w + " expect", "etag is not null or W/\"psm-<16 hex>\"");
     }
   }
-  for (const char* key : {"present", "variant_present", "binding_live",
-                          "withheld", "explicit_shared", "sidecar_present",
-                          "sidecar_required", "needs_validation"}) {
+  for (const char* key :
+       {"present", "variant_present", "binding_live", "withheld",
+        "explicit_shared", "sidecar_present", "sidecar_required",
+        "needs_validation", "store_v2", "anonymous_recorded"}) {
     c.Bool(w + " expect", ex, key);
   }
   for (const char* key : {"stored_at", "age_at_store", "lifetime_s"}) {
     c.Uint(w + " expect", ex, key);
   }
+  c.Stamp(w + " expect", ex, "entry_policy_stamp");
   c.SubsetOf(w + " expect", ex, "cc_flags", kCcFlags);
   if (ex.contains("serve")) {
     c.Keys(w + " expect serve", ex["serve"], {"action", "reason"},
            {"action", "reason"});
     c.OneOf(w + " expect serve", ex["serve"], "action", kServeActions);
-    c.OneOf(w + " expect serve", ex["serve"], "reason", kServeReasons);
+    c.OneOf(w + " expect serve", ex["serve"], "reason",
+            For(pending, kServeReasons, kServeReasons115));
+  }
+}
+
+void CheckGuard(Checker& c, const std::string& w, const json& in,
+                const json& ex) {
+  CheckGuardInput(c, w + " input", in);
+  c.Keys(w + " expect", ex, {"reason", "header_index", "xfp"}, {"reason"});
+  c.OneOf(w + " expect", ex, "reason", kGuardReasons115);
+  c.Uint(w + " expect", ex, "header_index");
+  c.Bool(w + " expect", ex, "xfp");
+}
+
+void CheckCookies(Checker& c, const std::string& w, const json& in,
+                  const json& ex) {
+  c.Keys(w + " input", in, {"cookie_lines", "ignore_builtin", "additions"},
+         {"cookie_lines", "ignore_builtin", "additions"});
+  c.Strings(w + " input", in, "cookie_lines");
+  c.Bool(w + " input", in, "ignore_builtin");
+  c.Strings(w + " input", in, "additions");
+  c.Keys(w + " expect", ex, {"class", "first_blocking", "ignorable_values"},
+         {"class"});
+  c.OneOf(w + " expect", ex, "class", kCookieClasses115);
+  c.Str(w + " expect", ex, "first_blocking");
+  c.Strings(w + " expect", ex, "ignorable_values");
+  if (ex.contains("first_blocking") && ex.value("class", "") != "blocking") {
+    c.Fail(w + " expect", "first_blocking is asserted only for blocking");
+  }
+}
+
+void CheckIgnoreGuard(Checker& c, const std::string& w, const json& in,
+                      const json& ex) {
+  c.Keys(w + " input", in, {"addition"}, {"addition"});
+  c.Str(w + " input", in, "addition");
+  c.Keys(w + " expect", ex, {"accepted", "warning"}, {"accepted", "warning"});
+  c.Bool(w + " expect", ex, "accepted");
+  c.Bool(w + " expect", ex, "warning");
+}
+
+void CheckStampCall(Checker& c, const std::string& w, const json& in,
+                    const json& ex) {
+  c.Keys(w + " input", in, {"a", "b"}, {"a", "b"});
+  for (const char* side : {"a", "b"}) {
+    if (!in.contains(side)) continue;
+    const std::string sw = w + " " + side;
+    const json& s = in[side];
+    c.Keys(sw, s,
+           {"credentialed", "ignore_builtin", "list_version", "additions"},
+           {"credentialed", "ignore_builtin", "list_version", "additions"});
+    c.OneOf(sw, s, "credentialed", kCredentialed115);
+    c.Bool(sw, s, "ignore_builtin");
+    c.OneOf(sw, s, "list_version", kListVersions115);
+    c.Strings(sw, s, "additions");
+  }
+  c.Keys(w + " expect", ex, {"equal", "nonzero"}, {"equal"});
+  c.Bool(w + " expect", ex, "equal");
+  c.Bool(w + " expect", ex, "nonzero");
+}
+
+void CheckInvalidate(Checker& c, const std::string& w, const json& in,
+                     const json& ex) {
+  c.Keys(w + " input", in, {"method", "status"}, {"method", "status"});
+  if (in.contains("method") && !in["method"].is_null()) {
+    c.Str(w + " input", in, "method");
+  }
+  c.Uint(w + " input", in, "status");
+  c.Keys(w + " expect", ex, {"invalidates"}, {"invalidates"});
+  c.Bool(w + " expect", ex, "invalidates");
+}
+
+void CheckFormat(Checker& c, const std::string& w, const json& in,
+                 const json& ex) {
+  c.Keys(w + " input", in, {"fields"}, {"fields"});
+  c.HeaderLines(w + " input", in, "fields", /*allow_empty_name=*/false);
+  c.Keys(w + " expect", ex, {"line"}, {"line"});
+  if (ex.contains("line") && !ex["line"].is_null()) {
+    c.Str(w + " expect", ex, "line");
+    if (ex["line"].is_string() &&
+        json::parse(ex["line"].get<std::string>(), nullptr, false)
+            .is_discarded()) {
+      c.Fail(w + " expect", "line is not one JSON object");
+    }
   }
 }
 
@@ -504,8 +751,12 @@ TEST(DaemonHtmlPolicyCasesTest, EveryRowHasTheDocumentedShape) {
   for (const json& row : doc["rows"]) {
     const std::string id = row.value("id", "");
     const std::string w = "row '" + id + "'";
-    c.Keys(w, row, {"id", "runners", "why", "policy"},
+    c.Keys(w, row, {"id", "runners", "why", "policy", "pending"},
            {"id", "runners", "why", "policy"});
+    const bool pending = row.contains("pending");
+    if (pending && row["pending"] != kPendingSurface) {
+      c.Fail(w, std::string("pending is not \"") + kPendingSurface + "\"");
+    }
     if (!std::regex_match(id, kId)) c.Fail(w, "id is not [a-z0-9-]");
     if (!ids.insert(id).second) c.Fail(w, "duplicate id");
     if (row.value("runners", json::array()) != json::array({"policy"})) {
@@ -522,12 +773,46 @@ TEST(DaemonHtmlPolicyCasesTest, EveryRowHasTheDocumentedShape) {
     const json in = p.value("input", json::object());
     const json ex = p.value("expect", json::object());
     ++per_call[call];
+    if (kCalls115.count(call) != 0 && !pending) {
+      c.Fail(w, "call '" + call + "' is a 1.15 call and needs pending");
+      continue;
+    }
+    // A pending row must need the marker: checked as a row that runs today,
+    // it must use at least one 1.15 key, call or value. Otherwise a failing
+    // row could be hidden by marking it.
+    if (pending && kCalls115.count(call) == 0) {
+      Checker today;
+      if (call == "store") {
+        CheckStore(today, w, in, ex, /*pending=*/false, /*write=*/false);
+      } else if (call == "serve") {
+        CheckServe(today, w, in, ex, /*pending=*/false);
+      } else if (call == "facts") {
+        CheckFacts(today, w, in, ex, /*pending=*/false);
+      }
+      if (today.errors().empty()) {
+        c.Fail(w, "pending, but uses no 1.15 key, call or value");
+      }
+    }
     if (call == "store") {
-      CheckStore(c, w, in, ex);
+      CheckStore(c, w, in, ex, pending, /*write=*/false);
+    } else if (call == "store_write") {
+      CheckStore(c, w, in, ex, pending, /*write=*/true);
     } else if (call == "serve") {
-      CheckServe(c, w, in, ex);
+      CheckServe(c, w, in, ex, pending);
     } else if (call == "facts") {
-      CheckFacts(c, w, in, ex);
+      CheckFacts(c, w, in, ex, pending);
+    } else if (call == "guard") {
+      CheckGuard(c, w, in, ex);
+    } else if (call == "cookies") {
+      CheckCookies(c, w, in, ex);
+    } else if (call == "ignore_guard") {
+      CheckIgnoreGuard(c, w, in, ex);
+    } else if (call == "stamp") {
+      CheckStampCall(c, w, in, ex);
+    } else if (call == "invalidate") {
+      CheckInvalidate(c, w, in, ex);
+    } else if (call == "format") {
+      CheckFormat(c, w, in, ex);
     } else if (call == "etag") {
       CheckEtag(c, w, in, ex);
     } else if (call == "inm") {
@@ -598,12 +883,53 @@ TEST(DaemonHtmlPolicyCasesTest, RejectsMalformedRows) {
   CheckServe(c, "bad", json::parse(R"({"mode":"serve-variants",
       "request":{"method":"GET","now_s":1,"surprise":true},
       "stored":{}})"),
-             json::parse(R"({"action":"serve_markdown","reason":"bogus"})"));
+             json::parse(R"({"action":"serve_markdown","reason":"bogus"})"),
+             /*pending=*/false);
   EXPECT_GE(c.errors().size(), 3u);  // unknown key, missing facts, bad reason
   EXPECT_FALSE(LabelIsPublicSafe("store: rule S99"));
   EXPECT_FALSE(LabelIsPublicSafe("per constraint 99"));
   EXPECT_FALSE(LabelIsPublicSafe("tracked as XYZ-99"));
   EXPECT_TRUE(LabelIsPublicSafe("store: private (RFC 9111 5.2.2.7)"));
+}
+
+// The 1.15 keys and values are accepted on a pending row only: a row the
+// runner runs today must not carry a field the runner would ignore.
+TEST(DaemonHtmlPolicyCasesTest, Only1_15RowsUseThe1_15Surface) {
+  const json in = json::parse(R"({"mode":"serve-cached-html",
+      "serve_scope":"agents","agent_class":3,"request_flags":["fresh_only"],
+      "request":{"method":"GET","accept":["text/html"],"now_s":300},
+      "stored":{"present":true,"stored_at":0,"age_at_store":0,
+        "lifetime_s":3600,"needs_validation":false,"explicit_shared":false,
+        "headers_not_reproducible":false,"sidecar_required":false,
+        "sidecar_present":false,"purged":false,"cc_flags":[],
+        "variant_present":true,"binding_live":true,"withheld":false,
+        "render_ttl_s":86400,"store_v2":true,
+        "binding_hash":"79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+        "markdown_hash":"558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"}})");
+  const json ex = json::parse(R"({"action":"fall_through","reason":"scope"})");
+  Checker today;
+  CheckServe(today, "row", in, ex, /*pending=*/false);
+  // serve_scope, agent_class, request_flags, store_v2, the reason.
+  EXPECT_EQ(today.errors().size(), 5u);
+  Checker pending;
+  CheckServe(pending, "row", in, ex, /*pending=*/true);
+  EXPECT_TRUE(pending.errors().empty());
+  for (const std::string& e : pending.errors()) ADD_FAILURE() << e;
+}
+
+// Pending rows exist only while the 1.15 surface is unbuilt, and every one
+// names that surface.
+TEST(DaemonHtmlPolicyCasesTest, PendingRowsNameThe1_15Surface) {
+  const json doc = LoadCases();
+  ASSERT_FALSE(doc.is_discarded());
+  int pending = 0;
+  for (const json& row : doc["rows"]) {
+    if (!row.contains("pending")) continue;
+    ++pending;
+    EXPECT_EQ(row["pending"], kPendingSurface) << row["id"];
+  }
+  EXPECT_EQ(static_cast<size_t>(pending), kDaemonHtmlPolicyCasesPendingRows);
+  std::printf("policy cases: %d pending rows (%s)\n", pending, kPendingSurface);
 }
 
 // Each Accept vector in the shared vector file has one serve row with the same
