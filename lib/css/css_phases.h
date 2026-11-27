@@ -169,6 +169,17 @@ bool RestorePreservedComments(std::string_view input,
   return true;
 }
 
+// True iff text[pos] is ESCAPE CONTENT: preceded by an odd-length run
+// of backslashes, so it is part of an identifier, never a syntactic
+// character.  The single escape predicate for the property-name scans
+// (AtCustomPropertyColon here, IsValueGroupBrace in css_minify.cc), so
+// every phase agrees on what a custom-property name contains.
+bool IsEscapeContentAt(std::string_view text, size_t pos) {
+  size_t slashes = 0;
+  while (pos > slashes && text[pos - 1 - slashes] == '\\') ++slashes;
+  return slashes % 2 == 1;
+}
+
 // True if a ':' about to be emitted sits in a declaration's property
 // position and the property name starts with "--" (a CSS custom
 // property).  Custom-property values are opaque token streams whose
@@ -197,13 +208,7 @@ bool RestorePreservedComments(std::string_view input,
 // decimal rule rewrote `a{--\ \>:0.}` to `a{--\ \>:.}` — valid-CSS
 // served-value corruption, found by the token-oracle nightly).
 bool AtCustomPropertyColon(const std::string& r) {
-  // True iff r[pos] is preceded by an odd-length run of backslashes
-  // (i.e. it is escape content, not a syntactic character).
-  auto is_escaped = [&r](size_t pos) {
-    size_t slashes = 0;
-    while (pos > slashes && r[pos - 1 - slashes] == '\\') ++slashes;
-    return slashes % 2 == 1;
-  };
+  auto is_escaped = [&r](size_t pos) { return IsEscapeContentAt(r, pos); };
   size_t e = r.size();
   while (e > 0 && r[e - 1] == ' ' && !is_escaped(e - 1)) --e;
   size_t s = e;

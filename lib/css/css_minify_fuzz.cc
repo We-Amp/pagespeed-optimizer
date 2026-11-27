@@ -170,6 +170,19 @@ const char* const kValidCssSeeds[] = {
     // property; the rule block's empty-declaration trim is sanctioned.
     "2[/ro;--y:t){;m0}",
     "[;--a:b]{;c}",
+    // #954 (and the earlier auto-closed #848, #882, #907): a custom
+    // property whose name holds an escaped char keeps its value's brace
+    // group verbatim — Phase 5 must not collapse it as a nested block.
+    "--\\--\\>\t--\\-p:>----{;]}",
+    "--\\--\\>\t--\\-p:>--{ax:-;a;b:;}-----x",
+    "--\\--\\>\t--\\-p:>--{ax4-;a;b;}---'q];",
+    "--T--\\~--\\---\\,p:>-\\>\t--\\,p:>-{;'d'}rd",
+    "--\\--\\>\t--\\-p:>--{ax:-;a;b;}--;a;\r\"a-x",
+    "--\\--\\>\t--\\-p:>--{;b;}--ccccccccccc\t--\\-p:>--{;b;\\-",
+    ":rpt{--x0\\:: { ;;}}",
+    "--\\>:c{;d-}0-0/5.!0",
+    "a-0:\\\\\\\\\\\t\\\r~; --\\\t\\&:{5;;}((",
+    "a{--\\>p:{;b;}}",
     // #582: preserved comments (/*!, @license, @preserve) survive
     // byte-for-byte through the sentinel round trip; ordinary comments
     // still strip.
