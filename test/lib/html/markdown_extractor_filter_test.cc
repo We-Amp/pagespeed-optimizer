@@ -466,23 +466,13 @@ TEST_F(MarkdownExtractorFilterTest, DecodesAsciiEntities) {
   EXPECT_EQ(Md("<main><p>a &amp; b &lt; c &gt; d</p></main>"), "a & b < c > d");
 }
 
-// BLOCKER 2: a named/numeric entity that decodes to a single Latin-1 byte
-// 0x80-0xFF (&middot;=0xB7, &copy;=0xA9, &eacute;=0xE9) must NOT ship that lone
-// invalid byte. Under the raw-fallback design they stay as literal entity text;
-// either way the output must be valid UTF-8 and contain none of the raw bytes.
+// A named reference above U+007F (&middot;, &copy;, &eacute;) decodes to its
+// UTF-8 encoding, never to a lone Latin-1 byte.
 TEST_F(MarkdownExtractorFilterTest, NamedNonAsciiEntityNoInvalidByte) {
-  for (const char* html :
-       {"<main><p>a&middot;b</p></main>", "<main><p>a&copy;b</p></main>",
-        "<main><p>a&eacute;b</p></main>"}) {
-    const std::string md = Md(html);
-    EXPECT_TRUE(MarkdownIsValidUtf8(md)) << "not valid UTF-8 for: " << html;
-    EXPECT_EQ(md.find('\xB7'), std::string::npos) << "raw 0xB7 in: " << html;
-    EXPECT_EQ(md.find('\xA9'), std::string::npos) << "raw 0xA9 in: " << html;
-    EXPECT_EQ(md.find('\xE9'), std::string::npos) << "raw 0xE9 in: " << html;
-    EXPECT_FALSE(md.empty()) << "text dropped for: " << html;
-  }
-  // Documented behavior: raw-fallback leaves the original entity text intact.
-  EXPECT_EQ(Md("<main><p>a&middot;b</p></main>"), "a&middot;b");
+  EXPECT_EQ(Md("<main><p>a&middot;b</p></main>"), "a\xC2\xB7\x62");
+  EXPECT_EQ(Md("<main><p>a&copy;b</p></main>"), "a\xC2\xA9\x62");
+  EXPECT_EQ(Md("<main><p>a&eacute;b</p></main>"), "a\xC3\xA9\x62");
+  EXPECT_TRUE(MarkdownIsValidUtf8(Md("<main><p>a&eacute;b</p></main>")));
 }
 
 // NBSP must fold to an ASCII space EVERYWHERE — in normal collapsed text AND in
@@ -895,6 +885,32 @@ TEST_F(MarkdownExtractorFilterTest, PreWithBlockLinesStaysOneFence) {
             "```\n\nAfter.");
   // Ordinary <pre> text keeps blank lines and indentation as written.
   EXPECT_EQ(Md("<pre>  a\n\n  b</pre>"), "```\n  a\n\n  b\n```");
+}
+
+// ---- every HTML5 reference decodes --------------------------------------------
+
+// A text node with literal UTF-8 and references decodes every reference.
+TEST_F(MarkdownExtractorFilterTest, DecodesHtml5ReferencesNextToUtf8) {
+  EXPECT_EQ(Md("<main><p>injects critical CSS &mdash; optimized off the "
+               "request path &middot; served from cache</p></main>"),
+            "injects critical CSS \xE2\x80\x94 optimized off the request path "
+            "\xC2\xB7 served from cache");
+  EXPECT_EQ(Md("<main><p><a href=\"/download/\">Download &amp; run "
+               "\xE2\x86\x92</a></p></main>"),
+            "[Download & run \xE2\x86\x92](/download/)");
+  EXPECT_EQ(Md("<main><table><tr><th>A</th></tr><tr><td>&check;</td></tr>"
+               "</table></main>"),
+            "| A |\n| --- |\n| \xE2\x9C\x93 |");
+  EXPECT_EQ(Md("<main><p>a &bogus; b &rsquo; c</p></main>"),
+            "a &bogus; b \xE2\x80\x99 c");
+}
+
+// The front-matter title decodes the same way.
+TEST_F(MarkdownExtractorFilterTest, FrontMatterTitleDecodesReferences) {
+  EXPECT_EQ(Md("<html><head><title>Download 2.10 \xE2\x80\x94 Apache, Docker "
+               "&amp; Helm</title></head><body><p>x</p></body></html>"),
+            "---\ntitle: Download 2.10 \xE2\x80\x94 Apache, Docker & Helm\n"
+            "---\n\nx");
 }
 
 // ---- output is always well-formed UTF-8 -----------------------------------

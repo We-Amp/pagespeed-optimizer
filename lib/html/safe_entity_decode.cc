@@ -3,11 +3,12 @@
 
 #include "lib/html/safe_entity_decode.h"
 
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
+#include <iterator>
 #include <string>
 #include <string_view>
-
-#include "lib/html/html_keywords.h"
 
 namespace net_instaweb {
 
@@ -96,6 +97,130 @@ std::size_t Utf8SequenceLen(std::string_view s, std::size_t i,
   return cont + 1;
 }
 
+struct NamedEntity {
+  std::string_view name;  // without the leading '&' and the trailing ';'
+  std::uint32_t cp1;
+  std::uint32_t cp2;  // 0 when the reference names one code point
+  int legacy;         // 1 when the name is also recognized without ';'
+};
+
+constexpr NamedEntity kNamedEntities[] = {
+#include "lib/html/html5_named_entities.inc"
+};
+
+// Longer than the longest name in the table ("CounterClockwiseContourIntegral",
+// 31 bytes).
+constexpr std::size_t kMaxEntityNameLen = 32;
+
+const NamedEntity* FindEntity(std::string_view name) {
+  const auto* it = std::lower_bound(
+      std::begin(kNamedEntities), std::end(kNamedEntities), name,
+      [](const NamedEntity& e, std::string_view n) { return e.name < n; });
+  if (it == std::end(kNamedEntities) || it->name != name) return nullptr;
+  return it;
+}
+
+void AppendUtf8(std::uint32_t cp, std::string* out) {
+  if (cp < 0x80) {
+    out->push_back(static_cast<char>(cp));
+  } else if (cp < 0x800) {
+    out->push_back(static_cast<char>(0xC0 | (cp >> 6)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else if (cp < 0x10000) {
+    out->push_back(static_cast<char>(0xE0 | (cp >> 12)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else {
+    out->push_back(static_cast<char>(0xF0 | (cp >> 18)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  }
+}
+
+// The code point a numeric character reference stands for, as the HTML
+// Standard maps it: NUL, surrogates and values past U+10FFFF become U+FFFD,
+// and 0x80..0x9F are read as windows-1252. Control characters other than tab,
+// line feed, form feed and carriage return also become U+FFFD.
+std::uint32_t NumericReferenceCodePoint(std::uint32_t v) {
+  static constexpr std::uint32_t kWindows1252[32] = {
+      0x20AC, 0x81,   0x201A, 0x0192, 0x201E, 0x2026, 0x2020, 0x2021,
+      0x02C6, 0x2030, 0x0160, 0x2039, 0x0152, 0x8D,   0x017D, 0x8F,
+      0x90,   0x2018, 0x2019, 0x201C, 0x201D, 0x2022, 0x2013, 0x2014,
+      0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x9D,   0x017E, 0x0178};
+  if (v == 0 || v > 0x10FFFF || (v >= 0xD800 && v <= 0xDFFF)) return 0xFFFD;
+  if (v >= 0x80 && v <= 0x9F) v = kWindows1252[v - 0x80];
+  if ((v < 0x20 && v != '\t' && v != '\n' && v != '\f' && v != '\r') ||
+      v == 0x7F || (v >= 0x80 && v <= 0x9F)) {
+    return 0xFFFD;
+  }
+  return v;
+}
+
+bool IsAsciiAlnum(char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+         (c >= '0' && c <= '9');
+}
+
+// Decode the character reference at s[i] (s[i] == '&'). Appends its text to
+// *out and returns the number of bytes it used, or 0 when s[i] does not start
+// a reference this decoder knows (the '&' is then ordinary text).
+std::size_t DecodeReferenceAt(std::string_view s, std::size_t i,
+                              std::string* out) {
+  const std::size_t n = s.size();
+  if (i + 1 < n && s[i + 1] == '#') {
+    std::size_t j = i + 2;
+    const bool hex = j < n && (s[j] == 'x' || s[j] == 'X');
+    if (hex) ++j;
+    const std::size_t digits = j;
+    std::uint32_t value = 0;
+    for (; j < n; ++j) {
+      const char c = s[j];
+      std::uint32_t d;
+      if (c >= '0' && c <= '9') {
+        d = static_cast<std::uint32_t>(c - '0');
+      } else if (hex && c >= 'a' && c <= 'f') {
+        d = static_cast<std::uint32_t>(c - 'a' + 10);
+      } else if (hex && c >= 'A' && c <= 'F') {
+        d = static_cast<std::uint32_t>(c - 'A' + 10);
+      } else {
+        break;
+      }
+      // Saturate past the Unicode range: the result is U+FFFD either way.
+      value = value > 0x10FFFF ? value : value * (hex ? 16 : 10) + d;
+    }
+    if (j == digits) return 0;  // "&#" or "&#x" with no digits: plain text
+    if (j < n && s[j] == ';') ++j;
+    AppendUtf8(NumericReferenceCodePoint(value), out);
+    return j - i;
+  }
+  std::size_t j = i + 1;
+  while (j < n && j - (i + 1) < kMaxEntityNameLen + 1 && IsAsciiAlnum(s[j])) {
+    ++j;
+  }
+  const std::string_view name = s.substr(i + 1, j - (i + 1));
+  if (name.empty()) return 0;
+  if (j < n && s[j] == ';') {
+    if (const NamedEntity* e = FindEntity(name)) {
+      AppendUtf8(e->cp1, out);
+      if (e->cp2 != 0) AppendUtf8(e->cp2, out);
+      return j + 1 - i;
+    }
+  }
+  // Without a ';' only the historical names are references, matched as the
+  // longest one that prefixes the name ("&copy2026" is "(c)2026").
+  for (std::size_t len = std::min(name.size(), kMaxEntityNameLen); len >= 2;
+       --len) {
+    const NamedEntity* e = FindEntity(name.substr(0, len));
+    if (e != nullptr && e->legacy != 0) {
+      AppendUtf8(e->cp1, out);
+      if (e->cp2 != 0) AppendUtf8(e->cp2, out);
+      return len + 1;
+    }
+  }
+  return 0;
+}
+
 }  // namespace
 
 bool IsWellFormedUtf8(std::string_view s) {
@@ -138,41 +263,33 @@ void FoldNbsp(std::string* s) {
   s->resize(w);
 }
 
-void FoldLatin1Nbsp(std::string* s) {
-  for (char& c : *s) {
-    if (static_cast<unsigned char>(c) == 0xA0) c = ' ';
-  }
-}
-
 std::string SafeDecodeHtmlEntities(std::string_view s) {
-  // 1. Fast path: nothing to decode; preserve the bytes (still honoring the
-  //    "result is always well-formed UTF-8" contract). Callers may byte-cap the
-  //    raw value BEFORE this decode (e.g. ExtractHtmlMetadata's kMaxFieldBytes),
-  //    which can split a trailing multibyte sequence; trim that incomplete tail
-  //    so a lone invalid byte never ships to the agent feed / llms.txt.
-  // Every result is well-formed UTF-8 with each no-break space folded to an
-  //    ASCII space.
-  const auto clean = [](std::string_view v) {
-    std::string r = ToWellFormedUtf8(v);
-    FoldNbsp(&r);
-    return r;
-  };
-  if (s.find('&') == std::string_view::npos) return clean(s);
-  std::string buf;
-  bool decoding_error = false;
-  std::string_view out = HtmlKeywords::Unescape(s, &buf, &decoding_error);
-  // 2. Decode failed (non-ASCII byte / multi-byte entity): keep the original.
-  if (decoding_error) return clean(s);
-  // 3. Decode succeeded (the input was ASCII): fold the Latin-1 NBSP the
-  //    decoder emits for &nbsp;, then validate UTF-8.
-  std::string decoded(out);
-  FoldLatin1Nbsp(&decoded);
-  if (!IsWellFormedUtf8(decoded)) {
-    // A lone Latin-1 byte (e.g. &middot; -> 0xB7) survived the decode. Never
-    // ship an invalid byte: fall back to the original entity text.
-    return clean(s);
+  std::string out;
+  if (s.find('&') == std::string_view::npos) {
+    out = ToWellFormedUtf8(s);
+  } else {
+    // Reference by reference: a reference this decoder does not know stays as
+    // written, and never stops the rest of the text from being decoded.
+    std::string decoded;
+    decoded.reserve(s.size());
+    std::size_t i = 0;
+    while (i < s.size()) {
+      if (s[i] == '&') {
+        const std::size_t used = DecodeReferenceAt(s, i, &decoded);
+        if (used > 0) {
+          i += used;
+          continue;
+        }
+      }
+      decoded.push_back(s[i]);
+      ++i;
+    }
+    // Decoded references are well-formed; input bytes that are not UTF-8
+    // are repaired here.
+    out = ToWellFormedUtf8(decoded);
   }
-  return decoded;
+  FoldNbsp(&out);
+  return out;
 }
 
 }  // namespace net_instaweb
