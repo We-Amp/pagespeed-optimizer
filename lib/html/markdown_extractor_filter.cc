@@ -1371,7 +1371,9 @@ void MarkdownExtractorFilter::EndDocument() {
   // Every piece is well-formed UTF-8 already; a cut at the output cap or a
   // URL or date byte from a non-UTF-8 page is the remaining way to break
   // that, so the whole copy is checked once and repaired if needed.
-  if (!IsWellFormedUtf8(markdown_)) markdown_ = ToWellFormedUtf8(markdown_);
+  if (!IsWellFormedUtf8(markdown_)) {
+    markdown_ = ToWellFormedUtf8(markdown_, /*drop_cut_tail=*/truncated_);
+  }
 }
 
 namespace {

@@ -39,9 +39,14 @@ TEST_F(SafeEntityDecodeTest, NoAmpersandFastPathIsVerbatim) {
 TEST_F(SafeEntityDecodeTest, FastPathTrimsTruncatedTrailingMultibyte) {
   // "caf" + the first 2 bytes of a 3-byte em-dash (E2 80) with the 3rd byte
   // (94) cut off by a cap. No '&' -> fast path. The dangling E2 80 is dropped.
-  EXPECT_EQ(SafeDecodeHtmlEntities("caf\xE2\x80"), "caf");
+  EXPECT_EQ(SafeDecodeHtmlEntities("caf\xE2\x80", /*value_was_capped=*/true),
+            "caf");
   // A lone lead byte at the end is also dropped.
-  EXPECT_EQ(SafeDecodeHtmlEntities("ok\xE2"), "ok");
+  EXPECT_EQ(SafeDecodeHtmlEntities("ok\xE2", /*value_was_capped=*/true), "ok");
+  // An uncut value ending in an incomplete sequence (a non-UTF-8 page) gets
+  // a replacement character, like the same bytes anywhere else.
+  EXPECT_EQ(SafeDecodeHtmlEntities("Caf\xE9"), "Caf\xEF\xBF\xBD");
+  EXPECT_EQ(SafeDecodeHtmlEntities("ok\xE2"), "ok\xEF\xBF\xBD");
   // A complete sequence is preserved.
   EXPECT_EQ(SafeDecodeHtmlEntities("ok\xE2\x80\x94"), "ok\xE2\x80\x94");
 }
@@ -103,6 +108,8 @@ TEST_F(SafeEntityDecodeTest, KnowsTheStandardNames) {
 // The historical names are references without a ';' too, matched as the
 // longest such prefix, as browsers read text.
 TEST_F(SafeEntityDecodeTest, LegacyNamesWithoutSemicolon) {
+  // The longest historical names.
+  EXPECT_EQ(SafeDecodeHtmlEntities("&frac12x &middotx"), "\xC2\xBDx \xC2\xB7x");
   EXPECT_EQ(SafeDecodeHtmlEntities("&copy 2026"), "\xC2\xA9 2026");
   EXPECT_EQ(SafeDecodeHtmlEntities("a &amp b"), "a & b");
   EXPECT_EQ(SafeDecodeHtmlEntities("&notit;"), "\xC2\xACit;");
@@ -147,8 +154,10 @@ TEST_F(SafeEntityDecodeTest, ToWellFormedUtf8ReplacesInvalidBytes) {
   EXPECT_EQ(ToWellFormedUtf8("\xC0\xAF"), "\xEF\xBF\xBD\xEF\xBF\xBD");
   EXPECT_EQ(ToWellFormedUtf8("\xED\xA0\x80"),
             "\xEF\xBF\xBD\xEF\xBF\xBD\xEF\xBF\xBD");
-  // An incomplete sequence at the very end is dropped (a byte-cap cut).
-  EXPECT_EQ(ToWellFormedUtf8("caf\xE2\x80"), "caf");
+  // An incomplete sequence at the very end is replaced, or dropped when the
+  // caller says the value was cut by a byte cap.
+  EXPECT_EQ(ToWellFormedUtf8("caf\xE2\x80"), "caf\xEF\xBF\xBD\xEF\xBF\xBD");
+  EXPECT_EQ(ToWellFormedUtf8("caf\xE2\x80", /*drop_cut_tail=*/true), "caf");
   // The same bytes in the middle are invalid, so they are replaced.
   EXPECT_EQ(ToWellFormedUtf8("\xE2\x80x"), "\xEF\xBF\xBD\xEF\xBF\xBDx");
   for (const char* in : {"\xFF", "a\xC2", "\xF4\x90\x80\x80", "\xA0\xA0"}) {

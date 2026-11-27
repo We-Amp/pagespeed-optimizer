@@ -243,7 +243,7 @@ bool IsHtml5EntityName(std::string_view name) {
   return FindEntity(name) != nullptr;
 }
 
-std::string ToWellFormedUtf8(std::string_view s) {
+std::string ToWellFormedUtf8(std::string_view s, bool drop_cut_tail) {
   if (IsWellFormedUtf8(s)) return std::string(s);
   std::string out;
   out.reserve(s.size() + 8);
@@ -254,8 +254,8 @@ std::string ToWellFormedUtf8(std::string_view s) {
     if (len > 0) {
       out.append(s.substr(i, len));
       i += len;
-    } else if (truncated) {
-      break;  // a sequence cut off at the end (a byte cap): dropped
+    } else if (truncated && drop_cut_tail) {
+      break;  // a sequence cut off at the end by a byte cap: dropped
     } else {
       out.append("\xEF\xBF\xBD");  // U+FFFD REPLACEMENT CHARACTER
       ++i;
@@ -279,10 +279,10 @@ void FoldNbsp(std::string* s) {
   s->resize(w);
 }
 
-std::string SafeDecodeHtmlEntities(std::string_view s) {
+std::string SafeDecodeHtmlEntities(std::string_view s, bool value_was_capped) {
   std::string out;
   if (s.find('&') == std::string_view::npos) {
-    out = ToWellFormedUtf8(s);
+    out = ToWellFormedUtf8(s, value_was_capped);
   } else {
     // Reference by reference: a reference this decoder does not know stays as
     // written, and never stops the rest of the text from being decoded.
@@ -302,7 +302,7 @@ std::string SafeDecodeHtmlEntities(std::string_view s) {
     }
     // Decoded references are well-formed; input bytes that are not UTF-8
     // are repaired here.
-    out = ToWellFormedUtf8(decoded);
+    out = ToWellFormedUtf8(decoded, value_was_capped);
   }
   FoldNbsp(&out);
   return out;

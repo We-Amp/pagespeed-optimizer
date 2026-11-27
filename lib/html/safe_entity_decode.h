@@ -23,9 +23,10 @@ namespace net_instaweb {
 bool IsWellFormedUtf8(std::string_view s);
 
 // `s` with every byte that does not start a well-formed UTF-8 sequence replaced
-// by U+FFFD, except that an incomplete sequence at the very end (a value cut by
-// a byte cap) is dropped. Deterministic; well-formed input is returned as is.
-std::string ToWellFormedUtf8(std::string_view s);
+// by U+FFFD. With `drop_cut_tail` (for a value the caller cut at a byte cap),
+// an incomplete sequence at the very end is dropped instead. Deterministic;
+// well-formed input is returned as is.
+std::string ToWellFormedUtf8(std::string_view s, bool drop_cut_tail = false);
 
 // Fold every UTF-8 no-break space (U+00A0, the bytes C2 A0) to one ASCII
 // space, in place. Both bytes are replaced together, so a multi-byte sequence
@@ -46,10 +47,12 @@ bool IsHtml5EntityName(std::string_view name);
 //   - a reference it does not know ("&bogus;", a bare '&') stays as written,
 //     and the rest of the text is still decoded.
 // The result is always well-formed UTF-8: input bytes that are not UTF-8 are
-// replaced as by ToWellFormedUtf8, and every no-break space (decoded or
+// replaced as by ToWellFormedUtf8 (an incomplete sequence at the end is
+// dropped only when `value_was_capped`), and every no-break space (decoded or
 // literal) is folded to an ASCII space. Markdown escaping of the decoded text
 // (a decoded '<' must not become markup) is the caller's job.
-std::string SafeDecodeHtmlEntities(std::string_view s);
+std::string SafeDecodeHtmlEntities(std::string_view s,
+                                   bool value_was_capped = false);
 
 }  // namespace net_instaweb
 

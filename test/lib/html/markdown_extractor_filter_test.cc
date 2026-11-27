@@ -1146,7 +1146,9 @@ TEST_F(MarkdownExtractorFilterTest, InvalidInputBytesAreReplaced) {
             "caf\xEF\xBF\xBD au lait");
   EXPECT_EQ(Md("<main><p>a\x80\x62</p></main>"), "a\xEF\xBF\xBD\x62");
   EXPECT_EQ(Md("<main><pre>x\xFFy</pre></main>"), "```\nx\xEF\xBF\xBDy\n```");
-  EXPECT_EQ(Md("<main><p><code>q\xC2</code></p></main>"), "`q`");
+  EXPECT_EQ(Md("<main><p><code>q\xC2</code></p></main>"), "`q\xEF\xBF\xBD`");
+  // Bytes at the end of a text node are replaced like any others.
+  EXPECT_EQ(Md("<main><p>Caf\xE9</p></main>"), "Caf\xEF\xBF\xBD");
 }
 
 namespace {
