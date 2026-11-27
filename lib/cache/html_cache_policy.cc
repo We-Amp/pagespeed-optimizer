@@ -133,6 +133,23 @@ size_t CountDirective(std::string_view line, std::string_view name) {
   return count;
 }
 
+// Does this targeted cache-control line (Surrogate-Control, or
+// CDN-Cache-Control per RFC 9213) carry the directive `name`?  A member is
+// matched by its name alone: a value (`=...`) or parameters (`;...`, such as
+// a Surrogate-Control target) do not change it, and a match is ASCII
+// case-insensitive, as for Cache-Control.
+bool TargetedLineHasDirective(std::string_view line, std::string_view name) {
+  while (!line.empty()) {
+    const size_t comma = line.find(',');
+    std::string_view token = line.substr(0, comma);
+    line = comma == std::string_view::npos ? std::string_view()
+                                           : line.substr(comma + 1);
+    token = TrimOws(token.substr(0, token.find_first_of("=;")));
+    if (EqualsIgnoreCase(token, name)) return true;
+  }
+  return false;
+}
+
 HtmlStoreVerdict Refuse(HtmlStoreVerdict v, HtmlStoreReason reason,
                         std::string detail = std::string()) {
   v.action = HtmlStoreAction::kRefuse;
@@ -795,6 +812,21 @@ HtmlStoreVerdict ApplyStoreRules(const HtmlStoreRequest& request,
   }
   if ((cc.cc_flags & Meta::kCCOriginNoStore) != 0) {
     return Refuse(std::move(v), HtmlStoreReason::kNoStore);
+  }
+  // Targeted cache controls: `private` or `no-store` in one refuses, in that
+  // order as for Cache-Control, with the line's name as the detail.  No other
+  // value of theirs is read here, so none extends or shortens the lifetime.
+  static constexpr std::array<std::pair<std::string_view, HtmlStoreReason>, 2>
+      kTargetedRefusals = {{{"private", HtmlStoreReason::kPrivate},
+                            {"no-store", HtmlStoreReason::kNoStore}}};
+  for (const auto& [directive, reason] : kTargetedRefusals) {
+    for (const HeaderField& h : headers) {
+      const bool targeted = EqualsIgnoreCase(h.name, "surrogate-control") ||
+                            EqualsIgnoreCase(h.name, "cdn-cache-control");
+      if (targeted && TargetedLineHasDirective(h.value, directive)) {
+        return Refuse(std::move(v), reason, Lower(h.name));
+      }
+    }
   }
 
   // 8. Cookie request.
