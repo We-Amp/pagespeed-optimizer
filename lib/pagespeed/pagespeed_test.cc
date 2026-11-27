@@ -6322,6 +6322,8 @@ TEST(PageSpeedCApiPolicy, EveryPolicyCaseHoldsWithNoSkips) {
   }
   EXPECT_EQ(skipped, 0u);
   EXPECT_EQ(ran + pending, rows.size());
+  EXPECT_EQ(ran, pagespeed::test::kDaemonHtmlPolicyCasesRunRows);
+  EXPECT_EQ(pending, pagespeed::test::kDaemonHtmlPolicyCasesPendingRows);
   std::printf("policy runner: %zu rows ran, %zu skipped, %zu pending", ran,
               skipped, pending);
   for (const auto& [call, n] : per_call) {

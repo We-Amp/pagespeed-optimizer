@@ -105,48 +105,63 @@
     "absent = 0), request_guard (see guard: the runner calls ps_html_request_guard",
     "first, as a caller must, and a reason it returns is the row's verdict, a",
     "fall_through for serve and a refuse for store; otherwise the classifier runs).",
-    "Absent 1.15 keys are zero. stored adds store_v2 and anonymous_recorded",
-    "(absent = true: the entry a 1.15 module store writes for an anonymous",
-    "request), validated_this_request (absent = false) and entry_policy_stamp (16",
-    "hex; absent = 0). serve expect adds not_modified. New serve reasons: scope,",
+    "Absent 1.15 keys are zero. A row's request_guard repeats its guard row through",
+    "the runner's composition and adds no classifier coverage. stored adds",
+    "store_v2 and anonymous_recorded, validated_this_request and",
+    "entry_policy_stamp (16 hex). DEFAULTS: absent store_v2 and anonymous_recorded",
+    "read as true, so the 1.14 rows keep their verdicts; every 1.15 row states both,",
+    "and the entry stamp, explicitly. serve expect adds not_modified. New serve reasons: scope,",
     "capped, conditional, credentialed, legacy_entry, policy_mismatch,",
     "request_header, path.",
     "",
-    "(1.15) store input request adds explicit_public (the credentialed policy",
-    "explicit-public; absent = anonymous-only) and request_guard as for serve;",
+    "(1.15) store input adds credentialed (anonymous-only | explicit-public; the",
+    "runner sets the explicit-public request bit for explicit-public), which every",
+    "1.15 store row states, and request_guard as for serve;",
     "expect flags adds request_anonymous, and flags_clear names bits that must be",
     "clear. New store reasons: request_header, path.",
     "",
-    "(1.15) call store_write: the store input plus policy_stamp and",
-    "capture_start_ms; the runner classifies, and when the verdict stores, calls",
-    "ps_html_store_write_params with the classifier's flags as a module HTML store",
-    "(format-3 header block with the stamp). expect: action, reason, written",
+    "(1.15) call store_write: the store input plus policy_stamp,",
+    "capture_start_ms and sidecar_format3 (absent = true; false = a caller that",
+    "does not opt in to the format-3 header block, as an earlier module does); the",
+    "runner classifies, and when the verdict stores, calls",
+    "ps_html_store_write_params with the classifier's flags as a module HTML store.",
+    "expect: action, reason, written",
     "(whether write parameters were produced), entry_flags and entry_flags_clear",
     "(store_v2 = 0x80, anonymous_recorded = 0x40 on the stored entry), policy_stamp",
     "(the stamp the header block carries).",
     "",
     "(1.15) facts input adds volume.original.written_by (front = as an optimizer",
-    "front writes an original; module_v1 = the 1.14 write parameters;",
-    "module_v2_anonymous and module_v2_credentialed = the 1.15 module store for an",
-    "anonymous and a cookie request), volume.sidecar_policy_stamp (a format-3",
-    "header block with that stamp), and serve_request {mode, accept, serve_scope,",
-    "agent_class, request_flags, policy_stamp} to replace the serve check's",
+    "front writes an original; module_v1 = bytes a 1.14 library wrote before the",
+    "upgrade; module_v2_no_stamp = an earlier module calling the 1.15 library",
+    "without the format-3 opt-in; module_v2_anonymous and module_v2_credentialed =",
+    "the 1.15 module store for an anonymous and a cookie request; DEFAULT when",
+    "absent: module_v2_anonymous with no stamp, which is what the 1.14 facts rows",
+    "describe), volume.sidecar_policy_stamp (a format-3 header block with that",
+    "stamp), and serve_request {mode, accept, serve_scope, agent_class,",
+    "request_flags, policy_stamp, struct_size} to replace the serve check's",
     "request. expect adds store_v2, anonymous_recorded and entry_policy_stamp.",
     "",
     "(1.15) call guard: ps_html_request_guard(raw_path, header names and values,",
     "keyed_scheme). input: raw_path, headers ([name, value] per line), keyed_scheme.",
-    "expect: reason (none | request_header | path).",
+    "expect: reason (none | request_header | path), header_index (the index of the",
+    "refused header line) and xfp (the refusal is an X-Forwarded-Proto scheme",
+    "mismatch), so a caller needs no header list of its own.",
     "",
     "(1.15) call cookies: ps_html_classify_cookies. input: cookie_lines (the Cookie",
     "lines in order; [] = no header), ignore_builtin, additions. expect: class",
     "(none | ignorable_only | blocking), first_blocking (the first blocking name;",
     "\"\" when there is none to name), ignorable_values (the listed cookies' values,",
-    "in order, for the echo check).",
+    "in order, unquoted, for the echo check). A name that matches a built-in",
+    "session pattern is never ignorable, whatever the additions; a pair without",
+    "= or with an empty name makes the request blocking.",
     "",
     "(1.15) call ignore_guard: ps_html_ignore_cookie_guard. input: addition. expect:",
-    "accepted. An addition is refused when it is *, has fewer than 3 characters",
-    "before a trailing *, matches a built-in session pattern, or, as a prefix,",
-    "would cover a session pattern's fixed leading part.",
+    "accepted, warning. An addition is refused when it is empty, *, has a * other",
+    "than one trailing *, fewer than 3 characters before it, a character outside",
+    "a cookie-name token, matches a built-in session pattern in any case, or, as a",
+    "prefix, would cover a session pattern's fixed leading part. An accepted",
+    "prefix warns (it may still match a session-shaped name, which classification",
+    "then blocks).",
     "",
     "(1.15) call stamp: ps_html_policy_stamp for two settings a and b, each",
     "{credentialed anonymous-only | explicit-public, ignore_builtin, list_version",
@@ -157,7 +172,10 @@
     "input: method (a string, or null for NULL), status. expect: invalidates.",
     "",
     "(1.15) call format: ps_html_decision_format. input: fields ([key, value] in the",
-    "order passed). expect: line (the exact line, or null for a refused call)."
+    "order passed). expect: line (the exact line, or null for a refused call). The",
+    "1.15 keys scope, agent_class and detail (a cookie or header NAME, never a",
+    "value) follow the existing keys. Reasons are one vocabulary with the engine:",
+    "cookie_request and cookie_echo carry the cookie name in detail."
   ],
   "rows": [
     {
@@ -11613,6 +11631,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["cookie"],
@@ -11642,6 +11661,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["cookie"],
@@ -11671,9 +11691,10 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -11703,9 +11724,10 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -11732,9 +11754,10 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -11760,6 +11783,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -11791,6 +11815,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -11820,6 +11845,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -11849,6 +11875,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -11878,6 +11905,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authenticated_user"],
@@ -11907,9 +11935,10 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authorization", "explicit_public"],
+          "request": ["authorization"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -11936,9 +11965,10 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authorization", "explicit_public"],
+          "request": ["authorization"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -11965,9 +11995,10 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authorization", "explicit_public"],
+          "request": ["authorization"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -11994,9 +12025,10 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authenticated_user", "explicit_public"],
+          "request": ["authenticated_user"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12023,6 +12055,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["cookie"],
@@ -12052,6 +12085,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["cookie"],
@@ -12081,9 +12115,10 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12113,9 +12148,10 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12142,9 +12178,10 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12170,6 +12207,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12201,6 +12239,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -12230,6 +12269,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -12259,6 +12299,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -12288,6 +12329,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authenticated_user"],
@@ -12317,9 +12359,10 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authorization", "explicit_public"],
+          "request": ["authorization"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12346,9 +12389,10 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authorization", "explicit_public"],
+          "request": ["authorization"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12375,9 +12419,10 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authorization", "explicit_public"],
+          "request": ["authorization"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12404,9 +12449,10 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["authenticated_user", "explicit_public"],
+          "request": ["authenticated_user"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12433,6 +12479,7 @@
         "call": "store",
         "input": {
           "mode": "report-only",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12463,6 +12510,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12493,6 +12541,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12523,6 +12572,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12553,6 +12603,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["cookie"],
@@ -12585,9 +12636,10 @@
         "call": "store_write",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12620,6 +12672,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12654,6 +12707,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -12686,6 +12740,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authenticated_user"],
@@ -12718,6 +12773,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12752,6 +12808,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["cookie"],
@@ -12784,9 +12841,10 @@
         "call": "store_write",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "explicit-public",
           "method": "GET",
           "url_path": "/page",
-          "request": ["cookie", "explicit_public"],
+          "request": ["cookie"],
           "status": 200,
           "headers": [
             ["Content-Type", "text/html; charset=utf-8"],
@@ -12819,6 +12877,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -12853,6 +12912,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authorization"],
@@ -12885,6 +12945,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["authenticated_user"],
@@ -12917,6 +12978,7 @@
         "call": "store_write",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -14372,7 +14434,8 @@
           "addition": "*"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14387,7 +14450,8 @@
           "addition": "ab*"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14402,7 +14466,8 @@
           "addition": "a*"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14414,10 +14479,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "PHPSESSID"
+          "addition": "*_id"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14429,10 +14495,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "JSESSIONID"
+          "addition": "ab*c"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14444,10 +14511,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "ASP.NET_SessionId"
+          "addition": "abc**"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14459,10 +14527,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": ".ASPXAUTH"
+          "addition": ""
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14474,10 +14543,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": ".AspNetCore.Cookies"
+          "addition": "a=b"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14489,10 +14559,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": ".AspNetCore.*"
+          "addition": "a;b"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14504,10 +14575,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "laravel_session"
+          "addition": "a b"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14519,10 +14591,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "connect.sid"
+          "addition": "phpsessid"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14534,10 +14607,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "sessionid"
+          "addition": "Wordpress_logged_in_x"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14549,10 +14623,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "csrftoken"
+          "addition": "MyApp_Session"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14564,10 +14639,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "XSRF-TOKEN"
+          "addition": "PHPSESSID"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14579,10 +14655,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "SESSabc123"
+          "addition": "JSESSIONID"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14594,10 +14671,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "SESS*"
+          "addition": "ASP.NET_SessionId"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14609,10 +14687,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "SSESSabc123"
+          "addition": ".ASPXAUTH"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14624,10 +14703,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "wordpress_logged_in_x"
+          "addition": ".AspNetCore.Cookies"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14639,10 +14719,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "wordpress_*"
+          "addition": ".AspNetCore.*"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14654,10 +14735,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "wordpress*"
+          "addition": "laravel_session"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14669,10 +14751,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "wp-postpass_x"
+          "addition": "connect.sid"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14684,10 +14767,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "comment_author_x"
+          "addition": "sessionid"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14699,10 +14783,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "woocommerce_cart_hash"
+          "addition": "csrftoken"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14714,10 +14799,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "wp_woocommerce_session_x"
+          "addition": "XSRF-TOKEN"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14729,10 +14815,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "myapp_session"
+          "addition": "SESSabc123"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14744,10 +14831,11 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
-          "addition": "PHPSESS*"
+          "addition": "SESS*"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14759,10 +14847,171 @@
       "policy": {
         "call": "ignore_guard",
         "input": {
+          "addition": "SSESSabc123"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-28",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "wordpress_logged_in_x"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-29",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "wordpress_*"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-30",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "wordpress*"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-31",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "wp-postpass_x"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-32",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "comment_author_x"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-33",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "woocommerce_cart_hash"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-34",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "wp_woocommerce_session_x"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-35",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "myapp_session"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-36",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
+          "addition": "PHPSESS*"
+        },
+        "expect": {
+          "accepted": false,
+          "warning": false
+        }
+      }
+    },
+    {
+      "id": "m2-ignore-guard-refuses-37",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "ignore list guard: an addition that is too wide or a session name",
+      "policy": {
+        "call": "ignore_guard",
+        "input": {
           "addition": "sess*"
         },
         "expect": {
-          "accepted": false
+          "accepted": false,
+          "warning": false
         }
       }
     },
@@ -14777,7 +15026,8 @@
           "addition": "utm_src"
         },
         "expect": {
-          "accepted": true
+          "accepted": true,
+          "warning": false
         }
       }
     },
@@ -14792,7 +15042,8 @@
           "addition": "abtest_*"
         },
         "expect": {
-          "accepted": true
+          "accepted": true,
+          "warning": true
         }
       }
     },
@@ -14807,7 +15058,8 @@
           "addition": "abc*"
         },
         "expect": {
-          "accepted": true
+          "accepted": true,
+          "warning": true
         }
       }
     },
@@ -14822,7 +15074,8 @@
           "addition": "_my_analytics"
         },
         "expect": {
-          "accepted": true
+          "accepted": true,
+          "warning": false
         }
       }
     },
@@ -14837,7 +15090,8 @@
           "addition": "_ga_custom"
         },
         "expect": {
-          "accepted": true
+          "accepted": true,
+          "warning": false
         }
       }
     },
@@ -15112,6 +15366,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -15271,6 +15526,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -15430,6 +15686,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -15589,6 +15846,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -15748,6 +16006,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -15907,6 +16166,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -16066,6 +16326,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -16263,6 +16524,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -16428,6 +16690,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -16606,6 +16869,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -16771,6 +17035,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": [],
@@ -16955,6 +17220,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page;jsessionid=abc",
           "request": [],
@@ -17106,6 +17372,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/fresh;x.css",
           "request": [],
@@ -17257,6 +17524,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/fresh%2Fx.css",
           "request": [],
@@ -17408,6 +17676,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/fresh%2fx.css",
           "request": [],
@@ -17559,6 +17828,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/fresh%5Cx.css",
           "request": [],
@@ -17710,6 +17980,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/fresh%5cx.css",
           "request": [],
@@ -17861,6 +18132,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/a/./page",
           "request": [],
@@ -18012,6 +18284,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/a/../page",
           "request": [],
@@ -18163,6 +18436,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/a/%2e%2e/page",
           "request": [],
@@ -18314,6 +18588,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/a/%2E%2E/page",
           "request": [],
@@ -18465,6 +18740,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/a/%2e/page",
           "request": [],
@@ -18616,6 +18892,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/account/style.css",
           "request": [],
@@ -18767,6 +19044,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/account/app.js",
           "request": [],
@@ -18918,6 +19196,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/account/logo.png",
           "request": [],
@@ -19069,6 +19348,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/account/data.json",
           "request": [],
@@ -19220,6 +19500,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/account/STYLE.CSS",
           "request": [],
@@ -19371,6 +19652,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/a.css/",
           "request": [],
@@ -19528,6 +19810,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/style",
           "request": [],
@@ -19685,6 +19968,7 @@
         "call": "store",
         "input": {
           "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page.html",
           "request": [],
@@ -19962,6 +20246,7 @@
         "call": "store",
         "input": {
           "mode": "serve-variants",
+          "credentialed": "anonymous-only",
           "method": "GET",
           "url_path": "/page",
           "request": ["cookie"],
@@ -22493,6 +22778,2490 @@
             ["mode", "report-only"],
             ["action", "would_store"],
             ["scope", "agents"]
+          ]
+        },
+        "expect": {
+          "line": null
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode2-cookie-shared-default-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: a blocking cookie on a shared entry, anonymous-only policy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "cookie_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode2-cookie-shared-explicit-public-serves",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: a blocking cookie on a shared entry, explicit-public policy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request_flags": ["explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "serve_markdown",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": true,
+          "age_s": 300
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode2-cookie-explicit-public-entry-not-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never serves a cookie request an entry without public",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request_flags": ["explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "cookie_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode2-authorization-explicit-public-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never admits authorization",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request_flags": ["explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "authorization": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "auth_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode2-authenticated-user-explicit-public-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never admits authenticated user",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request_flags": ["explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "authenticated_user": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "auth_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-html-mode3-cookie-shared-default-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: a blocking cookie on a shared entry, anonymous-only policy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "cookie_request"
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-html-mode3-cookie-shared-explicit-public-serves",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: a blocking cookie on a shared entry, explicit-public policy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "serve_html",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": false,
+          "age_s": 300
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-html-mode3-cookie-explicit-public-entry-not-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never serves a cookie request an entry without public",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "cookie_request"
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-html-mode3-authorization-explicit-public-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never admits authorization",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300,
+            "authorization": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "auth_request"
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-html-mode3-authenticated-user-explicit-public-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never admits authenticated user",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300,
+            "authenticated_user": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "auth_request"
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode3-cookie-shared-default-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: a blocking cookie on a shared entry, anonymous-only policy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "cookie_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode3-cookie-shared-explicit-public-serves",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: a blocking cookie on a shared entry, explicit-public policy",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "serve_markdown",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": true,
+          "age_s": 300
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode3-cookie-explicit-public-entry-not-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never serves a cookie request an entry without public",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "cookie_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode3-authorization-explicit-public-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never admits authorization",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "authorization": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "auth_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-lookup-markdown-mode3-authenticated-user-explicit-public-shared-refuses",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "lookup: explicit-public never admits authenticated user",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "authenticated_user": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "auth_request",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-markdown-entry-v2-not-anonymous-explicit-public",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "entry: Markdown, not anonymous, explicit-public policy, explicitly shared entry",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": true,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "serve_markdown",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": true,
+          "age_s": 300
+        }
+      }
+    },
+    {
+      "id": "m2-markdown-entry-v2-not-anonymous-explicit-public-not-shared",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "entry: Markdown, not anonymous, explicit-public policy, entry not shared",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "explicit_public"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": false
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "credentialed",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-fallback-capped",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "html fallback: the cap applies to a Markdown-preferring request",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "html_max_lifetime_s": 60,
+          "request_flags": ["fresh_only", "html_fallback"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000060
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "capped"
+        }
+      }
+    },
+    {
+      "id": "m2-fallback-conditional",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "html fallback: a conditional request goes to the origin",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "html_fallback", "conditional"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "conditional"
+        }
+      }
+    },
+    {
+      "id": "m2-fallback-needs-validation",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "html fallback: a no-cache entry falls through",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only", "html_fallback"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": true,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "needs_validation"
+        }
+      }
+    },
+    {
+      "id": "m2-fallback-bit-mode2-never-html",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "html fallback: serve-variants never returns the page",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "request_flags": ["html_fallback"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "absent",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-mode3-serve-auth",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "Markdown: mode 3 gives the serve-variants verdict",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "authorization": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "auth_request"
+        }
+      }
+    },
+    {
+      "id": "m2-mode3-serve-purged",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "Markdown: mode 3 gives the serve-variants verdict",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": true,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "purged"
+        }
+      }
+    },
+    {
+      "id": "m2-mode3-stale-age-equals-lifetime",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "Markdown: mode 3 gives the serve-variants verdict",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 3300,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "parent_stale",
+          "age_s": 3600
+        }
+      }
+    },
+    {
+      "id": "m2-mode3-stale-request-max-age",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "Markdown: mode 3 gives the serve-variants verdict",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cache_control": "max-age=100"
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "parent_stale"
+        }
+      }
+    },
+    {
+      "id": "m2-mode3-precedence-purged-before-absent-copy",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "Markdown: mode 3 gives the serve-variants verdict",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": true,
+            "cc_flags": [],
+            "variant_present": false,
+            "binding_live": false,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "purged"
+        }
+      }
+    },
+    {
+      "id": "m2-mode3-serve-client-no-cache",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "Markdown: mode 3 gives the serve-variants verdict",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300,
+            "cache_control": "no-cache"
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "client_no_cache"
+        }
+      }
+    },
+    {
+      "id": "inm-html-request-no-304-mode3-conditional",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "validator: an HTML request with If-None-Match goes to the origin",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only", "conditional"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300,
+            "if_none_match": "W/\"psm-f7fd01b44f8ba0f5\""
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "conditional"
+        }
+      }
+    },
+    {
+      "id": "m2-scope-order-cookie-before-scope",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "scope: a cookie is reported before the scope",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300,
+            "cookie": true
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "cookie_request"
+        }
+      }
+    },
+    {
+      "id": "m2-scope-order-scope-before-stale",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "scope: the scope is reported before freshness",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 100,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "scope"
+        }
+      }
+    },
+    {
+      "id": "m2-cap-never-extends",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cap: a cap above the lifetime never extends it",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "html_max_lifetime_s": 60,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000040
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 30,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "stale"
+        }
+      }
+    },
+    {
+      "id": "m2-cap-inbound-age-capped",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cap: an inbound age counts toward the cap",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "html_max_lifetime_s": 60,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000020
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 50,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "capped"
+        }
+      }
+    },
+    {
+      "id": "m2-cap-above-both-stale",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cap: an age above both bounds is stale",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "html_max_lifetime_s": 60,
+          "request_flags": ["fresh_only"],
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000090
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 30,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "stale"
+        }
+      }
+    },
+    {
+      "id": "m2-stamp-request-zero-entry-nonzero",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "policy stamp: no request stamp against a stamped entry falls through",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": ["fresh_only"],
+          "policy_stamp": "0000000000000000",
+          "request": {
+            "method": "GET",
+            "accept": ["text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true,
+            "entry_policy_stamp": "5a17c0de00000001"
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "policy_mismatch"
+        }
+      }
+    },
+    {
+      "id": "m2-stamp-request-zero-entry-nonzero-1-14-mode2",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "policy stamp: an earlier caller against a stamped entry falls through",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-variants",
+          "struct_size": "1.14",
+          "request": {
+            "method": "GET",
+            "accept": ["text/markdown"],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true,
+            "entry_policy_stamp": "5a17c0de00000001"
+          }
+        },
+        "expect": {
+          "action": "fall_through",
+          "reason": "policy_mismatch",
+          "wants_markdown": true
+        }
+      }
+    },
+    {
+      "id": "m2-store-write-earlier-module-no-stamp",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "store write: an earlier caller's store has both bits and no stamp",
+      "policy": {
+        "call": "store_write",
+        "input": {
+          "mode": "serve-variants",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "policy_stamp": "0000000000000000",
+          "capture_start_ms": 1794744000000,
+          "sidecar_format3": false
+        },
+        "expect": {
+          "action": "store",
+          "reason": "none",
+          "written": true,
+          "entry_flags": ["store_v2", "anonymous_recorded"],
+          "policy_stamp": "0000000000000000"
+        }
+      }
+    },
+    {
+      "id": "m2-facts-earlier-module-restored-serves",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "entry: a page an earlier caller re-stored serves it again",
+      "policy": {
+        "call": "facts",
+        "input": {
+          "volume": {
+            "original": {
+              "stored_at": 1790000000,
+              "lifetime_s": 3600,
+              "cc_flags": [],
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+              "written_by": "module_v2_no_stamp"
+            },
+            "markdown": {
+              "origin_html_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+              "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"
+            },
+            "sidecar": true
+          },
+          "now_s": 1790000300,
+          "serve_request": {
+            "mode": "serve-variants",
+            "accept": ["text/markdown"],
+            "struct_size": "1.14"
+          }
+        },
+        "expect": {
+          "present": true,
+          "store_v2": true,
+          "anonymous_recorded": true,
+          "entry_policy_stamp": "0000000000000000",
+          "serve": {
+            "action": "serve_markdown",
+            "reason": "fresh"
+          }
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-session-pattern-beats-addition",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a session-shaped name is never ignorable, whatever the additions",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["abtest_session=abc12345"],
+          "ignore_builtin": true,
+          "additions": ["abtest_*"]
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "abtest_session"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-session-pattern-beats-addition-2",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a session-shaped name is never ignorable, whatever the additions",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["my_session=abc12345"],
+          "ignore_builtin": true,
+          "additions": ["my_*"]
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "my_session"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-session-pattern-beside-listed",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a session-shaped name beside listed cookies blocks",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["_ga=GA1.2.1234567890.1790000000; abtest_home=b; abtest_session=abc12345"],
+          "ignore_builtin": true,
+          "additions": ["abtest_*"]
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "abtest_session"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-builtin-session-name-beats-addition",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a built-in session name is never ignorable",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["wordpress_logged_in_abc=1"],
+          "ignore_builtin": true,
+          "additions": ["wordpress_logged_in_abc"]
+        },
+        "expect": {
+          "class": "blocking",
+          "first_blocking": "wordpress_logged_in_abc"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-malformed-pair-bare-token",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a pair without = bypasses",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["_ga=GA1.2.3; sessionflag"],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-malformed-pair-empty-name",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a pair with an empty name bypasses",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["_ga=GA1.2.3; =abc"],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "blocking"
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-prefix-nothing-after",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a prefix entry matches its bare prefix",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["_gat=1"],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": ["1"]
+        }
+      }
+    },
+    {
+      "id": "m2-cookie-quoted-value",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "cookie list: a quoted value is compared without its quotes",
+      "policy": {
+        "call": "cookies",
+        "input": {
+          "cookie_lines": ["_ga=\"GA1.2.3\""],
+          "ignore_builtin": true,
+          "additions": []
+        },
+        "expect": {
+          "class": "ignorable_only",
+          "ignorable_values": ["GA1.2.3"]
+        }
+      }
+    },
+    {
+      "id": "m2-path-query-encoded-slash-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /page?next=%2Fhome is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?next=%2Fhome",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-path-query-semicolon-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /page?a=1;b=2 is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?a=1;b=2",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-path-query-on-static-extension-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /account/style.css?v=1 is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/style.css?v=1",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-query-extension-only-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /page?f=x.css is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?f=x.css",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-path-trailing-dot-dot-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a/.. is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a/..",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-trailing-dot-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a/. is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a/.",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-root-dot-dot-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /.. is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/..",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-mixed-dot-dot-1-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a/.%2e/x is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a/.%2e/x",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-mixed-dot-dot-2-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a/%2e./x is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a/%2e./x",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-near-miss-cssx-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a.cssx is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a.cssx",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-path-near-miss-css-html-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a.css.html is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a.css.html",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-path-near-miss-htm-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: /a.htm is allowed",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a.htm",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-css-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .css last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.css",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-js-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .js last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.js",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-png-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .png last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.png",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-jpg-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .jpg last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.jpg",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-jpeg-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .jpeg last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.jpeg",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-gif-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .gif last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.gif",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-svg-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .svg last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.svg",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-webp-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .webp last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.webp",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-ico-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .ico last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.ico",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-woff-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .woff last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.woff",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-woff2-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .woff2 last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.woff2",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-json-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .json last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.json",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-txt-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .txt last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.txt",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-path-extension-xml-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "deception path: a .xml last segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/account/file.xml",
+          "headers": [],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "path"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-proto-list-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Proto must name only the keyed scheme",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-Proto", "https, http"]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-proto-two-lines-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Proto must name only the keyed scheme",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-Proto", "https"],
+            ["X-Forwarded-Proto", "http"]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-forwarded-proto-empty-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: X-Forwarded-Proto must name only the keyed scheme",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-Proto", ""]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-index-reported-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: the guard reports which header it refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-Proto", "https"],
+            ["X-Forwarded-Host", "attacker.example"]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 1,
+          "xfp": false
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-xfp-flag-guard",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "unkeyed header: a scheme mismatch is reported as such",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            ["X-Forwarded-For", "192.0.2.1"],
+            ["X-Forwarded-Proto", "https"]
+          ],
+          "keyed_scheme": "http"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 1,
+          "xfp": true
+        }
+      }
+    },
+    {
+      "id": "format-fall-through-cookie-request-detail",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "decision line: cookie_request names the cookie",
+      "policy": {
+        "call": "format",
+        "input": {
+          "fields": [
+            ["host", "www.example.test"],
+            ["path", "/page"],
+            ["mode", "serve-cached-html"],
+            ["action", "fall_through"],
+            ["reason", "cookie_request"],
+            ["detail", "sid"]
+          ]
+        },
+        "expect": {
+          "line": "{\"host\":\"www.example.test\",\"path\":\"/page\",\"mode\":\"serve-cached-html\",\"action\":\"fall_through\",\"reason\":\"cookie_request\",\"detail\":\"sid\"}"
+        }
+      }
+    },
+    {
+      "id": "format-refuse-cookie-request-detail",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "decision line: cookie_request names the cookie",
+      "policy": {
+        "call": "format",
+        "input": {
+          "fields": [
+            ["host", "www.example.test"],
+            ["path", "/page"],
+            ["mode", "serve-cached-html"],
+            ["action", "refuse"],
+            ["reason", "cookie_request"],
+            ["detail", "sid"]
+          ]
+        },
+        "expect": {
+          "line": "{\"host\":\"www.example.test\",\"path\":\"/page\",\"mode\":\"serve-cached-html\",\"action\":\"refuse\",\"reason\":\"cookie_request\",\"detail\":\"sid\"}"
+        }
+      }
+    },
+    {
+      "id": "format-refuse-cookie-echo-detail",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "decision line: cookie_echo names the cookie",
+      "policy": {
+        "call": "format",
+        "input": {
+          "fields": [
+            ["host", "www.example.test"],
+            ["path", "/page"],
+            ["mode", "serve-cached-html"],
+            ["action", "refuse"],
+            ["reason", "cookie_echo"],
+            ["detail", "_ga"]
+          ]
+        },
+        "expect": {
+          "line": "{\"host\":\"www.example.test\",\"path\":\"/page\",\"mode\":\"serve-cached-html\",\"action\":\"refuse\",\"reason\":\"cookie_echo\",\"detail\":\"_ga\"}"
+        }
+      }
+    },
+    {
+      "id": "format-fall-through-request-header-detail",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "decision line: request_header names the header",
+      "policy": {
+        "call": "format",
+        "input": {
+          "fields": [
+            ["host", "www.example.test"],
+            ["path", "/page"],
+            ["mode", "serve-cached-html"],
+            ["action", "fall_through"],
+            ["reason", "request_header"],
+            ["detail", "X-Forwarded-Host"]
+          ]
+        },
+        "expect": {
+          "line": "{\"host\":\"www.example.test\",\"path\":\"/page\",\"mode\":\"serve-cached-html\",\"action\":\"fall_through\",\"reason\":\"request_header\",\"detail\":\"X-Forwarded-Host\"}"
+        }
+      }
+    },
+    {
+      "id": "format-detail-refuses-a-value",
+      "runners": ["policy"],
+      "pending": "c-api-1.15",
+      "why": "decision line: detail takes a name, never a value",
+      "policy": {
+        "call": "format",
+        "input": {
+          "fields": [
+            ["host", "www.example.test"],
+            ["path", "/page"],
+            ["mode", "serve-cached-html"],
+            ["action", "refuse"],
+            ["reason", "cookie_request"],
+            ["detail", "sid=abc12345"]
           ]
         },
         "expect": {

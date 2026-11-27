@@ -227,7 +227,8 @@ const StringSet kServeRequestFlags115 = {"fresh_only", "html_fallback",
 const StringSet kScopes115 = {"agents", "all"};
 const StringSet kStructSizes115 = {"1.14", "1.15"};
 const StringSet kEntryFlags115 = {"store_v2", "anonymous_recorded"};
-const StringSet kWrittenBy115 = {"front", "module_v1", "module_v2_anonymous",
+const StringSet kWrittenBy115 = {"front", "module_v1", "module_v2_no_stamp",
+                                 "module_v2_anonymous",
                                  "module_v2_credentialed"};
 const StringSet kGuardReasons115 = {"none", "request_header", "path"};
 const StringSet kCookieClasses115 = {"none", "ignorable_only", "blocking"};
@@ -270,10 +271,14 @@ void CheckStore(Checker& c, const std::string& w, const json& in,
   StringSet keys = {"mode",          "method",         "url_path", "request",
                     "status",        "headers",        "body",     "body_bytes",
                     "body_complete", "max_body_bytes", "now_s"};
-  if (pending) keys.insert("request_guard");
+  if (pending) {
+    keys.insert("request_guard");
+    keys.insert("credentialed");
+  }
   if (write) {
     keys.insert("policy_stamp");
     keys.insert("capture_start_ms");
+    keys.insert("sidecar_format3");
   }
   StringSet required = {
       "mode",    "method", "url_path",      "request",        "status",
@@ -298,6 +303,8 @@ void CheckStore(Checker& c, const std::string& w, const json& in,
   c.Uint(w + " input", in, "now_s");
   c.Stamp(w + " input", in, "policy_stamp");
   c.Uint(w + " input", in, "capture_start_ms");
+  c.Bool(w + " input", in, "sidecar_format3");
+  c.OneOf(w + " input", in, "credentialed", kCredentialed115);
   c.HeaderLines(w + " input", in, "headers", /*allow_empty_name=*/false);
   if (in.contains("request_guard")) {
     CheckGuardInput(c, w + " request_guard", in["request_guard"]);
@@ -449,8 +456,9 @@ void CheckFacts(Checker& c, const std::string& w, const json& in,
     const json& r = in["serve_request"];
     c.Keys(w + " serve_request", r,
            {"mode", "accept", "serve_scope", "agent_class", "request_flags",
-            "policy_stamp"},
+            "policy_stamp", "struct_size"},
            {"mode"});
+    c.OneOf(w + " serve_request", r, "struct_size", kStructSizes115);
     c.OneOf(w + " serve_request", r, "mode", kModes);
     c.Strings(w + " serve_request", r, "accept");
     CheckScopeAndClass(c, w + " serve_request", r);
@@ -533,8 +541,10 @@ void CheckFacts(Checker& c, const std::string& w, const json& in,
 void CheckGuard(Checker& c, const std::string& w, const json& in,
                 const json& ex) {
   CheckGuardInput(c, w + " input", in);
-  c.Keys(w + " expect", ex, {"reason"}, {"reason"});
+  c.Keys(w + " expect", ex, {"reason", "header_index", "xfp"}, {"reason"});
   c.OneOf(w + " expect", ex, "reason", kGuardReasons115);
+  c.Uint(w + " expect", ex, "header_index");
+  c.Bool(w + " expect", ex, "xfp");
 }
 
 void CheckCookies(Checker& c, const std::string& w, const json& in,
@@ -558,8 +568,9 @@ void CheckIgnoreGuard(Checker& c, const std::string& w, const json& in,
                       const json& ex) {
   c.Keys(w + " input", in, {"addition"}, {"addition"});
   c.Str(w + " input", in, "addition");
-  c.Keys(w + " expect", ex, {"accepted"}, {"accepted"});
+  c.Keys(w + " expect", ex, {"accepted", "warning"}, {"accepted", "warning"});
   c.Bool(w + " expect", ex, "accepted");
+  c.Bool(w + " expect", ex, "warning");
 }
 
 void CheckStampCall(Checker& c, const std::string& w, const json& in,
@@ -766,6 +777,22 @@ TEST(DaemonHtmlPolicyCasesTest, EveryRowHasTheDocumentedShape) {
       c.Fail(w, "call '" + call + "' is a 1.15 call and needs pending");
       continue;
     }
+    // A pending row must need the marker: checked as a row that runs today,
+    // it must use at least one 1.15 key, call or value. Otherwise a failing
+    // row could be hidden by marking it.
+    if (pending && kCalls115.count(call) == 0) {
+      Checker today;
+      if (call == "store") {
+        CheckStore(today, w, in, ex, /*pending=*/false, /*write=*/false);
+      } else if (call == "serve") {
+        CheckServe(today, w, in, ex, /*pending=*/false);
+      } else if (call == "facts") {
+        CheckFacts(today, w, in, ex, /*pending=*/false);
+      }
+      if (today.errors().empty()) {
+        c.Fail(w, "pending, but uses no 1.15 key, call or value");
+      }
+    }
     if (call == "store") {
       CheckStore(c, w, in, ex, pending, /*write=*/false);
     } else if (call == "store_write") {
@@ -901,6 +928,7 @@ TEST(DaemonHtmlPolicyCasesTest, PendingRowsNameThe1_15Surface) {
     ++pending;
     EXPECT_EQ(row["pending"], kPendingSurface) << row["id"];
   }
+  EXPECT_EQ(static_cast<size_t>(pending), kDaemonHtmlPolicyCasesPendingRows);
   std::printf("policy cases: %d pending rows (%s)\n", pending, kPendingSurface);
 }
 
