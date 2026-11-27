@@ -632,5 +632,103 @@ TEST(HeadersSidecarTest, ThePairedFormatStaysOutsideTheMetadataRange) {
   EXPECT_LT(kHeadersSidecarPairedFormatVersion, 3);
 }
 
+// ---- the policy form (format 3) -------------------------------------------
+
+TEST(HeadersSidecarTest, APolicyBlockCarriesTheStampAndTheFreshnessLines) {
+  const Fields headers = {{"Content-Type", "text/html"},
+                          {"Cache-Control", "max-age=30, immutable"},
+                          {"Referrer-Policy", "no-referrer"},
+                          {"Expires", "Sun, 06 Nov 1994 08:49:37 GMT"},
+                          {"Date", "Sun, 06 Nov 1994 08:49:07 GMT"},
+                          {"cache-control", " stale-while-revalidate=600"}};
+  const SidecarClassification c = Classify(headers);
+  ASSERT_TRUE(c.swap_eligible());
+  const auto hash = TestHash(9);
+  const auto payload = PolicyHeadersSidecarPayload(
+      c.payload, headers, hash, uint64_t{0x5a17c0de00000001});
+  ASSERT_TRUE(payload.has_value());
+  EXPECT_EQ(static_cast<unsigned char>((*payload)[0]),
+            kHeadersSidecarPolicyFormatVersion);
+  auto block = ParseHeadersSidecarBlock(*payload);
+  ASSERT_TRUE(block.has_value());
+  ASSERT_TRUE(block->pairing_hash.has_value());
+  EXPECT_EQ(*block->pairing_hash, hash);
+  ASSERT_TRUE(block->policy_stamp.has_value());
+  EXPECT_EQ(*block->policy_stamp, uint64_t{0x5a17c0de00000001});
+  // The freshness lines verbatim, in received order among the carried ones;
+  // Content-Type and Date stay with the entry and the serving stack.
+  ASSERT_EQ(block->fields.size(), 4u);
+  EXPECT_EQ(block->fields[0].name, "Cache-Control");
+  EXPECT_EQ(block->fields[0].value, "max-age=30, immutable");
+  EXPECT_EQ(block->fields[1].name, "Referrer-Policy");
+  EXPECT_EQ(block->fields[2].name, "Expires");
+  EXPECT_EQ(block->fields[2].value, "Sun, 06 Nov 1994 08:49:37 GMT");
+  EXPECT_EQ(block->fields[3].name, "cache-control");
+  EXPECT_EQ(block->fields[3].value, " stale-while-revalidate=600");
+}
+
+TEST(HeadersSidecarTest, APolicyBlockMayCarryOnlyItsStamp) {
+  const Fields headers = {{"Content-Type", "text/html"}};
+  const SidecarClassification c = Classify(headers);
+  ASSERT_TRUE(c.payload.empty());
+  const auto payload =
+      PolicyHeadersSidecarPayload(c.payload, headers, TestHash(2), 0);
+  ASSERT_TRUE(payload.has_value());
+  auto block = ParseHeadersSidecarBlock(*payload);
+  ASSERT_TRUE(block.has_value());
+  EXPECT_TRUE(block->fields.empty());
+  ASSERT_TRUE(block->policy_stamp.has_value());
+  EXPECT_EQ(*block->policy_stamp, 0u);
+}
+
+// What a build that knows only formats 1 and 2 does with a format-3 block:
+// its version byte is neither, so it is absent there, and the fields-only
+// reader of this build refuses it too (it cannot check the pairing).
+TEST(HeadersSidecarTest, AnEarlierReaderReadsAPolicyBlockAsAbsent) {
+  const Fields headers = {{"Cache-Control", "max-age=30"},
+                          {"Referrer-Policy", "no-referrer"}};
+  const auto payload = PolicyHeadersSidecarPayload(Classify(headers).payload,
+                                                   headers, TestHash(4), 7);
+  ASSERT_TRUE(payload.has_value());
+  const auto version = static_cast<unsigned char>((*payload)[0]);
+  EXPECT_NE(version, kHeadersSidecarFormatVersion);
+  EXPECT_NE(version, kHeadersSidecarPairedFormatVersion);
+  EXPECT_FALSE(ParseHeadersSidecar(*payload).has_value());
+  // The paired form parses without a stamp.
+  const std::string paired =
+      PairHeadersSidecarPayload(Classify(headers).payload, TestHash(4));
+  auto block = ParseHeadersSidecarBlock(paired);
+  ASSERT_TRUE(block.has_value());
+  EXPECT_FALSE(block->policy_stamp.has_value());
+}
+
+TEST(HeadersSidecarTest, AMalformedPolicyBlockIsAMiss) {
+  const Fields headers = {{"Cache-Control", "max-age=30"}};
+  const auto payload = PolicyHeadersSidecarPayload(Classify(headers).payload,
+                                                   headers, TestHash(5), 9);
+  ASSERT_TRUE(payload.has_value());
+  for (size_t cut = 1; cut < payload->size(); ++cut) {
+    EXPECT_FALSE(ParseHeadersSidecarBlock(payload->substr(0, cut)).has_value())
+        << "truncated to " << cut;
+  }
+  EXPECT_FALSE(ParseHeadersSidecarBlock(*payload + "x").has_value());
+  std::string zero = *payload;
+  for (size_t i = 1; i <= kHeadersSidecarPairingHashBytes; ++i) zero[i] = 0;
+  EXPECT_FALSE(ParseHeadersSidecarBlock(zero).has_value());
+}
+
+TEST(HeadersSidecarTest, APolicyBlockOverTheCeilingIsNotBuilt) {
+  const std::string big(kMaxHeadersSidecarPayloadBytes, 'a');
+  const Fields headers = {{"Cache-Control", "max-age=30, x=" + big}};
+  EXPECT_FALSE(PolicyHeadersSidecarPayload(Classify(headers).payload, headers,
+                                           TestHash(6), 1)
+                   .has_value());
+}
+
+TEST(HeadersSidecarTest, ThePolicyFormatStaysOutsideTheMetadataRange) {
+  EXPECT_EQ(kHeadersSidecarPolicyFormatVersion, 0);
+  EXPECT_LT(kHeadersSidecarPolicyFormatVersion, 3);
+}
+
 }  // namespace
 }  // namespace pagespeed

@@ -216,9 +216,11 @@ inline constexpr size_t kHeadersSidecarPairingHashBytes = 32;
 
 struct HeadersSidecarBlock {
   std::vector<HeaderField> fields;  // views into the parsed payload
-  // Present only for a format-2 payload.
+  // Present for a format-2 or format-3 payload.
   std::optional<std::array<std::byte, kHeadersSidecarPairingHashBytes>>
       pairing_hash;
+  // Present only for a format-3 payload (it may be 0: "no stamp").
+  std::optional<uint64_t> policy_stamp;
 };
 
 // Parse a stored sidecar payload of either format.  Same miss rules as
@@ -235,6 +237,30 @@ std::optional<HeadersSidecarBlock> ParseHeadersSidecarBlock(
 std::string PairHeadersSidecarPayload(
     std::string_view format1_payload,
     std::span<const std::byte, kHeadersSidecarPairingHashBytes> hash);
+
+// ---- The policy form (payload format 3, version byte 0) ----
+//
+// Written only by a front end's own HTML store when it asks for it: the
+// paired block, plus the 8-byte stamp of the credentialed policy the page was
+// stored under, and with the response's Cache-Control and Expires lines
+// carried VERBATIM among the others in their received order (format 1 and 2
+// leave them to the entry metadata, which rebuilds them).  A hit then replays
+// the origin's own freshness lines, extensions included.
+//   [1B  format version]                    == kHeadersSidecarPolicyFormatVersion
+//   [32B pairing hash]                      never all-zero
+//   [8B  policy stamp, big-endian]          0 = none
+//   [2B  field count, big-endian]           then the fields, as in format 1
+inline constexpr size_t kHeadersSidecarPolicyStampBytes = 8;
+
+// Build a format-3 payload.  `format1_payload` is the gate's payload for
+// `headers` (ClassifyForHeadersSidecar, swap-eligible; empty when it carries
+// nothing) and `headers` the same response's header lines as received.
+// nullopt when the block, with the Cache-Control and Expires lines added,
+// would exceed kMaxHeadersSidecarPayloadBytes or a field ceiling.
+std::optional<std::string> PolicyHeadersSidecarPayload(
+    std::string_view format1_payload, std::span<const HeaderField> headers,
+    std::span<const std::byte, kHeadersSidecarPairingHashBytes> hash,
+    uint64_t policy_stamp);
 
 }  // namespace pagespeed
 

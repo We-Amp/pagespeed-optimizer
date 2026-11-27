@@ -1001,8 +1001,12 @@ PageSpeedCache::WriteHeadersSidecar(std::string_view url,
                                     std::string_view scheme,
                                     std::span<const HeaderField> headers,
                                     std::string_view site,
-                                    std::span<const std::byte> pairing_hash) {
+                                    std::span<const std::byte> pairing_hash,
+                                    std::optional<uint64_t> policy_stamp) {
   const bool paired = !pairing_hash.empty();
+  if (policy_stamp.has_value() && !paired) {
+    return std::unexpected(cyclone::CacheError::InvalidArgument);
+  }
   if (paired) {
     if (pairing_hash.size() != kHeadersSidecarPairingHashBytes ||
         std::all_of(pairing_hash.begin(), pairing_hash.end(),
@@ -1052,7 +1056,24 @@ PageSpeedCache::WriteHeadersSidecar(std::string_view url,
     // fact being recorded.)
     return outcome;
   }
-  if (paired) {
+  if (policy_stamp.has_value()) {
+    auto policy_payload = PolicyHeadersSidecarPayload(
+        classification.payload, headers,
+        std::span<const std::byte, kHeadersSidecarPairingHashBytes>(
+            pairing_hash.data(), kHeadersSidecarPairingHashBytes),
+        *policy_stamp);
+    if (!policy_payload.has_value()) {
+      // The freshness lines did not fit beside the rest: served plain, like
+      // any block over the ceiling.
+      headers_sidecar_fall_through_.fetch_add(1, std::memory_order_relaxed);
+      outcome.verdict = SidecarVerdict::kFallThrough;
+      return outcome;
+    }
+    classification.payload = std::move(*policy_payload);
+    if (auto block = ParseHeadersSidecarBlock(classification.payload)) {
+      classification.fields = block->fields.size();
+    }
+  } else if (paired) {
     classification.payload = PairHeadersSidecarPayload(
         classification.payload,
         std::span<const std::byte, kHeadersSidecarPairingHashBytes>(

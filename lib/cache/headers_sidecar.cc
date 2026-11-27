@@ -55,6 +55,13 @@ static_assert(kHeadersSidecarPairedFormatVersion > 0 &&
                       kHeadersSidecarFormatVersion,
               "the paired sidecar format version must stay outside the "
               "entry-metadata version range and differ from format 1");
+static_assert(kHeadersSidecarPolicyFormatVersion < 3 &&
+                  kHeadersSidecarPolicyFormatVersion !=
+                      kHeadersSidecarFormatVersion &&
+                  kHeadersSidecarPolicyFormatVersion !=
+                      kHeadersSidecarPairedFormatVersion,
+              "the policy sidecar format version must stay outside the "
+              "entry-metadata version range and differ from formats 1 and 2");
 
 namespace {
 
@@ -419,7 +426,8 @@ std::optional<HeadersSidecarBlock> ParseHeadersSidecarBlock(
   const auto version = static_cast<unsigned char>(payload[0]);
   HeadersSidecarBlock block;
   size_t fields_at = 1;
-  if (version == kHeadersSidecarPairedFormatVersion) {
+  const bool policy = version == kHeadersSidecarPolicyFormatVersion;
+  if (version == kHeadersSidecarPairedFormatVersion || policy) {
     if (payload.size() < 1 + kHeadersSidecarPairingHashBytes) {
       return std::nullopt;
     }
@@ -435,6 +443,18 @@ std::optional<HeadersSidecarBlock> ParseHeadersSidecarBlock(
     if (all_zero) return std::nullopt;
     block.pairing_hash = hash;
     fields_at += kHeadersSidecarPairingHashBytes;
+    if (policy) {
+      if (payload.size() < fields_at + kHeadersSidecarPolicyStampBytes) {
+        return std::nullopt;
+      }
+      uint64_t stamp = 0;
+      for (size_t i = 0; i < kHeadersSidecarPolicyStampBytes; ++i) {
+        stamp =
+            (stamp << 8) | static_cast<unsigned char>(payload[fields_at + i]);
+      }
+      block.policy_stamp = stamp;
+      fields_at += kHeadersSidecarPolicyStampBytes;
+    }
   } else if (version != kHeadersSidecarFormatVersion) {
     return std::nullopt;
   }
@@ -468,6 +488,65 @@ std::string PairHeadersSidecarPayload(
   } else {
     // Everything after format 1's version byte: the count and the fields.
     out.append(format1_payload.substr(1));
+  }
+  return out;
+}
+
+std::optional<std::string> PolicyHeadersSidecarPayload(
+    std::string_view format1_payload, std::span<const HeaderField> headers,
+    std::span<const std::byte, kHeadersSidecarPairingHashBytes> hash,
+    uint64_t policy_stamp) {
+  std::vector<HeaderField> carried;
+  if (!format1_payload.empty()) {
+    auto parsed = ParseHeadersSidecarBlock(format1_payload);
+    if (!parsed.has_value() || parsed->pairing_hash.has_value()) {
+      return std::nullopt;
+    }
+    carried = std::move(parsed->fields);
+  }
+  // The gate's lines are a subsequence of `headers` in received order, so one
+  // pass merges them with the two freshness lines, keeping that order.
+  std::vector<HeaderField> fields;
+  size_t next = 0;
+  for (const HeaderField& h : headers) {
+    if (next < carried.size() && carried[next].name == h.name &&
+        carried[next].value == h.value) {
+      fields.push_back(h);
+      ++next;
+    } else if (AsciiEqualsIgnoreCase(h.name, "cache-control") ||
+               AsciiEqualsIgnoreCase(h.name, "expires")) {
+      if (!IsFieldName(h.name) || !IsStorableFieldValue(h.value)) {
+        return std::nullopt;
+      }
+      fields.push_back(h);
+    }
+  }
+  if (next != carried.size()) return std::nullopt;
+  size_t encoded_size =
+      1 + kHeadersSidecarPairingHashBytes + kHeadersSidecarPolicyStampBytes + 2;
+  for (const HeaderField& f : fields) {
+    if (f.name.size() > kMaxHeadersSidecarNameBytes ||
+        f.value.size() > kMaxHeadersSidecarValueBytes) {
+      return std::nullopt;
+    }
+    encoded_size += 3 + f.name.size() + f.value.size();
+  }
+  if (fields.size() > 0xFFFF || encoded_size > kMaxHeadersSidecarPayloadBytes) {
+    return std::nullopt;
+  }
+  std::string out;
+  out.reserve(encoded_size);
+  out.push_back(static_cast<char>(kHeadersSidecarPolicyFormatVersion));
+  for (std::byte b : hash) out.push_back(static_cast<char>(b));
+  for (int shift = 56; shift >= 0; shift -= 8) {
+    out.push_back(static_cast<char>((policy_stamp >> shift) & 0xFF));
+  }
+  AppendBigEndian16(&out, static_cast<uint16_t>(fields.size()));
+  for (const HeaderField& f : fields) {
+    out.push_back(static_cast<char>(f.name.size()));
+    AppendBigEndian16(&out, static_cast<uint16_t>(f.value.size()));
+    out.append(f.name);
+    out.append(f.value);
   }
   return out;
 }
