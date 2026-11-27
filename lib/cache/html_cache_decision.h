@@ -83,6 +83,16 @@ namespace pagespeed {
 //                                            the store snapshot, as a
 //                                            comma-separated list of tokens,
 //                                            at most 1024 bytes (names only)
+//   scope                                    agents or all
+//   agent_class                              0, 1, 2 or 3 (written as a
+//                                            number)
+//   detail                                   the NAME of the cookie or
+//                                            request header a refusal is
+//                                            about: an RFC 9110 token of at
+//                                            most 128 bytes, never a value
+//
+// scope, agent_class and detail (C API 1.15) are admitted only on a line
+// whose mode is serve-variants or serve-cached-html.
 //
 // Every value is non-empty (a fact that is absent is an absent key, which is
 // how the line says "null") and carries no control byte.  A caller therefore
@@ -102,7 +112,7 @@ struct HtmlCacheDecisionField {
 // The closed key set, in canonical output order:
 //   ts_ms, host, path, mode, action, reason, status, size, lifetime_s,
 //   validators, cc, vary, sidecar, request, personalisation, before, variant,
-//   binding, age_s, vhost_added
+//   binding, age_s, vhost_added, scope, agent_class, detail
 std::span<const std::string_view> HtmlCacheDecisionKeys();
 
 // Longest `path` value the formatter accepts, in bytes.  The caller truncates.
@@ -111,7 +121,8 @@ inline constexpr size_t kMaxHtmlCacheDecisionVaryBytes = 1024;
 
 // One JSON object on one line, keys in canonical order, only the keys given,
 // values escaped (quote and backslash with a backslash, bytes 0x80 and above
-// as \u00XX).  The keys ts_ms, status, size, lifetime_s and age_s are emitted
+// as \u00XX).  The keys ts_ms, status, size, lifetime_s, age_s and agent_class
+// are emitted
 // as numbers (their grammar is a canonical decimal integer: digits only, no
 // leading zero, at most 20 digits); every other value is a string.
 //

@@ -305,16 +305,23 @@ TEST(HtmlCachePolicyTest, CookieRequestNeedsExplicitSharing) {
   no_cc.Add("ETag", "\"v1\"");
   ExpectRefused(no_cc, HtmlStoreReason::kCookieRequest);
 
+  // An explicitly shareable response is stored for a blocking cookie only
+  // under the explicit-public policy, and never as anonymous.
   StoreInput pub;
   pub.request.has_cookie = true;
   pub.SetCacheControl("public, max-age=60");
+  ExpectRefused(pub, HtmlStoreReason::kCookieRequest);
+  pub.request.explicit_public = true;
   const HtmlStoreVerdict v = pub.Run();
   EXPECT_EQ(v.action, HtmlStoreAction::kStore);
   EXPECT_TRUE(v.explicit_shared);
+  EXPECT_FALSE(v.request_anonymous);
 
   StoreInput smax;
   smax.request.has_cookie = true;
   smax.SetCacheControl("s-maxage=60");
+  ExpectRefused(smax, HtmlStoreReason::kCookieRequest);
+  smax.request.explicit_public = true;
   const HtmlStoreVerdict s = smax.Run();
   EXPECT_EQ(s.action, HtmlStoreAction::kStore);
   EXPECT_TRUE(s.explicit_shared);
@@ -1057,7 +1064,9 @@ TEST(HtmlCachePolicyTest, NamesAreAClosedSet) {
                                        "url",
                                        "personalisation_signal",
                                        "no_transform",
-                                       "mode"};
+                                       "mode",
+                                       "request_header",
+                                       "path"};
   ASSERT_EQ(sizeof(store_reasons) / sizeof(store_reasons[0]),
             size_t{kHtmlStoreReasonCount});
   for (uint8_t i = 0; i < kHtmlStoreReasonCount; ++i) {
@@ -1086,7 +1095,15 @@ TEST(HtmlCachePolicyTest, NamesAreAClosedSet) {
                                        "cors",
                                        "no_transform",
                                        "withheld",
-                                       "skew"};
+                                       "skew",
+                                       "scope",
+                                       "capped",
+                                       "conditional",
+                                       "credentialed",
+                                       "legacy_entry",
+                                       "policy_mismatch",
+                                       "request_header",
+                                       "path"};
   ASSERT_EQ(sizeof(serve_reasons) / sizeof(serve_reasons[0]),
             size_t{kHtmlServeReasonCount});
   for (uint8_t i = 0; i < kHtmlServeReasonCount; ++i) {
@@ -1122,13 +1139,18 @@ constexpr HtmlCacheMode kAllModes[] = {
 
 constexpr uint32_t kStoredAt = 1000;
 
+// Scope `all`, so the serve rules below are about the entry and the request
+// rather than about who asks; the scope has tests of its own.
 HtmlServeRequest Req(HtmlCacheMode mode, uint32_t age = 10) {
   HtmlServeRequest r;
   r.mode = mode;
   r.now_seconds = kStoredAt + age;
+  r.scope = HtmlServeScope::kAll;
   return r;
 }
 
+// An entry recorded under the policy from an anonymous request, with no
+// policy stamp on either side.
 StoredHtmlFacts Fresh() {
   StoredHtmlFacts f;
   f.present = true;
@@ -1136,6 +1158,8 @@ StoredHtmlFacts Fresh() {
   f.lifetime_s = 100;
   f.variant_present = true;
   f.binding_live = true;
+  f.store_v2 = true;
+  f.anonymous_recorded = true;
   return f;
 }
 
@@ -1211,8 +1235,14 @@ TEST(HtmlCachePolicyTest, ServeCookieNeedsAnExplicitlySharedEntry) {
   shared.explicit_shared = true;
   ExpectServe(Req(HtmlCacheMode::kServeCachedHtml), shared,
               HtmlServeAction::kServeHtml, HtmlServeReason::kFresh);
+  // A shared entry answers a blocking cookie only under the explicit-public
+  // policy.
+  ExpectFallThroughInEveryMode(r, shared, HtmlServeReason::kCookieRequest);
   r.mode = HtmlCacheMode::kServeCachedHtml;
+  r.explicit_public = true;
   ExpectServe(r, shared, HtmlServeAction::kServeHtml, HtmlServeReason::kFresh);
+  ExpectServe(r, Fresh(), HtmlServeAction::kFallThrough,
+              HtmlServeReason::kCookieRequest);
 }
 
 TEST(HtmlCachePolicyTest, ServeClientNoCache) {
@@ -1826,6 +1856,7 @@ TEST(HtmlCachePolicyTest, MalformedSMaxageIsNotAShareableAssertion) {
     in.Add("ETag", "\"a\"");
     in.SetCacheControl(line);
     in.request.has_cookie = true;
+    in.request.explicit_public = true;
     const HtmlStoreVerdict v = in.Run();
     EXPECT_TRUE(v.explicit_shared) << line;
     EXPECT_TRUE(v.stores()) << line;
@@ -2094,6 +2125,8 @@ StoredHtmlFacts LiveCopy() {
   f.lifetime_s = 300;
   f.variant_present = true;
   f.binding_live = true;
+  f.store_v2 = true;
+  f.anonymous_recorded = true;
   return f;
 }
 
@@ -2143,6 +2176,7 @@ TEST(HtmlServePolicy113Test, NoTransformAndWithheldNeverServeTheCopy) {
   HtmlServeRequest html = FreshMarkdownRequest();
   html.wants_markdown = false;
   html.mode = HtmlCacheMode::kServeCachedHtml;
+  html.scope = HtmlServeScope::kAll;
   f.no_transform = true;
   EXPECT_EQ(ClassifyHtmlForServe(html, f).action, HtmlServeAction::kServeHtml);
 }

@@ -267,14 +267,15 @@ Reordering or renumbering is a MAJOR change.
 **The policy's strictness is the library's, not the caller's.** A page would be
 stored only on an explicit lifetime or a validator, never on a heuristic one; a
 request with credentials, or with `Cache-Control: no-store`, is refused;
-a request with a cookie passes only when the response is explicitly
+a request with a blocking cookie passes only under the explicit-public
+policy (request bit 16, PS_API 1.15) and when the response is explicitly
 `public` or carries a valid `s-maxage`; a response that sets a cookie, `private`
 or `no-store`, and a `Vary` beyond `Accept-Encoding` are refused; a body with a
 per-client marker is refused with that reason in every mode; two `max-age` (or two
 `s-maxage`) directives, or two `Expires` lines, count as lifetime 0. The
 `request_flags` word of `ps_html_store_classify` carries the request facts
-(1 has authorization, 2 authenticated user, 4 has cookie, 8 request
-no-store). None of that is configurable per call, for the reason the sidecar's
+(1 has authorization, 2 authenticated user, 4 has a blocking cookie, 8
+request no-store, 16 explicit-public policy). None of that is configurable per call, for the reason the sidecar's
 allowlist is not: what makes a page personal is not safe to re-decide per
 consumer. Narrowing it later is observable and is treated as a contract change.
 
@@ -316,6 +317,54 @@ removal: the copy gets no entity tag, no 304 and no serve (reason
 with identical bytes keeps the copy bound, which is correct, because the copy
 was derived from exactly those bytes. A copy written without its own hash (by
 an older worker) can bind but carries no entity tag.
+
+**Serving cached HTML (PS_API 1.15).** The serve request grows by four
+fields (`serve_scope`, `agent_class`, `html_max_lifetime_s`, `policy_stamp`,
+with one reserved word), the stored facts by `entry_policy_stamp`, and
+`ps_sidecar_write_params_t` by `policy_stamp` and `write_flags`, all appended
+and pinned in the golden; the 1.14 (and for the sidecar params the 1.13) sizes
+stay accepted, and every field past a caller's `struct_size` reads as zero.
+The zeros are the fail-safe values: scope agents with an unknown agent class
+refuses every HTML request in serve-cached-html (`scope`), and the 1.15
+request bits (fresh-only, HTML fallback, conditional, explicit-public) are
+read only from a 1.15-size request. The constraint that makes this safe in
+both directions is stated here because nothing else enforces it: **a caller
+must not send `PS_HTML_CACHE_SERVE_CACHED_HTML` to a library whose
+`ps_version_minor()` is below 15.** A 1.14 library reads only the 1.14 prefix
+of a larger request and would serve HTML with no scope, no cap and a
+validation step the caller may not have.
+
+The entry bits `PS_FLAG_HTML_STORE_V2` (0x80, the last free bit of the flags
+byte) and `PS_FLAG_ANONYMOUS_RECORDED` (0x40, the bit other front ends already
+stamp for an anonymously recorded entry, with the same meaning) are written by
+`ps_html_store_write_params` and read back as `PS_HTML_FACTS_STORE_V2` and
+`PS_HTML_FACTS_ANONYMOUS_RECORDED`. An HTML original without the first, which
+is every one stored before 1.15, is `legacy_entry` for both bodies until the
+next clean miss records it again; that one-time miss is the upgrade's cost.
+The cookie rule became stricter in every serve mode at the same minor: a
+caller that sets the cookie bit for a request without the explicit-public bit
+gets `cookie_request` where 1.14 stored or served an explicitly shared page.
+
+**Header block format 3** (`PS_SIDECAR_WRITE_POLICY_BLOCK`) is the paired
+block plus an 8-byte policy stamp, carrying the response's `Cache-Control` and
+`Expires` lines verbatim. It spends the class's last version value below the
+entry-metadata range, 0 (formats 1 and 2 hold 1 and 2), so the metadata parse
+still never consumes a prefix of a block, and a reader before 1.15 reads a
+format-3 block as absent, which a serve path treats as a missing block. A
+fourth format takes a new id. After a library downgrade, a front end purges
+its sites so that the purge, not the unreadable block, is what its pages
+report.
+
+The request policy entry points (`ps_html_request_guard`,
+`ps_html_classify_cookies`, `ps_html_ignore_cookie_guard`,
+`ps_html_policy_stamp`, `ps_html_unsafe_method_invalidates`,
+`ps_header_block_policy_stamp`, `ps_html_stored_facts_from_reads_ex`) are pure
+like the classifiers. Their lists (the unkeyed request headers, the AJAX
+markers, the cache-deception paths, the built-in ignore list and the session
+names) are the library's, so every front end refuses the same requests; the
+built-in list carries `PS_HTML_COOKIE_LIST_VERSION`, which enters the policy
+stamp, so a change to it re-records every page once. Widening a list
+(refusing more) is a MINOR change; narrowing one is a contract change.
 
 `PS_NOTIFY_FLAG_HTML_STORED` (0x8, PS_API 1.14) was added to the wire's flags byte
 without a version bump: a worker that predates it refuses the frames that

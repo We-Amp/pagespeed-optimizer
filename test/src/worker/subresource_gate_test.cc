@@ -256,6 +256,39 @@ SubresourceRead StampedRead(SubresourceRead r, std::uint8_t extra_flags = 0) {
   return r;
 }
 
+// A module's own HTML store stamps PS_FLAG_ANONYMOUS_RECORDED with the same
+// meaning (recorded from a request with no credential and no cookie outside
+// the ignore list), plus PS_FLAG_HTML_STORE_V2. The gate's answer for an entry
+// does not change with the store-v2 bit, whatever else the read says, and an
+// entry with the store-v2 bit alone is not stamped.
+TEST_F(SubresourceGateTest, TheHtmlStoreV2BitChangesNoAdmission) {
+  server_.status["https://example.com/v2.css"] = 403;
+  for (bool host_fetch_allowed : {false, true}) {
+    for (bool same_site : {false, true}) {
+      for (std::uint16_t cc :
+           {std::uint16_t{0}, AlternateMetadata::kCCOriginPrivate}) {
+        SubresourceRead base = StampedRead(
+            Read("/v2.css"), AlternateMetadata::kFlagHeadersClassified);
+        base.site = "0123456789abcdef";
+        base.entry_site = same_site ? base.site : "fedcba9876543210";
+        base.host_fetch_allowed = host_fetch_allowed;
+        base.entry_cc_flags = cc;
+        SubresourceRead v2 = base;
+        v2.entry_flags |= AlternateMetadata::kFlagHtmlStoreV2;
+        EXPECT_EQ(gate_.Check(base, false), gate_.Check(v2, false))
+            << host_fetch_allowed << same_site << cc;
+        SubresourceRead only_v2 = base;
+        only_v2.entry_flags = AlternateMetadata::kFlagHeadersClassified |
+                              AlternateMetadata::kFlagHtmlStoreV2;
+        SubresourceRead unstamped = base;
+        unstamped.entry_flags = AlternateMetadata::kFlagHeadersClassified;
+        EXPECT_EQ(gate_.Check(only_v2, false), gate_.Check(unstamped, false))
+            << host_fetch_allowed << same_site << cc;
+      }
+    }
+  }
+}
+
 TEST_F(SubresourceGateTest, StampedEntryUnderUnconfirmedHostIsAdmitted) {
   server_.status["https://example.com/a.css"] = 403;  // never asked
   SubresourceRead r =

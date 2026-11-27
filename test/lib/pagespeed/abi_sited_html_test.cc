@@ -327,7 +327,9 @@ TEST_F(AbiSitedHtmlTest, MalformedSidecarCallsAreRefused) {
             ps_cache_write_headers_sidecar_site(cache_, &params, names, values,
                                                 1, &verdict, &stored));
   params = SidecarParams(kSiteA.c_str(), nullptr);
-  params.struct_size = sizeof(params) - 1;
+  // Below the 1.13 size (the end of origin_html_hash).
+  params.struct_size = offsetof(ps_sidecar_write_params_t, origin_html_hash) +
+                       sizeof(const uint8_t*) - 1;
   EXPECT_EQ(PS_ERR_INVALID_ARG,
             ps_cache_write_headers_sidecar_site(cache_, &params, names, values,
                                                 1, &verdict, &stored));

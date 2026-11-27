@@ -8,11 +8,10 @@
 // vector file line for line, and that the file matches its hash pin. It runs
 // no policy: the policy runner asserts the rows against the library.
 //
-// A pending row (one marked with kPendingSurface) states a verdict of the
-// C API 1.15 surface before the library has it. The policy runner skips it and
-// counts it apart; this check still checks it, against the 1.15 key and value
-// sets, and refuses those keys and values on a row that is not pending, which
-// the runner would otherwise run while ignoring them.
+// The C API 1.15 surface is built, so its keys, calls and values are part of
+// the closed sets every row is checked against, and no row may be pending: a
+// `pending` marker (the value kPendingSurface once named the 1.15 surface
+// before the library had it) would hide a row from the runner.
 
 #include "test/lib/cache/daemon_html_policy_cases.h"
 
@@ -212,10 +211,11 @@ const StringSet kServeReasons = {"fresh",
                                  "skew"};
 const StringSet kOutcomes = {"markdown_200", "markdown_304", "fall_through"};
 
-// The one pending value: rows for the C API 1.15 surface.
+// The value pending rows carried while the 1.15 surface was unbuilt. No row
+// may carry it, or any other pending marker, now.
 constexpr char kPendingSurface[] = "c-api-1.15";
 
-// What the 1.15 surface adds to the sets above. Only a pending row may use it.
+// What the 1.15 surface adds to the sets above.
 const StringSet kServeReasons115 = {
     "scope",        "capped",          "conditional",    "credentialed",
     "legacy_entry", "policy_mismatch", "request_header", "path"};
@@ -245,10 +245,11 @@ StringSet Union(const StringSet& a, const StringSet& b) {
   return out;
 }
 
-// The set a row may use: the base set, plus the 1.15 additions on a pending
-// row.
-StringSet For(bool pending, const StringSet& base, const StringSet& added) {
-  return pending ? Union(base, added) : base;
+// The set a row may use: the base set plus the 1.15 additions. The `pending`
+// argument is kept so the checks below read as they did while the additions
+// were gated; the surface is built, so every row may use them.
+StringSet For(bool /*pending*/, const StringSet& base, const StringSet& added) {
+  return Union(base, added);
 }
 const StringSet kMethods = {"GET",    "HEAD",    "POST", "PUT",
                             "DELETE", "OPTIONS", "PATCH"};
@@ -753,10 +754,13 @@ TEST(DaemonHtmlPolicyCasesTest, EveryRowHasTheDocumentedShape) {
     const std::string w = "row '" + id + "'";
     c.Keys(w, row, {"id", "runners", "why", "policy", "pending"},
            {"id", "runners", "why", "policy"});
-    const bool pending = row.contains("pending");
-    if (pending && row["pending"] != kPendingSurface) {
-      c.Fail(w, std::string("pending is not \"") + kPendingSurface + "\"");
+    if (row.contains("pending")) {
+      c.Fail(w,
+             "pending, but no library surface is pending: the runner "
+             "runs every row");
     }
+    // Every key, call and value of the 1.15 surface is open to every row.
+    const bool pending = true;
     if (!std::regex_match(id, kId)) c.Fail(w, "id is not [a-z0-9-]");
     if (!ids.insert(id).second) c.Fail(w, "duplicate id");
     if (row.value("runners", json::array()) != json::array({"policy"})) {
@@ -773,26 +777,6 @@ TEST(DaemonHtmlPolicyCasesTest, EveryRowHasTheDocumentedShape) {
     const json in = p.value("input", json::object());
     const json ex = p.value("expect", json::object());
     ++per_call[call];
-    if (kCalls115.count(call) != 0 && !pending) {
-      c.Fail(w, "call '" + call + "' is a 1.15 call and needs pending");
-      continue;
-    }
-    // A pending row must need the marker: checked as a row that runs today,
-    // it must use at least one 1.15 key, call or value. Otherwise a failing
-    // row could be hidden by marking it.
-    if (pending && kCalls115.count(call) == 0) {
-      Checker today;
-      if (call == "store") {
-        CheckStore(today, w, in, ex, /*pending=*/false, /*write=*/false);
-      } else if (call == "serve") {
-        CheckServe(today, w, in, ex, /*pending=*/false);
-      } else if (call == "facts") {
-        CheckFacts(today, w, in, ex, /*pending=*/false);
-      }
-      if (today.errors().empty()) {
-        c.Fail(w, "pending, but uses no 1.15 key, call or value");
-      }
-    }
     if (call == "store") {
       CheckStore(c, w, in, ex, pending, /*write=*/false);
     } else if (call == "store_write") {
@@ -828,6 +812,9 @@ TEST(DaemonHtmlPolicyCasesTest, EveryRowHasTheDocumentedShape) {
   for (const std::string& e : c.errors()) ADD_FAILURE() << e;
   for (const char* call :
        {"store", "serve", "facts", "etag", "inm", "notify", "write_params"}) {
+    EXPECT_GT(per_call[call], 0) << "no " << call << " rows";
+  }
+  for (const std::string& call : kCalls115) {
     EXPECT_GT(per_call[call], 0) << "no " << call << " rows";
   }
 }
@@ -892,9 +879,9 @@ TEST(DaemonHtmlPolicyCasesTest, RejectsMalformedRows) {
   EXPECT_TRUE(LabelIsPublicSafe("store: private (RFC 9111 5.2.2.7)"));
 }
 
-// The 1.15 keys and values are accepted on a pending row only: a row the
-// runner runs today must not carry a field the runner would ignore.
-TEST(DaemonHtmlPolicyCasesTest, Only1_15RowsUseThe1_15Surface) {
+// The 1.15 keys and values are accepted on every row now that the runner
+// reads them; a key outside the sets is still refused.
+TEST(DaemonHtmlPolicyCasesTest, EveryRowMayUseThe1_15Surface) {
   const json in = json::parse(R"({"mode":"serve-cached-html",
       "serve_scope":"agents","agent_class":3,"request_flags":["fresh_only"],
       "request":{"method":"GET","accept":["text/html"],"now_s":300},
@@ -907,29 +894,31 @@ TEST(DaemonHtmlPolicyCasesTest, Only1_15RowsUseThe1_15Surface) {
         "binding_hash":"79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
         "markdown_hash":"558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a"}})");
   const json ex = json::parse(R"({"action":"fall_through","reason":"scope"})");
-  Checker today;
-  CheckServe(today, "row", in, ex, /*pending=*/false);
-  // serve_scope, agent_class, request_flags, store_v2, the reason.
-  EXPECT_EQ(today.errors().size(), 5u);
-  Checker pending;
-  CheckServe(pending, "row", in, ex, /*pending=*/true);
-  EXPECT_TRUE(pending.errors().empty());
-  for (const std::string& e : pending.errors()) ADD_FAILURE() << e;
+  Checker c;
+  CheckServe(c, "row", in, ex, /*pending=*/true);
+  EXPECT_TRUE(c.errors().empty());
+  for (const std::string& e : c.errors()) ADD_FAILURE() << e;
+  json bad = in;
+  bad["serve_scope_typo"] = "agents";
+  Checker refused;
+  CheckServe(refused, "row", bad, ex, /*pending=*/true);
+  EXPECT_EQ(refused.errors().size(), 1u);
 }
 
-// Pending rows exist only while the 1.15 surface is unbuilt, and every one
-// names that surface.
-TEST(DaemonHtmlPolicyCasesTest, PendingRowsNameThe1_15Surface) {
+// The 1.15 surface is built: no row is pending any more, and the pin says so.
+TEST(DaemonHtmlPolicyCasesTest, NoRowIsPending) {
   const json doc = LoadCases();
   ASSERT_FALSE(doc.is_discarded());
   int pending = 0;
   for (const json& row : doc["rows"]) {
     if (!row.contains("pending")) continue;
     ++pending;
-    EXPECT_EQ(row["pending"], kPendingSurface) << row["id"];
+    ADD_FAILURE() << row["id"] << " still carries pending "
+                  << row["pending"].dump() << " (the " << kPendingSurface
+                  << " surface is built)";
   }
+  EXPECT_EQ(pending, 0);
   EXPECT_EQ(static_cast<size_t>(pending), kDaemonHtmlPolicyCasesPendingRows);
-  std::printf("policy cases: %d pending rows (%s)\n", pending, kPendingSurface);
 }
 
 // Each Accept vector in the shared vector file has one serve row with the same

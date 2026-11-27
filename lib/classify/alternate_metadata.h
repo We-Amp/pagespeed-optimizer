@@ -271,16 +271,32 @@ struct AlternateMetadata {
   // ASP.NET Core middleware, which serves only entries that carry it; the
   // nginx record arm does not set it and the nginx serve paths do not read
   // it.  Feeds the weak hit ETag like every other flag bit.
+  //
+  // A front end's own HTML store (ps_html_store_write_params, from C API
+  // 1.15) sets it on a durable HTML original recorded from a request with no
+  // credential and no cookie outside the ignore list in force: the same
+  // meaning, so a reader above that consults it for an image, stylesheet or
+  // script gets the same answer for such an entry.  On an HTML original the
+  // serve policy counts it only together with kFlagHtmlStoreV2.
   static constexpr uint8_t kFlagAnonymousRecorded = 0x40;
+  // kFlagHtmlStoreV2: a durable HTML original recorded by a front end's own
+  // HTML store under the C API 1.15 credentialed policy, so its
+  // kFlagAnonymousRecorded and its header block's policy stamp mean what that
+  // policy says.  An HTML original without it was recorded before that policy
+  // (or by another writer) and is never answered from: it is re-recorded on
+  // the next clean miss.  Stamped by the writer; not inherited by any variant
+  // (the worker's inherited set does not include it).  Read only by the serve
+  // policy (ps_html_stored_facts_from_reads).
+  static constexpr uint8_t kFlagHtmlStoreV2 = 0x80;
   // The flags byte is OPAQUE on the wire: it is read verbatim and written
   // back verbatim, so a bit set by a peer this build does not know about
   // survives a read/rewrite cycle rather than being cleared.  Do not add a
   // mask that filters unknown bits — losing a flag is indistinguishable from
-  // never having been told about it.  Bit 0x80 is free.
+  // never having been told about it.  Every bit is now assigned.
   static constexpr uint8_t kFlagsAssignedMask =
       kFlagNeedsRevalidation | kFlagWorkerProcessed | kFlagOriginVariesAccept |
       kFlagOriginHeadersNotReproducible | kFlagHeadersClassified |
-      kFlagHeadersSidecarRequired | kFlagAnonymousRecorded;
+      kFlagHeadersSidecarRequired | kFlagAnonymousRecorded | kFlagHtmlStoreV2;
 
   // Origin Cache-Control flag bits (origin_cc_flags).
   static constexpr uint16_t kCCOriginNoCache = 1 << 0;
@@ -589,7 +605,15 @@ static_assert((AlternateMetadata::kFlagAnonymousRecorded &
                 AlternateMetadata::kFlagOriginHeadersNotReproducible |
                 AlternateMetadata::kFlagHeadersClassified |
                 AlternateMetadata::kFlagHeadersSidecarRequired)) == 0);
-static_assert(AlternateMetadata::kFlagsAssignedMask == 0x7F);
+static_assert((AlternateMetadata::kFlagHtmlStoreV2 &
+               (AlternateMetadata::kFlagNeedsRevalidation |
+                AlternateMetadata::kFlagWorkerProcessed |
+                AlternateMetadata::kFlagOriginVariesAccept |
+                AlternateMetadata::kFlagOriginHeadersNotReproducible |
+                AlternateMetadata::kFlagHeadersClassified |
+                AlternateMetadata::kFlagHeadersSidecarRequired |
+                AlternateMetadata::kFlagAnonymousRecorded)) == 0);
+static_assert(AlternateMetadata::kFlagsAssignedMask == 0xFF);
 
 }  // namespace pagespeed
 

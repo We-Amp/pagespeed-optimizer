@@ -33,6 +33,12 @@
 // set the request, status, body facts and receipt time that a header block
 // cannot carry.  `:req-accept`, `:req-cache-control`, `:req-range`,
 // `:req-origin` and `:serve-method` set the request the serve verdict sees.
+// C API 1.15: `:req-header` (a `Name: value` request header line for the
+// request guard), `:cookie-line` (a Cookie line, classified with
+// ClassifyHtmlCookies; a blocking one sets the cookie fact), `:ignore-cookie`
+// (an operator addition), `:explicit-public`, `:scope` (agents or all),
+// `:agent-class`, `:cap`, `:fresh-only`, `:html-fallback`, `:conditional` and
+// `:stamp` (the request's policy stamp; entries are stamped 0).
 //
 // WHAT RUNS.  (1) ClassifyHtmlForStore over the parsed request, headers and
 // body prefix.  (2) FormatHtmlCacheDecisionLine over the header lines taken
@@ -42,8 +48,13 @@
 // value.  (4) ClassifyHtmlForServe, in every mode, over facts derived from
 // the store verdict.  (5) ClassifyHtmlForServe over the blob's serve request
 // (Accept, Cache-Control, Range, Origin, method) against a live copy, a
-// no-transform parent and a withheld copy, and a serve-side decision line
-// built from each verdict.
+// no-transform parent, a withheld copy, an entry recorded before the 1.15
+// policy, one recorded from a request that was not anonymous and one past its
+// lifetime, each also on the HTML fallback, and a serve-side decision line
+// built from each verdict.  (6) HtmlRequestGuard over the path and the
+// request header lines (a refusal is the store verdict, as a caller composes
+// it), ClassifyHtmlCookies, HtmlIgnoreCookieGuard, HtmlPolicyStamp and
+// HtmlUnsafeMethodInvalidates.
 //
 // ORACLES.  Crash-free, with the sanitizer as the memory-safety backstop, and
 // these invariants, each of which aborts on violation:
@@ -68,7 +79,15 @@
 //     or HEAD, is never served; Markdown is never served to a request that
 //     did not prefer it, for a no-transform parent or for a withheld copy;
 //   * a serve-side decision line built from a serve verdict always formats
-//     and the C API's gate admits it.
+//     and the C API's gate admits it;
+//   * (1.15) an entry recorded before the policy, under another stamp, or
+//     from a request that was not anonymous (without the explicit-public
+//     policy and a shareable entry) is never served, for either body;
+//     fresh-only never validates; an HTML entry is never served at or past
+//     the cap, to a conditional request, under scope agents to an unknown
+//     client without the fallback, or in serve-variants; a cookie verdict's
+//     spans lie inside the lines, a blocking one hands out no values, and an
+//     accepted addition never covers a session name; the stamp is never 0.
 
 #include "lib/cache/html_cache_policy_fuzz.h"
 
@@ -89,6 +108,7 @@
 #include "lib/cache/headers_sidecar.h"
 #include "lib/cache/html_cache_decision.h"
 #include "lib/cache/html_cache_policy.h"
+#include "lib/cache/html_request_policy.h"
 #include "lib/cache/origin_cache_control.h"
 #include "lib/cache/vary_storability.h"
 #include "lib/classify/alternate_metadata.h"
@@ -136,6 +156,18 @@ struct ParsedBlob {
   bool req_range = false;
   bool req_origin = false;
   std::string serve_method = "GET";
+  // C API 1.15.
+  std::vector<std::pair<std::string, std::string>> req_headers;
+  std::vector<std::string> cookie_lines;
+  std::vector<std::string> ignore_cookies;
+  bool explicit_public = false;
+  HtmlServeScope scope = HtmlServeScope::kAgents;
+  uint8_t agent_class = 0;
+  uint32_t cap = 0;
+  bool fresh_only = false;
+  bool html_fallback = false;
+  bool conditional = false;
+  uint64_t stamp = 0;
 };
 
 uint64_t ParseUnsigned(std::string_view v) {
@@ -210,6 +242,35 @@ ParsedBlob ParseBlob(std::string_view blob) {
       parsed.req_origin = true;
     } else if (name == ":serve-method") {
       parsed.serve_method = std::string(value);
+    } else if (name == ":req-header") {
+      const size_t sep = value.find(':');
+      if (sep != std::string_view::npos && sep != 0) {
+        std::string_view v = value.substr(sep + 1);
+        while (!v.empty() && v.front() == ' ') v.remove_prefix(1);
+        parsed.req_headers.emplace_back(std::string(value.substr(0, sep)),
+                                        std::string(v));
+      }
+    } else if (name == ":cookie-line") {
+      parsed.cookie_lines.emplace_back(value);
+    } else if (name == ":ignore-cookie") {
+      parsed.ignore_cookies.emplace_back(value);
+    } else if (name == ":explicit-public") {
+      parsed.explicit_public = true;
+    } else if (name == ":scope") {
+      parsed.scope =
+          value == "all" ? HtmlServeScope::kAll : HtmlServeScope::kAgents;
+    } else if (name == ":agent-class") {
+      parsed.agent_class = static_cast<uint8_t>(ParseUnsigned(value) & 0xFF);
+    } else if (name == ":cap") {
+      parsed.cap = static_cast<uint32_t>(ParseUnsigned(value));
+    } else if (name == ":fresh-only") {
+      parsed.fresh_only = true;
+    } else if (name == ":html-fallback") {
+      parsed.html_fallback = true;
+    } else if (name == ":conditional") {
+      parsed.conditional = true;
+    } else if (name == ":stamp") {
+      parsed.stamp = ParseUnsigned(value);
     }
   }
   return parsed;
@@ -224,15 +285,101 @@ std::vector<HeaderField> Fields(const ParsedBlob& parsed) {
   return fields;
 }
 
+std::vector<std::string_view> Views(const std::vector<std::string>& v) {
+  return std::vector<std::string_view>(v.begin(), v.end());
+}
+
+// The cookie fact a caller derives: a blocking Cookie line, or the harness's
+// own `:cookie` switch.  Checks the classification's own invariants on the
+// way.
+bool BlockingCookie(const ParsedBlob& parsed) {
+  if (parsed.cookie_lines.empty()) return parsed.cookie;
+  const std::vector<std::string_view> lines = Views(parsed.cookie_lines);
+  const std::vector<std::string_view> additions = Views(parsed.ignore_cookies);
+  const HtmlCookieVerdict v =
+      ClassifyHtmlCookies(lines, /*ignore_builtin=*/true, additions);
+  const auto inside = [&lines](const HtmlCookieSpan& span) {
+    return span.line < lines.size() && span.offset <= lines[span.line].size() &&
+           span.length <= lines[span.line].size() - span.offset;
+  };
+  if (v.cookie_class == HtmlCookieClass::kNone) {
+    Violation("Cookie lines classified as no cookie");
+  }
+  if (v.cookie_class == HtmlCookieClass::kBlocking) {
+    if (!v.ignorable_values.empty()) {
+      Violation("a blocking verdict handed out values");
+    }
+    if (!inside(v.first_blocking)) Violation("first blocking span outside");
+    if (v.malformed && v.first_blocking.length != 0) {
+      Violation("a malformed verdict named a cookie");
+    }
+  }
+  for (const HtmlCookieSpan& span : v.ignorable_values) {
+    if (!inside(span)) Violation("an ignorable value span lies outside");
+  }
+  for (std::string_view a : additions) {
+    const HtmlIgnoreCookieGuardVerdict g = HtmlIgnoreCookieGuard(a);
+    if (!g.accepted) continue;
+    // An accepted addition never makes a session name ignorable.
+    for (std::string_view session :
+         {"PHPSESSID", "JSESSIONID", "sessionid", "wordpress_logged_in_x",
+          "SESSabc", "my_session"}) {
+      const std::string line = std::string(session) + "=v";
+      const std::string_view line_view[] = {line};
+      const std::string_view add[] = {a};
+      if (ClassifyHtmlCookies(line_view, true, add).cookie_class !=
+          HtmlCookieClass::kBlocking) {
+        Violation("an accepted addition made a session name ignorable");
+      }
+    }
+  }
+  const uint64_t stamp = HtmlPolicyStamp(
+      parsed.explicit_public ? HtmlCredentialedPolicy::kExplicitPublic
+                             : HtmlCredentialedPolicy::kAnonymousOnly,
+      true, kHtmlCookieListVersion, additions);
+  if (stamp == 0) Violation("a zero policy stamp");
+  return v.cookie_class == HtmlCookieClass::kBlocking;
+}
+
 HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
   const std::vector<HeaderField> fields = Fields(parsed);
+  // The request guard first, as a caller runs it: its refusal is the verdict.
+  std::vector<HeaderField> request_headers;
+  for (const auto& [name, value] : parsed.req_headers) {
+    request_headers.push_back({name, value});
+  }
+  const HtmlGuardVerdict guard =
+      HtmlRequestGuard(parsed.path, request_headers, "https");
+  if (guard.reason != HtmlGuardReason::kNone) {
+    if (guard.reason == HtmlGuardReason::kRequestHeader &&
+        (guard.header_index < 0 ||
+         static_cast<size_t>(guard.header_index) >= request_headers.size())) {
+      Violation("a header refusal without the header's index");
+    }
+    HtmlStoreVerdict refused;
+    refused.reason = guard.reason == HtmlGuardReason::kPath
+                         ? HtmlStoreReason::kPath
+                         : HtmlStoreReason::kRequestHeader;
+    return refused;
+  }
+  {
+    const bool safe = parsed.method == "GET" || parsed.method == "HEAD" ||
+                      parsed.method == "OPTIONS" || parsed.method == "TRACE";
+    if (HtmlUnsafeMethodInvalidates(parsed.method, 200) == safe ||
+        HtmlUnsafeMethodInvalidates(parsed.method, 404) ||
+        HtmlUnsafeMethodInvalidates(parsed.method, parsed.status) !=
+            (!safe && parsed.status >= 200 && parsed.status <= 399)) {
+      Violation("unsafe-method predicate disagrees with its rule");
+    }
+  }
   HtmlStoreRequest request;
   request.method = parsed.method;
   request.url_path = parsed.path;
   request.has_authorization = parsed.authorization;
   request.authenticated_user = parsed.authenticated;
-  request.has_cookie = parsed.cookie;
+  request.has_cookie = BlockingCookie(parsed);
   request.request_no_store = parsed.no_store;
+  request.explicit_public = parsed.explicit_public;
   HtmlStoreResponse response;
   response.status = parsed.status;
   response.headers = fields;
@@ -270,6 +417,9 @@ void CheckStoreVerdict(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
   if (v.reason == HtmlStoreReason::kHeaders && !v.detail.empty() &&
       !HtmlCacheDecisionValueFits("sidecar", "fall_through:" + v.detail)) {
     Violation("sidecar code outside the decision line grammar");
+  }
+  if (v.stores() && v.request_anonymous && parsed.authorization) {
+    Violation("an authorized request recorded as anonymous");
   }
   if (v.stores()) {
     if (!v.lifetime_explicit && !v.has_validators) {
@@ -327,6 +477,8 @@ void CheckServe(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
   facts.explicit_shared = v.explicit_shared;
   facts.variant_present = true;
   facts.binding_live = true;
+  facts.store_v2 = true;
+  facts.anonymous_recorded = v.request_anonymous;
   for (HtmlCacheMode mode :
        {HtmlCacheMode::kOff, HtmlCacheMode::kReportOnly,
         HtmlCacheMode::kServeVariants, HtmlCacheMode::kServeCachedHtml}) {
@@ -334,6 +486,8 @@ void CheckServe(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
       HtmlServeRequest request;
       request.mode = mode;
       request.wants_markdown = markdown;
+      request.scope = HtmlServeScope::kAll;
+      request.fresh_only = parsed.fresh_only;
       // One second past expiry (or simply later, for lifetime 0).  Computed
       // in 64 bits; a lifetime that saturates has no representable "later",
       // so the staleness check is skipped for it.
@@ -399,35 +553,82 @@ std::vector<HtmlServeVerdict> ServeRequestVerdicts(const ParsedBlob& parsed) {
     ApplyHtmlRequestCacheControl(*parsed.req_cache_control, &request);
   }
   request.now_seconds = parsed.now;
+  request.has_cookie = BlockingCookie(parsed);
+  request.explicit_public = parsed.explicit_public;
+  request.scope = parsed.scope;
+  request.agent_class = parsed.agent_class;
+  request.html_max_lifetime_s = parsed.cap;
+  request.fresh_only = parsed.fresh_only;
+  request.conditional = parsed.conditional;
+  request.policy_stamp = parsed.stamp;
   StoredHtmlFacts live;
   live.present = true;
   live.stored_at = parsed.now;
   live.lifetime_s = 300;
   live.variant_present = true;
   live.binding_live = true;
+  live.store_v2 = true;
+  live.anonymous_recorded = true;
   std::vector<HtmlServeVerdict> out;
   for (HtmlCacheMode mode :
        {HtmlCacheMode::kServeVariants, HtmlCacheMode::kServeCachedHtml}) {
     request.mode = mode;
-    for (int shape = 0; shape < 3; ++shape) {
-      StoredHtmlFacts facts = live;
-      facts.no_transform = shape == 1;
-      facts.withheld = shape == 2;
-      const HtmlServeVerdict v = ClassifyHtmlForServe(request, facts);
-      const bool served = v.action == HtmlServeAction::kServeHtml ||
-                          v.action == HtmlServeAction::kServeMarkdown;
-      if (served && (request.has_range || request.has_origin ||
-                     !request.method_cacheable)) {
-        Violation("served a request the cache never answers");
+    for (bool fallback : {false, true}) {
+      request.html_fallback = fallback || parsed.html_fallback;
+      for (int shape = 0; shape < 7; ++shape) {
+        StoredHtmlFacts facts = live;
+        facts.no_transform = shape == 1;
+        facts.withheld = shape == 2;
+        facts.store_v2 = shape != 3;
+        facts.anonymous_recorded = shape != 4;
+        // Past its lifetime: aged before the request's time.
+        if (shape == 5) facts.age_at_store = facts.lifetime_s;
+        // Fresh, but two minutes old: a cap below that refuses it.
+        if (shape == 6) facts.age_at_store = 120;
+        const HtmlServeVerdict v = ClassifyHtmlForServe(request, facts);
+        const bool served = v.action == HtmlServeAction::kServeHtml ||
+                            v.action == HtmlServeAction::kServeMarkdown;
+        if (served && (request.has_range || request.has_origin ||
+                       !request.method_cacheable)) {
+          Violation("served a request the cache never answers");
+        }
+        if (v.action == HtmlServeAction::kServeMarkdown &&
+            (!request.wants_markdown || facts.no_transform || facts.withheld ||
+             (request.html_fallback &&
+              mode == HtmlCacheMode::kServeCachedHtml))) {
+          Violation("served Markdown that may not be served");
+        }
+        if (served && (!facts.store_v2 ||
+                       facts.entry_policy_stamp != request.policy_stamp ||
+                       (!facts.anonymous_recorded &&
+                        !(request.explicit_public && facts.explicit_shared)))) {
+          Violation("served an entry this policy did not record for anyone");
+        }
+        if (served && shape == 5) Violation("served a stale entry");
+        if (request.fresh_only && v.action == HtmlServeAction::kValidate) {
+          Violation("fresh-only validated");
+        }
+        if (v.action == HtmlServeAction::kServeHtml) {
+          if (mode != HtmlCacheMode::kServeCachedHtml) {
+            Violation("served HTML outside serve-cached-html");
+          }
+          if (request.html_max_lifetime_s != 0 &&
+              v.age_s >= request.html_max_lifetime_s) {
+            Violation("served HTML at or past the cap");
+          }
+          if (request.conditional) Violation("served HTML to a conditional");
+          const bool known = request.agent_class >= 1 &&
+                             request.agent_class <= kHtmlMaxAgentClass;
+          if (request.scope == HtmlServeScope::kAgents && !known &&
+              !(request.html_fallback && request.wants_markdown)) {
+            Violation("served HTML outside its scope");
+          }
+        }
+        if (static_cast<uint8_t>(v.reason) >= kHtmlServeReasonCount) {
+          Violation("serve reason out of range");
+        }
+        out.push_back(v);
       }
-      if (v.action == HtmlServeAction::kServeMarkdown &&
-          (!request.wants_markdown || facts.no_transform || facts.withheld)) {
-        Violation("served Markdown that may not be served");
-      }
-      if (static_cast<uint8_t>(v.reason) >= kHtmlServeReasonCount) {
-        Violation("serve reason out of range");
-      }
-      out.push_back(v);
     }
   }
   return out;
@@ -438,7 +639,7 @@ void FormatServeLines(const ParsedBlob& parsed,
                       const std::vector<HtmlServeVerdict>& verdicts) {
   for (const HtmlServeVerdict& v : verdicts) {
     const std::string age = std::to_string(v.age_s);
-    const std::vector<HtmlCacheDecisionField> fields = {
+    std::vector<HtmlCacheDecisionField> fields = {
         {"ts_ms", "1700000000000"},
         {"host", "fuzz.example"},
         {"mode", HtmlCacheModeName(HtmlCacheMode::kServeVariants)},
@@ -450,6 +651,16 @@ void FormatServeLines(const ParsedBlob& parsed,
          v.reason == HtmlServeReason::kBindingStale ? "stale" : "live"},
         {"age_s", age},
     };
+    const std::string agent_class = std::to_string(
+        parsed.agent_class <= kHtmlMaxAgentClass ? parsed.agent_class : 0);
+    fields.push_back(
+        {"scope", parsed.scope == HtmlServeScope::kAll ? "all" : "agents"});
+    fields.push_back({"agent_class", agent_class});
+    if (!parsed.req_headers.empty() &&
+        IsHttpToken(parsed.req_headers.front().first) &&
+        parsed.req_headers.front().first.size() <= kMaxHtmlStoreDetailBytes) {
+      fields.push_back({"detail", parsed.req_headers.front().first});
+    }
     if (!HtmlCacheDecisionCApiAdmits(fields)) {
       Violation("the C API gate refused a serve-side line");
     }
@@ -654,7 +865,7 @@ std::vector<std::string> BuildSeeds() {
   seeds.push_back(Blob({kType, kAge, "Content-Range: bytes 0-9/100"}));
   seeds.push_back(Blob({":path: /search?q=1", kType, kAge}));
   seeds.push_back(
-      Blob({":path: /img/a.jpg.pagespeed.ce.HASH.jpg", kType, kAge}));
+      Blob({":path: /img/a.jpg.pagespeed.ce.HASH.html", kType, kAge}));
   seeds.push_back(Blob({"Content-Type: application/xhtml+xml", kAge}));
   seeds.push_back(Blob({kType, kAge, "Content-Encoding: gzip"}));
   seeds.push_back(Blob({":authorization: 1", kType, kAge}));
@@ -716,6 +927,29 @@ std::vector<std::string> BuildSeeds() {
   seeds.push_back(
       std::string("\x01\x02: \xff\xfe\n:status\n: x\n::\nhost: \n\n"));
   seeds.push_back(std::string());
+  // C API 1.15: the request guard, cookies and the serve scope.
+  seeds.push_back(
+      Blob({":req-header: X-Forwarded-Host: attacker.example", kType, kAge}));
+  seeds.push_back(
+      Blob({":req-header: X-Forwarded-Proto: http",
+            ":req-header: X-Requested-With: XMLHttpRequest", kType, kAge}));
+  seeds.push_back(Blob({":path: /a/%2e%2e/b.css", kType, kAge}));
+  seeds.push_back(Blob({":path: /a\\b", kType, kAge}));
+  seeds.push_back(
+      Blob({":cookie-line: _ga=GA1.2.3; _gid=GA1.2.4", kType, kAge}));
+  seeds.push_back(Blob({":cookie-line: _ga=1; sid=abc", ":explicit-public: 1",
+                        kType, "Cache-Control: public, max-age=300"}));
+  seeds.push_back(
+      Blob({":cookie-line: abtest_home=b; =x", ":ignore-cookie: abtest_*",
+            ":ignore-cookie: sess*", kType, kAge}));
+  seeds.push_back(Blob({":cookie-line: \"", ":cookie-line: ;;", kType, kAge}));
+  seeds.push_back(
+      Blob({":req-accept: text/html", ":scope: agents", ":agent-class: 3",
+            ":fresh-only: 1", ":cap: 60", kType, kAge}));
+  seeds.push_back(Blob({":req-accept: text/html", ":scope: all",
+                        ":agent-class: 9", ":conditional: 1", kType, kAge}));
+  seeds.push_back(Blob({":req-accept: text/markdown", ":html-fallback: 1",
+                        ":fresh-only: 1", ":stamp: 7", kType, kAge}));
   return seeds;
 }
 

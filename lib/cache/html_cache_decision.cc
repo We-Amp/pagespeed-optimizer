@@ -18,16 +18,22 @@ namespace {
 
 // Append only: a new key goes at the end so every line that does not carry
 // it stays byte-identical.
-constexpr std::array<std::string_view, 20> kKeys = {
-    "ts_ms",  "host",    "path",    "mode",       "action",
-    "reason", "status",  "size",    "lifetime_s", "validators",
-    "cc",     "vary",    "sidecar", "request",    "personalisation",
-    "before", "variant", "binding", "age_s",      "vhost_added"};
+constexpr std::array<std::string_view, 23> kKeys = {
+    "ts_ms",  "host",        "path",    "mode",       "action",
+    "reason", "status",      "size",    "lifetime_s", "validators",
+    "cc",     "vary",        "sidecar", "request",    "personalisation",
+    "before", "variant",     "binding", "age_s",      "vhost_added",
+    "scope",  "agent_class", "detail"};
+
+// The keys only a serve-side line may carry (C API 1.15).
+bool IsServeOnlyKey(std::string_view key) {
+  return key == "scope" || key == "agent_class" || key == "detail";
+}
 
 // Keys whose value is a count, written as a JSON number.
 bool IsNumericKey(std::string_view key) {
   return key == "ts_ms" || key == "status" || key == "size" ||
-         key == "lifetime_s" || key == "age_s";
+         key == "lifetime_s" || key == "age_s" || key == "agent_class";
 }
 
 // Digits only, no leading zero, at most 20 digits (a uint64_t fits).
@@ -149,10 +155,13 @@ bool IsReportOnlyAction(std::string_view v) {
 // belong to the stored entry, a URL the server and the module read
 // differently, and a transport header a later stage added to a response the
 // engine owns.
-constexpr std::array<std::string_view, 9> kFrontEndReasons = {
+// cookie_echo (C API 1.15) is the engine's store refusal for an ignore-listed
+// cookie value found in the page it would store.
+constexpr std::array<std::string_view, 10> kFrontEndReasons = {
     "validated",        "validation_failed", "sidecar_write_failed",
     "invalidated",      "purge_race",        "budget",
-    "sidecar_unpaired", "url_disagree",      "transport_conflict"};
+    "sidecar_unpaired", "url_disagree",      "transport_conflict",
+    "cookie_echo"};
 
 // The front-end reasons a store-side line may carry: the ones that refuse or
 // fail a store.
@@ -278,6 +287,11 @@ bool IsHash(std::string_view v) {
 
 bool ValueFits(std::string_view key, std::string_view value) {
   if (value.empty() || HasForbiddenByte(value)) return false;
+  // A number, but only a known agent class.
+  if (key == "agent_class") {
+    return value.size() == 1 && value[0] >= '0' &&
+           value[0] <= static_cast<char>('0' + kHtmlMaxAgentClass);
+  }
   if (IsNumericKey(key)) return IsCanonicalInteger(value);
   if (key == "host") return IsHost(value);
   if (key == "path") return IsPath(value);
@@ -296,6 +310,12 @@ bool ValueFits(std::string_view key, std::string_view value) {
   if (key == "variant") return value == "0x7C" || value == "markdown";
   if (key == "binding") return value == "live" || value == "stale";
   if (key == "vhost_added") return IsVaryList(value);
+  if (key == "scope") return value == "agents" || value == "all";
+  // The NAME of a cookie or request header, never a value: a token, bounded
+  // as a store detail is.
+  if (key == "detail") {
+    return value.size() <= kMaxHtmlStoreDetailBytes && IsHttpToken(value);
+  }
   return false;
 }
 
@@ -332,7 +352,7 @@ bool HtmlCacheDecisionIsStoreSide(
     std::span<const HtmlCacheDecisionField> fields) {
   for (const HtmlCacheDecisionField& field : fields) {
     if (field.key == "variant" || field.key == "binding" ||
-        field.key == "age_s") {
+        field.key == "age_s" || IsServeOnlyKey(field.key)) {
       return false;
     }
     if (field.key == "mode" && field.value != "off" &&
@@ -373,7 +393,7 @@ bool HtmlCacheDecisionCApiAdmits(
   }
   for (const HtmlCacheDecisionField& field : fields) {
     if (field.key == "variant" || field.key == "binding" ||
-        field.key == "age_s") {
+        field.key == "age_s" || IsServeOnlyKey(field.key)) {
       return false;
     }
     if (field.key == "mode" && field.value != "off" &&
@@ -419,6 +439,12 @@ std::optional<std::string> FormatHtmlCacheDecisionLine(
   if (mode.has_value() && *mode == "report-only" && action.has_value() &&
       !IsReportOnlyAction(*action)) {
     return std::nullopt;
+  }
+  // The 1.15 keys describe a serve-side decision only.
+  const bool serve_side = mode.has_value() && (*mode == "serve-variants" ||
+                                               *mode == "serve-cached-html");
+  for (std::string_view key : {"scope", "agent_class", "detail"}) {
+    if (slots[KeyIndex(key)].has_value() && !serve_side) return std::nullopt;
   }
 
   std::string line;

@@ -33,6 +33,7 @@ cc_library(
         "//lib/cache:freshness",
         "//lib/cache:html_cache_decision",
         "//lib/cache:html_cache_policy",
+        "//lib/cache:html_request_policy",
         "//lib/cache:html_withheld_marker",
         "//lib/cache:origin_cache_control",
         "//lib/cache:pagespeed_cache",

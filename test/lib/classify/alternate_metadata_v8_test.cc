@@ -554,7 +554,7 @@ TEST(AlternateMetadataV8Test, OriginVariesAcceptBitDoesNotCollide) {
   EXPECT_EQ(AlternateMetadata::kFlagOriginVariesAccept &
                 AlternateMetadata::kFlagWorkerProcessed,
             0);
-  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x7F);
+  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0xFF);
 }
 
 TEST(AlternateMetadataV8Test, OriginHeadersNotReproducibleBitDoesNotCollide) {
@@ -574,7 +574,7 @@ TEST(AlternateMetadataV8Test, OriginHeadersNotReproducibleBitDoesNotCollide) {
 TEST(AlternateMetadataV8Test, HeadersSidecarBitsAreDistinctAndAssigned) {
   EXPECT_EQ(AlternateMetadata::kFlagHeadersClassified, 0x10);
   EXPECT_EQ(AlternateMetadata::kFlagHeadersSidecarRequired, 0x20);
-  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x7F);
+  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0xFF);
   EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
                 AlternateMetadata::kFlagHeadersClassified,
             0);
@@ -639,12 +639,29 @@ TEST(AlternateMetadataV8Test, EveryFlagsByteValueRoundTrips) {
   }
 }
 
+TEST(AlternateMetadataV8Test, HtmlStoreV2BitIsDistinctAndAssigned) {
+  EXPECT_EQ(AlternateMetadata::kFlagHtmlStoreV2, 0x80);
+  EXPECT_EQ(AlternateMetadata::kFlagHtmlStoreV2 &
+                (AlternateMetadata::kFlagNeedsRevalidation |
+                 AlternateMetadata::kFlagWorkerProcessed |
+                 AlternateMetadata::kFlagOriginVariesAccept |
+                 AlternateMetadata::kFlagOriginHeadersNotReproducible |
+                 AlternateMetadata::kFlagHeadersClassified |
+                 AlternateMetadata::kFlagHeadersSidecarRequired |
+                 AlternateMetadata::kFlagAnonymousRecorded),
+            0);
+  EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
+                AlternateMetadata::kFlagHtmlStoreV2,
+            0);
+}
+
 TEST(AlternateMetadataV8Test, UnknownFlagBitsSurviveReadAndRewrite) {
   // A bit set by a peer this build does not know about must come back out the
   // other side.  Clearing it is indistinguishable, downstream, from never
-  // having been told — and this is the contract v7 already had.
-  const uint8_t unknown = static_cast<uint8_t>(
-      ~AlternateMetadata::kFlagsAssignedMask & 0xFF);  // 0x80
+  // having been told — and this is the contract v7 already had.  Every bit
+  // is assigned now, so the highest one stands in for a bit an older build
+  // did not know: an older build reads it back and writes it out unchanged.
+  const uint8_t unknown = AlternateMetadata::kFlagHtmlStoreV2;
   AlternateMetadata meta;
   meta.flags =
       static_cast<uint8_t>(AlternateMetadata::kFlagWorkerProcessed | unknown);
