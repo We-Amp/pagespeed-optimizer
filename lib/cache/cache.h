@@ -214,6 +214,8 @@ struct ReadResult {
     return raw > metadata_prefix_size_ ? raw - metadata_prefix_size_ : 0;
   }
   bool is_valid() const { return handle.is_valid(); }
+  // True when the entry carried an AlternateMetadata prefix that parsed.
+  bool has_metadata_prefix() const { return metadata_prefix_size_ > 0; }
 
   // Re-stamp the read lease pinning this result's mmap borrow.
   // Any holder keeping this ReadResult alive longer than 3T/4 of
@@ -652,6 +654,25 @@ class PageSpeedCache {
                       std::string_view scheme, uint64_t content_length,
                       const AlternateMetadata& metadata,
                       std::string_view site = {});
+
+  // Write the brotli or gzip copy of the agent_optimize markdown variant,
+  // under SentinelId::kAgentMarkdownBrotli (0xDC) or kAgentMarkdownGzip
+  // (0xEC), WITH a metadata prefix, exactly as WriteAgentAlternate.  The
+  // caller names the CODING, never an id: these two ids have this one writer
+  // (the worker's Markdown deriver).  `metadata.full_mask` must self-describe
+  // as the coded id, and the metadata carries the page's origin_html_hash and
+  // the plain copy's render_source_hash, which bind the copy.  A
+  // content_length of 0 writes the record that this coding of that plain copy
+  // is not smaller than the plain copy (a reader treats it as missing).
+  // MarkdownCoding values (lib/cache/markdown_coding.h): 1 gzip, 2 br; any
+  // other value is InvalidArgument.  RE-RECORDING REPLACES, as
+  // WriteAgentAlternate.
+  [[nodiscard]] std::expected<WriteResult, cyclone::CacheError>
+  WriteAgentCodedAlternate(std::string_view url, std::string_view hostname,
+                           std::string_view scheme, uint8_t coding,
+                           uint64_t content_length,
+                           const AlternateMetadata& metadata,
+                           std::string_view site = {});
 
   // Write the durable ORIGINAL of a resource: the bytes the origin sent,
   // unoptimized, kept so that the optimized variants can be rebuilt without
@@ -1362,6 +1383,12 @@ class PageSpeedCache {
   // PRECONDITION: the caller holds `reset_mutex_` (every public writer does).
   // `class_name` names the class in the log line; `unlink_failed` is the
   // per-class counter to bump.
+  // The prefixed write of one Markdown copy (plain or coded) under `id`.
+  std::expected<WriteResult, cyclone::CacheError> WriteAgentFamilyAlternate(
+      std::string_view url, std::string_view hostname, std::string_view scheme,
+      AlternateId id, uint64_t content_length,
+      const AlternateMetadata& metadata, std::string_view site);
+
   void UnlinkSupersededAlternate(const cyclone::CacheKey& key, AlternateId id,
                                  std::string_view url,
                                  std::string_view class_name,

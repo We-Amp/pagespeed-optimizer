@@ -78,6 +78,7 @@ cc_library(
     visibility = ["//:internal"],
     deps = [
         ":headers_sidecar",
+        ":markdown_coding",
         ":origin_cache_control",
         "//lib/classify:alternate_metadata",
     ],
@@ -101,6 +102,14 @@ cc_library(
     srcs = ["html_withheld_marker.cc"],
     hdrs = ["html_withheld_marker.h"],
     visibility = ["//:internal"],
+)
+
+cc_library(
+    name = "markdown_coding",
+    srcs = ["markdown_coding.cc"],
+    hdrs = ["markdown_coding.h"],
+    visibility = ["//:internal"],
+    deps = ["//lib/classify:alternate_id"],
 )
 
 cc_library(

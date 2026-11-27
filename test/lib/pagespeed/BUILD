@@ -50,3 +50,17 @@ gtest_test(
         "//test/test_util:temp_dir",
     ],
 )
+
+gtest_test(
+    name = "abi_markdown_coding_test",
+    size = "medium",
+    deps = [
+        "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_id",
+        "//lib/classify:alternate_metadata",
+        "//lib/pagespeed:pagespeed_api",
+        "//src/worker:shared_config",
+        "//test/test_util:temp_dir",
+        "@cyclone",
+    ],
+)

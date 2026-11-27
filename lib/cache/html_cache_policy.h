@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "lib/cache/headers_sidecar.h"
+#include "lib/cache/markdown_coding.h"
 
 namespace pagespeed {
 
@@ -423,9 +424,11 @@ enum class HtmlServeReason : uint8_t {
   kPolicyMismatch,
   kRequestHeader,
   kPath,
+  // Appended (C API 1.16).
+  kNoAcceptableEncoding,
 };
 
-inline constexpr uint8_t kHtmlServeReasonCount = 27;
+inline constexpr uint8_t kHtmlServeReasonCount = 28;
 
 // Who the HTML path of kServeCachedHtml answers (rule 7b).
 enum class HtmlServeScope : uint8_t {
@@ -477,6 +480,13 @@ struct HtmlServeRequest {
   bool explicit_public = false;
   // Rule 7a: the stamp of the policy in force, 0 = none.
   uint64_t policy_stamp = 0;
+  // Rule 9a: the coding of the Markdown copy the request asks for, the first
+  // of its preference order (SelectMarkdownCoding).
+  MarkdownCoding markdown_coding = MarkdownCoding::kIdentity;
+  // Rule 9a: the plain copy is acceptable when the coded one is not bound.
+  bool identity_ok = false;
+  // Rule 9a: the request accepts no coding a copy exists in.
+  bool no_acceptable_coding = false;
 };
 
 struct StoredHtmlFacts {
@@ -507,6 +517,10 @@ struct StoredHtmlFacts {
   bool store_v2 = false;            // recorded under this policy
   bool anonymous_recorded = false;  // recorded from an anonymous request
   uint64_t entry_policy_stamp = 0;  // the policy stamp it was recorded under
+  // Rule 9a: the gzip or brotli copy is present and bound to this page and
+  // to the plain copy it was compressed from.
+  bool gzip_copy_bound = false;
+  bool brotli_copy_bound = false;
 };
 
 // Fold a request's Cache-Control value (every line joined with ", ") into
@@ -527,6 +541,8 @@ struct HtmlServeVerdict {
   bool enforce = false;
   // RFC 9111 §4.2.3: age_at_store + max(0, now - stored_at), saturated.
   uint32_t age_s = 0;
+  // With kServeMarkdown, the coding of the copy the caller sends.
+  MarkdownCoding markdown_coding = MarkdownCoding::kIdentity;
   [[nodiscard]] std::string reason_code() const;
 };
 

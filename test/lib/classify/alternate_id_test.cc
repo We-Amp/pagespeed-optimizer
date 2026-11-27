@@ -45,6 +45,8 @@ TEST(AlternateIdTest, EverySentinelIdIsRegisteredExactlyOnce) {
       SentinelId::kNegativeVerdict,
       SentinelId::kDeclineTombstone,
       SentinelId::kAgentMarkdownWithheld,
+      SentinelId::kAgentMarkdownBrotli,
+      SentinelId::kAgentMarkdownGzip,
   };
   for (SentinelId id : ids) {
     auto byte = static_cast<AlternateId>(id);
@@ -123,6 +125,35 @@ TEST(AlternateIdTest, TheHeaderSidecarHasADedicatedWriter) {
       static_cast<AlternateId>(SentinelId::kHeadersSidecar)));
   EXPECT_EQ(entry->payload, SentinelPayload::kVersionedPayload);
   EXPECT_EQ(entry->name, "headers_sidecar");
+}
+
+TEST(AlternateIdTest, TheCompressedMarkdownCopiesHaveADedicatedWriter) {
+  // The brotli and gzip copies of the Markdown copy: written only by the
+  // worker's deriver, with a metadata prefix, and never through the generic
+  // embedder surface.
+  struct Row {
+    SentinelId id;
+    AlternateId byte;
+    const char* name;
+  };
+  const Row rows[] = {
+      {SentinelId::kAgentMarkdownBrotli, 0xDC, "agent_markdown_br"},
+      {SentinelId::kAgentMarkdownGzip, 0xEC, "agent_markdown_gzip"},
+  };
+  for (const Row& row : rows) {
+    SCOPED_TRACE(row.name);
+    EXPECT_EQ(static_cast<AlternateId>(row.id), row.byte);
+    EXPECT_TRUE(IsSentinel(row.byte));
+    const auto* entry = FindSentinel(row.byte);
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->writer, SentinelWriter::kDedicated);
+    EXPECT_EQ(entry->payload, SentinelPayload::kMetadataPrefix);
+    EXPECT_EQ(entry->name, row.name);
+    EXPECT_FALSE(IsEmbedderWritableSentinel(row.byte));
+  }
+  // The tests' unregistered example stays free.
+  EXPECT_FALSE(IsRegisteredSentinel(0xFC));
+  EXPECT_TRUE(IsEmbedderWritableSentinel(0xFC));
 }
 
 TEST(AlternateIdTest, EmbedderWritabilityIsExactlyTheOpenClasses) {

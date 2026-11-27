@@ -149,3 +149,7 @@ EXPORTS
     ps_html_ignore_cookie_guard
     ps_html_policy_stamp
     ps_html_unsafe_method_invalidates
+    ps_markdown_select_encoding
+    ps_html_stored_facts_from_reads_coded
+    ps_html_markdown_etag_coded
+    ps_read_shared_config_markdown_codings

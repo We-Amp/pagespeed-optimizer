@@ -14,6 +14,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <functional>
@@ -22,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -460,6 +462,19 @@ struct WorkerStats {
   std::atomic<uint64_t> module_markdown_derived{0};
   std::atomic<uint64_t> module_markdown_withheld{0};
   std::atomic<uint64_t> module_markdown_withheld_skips{0};
+  // The gzip and brotli copies of a Markdown copy, compressed once when the
+  // copy is derived or by the "compress the Markdown copy" task: copies
+  // written per coding, and codings whose compressed bytes were not smaller
+  // than the plain copy (recorded, so nothing asks for them again).
+  std::atomic<uint64_t> agent_markdown_encoded_written_gzip{0};
+  std::atomic<uint64_t> agent_markdown_encoded_written_br{0};
+  std::atomic<uint64_t> agent_markdown_encoded_not_smaller{0};
+  // The compress task queue: tasks queued, demands for a key already queued
+  // or running, demands dropped because the queue was full, tasks run.
+  std::atomic<uint64_t> agent_markdown_compress_tasks_queued{0};
+  std::atomic<uint64_t> agent_markdown_compress_tasks_deduplicated{0};
+  std::atomic<uint64_t> agent_markdown_compress_tasks_dropped{0};
+  std::atomic<uint64_t> agent_markdown_compress_tasks_done{0};
 };
 
 // Purge fence baseline captured when a notification is dispatched
@@ -849,6 +864,50 @@ class Worker {
   // hold the pass, at the point between the checks and the writes.  Never
   // set in production.
   std::function<void()> test_hook_module_html_after_copy_;
+
+  // TEST-ONLY seam.  When set, invoked on the compress-task thread at the
+  // start of each "compress the Markdown copy" task, so a test can hold the
+  // queue at a known point.  Never set in production.
+  std::function<void()> test_hook_markdown_compress_start_;
+
+  // TEST-ONLY seam.  When set, invoked before each compressed Markdown copy
+  // is written, after its purge and binding checks, with the copy's id, so a
+  // test can land a purge between the check and the commit.  Never set in
+  // production.
+  std::function<void(AlternateId)> test_hook_markdown_coded_before_write_;
+  // TEST-ONLY seam.  When set, may replace the compressed bytes of a copy
+  // before the size comparison, so a test can produce a coding that is not
+  // smaller than the plain copy.  Never set in production.
+  std::function<void(AlternateId, std::string*)>
+      test_hook_markdown_coded_bytes_;
+
+  // TEST-ONLY: the purge a front end's removal triggers here (generation
+  // bump and whole-key removal), for a pre-normalized key.
+  int PurgeUrlForTesting(const std::string& url, const std::string& host,
+                         const std::string& scheme, std::string_view site) {
+    return PurgeUrlAndBumpGeneration(url, host, scheme, site);
+  }
+
+  // What a demand for the compressed copies of one key's Markdown copy did.
+  enum class MarkdownCompressDemand : uint8_t {
+    kQueued,        // a task was queued
+    kDeduplicated,  // a task for the key is already queued or running
+    kDropped,       // the queue was full
+    kStopped,       // the worker is shutting down
+  };
+  // Queue the "compress the Markdown copy" task for one key (URL, host,
+  // scheme and site, already normalized).  At most one task per key is
+  // queued or running; the queue holds at most markdown_compress_queue_limit_
+  // tasks.  Any thread.
+  MarkdownCompressDemand DemandMarkdownCompress(const std::string& url,
+                                                const std::string& host,
+                                                const std::string& scheme,
+                                                const std::string& site);
+  // Blocks until no compress task is queued or running, or `timeout` passes.
+  // For tests.
+  bool WaitForMarkdownCompressIdle(std::chrono::milliseconds timeout);
+  // The compress queue's bound.  Settable before Run, for tests.
+  size_t markdown_compress_queue_limit_ = 256;
 
   // TEST-ONLY seam.  When set, invoked on the worker-pool thread before each
   // image variant write; returning true makes that write fail as a cache
@@ -1321,6 +1380,67 @@ class Worker {
                                     const PurgeDispatchGen& purge_gen,
                                     const WorkerConfig& cfg);
 
+  // A compress demand from the module (PS_NOTIFY_FLAG_MARKDOWN_COMPRESS): the
+  // front end served the plain Markdown copy because a coded copy was
+  // missing or not bound.  Queues the compress task when an enabled coding
+  // has neither a bound copy nor a "not smaller" record for the current
+  // plain copy.  Runs on the thread pool.
+  void HandleMarkdownCompressNotification(const CacheNotification& notification,
+                                          const WorkerConfig& cfg);
+
+  // Whether any enabled coding of the key's Markdown copy, bound to `stamp`
+  // with plain hash `plain_hash`, still needs writing: neither a bound copy
+  // nor a "not smaller" record is stored for it.
+  bool MarkdownCodedCopiesWanted(const std::string& url,
+                                 const std::string& host,
+                                 const std::string& scheme,
+                                 const std::string& site,
+                                 const std::array<std::byte, 32>& stamp,
+                                 const std::array<std::byte, 32>& plain_hash,
+                                 const WorkerConfig& cfg);
+
+  // Compress `markdown` (the plain copy, SHA-256 `plain_hash`, bound to the
+  // page stamp `stamp`) once per enabled coding and write each copy under
+  // the key, fenced like the plain copy: `purged` and `still_bound` are
+  // checked before every write, and a copy written across a purge is taken
+  // back.  A coding whose bytes are not smaller is recorded instead.  With
+  // `only_missing`, a coding that already has a bound copy or record is
+  // skipped.
+  void WriteMarkdownCodedCopies(
+      const std::string& url, const std::string& host,
+      const std::string& scheme, const std::string& site,
+      const std::array<std::byte, 32>& stamp, std::string_view markdown,
+      const std::array<std::byte, 32>& plain_hash, const WorkerConfig& cfg,
+      const std::function<bool()>& purged,
+      const std::function<bool()>& still_bound, bool only_missing);
+
+  // True while the key's plain Markdown copy is bound to `stamp` and has the
+  // content hash `plain_hash`.
+  static bool PlainMarkdownCopyStillBound(
+      PageSpeedCache* cache, const std::string& url, const std::string& host,
+      const std::string& scheme, const std::string& site,
+      const std::array<std::byte, 32>& stamp,
+      const std::array<std::byte, 32>& plain_hash);
+
+  // Remove both coded copies of a key's Markdown copy (and their RAM-tier
+  // entries).
+  void RemoveMarkdownCodedCopies(const std::string& url,
+                                 const std::string& host,
+                                 const std::string& scheme,
+                                 const std::string& site);
+
+  // One "compress the Markdown copy" task, on the compress thread.
+  struct MarkdownCompressTask {
+    std::string url;
+    std::string host;
+    std::string scheme;
+    std::string site;
+    std::string key;
+  };
+  void RunMarkdownCompressTask(const MarkdownCompressTask& task);
+  void MarkdownCompressLoop();
+  void StopMarkdownCompress();
+
   // Handle a warmup request (sentinel mask 0xFFFFFFFE): generate
   // full format variant matrix for images, ensure minified versions
   // for CSS/JS.
@@ -1402,6 +1522,17 @@ class Worker {
   // module asks again.  One per key; a later frame replaces it, keeping its
   // agent request.  Event loop only.
   std::unordered_map<std::string, CacheNotification> pending_module_html_;
+
+  // The compress task queue (DemandMarkdownCompress).  One thread, started
+  // with the first task, joined when the worker stops.  `compress_keys_`
+  // holds every key queued or running.
+  std::mutex compress_mutex_;
+  std::condition_variable compress_cv_;
+  std::deque<MarkdownCompressTask> compress_queue_;
+  std::unordered_set<std::string> compress_keys_;
+  bool compress_running_ = false;
+  bool compress_stop_ = false;
+  std::thread compress_thread_;
 
   // Health check socket
   std::unique_ptr<uv_pipe_s> health_server_;

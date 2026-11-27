@@ -255,6 +255,8 @@ static_assert(offsetof(ps_html_serve_request_t, agent_class) == 68);
 static_assert(offsetof(ps_html_serve_request_t, html_max_lifetime_s) == 72);
 static_assert(offsetof(ps_html_serve_request_t, reserved) == 76);
 static_assert(offsetof(ps_html_serve_request_t, policy_stamp) == 80);
+// --- 1.16 names the reserved word; it does not move and the size stays ---
+static_assert(offsetof(ps_html_serve_request_t, markdown_encoding) == 76);
 
 static_assert(sizeof(ps_html_stored_facts_t) == 104);
 static_assert(offsetof(ps_html_stored_facts_t, struct_size) == 0);
@@ -269,7 +271,7 @@ static_assert(offsetof(ps_html_stored_facts_t, markdown_hash) == 64);
 // --- appended at 1.15; nothing above may move ---
 static_assert(offsetof(ps_html_stored_facts_t, entry_policy_stamp) == 96);
 
-static_assert(sizeof(ps_html_serve_verdict_t) == 64);
+static_assert(sizeof(ps_html_serve_verdict_t) == 72);
 static_assert(offsetof(ps_html_serve_verdict_t, struct_size) == 0);
 static_assert(offsetof(ps_html_serve_verdict_t, action) == 8);
 static_assert(offsetof(ps_html_serve_verdict_t, reason) == 12);
@@ -278,6 +280,8 @@ static_assert(offsetof(ps_html_serve_verdict_t, wants_markdown) == 20);
 static_assert(offsetof(ps_html_serve_verdict_t, age_s) == 24);
 static_assert(offsetof(ps_html_serve_verdict_t, not_modified) == 28);
 static_assert(offsetof(ps_html_serve_verdict_t, etag) == 32);
+// --- appended at 1.16; nothing above may move ---
+static_assert(offsetof(ps_html_serve_verdict_t, markdown_encoding) == 64);
 
 // ---------------------------------------------------------------------------
 // HTML request policy structs (new at 1.15). Each carries struct_size; fields

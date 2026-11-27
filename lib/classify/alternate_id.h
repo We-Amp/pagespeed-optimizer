@@ -112,6 +112,22 @@ enum class SentinelId : uint8_t {
                                   // in-tree PageSpeedCache::WriteSentinel;
                                   // the payload is lib/cache/
                                   // html_withheld_marker.h.
+  kAgentMarkdownBrotli = 0xDC,    // The brotli-coded copy of kAgentMarkdown,
+                                  // and kAgentMarkdownGzip below its gzip-coded
+  // copy: the same bytes, compressed once by the
+  // worker's Markdown deriver, under an
+  // AlternateMetadata prefix that binds each to
+  // the page (origin_html_hash) and to the plain
+  // copy it was compressed from
+  // (render_source_hash, the SHA-256 of the
+  // plain Markdown bytes).  An entry with no
+  // content is the record that the coded copy
+  // is not smaller than the plain one.  Read by
+  // exact id only, never selectable:
+  // PageSpeedSelector skips every sentinel
+  // except kAgentMarkdown.  Written only through
+  // PageSpeedCache::WriteAgentCodedAlternate.
+  kAgentMarkdownGzip = 0xEC,
 };
 
 // Payload shape of an entry class, i.e. how a reader of that class knows what
@@ -247,6 +263,12 @@ inline constexpr SentinelRegistryEntry kSentinelRegistry[] = {
     {static_cast<AlternateId>(SentinelId::kAgentMarkdownWithheld),
      "agent_markdown_withheld", SentinelPayload::kVersionedPayload,
      SentinelWriter::kDedicated},
+    {static_cast<AlternateId>(SentinelId::kAgentMarkdownBrotli),
+     "agent_markdown_br", SentinelPayload::kMetadataPrefix,
+     SentinelWriter::kDedicated},
+    {static_cast<AlternateId>(SentinelId::kAgentMarkdownGzip),
+     "agent_markdown_gzip", SentinelPayload::kMetadataPrefix,
+     SentinelWriter::kDedicated},
 };
 
 inline constexpr size_t kSentinelRegistrySize =
@@ -345,7 +367,7 @@ static_assert([] {
   }
   return true;
 }());
-static_assert(kSentinelRegistrySize == 13,
+static_assert(kSentinelRegistrySize == 15,
               "a SentinelId enumerator was added or removed without updating "
               "kSentinelRegistry");
 
@@ -431,6 +453,16 @@ static_assert(!IsEmbedderWritableSentinel(
 // may write it through the embedder surface.
 static_assert(!IsEmbedderWritableSentinel(
     static_cast<AlternateId>(SentinelId::kAgentMarkdownWithheld)));
+// The compressed Markdown copies have one writer, the worker's deriver,
+// whose binding fields are what lets a reader trust them.
+static_assert(!IsEmbedderWritableSentinel(
+    static_cast<AlternateId>(SentinelId::kAgentMarkdownBrotli)));
+static_assert(!IsEmbedderWritableSentinel(
+    static_cast<AlternateId>(SentinelId::kAgentMarkdownGzip)));
+static_assert(
+    IsSentinel(static_cast<AlternateId>(SentinelId::kAgentMarkdownBrotli)) &&
+        IsSentinel(static_cast<AlternateId>(SentinelId::kAgentMarkdownGzip)),
+    "the compressed Markdown copies must never be selectable");
 static_assert(IsEmbedderWritableSentinel(0xFC));
 
 static_assert(IsRegisteredSentinel(

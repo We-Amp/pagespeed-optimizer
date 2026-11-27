@@ -517,6 +517,7 @@ gtest_test(
         "//lib/base:message_handler",
         "//lib/cache:freshness",
         "//lib/cache:html_withheld_marker",
+        "//lib/cache:markdown_coding",
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",

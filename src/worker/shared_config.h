@@ -96,6 +96,13 @@ inline constexpr int kSharedConfigVersion = 1;
 // inside the volume) or serve-stats layout changes (own namespace, own file).
 inline constexpr int kCacheDirGeneration = 3;
 
+// SharedConfig::markdown_codings for the worker's compression levels: a
+// level of 0 disables that coding.
+inline constexpr int MarkdownCodingsForLevels(int gzip_level,
+                                              int brotli_level) {
+  return (gzip_level > 0 ? 1 << 1 : 0) | (brotli_level > 0 ? 1 << 2 : 0);
+}
+
 // Keep in sync with inline SharedConfig in src/nginx/ngx_pagespeed_module.cc.
 struct SharedConfig {
   // Reader-side fallback when no shared config was read; matches the
@@ -108,6 +115,14 @@ struct SharedConfig {
   // of ResolveHtmlMode: a valid html_mode wins, whatever the line order;
   // otherwise disable_html decides; with neither, full.
   HtmlMode html_mode = kDefaultHtmlMode;
+  // The codings the worker writes compressed Markdown copies in, as a bit set
+  // (1 << MarkdownCoding): gzip when gzip_level > 0, brotli when
+  // brotli_level > 0.  On the wire as markdown_codings= with "gzip", "br" or
+  // both (comma-separated), or "none".  -1 means not published: a worker that
+  // predates the key, which writes no coded copies and refuses the
+  // compress-demand notification.  Added without a schema bump (an optional
+  // key, see kSharedConfigVersion).
+  int markdown_codings = -1;
   // agent_optimize: the SERVE-side toggle nginx reads to gate
   // the same-URL markdown variant.  Since 2.1 this is simply the
   // operator's agent_optimize flag — there is no token entitlement behind it.

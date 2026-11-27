@@ -325,7 +325,18 @@ json BuildStatsJson(ApiContext& ctx) {
       {"below_floor", below_floor},
       {"module_derived", s.module_markdown_derived.load()},
       {"module_withheld", s.module_markdown_withheld.load()},
-      {"module_withheld_skips", s.module_markdown_withheld_skips.load()}};
+      {"module_withheld_skips", s.module_markdown_withheld_skips.load()},
+      // The compressed copies: written per coding, codings recorded as not
+      // smaller than the plain copy, and the compress task queue.
+      {"encoded_written",
+       {{"gzip", s.agent_markdown_encoded_written_gzip.load()},
+        {"br", s.agent_markdown_encoded_written_br.load()}}},
+      {"encoded_not_smaller", s.agent_markdown_encoded_not_smaller.load()},
+      {"compress_tasks",
+       {{"queued", s.agent_markdown_compress_tasks_queued.load()},
+        {"deduplicated", s.agent_markdown_compress_tasks_deduplicated.load()},
+        {"dropped", s.agent_markdown_compress_tasks_dropped.load()},
+        {"done", s.agent_markdown_compress_tasks_done.load()}}}};
   j["selector_invocations"] = s.selector_invocations.load();
   j["source_reads_from_durable_original"] =
       s.source_reads_from_durable_original.load();
@@ -1375,6 +1386,8 @@ static int WriteSharedConfigFor(const WorkerConfig& updated) {
   // is always written to the file since nginx needs the current value.
   shared.socket_path = updated.socket_path;
   shared.html_mode = updated.html_mode;
+  shared.markdown_codings =
+      MarkdownCodingsForLevels(updated.gzip_level, updated.brotli_level);
   // agent_optimize: the serve-side toggle is the operator flag.
   // agent_optimize is a startup flag (not PATCH-able), so this carries it
   // forward unchanged.
@@ -1469,7 +1482,9 @@ static ConfigPatchState PrepareConfigPatch(ApiContext& ctx,
   st.persist = !st.applied.empty() && !updated->cache_path.empty();
   st.shared_dirty = st.persist && (st.applied.contains("html_mode") ||
                                    st.applied.contains("disable_html") ||
-                                   st.applied.contains("cache_mode"));
+                                   st.applied.contains("cache_mode") ||
+                                   st.applied.contains("gzip_level") ||
+                                   st.applied.contains("brotli_level"));
   st.updated = std::move(updated);
   return st;
 }

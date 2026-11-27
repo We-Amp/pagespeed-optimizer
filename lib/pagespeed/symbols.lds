@@ -206,3 +206,12 @@ PAGESPEED_1.15 {
     ps_html_policy_stamp;
     ps_html_unsafe_method_invalidates;
 } PAGESPEED_1.14;
+
+PAGESPEED_1.16 {
+  global:
+    /* compressed Markdown copies: coding choice, coded facts, coded tag */
+    ps_markdown_select_encoding;
+    ps_html_stored_facts_from_reads_coded;
+    ps_html_markdown_etag_coded;
+    ps_read_shared_config_markdown_codings;
+} PAGESPEED_1.15;

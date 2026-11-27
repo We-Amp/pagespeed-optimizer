@@ -1147,7 +1147,7 @@ TEST(CacheNotificationTest, ASiteOfAnyOtherShapeIsMalformedOnRead) {
 }
 
 TEST(CacheNotificationTest, AReservedFlagBitIsMalformedOnRead) {
-  for (int bit = 4; bit < 8; ++bit) {
+  for (int bit = 5; bit < 8; ++bit) {
     std::vector<char> wire = BaseNotification().Serialize();
     ASSERT_FALSE(wire.empty());
     wire.back() = static_cast<char>(1u << bit);
@@ -1272,6 +1272,38 @@ TEST(CacheNotificationTest, HtmlStoredFlagIsBitThree) {
   EXPECT_TRUE(decoded.from_module);
   EXPECT_TRUE(decoded.host_vouched);
   EXPECT_EQ(kIpcVersion, 6);
+}
+
+// The compress-demand bit (C API 1.16) is bit four, valid only beside the
+// HTML-stored bit in its shape, and round-trips there; the wire version does
+// not move for it.
+TEST(CacheNotificationTest, MarkdownCompressFlagIsBitFourInTheStoredShape) {
+  CacheNotification n = StoredPageNotification();
+  n.markdown_compress = true;
+  const std::vector<char> wire = n.Serialize();
+  ASSERT_FALSE(wire.empty());
+  EXPECT_EQ(0x1Bu, static_cast<uint8_t>(wire.back()));
+  EXPECT_EQ(kIpcVersion, 6);
+  CacheNotification decoded;
+  ASSERT_TRUE(CacheNotification::Deserialize(
+      std::string_view(wire.data(), wire.size()), &decoded));
+  EXPECT_TRUE(decoded.markdown_compress);
+  EXPECT_TRUE(decoded.html_stored);
+
+  // Without the HTML-stored bit it is refused both ways.
+  CacheNotification bare = BaseNotification();
+  bare.markdown_compress = true;
+  EXPECT_TRUE(bare.Serialize().empty());
+  std::vector<char> forged = BaseNotification().Serialize();
+  forged.back() = static_cast<char>(kNotifyFlagMarkdownCompress);
+  EXPECT_EQ(Rejection(forged).reason, IpcRejectReason::kMalformed);
+  CacheNotification stored = StoredPageNotification();
+  std::vector<char> ok = stored.Serialize();
+  ASSERT_FALSE(ok.empty());
+  ok.back() = static_cast<char>(ok.back() | kNotifyFlagMarkdownCompress);
+  ASSERT_TRUE(CacheNotification::Deserialize(
+      std::string_view(ok.data(), ok.size()), &decoded));
+  EXPECT_TRUE(decoded.markdown_compress);
 }
 
 TEST(CacheNotificationTest, AFrameWithoutTheFlagsByteIsMalformed) {

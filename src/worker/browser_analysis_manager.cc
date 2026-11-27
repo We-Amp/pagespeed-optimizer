@@ -2003,6 +2003,14 @@ void BrowserAnalysisManager::OnAgentRenderDone(
         cache_->EvictAlternateFromRamCache(
             item.url, item.hostname, item.scheme,
             static_cast<AlternateId>(SentinelId::kAgentMarkdown), item.site);
+        // The compressed copies of an earlier plain copy are unbound by this
+        // write; no RAM-tier copy of them may outlive it in this process.
+        for (const auto coded : {SentinelId::kAgentMarkdownBrotli,
+                                 SentinelId::kAgentMarkdownGzip}) {
+          cache_->EvictAlternateFromRamCache(
+              item.url, item.hostname, item.scheme,
+              static_cast<AlternateId>(coded), item.site);
+        }
         if (handler_) {
           handler_->Info("agent_optimize: wrote %zu bytes of markdown for %s",
                          result->agent_markdown.size(), item.url.c_str());

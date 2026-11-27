@@ -37,6 +37,7 @@
 #include "lib/cache/cache.h"
 #include "lib/cache/freshness.h"
 #include "lib/cache/html_withheld_marker.h"
+#include "lib/cache/markdown_coding.h"
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
@@ -49,6 +50,7 @@
 #include "src/worker/browser_analysis_manager_internal.h"
 #include "src/worker/html_scanner.h"
 #include "src/worker/subresource_gate.h"
+#include "src/worker/text_compressor.h"
 #include "src/worker/worker.h"
 #include "test/test_util/worker_quiescence.h"
 
@@ -1752,6 +1754,388 @@ TEST_F(ModuleHtmlTest, DerivesWithoutAnyRequestLeavingTheWorker) {
   // Nothing on this path builds the /llms.txt index, the only user of the
   // agent fetcher.
   EXPECT_FALSE(Read(SentinelId::kLlmsTxt).has_value());
+}
+
+// =============================================================================
+// The compressed copies of the Markdown copy: brotli and gzip, written once
+// when the copy is derived, and backfilled by the compress task.
+// =============================================================================
+
+class MarkdownCodedCopiesTest : public ModuleHtmlTest {
+ protected:
+  static constexpr SentinelId kBr = SentinelId::kAgentMarkdownBrotli;
+  static constexpr SentinelId kGz = SentinelId::kAgentMarkdownGzip;
+
+  WorkerConfig Levels(int gzip_level, int brotli_level) {
+    WorkerConfig config = Config();
+    config.gzip_level = gzip_level;
+    config.brotli_level = brotli_level;
+    return config;
+  }
+
+  [[nodiscard]] CacheNotification CompressFrame() const {
+    CacheNotification n = Frame(/*agent_request=*/false);
+    n.markdown_compress = true;
+    return n;
+  }
+
+  void Idle() {
+    ASSERT_TRUE(worker_->WaitForMarkdownCompressIdle(kWorkerStallBudget))
+        << "the compress task never finished";
+  }
+
+  // A coded copy present under `id`, bound to `body` and to the plain copy
+  // stored now, that decodes to exactly the plain bytes.
+  void ExpectCodedCopy(SentinelId id, std::string_view body) {
+    auto plain = Read(SentinelId::kAgentMarkdown);
+    ASSERT_TRUE(plain.has_value());
+    auto coded = Read(id);
+    ASSERT_TRUE(coded.has_value())
+        << "no coded copy 0x" << std::hex << static_cast<int>(id);
+    EXPECT_EQ(coded->metadata.full_mask & 0xFF, static_cast<uint32_t>(id));
+    EXPECT_EQ(coded->metadata.origin_content_type, "text/markdown");
+    EXPECT_EQ(coded->metadata.origin_html_hash, Sha256Of(body));
+    EXPECT_EQ(coded->metadata.render_source_hash, Sha256Of(plain->content))
+        << "the coded copy names the plain bytes it was compressed from";
+    ASSERT_FALSE(coded->content.empty());
+    EXPECT_LT(coded->content.size(), plain->content.size());
+    const std::string decoded = id == kGz ? GzipDecompress(coded->content)
+                                          : BrotliDecompress(coded->content);
+    EXPECT_EQ(decoded, plain->content);
+  }
+
+  void RemoveCoded(SentinelId id) {
+    ASSERT_TRUE(cache()
+                    ->RemoveAlternate(kPath, kHost, "https",
+                                      static_cast<AlternateId>(id), site_)
+                    .has_value());
+  }
+};
+
+TEST_F(MarkdownCodedCopiesTest, OneDeriveWritesThePlainAndBothCodedCopies) {
+  ASSERT_NO_FATAL_FAILURE(Start(Config()));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ExpectCopyOf(kModuleRichPage);
+  ExpectCodedCopy(kBr, kModuleRichPage);
+  ExpectCodedCopy(kGz, kModuleRichPage);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_br.load(), 1u);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_gzip.load(), 1u);
+  EXPECT_EQ(stats().agent_markdown_encoded_not_smaller.load(), 0u);
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 0u)
+      << "the derive writes the copies itself";
+  // A second agent request for the bound copy asks for nothing.
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 0u);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_br.load(), 1u);
+}
+
+TEST_F(MarkdownCodedCopiesTest, ALevelOfZeroWritesNoCopyOfThatCoding) {
+  struct Case {
+    int gzip_level;
+    int brotli_level;
+  };
+  for (const Case c : {Case{0, 6}, Case{6, 0}, Case{0, 0}}) {
+    SCOPED_TRACE(std::to_string(c.gzip_level) + "/" +
+                 std::to_string(c.brotli_level));
+    TearDown();
+    SetUp();
+    sent_ = 0;
+    ASSERT_NO_FATAL_FAILURE(Start(Levels(c.gzip_level, c.brotli_level)));
+    ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+    ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+    ExpectCopyOf(kModuleRichPage);
+    EXPECT_EQ(Read(kGz).has_value(), c.gzip_level > 0);
+    EXPECT_EQ(Read(kBr).has_value(), c.brotli_level > 0);
+    // Nor is a disabled coding ever asked for, on either demand path.
+    ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+    ASSERT_NO_FATAL_FAILURE(Send(CompressFrame()));
+    ASSERT_NO_FATAL_FAILURE(Idle());
+    EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 0u);
+    EXPECT_EQ(Read(kGz).has_value(), c.gzip_level > 0);
+    EXPECT_EQ(Read(kBr).has_value(), c.brotli_level > 0);
+  }
+}
+
+TEST_F(MarkdownCodedCopiesTest, ANotSmallerCopyIsRecordedOnceAndNeverAskedFor) {
+  std::atomic<bool> inflate{true};
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&inflate](Worker& worker) {
+    worker.test_hook_markdown_coded_bytes_ = [&inflate](AlternateId,
+                                                        std::string* bytes) {
+      if (inflate) bytes->append(size_t{64} * 1024, 'x');
+    };
+  }));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ExpectCopyOf(kModuleRichPage);
+  for (SentinelId id : {kBr, kGz}) {
+    auto record = Read(id);
+    ASSERT_TRUE(record.has_value()) << "the record is stored under the id";
+    EXPECT_TRUE(record->content.empty()) << "a record carries no copy";
+    EXPECT_EQ(record->metadata.render_source_hash,
+              Sha256Of(Read(SentinelId::kAgentMarkdown)->content));
+  }
+  EXPECT_EQ(stats().agent_markdown_encoded_not_smaller.load(), 2u);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_br.load(), 0u);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_gzip.load(), 0u);
+
+  // Neither demand path queues anything for the same plain copy.
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ASSERT_NO_FATAL_FAILURE(Send(CompressFrame()));
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 0u);
+  EXPECT_EQ(stats().agent_markdown_encoded_not_smaller.load(), 2u)
+      << "recorded once";
+
+  // A new plain copy (other content) clears the record.
+  inflate = false;
+  const std::string changed =
+      std::string(kModuleRichPage)
+          .replace(std::string(kModuleRichPage).find("first item"), 10,
+                   "other item");
+  ASSERT_NO_FATAL_FAILURE(Store(changed));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ExpectCopyOf(changed);
+  ExpectCodedCopy(kBr, changed);
+  ExpectCodedCopy(kGz, changed);
+}
+
+TEST_F(MarkdownCodedCopiesTest, APurgeBetweenWritesLeavesNoCodedCopy) {
+  std::atomic<int> calls{0};
+  Worker* raw = nullptr;
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    raw = &worker;
+    worker.test_hook_markdown_coded_before_write_ = [&](AlternateId) {
+      if (calls.fetch_add(1) == 0) {
+        raw->PurgeUrlForTesting(kPath, kHost, "https", site_);
+      }
+    };
+  }));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  const uint64_t fenced = stats().alternate_writes_fenced.load();
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  EXPECT_FALSE(Read(kBr).has_value());
+  EXPECT_FALSE(Read(kGz).has_value());
+  EXPECT_EQ(calls.load(), 1) << "no write after the purge";
+  EXPECT_GT(stats().alternate_writes_fenced.load(), fenced);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_br.load(), 0u);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_gzip.load(), 0u);
+}
+
+TEST_F(MarkdownCodedCopiesTest, AWithheldPageHasNoCodedCopies) {
+  // A page with nothing to read: a marker, and no copy of any coding.
+  ASSERT_NO_FATAL_FAILURE(Start(Config()));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleShellPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ExpectWithheld(kModuleShellPage, HtmlWithheldReason::kBelowFloor);
+  EXPECT_FALSE(Read(kBr).has_value());
+  EXPECT_FALSE(Read(kGz).has_value());
+}
+
+TEST_F(MarkdownCodedCopiesTest, WithholdingRemovesExistingCodedCopies) {
+  ASSERT_NO_FATAL_FAILURE(Start(Config()));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ExpectCodedCopy(kBr, kModuleRichPage);
+  ExpectCodedCopy(kGz, kModuleRichPage);
+
+  // The same page is now over the size cap: withheld, and the coded copies
+  // of its earlier plain copy go with the refusal.
+  stopper_.reset();
+  worker_.reset();
+  WorkerConfig small = Config();
+  small.max_html_size = 16;
+  sent_ = 0;
+  ASSERT_NO_FATAL_FAILURE(Start(small));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  auto marker = Marker();
+  ASSERT_TRUE(marker.has_value());
+  EXPECT_EQ(marker->reason, HtmlWithheldReason::kTooLarge);
+  EXPECT_FALSE(Read(kBr).has_value());
+  EXPECT_FALSE(Read(kGz).has_value());
+}
+
+TEST_F(MarkdownCodedCopiesTest, AReDeriveLeavesNoBoundCopyOfTheOldBytes) {
+  ASSERT_NO_FATAL_FAILURE(Start(Config()));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  const std::string old_plain = Read(SentinelId::kAgentMarkdown)->content;
+  // This process holds the coded copies in its RAM tier now.
+  for (SentinelId id : {kBr, kGz}) {
+    ASSERT_TRUE(cache()
+                    ->ReadAlternate(kPath, kHost, "https",
+                                    static_cast<AlternateId>(id), site_)
+                    .has_value());
+  }
+
+  const std::string changed =
+      std::string(kModuleRichPage)
+          .replace(std::string(kModuleRichPage).find("second item"), 11,
+                   "changed item");
+  ASSERT_NO_FATAL_FAILURE(Store(changed));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ExpectCopyOf(changed);
+  const std::string new_plain = Read(SentinelId::kAgentMarkdown)->content;
+  ASSERT_NE(new_plain, old_plain);
+  for (SentinelId id : {kBr, kGz}) {
+    ExpectCodedCopy(id, changed);
+    // Read as a reader of this process would, without evicting first: the
+    // RAM tier holds nothing of the old bytes.
+    auto in_process = cache()->ReadAlternate(
+        kPath, kHost, "https", static_cast<AlternateId>(id), site_);
+    ASSERT_TRUE(in_process.has_value());
+    EXPECT_EQ(in_process->metadata.render_source_hash, Sha256Of(new_plain));
+    EXPECT_NE(in_process->metadata.render_source_hash, Sha256Of(old_plain));
+  }
+}
+
+// ---- backfill ----------------------------------------------------------------
+
+TEST_F(MarkdownCodedCopiesTest, ABoundPlainCopyGetsCodedCopiesFromOneDemand) {
+  ASSERT_NO_FATAL_FAILURE(Start(Config()));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  // As a plain copy derived before coded copies existed.
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kBr));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kGz));
+
+  // The worker's own demand path: an agent request for the bound copy.
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 1u);
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_done.load(), 1u);
+  ExpectCodedCopy(kBr, kModuleRichPage);
+  ExpectCodedCopy(kGz, kModuleRichPage);
+  EXPECT_EQ(stats().module_markdown_derived.load(), 1u)
+      << "the plain copy was not derived again";
+
+  // The front end's notify path.
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kBr));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kGz));
+  ASSERT_NO_FATAL_FAILURE(Send(CompressFrame()));
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 2u);
+  ExpectCodedCopy(kBr, kModuleRichPage);
+  ExpectCodedCopy(kGz, kModuleRichPage);
+}
+
+TEST_F(MarkdownCodedCopiesTest, ACodedCopyRemovedOnItsOwnIsReCreated) {
+  ASSERT_NO_FATAL_FAILURE(Start(Config()));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kBr));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  ExpectCodedCopy(kBr, kModuleRichPage);
+  ExpectCodedCopy(kGz, kModuleRichPage);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_br.load(), 2u);
+  EXPECT_EQ(stats().agent_markdown_encoded_written_gzip.load(), 1u)
+      << "the copy that was still bound is not written again";
+}
+
+TEST_F(MarkdownCodedCopiesTest, TenDemandsForOneKeyQueueOneTask) {
+  std::atomic<bool> entered{false};
+  std::atomic<bool> release{false};
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    worker.test_hook_markdown_compress_start_ = [&] {
+      entered = true;
+      for (int i = 0; i < 4000 && !release; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+    };
+  }));
+  const std::string url = kPath;
+  for (int i = 0; i < 10; ++i) {
+    worker_->DemandMarkdownCompress(url, kHost, "https", site_);
+    if (i == 0) {
+      for (int j = 0; j < 2000 && !entered; ++j) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+      ASSERT_TRUE(entered) << "the first task never started";
+    }
+  }
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 1u);
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_deduplicated.load(), 9u);
+  release = true;
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_done.load(), 1u);
+  // Once done, the key may be queued again.
+  EXPECT_EQ(worker_->DemandMarkdownCompress(url, kHost, "https", site_),
+            Worker::MarkdownCompressDemand::kQueued);
+  ASSERT_NO_FATAL_FAILURE(Idle());
+}
+
+TEST_F(MarkdownCodedCopiesTest, AFullQueueDropsAndCounts) {
+  std::atomic<bool> entered{false};
+  std::atomic<bool> release{false};
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    worker.markdown_compress_queue_limit_ = 2;
+    worker.test_hook_markdown_compress_start_ = [&] {
+      entered = true;
+      for (int i = 0; i < 4000 && !release; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+      }
+    };
+  }));
+  using D = Worker::MarkdownCompressDemand;
+  EXPECT_EQ(worker_->DemandMarkdownCompress("/0.html", kHost, "https", site_),
+            D::kQueued);
+  for (int j = 0; j < 2000 && !entered; ++j) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  ASSERT_TRUE(entered);
+  EXPECT_EQ(worker_->DemandMarkdownCompress("/1.html", kHost, "https", site_),
+            D::kQueued);
+  EXPECT_EQ(worker_->DemandMarkdownCompress("/2.html", kHost, "https", site_),
+            D::kQueued);
+  EXPECT_EQ(worker_->DemandMarkdownCompress("/3.html", kHost, "https", site_),
+            D::kDropped);
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_dropped.load(), 1u);
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 3u);
+  release = true;
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_done.load(), 3u);
+}
+
+TEST_F(MarkdownCodedCopiesTest, TheTaskWritesNothingForACopyNoLongerBound) {
+  std::atomic<bool> restore{false};
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    worker.test_hook_markdown_compress_start_ = [&] {
+      if (restore.exchange(false)) {
+        // The page is stored again with other bytes before the task reads
+        // anything: its plain copy belongs to the old content now.
+        Store("<html><body><p>Entirely different content.</p></body></html>");
+      }
+    };
+  }));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kBr));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kGz));
+  restore = true;
+  EXPECT_EQ(worker_->DemandMarkdownCompress(kPath, kHost, "https", site_),
+            Worker::MarkdownCompressDemand::kQueued);
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_done.load(), 1u);
+  EXPECT_FALSE(Read(kBr).has_value());
+  EXPECT_FALSE(Read(kGz).has_value());
+  EXPECT_EQ(stats().agent_markdown_encoded_written_br.load(), 1u)
+      << "only the derive's own write";
+}
+
+TEST_F(MarkdownCodedCopiesTest, ACompressDemandNeedsAWorkerThatDerivesCopies) {
+  // A worker that derives no Markdown copies refuses the frame at the door.
+  ASSERT_NO_FATAL_FAILURE(Start(Config(HtmlMode::kFull)));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  SendNotification(CompressFrame());
+  ++sent_;
+  for (int i = 0;
+       i < 2000 && stats().notifications_rejected_module_render.load() == 0;
+       ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  EXPECT_EQ(stats().notifications_rejected_module_render.load(), 1u);
+  EXPECT_EQ(stats().agent_markdown_compress_tasks_queued.load(), 0u);
 }
 
 // The rendered path keeps no copy below the fidelity floor, and remembers it

@@ -769,6 +769,7 @@ cc_library(
         "//lib/base:tee_message_handler",
         "//lib/base:url_util",
         "//lib/cache:html_withheld_marker",
+        "//lib/cache:markdown_coding",
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",

@@ -492,7 +492,9 @@ PageSpeedCache::ReadAlternateByKey(const cyclone::CacheKey& key,
       ParseMetadataPrefix(result->content(), &rr.metadata);
   if (rr.metadata_prefix_size_ == 0 &&
       (!IsSentinel(id) ||
-       id == static_cast<AlternateId>(SentinelId::kAgentMarkdown))) {
+       id == static_cast<AlternateId>(SentinelId::kAgentMarkdown) ||
+       id == static_cast<AlternateId>(SentinelId::kAgentMarkdownBrotli) ||
+       id == static_cast<AlternateId>(SentinelId::kAgentMarkdownGzip))) {
     return std::unexpected(cyclone::CacheError::NotFound);
   }
   rr.handle = std::move(*result);
@@ -651,26 +653,52 @@ PageSpeedCache::WriteAgentAlternate(std::string_view url,
                                     uint64_t content_length,
                                     const AlternateMetadata& metadata,
                                     std::string_view site) {
+  // The agent_optimize markdown variant is a sentinel written WITH a
+  // metadata prefix: it is read back via the strict ReadBestAlternate path,
+  // which rejects a missing prefix as NotFound. WriteAlternate refuses
+  // sentinel ids and WriteSentinel writes no prefix, so this dedicated path
+  // is required. The id is hard-coded to kAgentMarkdown.
+  return WriteAgentFamilyAlternate(
+      url, hostname, scheme,
+      static_cast<AlternateId>(SentinelId::kAgentMarkdown), content_length,
+      metadata, site);
+}
+
+std::expected<WriteResult, cyclone::CacheError>
+PageSpeedCache::WriteAgentCodedAlternate(
+    std::string_view url, std::string_view hostname, std::string_view scheme,
+    uint8_t coding, uint64_t content_length, const AlternateMetadata& metadata,
+    std::string_view site) {
+  // The coding, never a free id: only the two coded copies are written here.
+  AlternateId id = 0;
+  if (coding == 1) {
+    id = static_cast<AlternateId>(SentinelId::kAgentMarkdownGzip);
+  } else if (coding == 2) {
+    id = static_cast<AlternateId>(SentinelId::kAgentMarkdownBrotli);
+  } else {
+    return std::unexpected(cyclone::CacheError::InvalidArgument);
+  }
+  return WriteAgentFamilyAlternate(url, hostname, scheme, id, content_length,
+                                   metadata, site);
+}
+
+std::expected<WriteResult, cyclone::CacheError>
+PageSpeedCache::WriteAgentFamilyAlternate(
+    std::string_view url, std::string_view hostname, std::string_view scheme,
+    AlternateId alt_id, uint64_t content_length,
+    const AlternateMetadata& metadata, std::string_view site) {
   std::shared_lock lock(reset_mutex_);
   if (!cache_) {
     return std::unexpected(cyclone::CacheError::NotInitialized);
   }
-  // The agent_optimize markdown variant is the ONE sentinel
-  // written WITH a metadata prefix: it is read back via the strict
-  // ReadBestAlternate path, which rejects a missing prefix as NotFound.
-  // WriteAlternate refuses sentinel ids and WriteSentinel writes no prefix, so
-  // this dedicated path is required. The id is hard-coded to kAgentMarkdown.
-  const auto id = static_cast<cyclone::AlternateId>(SentinelId::kAgentMarkdown);
+  const auto id = static_cast<cyclone::AlternateId>(alt_id);
 
-  // Hardening (consolidated review): the variant is keyed under the
-  // kAgentMarkdown sentinel, so its metadata MUST self-describe as
-  // kAgentMarkdown — otherwise the strict read path
-  // (ReadBestAlternateAgentByKey) rejects it as a non-agent variant, leaving an
-  // unreadable record. Fail fast on a mis-stamped mask rather than write it.
-  // The sole caller already sets this correctly; this guards the contract for
-  // future callers. (Mirrors the read-path comparison.)
-  if ((metadata.full_mask & 0xFF) !=
-      static_cast<uint32_t>(SentinelId::kAgentMarkdown)) {
+  // Hardening (consolidated review): the copy is keyed under its sentinel,
+  // so its metadata MUST self-describe as that id — otherwise the strict read
+  // path (ReadBestAlternateAgentByKey for the plain copy, the exact-id reader
+  // for a coded one) rejects it, leaving an unreadable record. Fail fast on a
+  // mis-stamped mask rather than write it.
+  if ((metadata.full_mask & 0xFF) != static_cast<uint32_t>(alt_id)) {
     return std::unexpected(cyclone::CacheError::InvalidArgument);
   }
 

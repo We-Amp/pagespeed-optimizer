@@ -1,0 +1,1 @@
+Changed: `ps_cache_write_sentinel` now refuses the ids 0xDC and 0xEC, which hold the compressed Markdown copies; they were free for an embedder to use before. Bytes written there by an earlier library are never read as a Markdown copy.

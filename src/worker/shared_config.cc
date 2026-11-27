@@ -193,6 +193,27 @@ SharedConfig ParseSharedConfig(std::string_view content) {
       if (auto mode = ParseHtmlMode(value)) {
         html_mode = mode;
       }
+    } else if (key == "markdown_codings") {
+      // A value that does not parse whole leaves the key unpublished.
+      int codings = 0;
+      bool ok = !value.empty();
+      if (value != "none") {
+        std::string_view rest = value;
+        while (ok) {
+          const size_t comma = rest.find(',');
+          const std::string_view token = rest.substr(0, comma);
+          if (token == "gzip") {
+            codings |= 1 << 1;
+          } else if (token == "br") {
+            codings |= 1 << 2;
+          } else {
+            ok = false;
+          }
+          if (comma == std::string_view::npos) break;
+          rest.remove_prefix(comma + 1);
+        }
+      }
+      if (ok) config.markdown_codings = codings;
     } else if (key == "agent_optimize_entitled") {
       config.agent_optimize_entitled = (value == "true" || value == "1");
     } else if (key == "agent_optimize_llms_txt_enabled") {
@@ -331,6 +352,17 @@ bool WriteSharedConfigFile(const std::string& path, const SharedConfig& config,
       "disable_html=" +
       std::string(HtmlModeDisablesHtml(config.html_mode) ? "true" : "false") +
       "\n";
+  // Published only when known; a reader that does not see the key treats the
+  // worker as one that writes no coded copies.
+  if (config.markdown_codings >= 0) {
+    std::string codings;
+    if ((config.markdown_codings & (1 << 2)) != 0) codings = "br";
+    if ((config.markdown_codings & (1 << 1)) != 0) {
+      codings += codings.empty() ? "gzip" : ",gzip";
+    }
+    content +=
+        "markdown_codings=" + (codings.empty() ? "none" : codings) + "\n";
+  }
   content += "agent_optimize_entitled=" +
              std::string(config.agent_optimize_entitled ? "true" : "false") +
              "\n";
