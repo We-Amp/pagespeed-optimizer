@@ -341,6 +341,7 @@
         "markdown_encoding": 64,
         "not_modified": 28,
         "reason": 12,
+        "reserved_1_16": 68,
         "struct_size": 0,
         "wants_markdown": 20
       }

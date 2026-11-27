@@ -1804,6 +1804,23 @@ class MarkdownCodedCopiesTest : public ModuleHtmlTest {
     EXPECT_EQ(decoded, plain->content);
   }
 
+  // The plain copy rewritten as another derivation would leave it: other
+  // bytes for the same page.
+  void RewritePlain(std::string_view body, std::string_view markdown) {
+    AlternateMetadata meta;
+    meta.full_mask = static_cast<uint32_t>(SentinelId::kAgentMarkdown);
+    meta.content_type = ContentType::kOther;
+    meta.origin_content_type = "text/markdown";
+    meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+    meta.origin_html_hash = Sha256Of(body);
+    meta.render_source_hash = Sha256Of(markdown);
+    auto wh = cache()->WriteAgentAlternate(kPath, kHost, "https",
+                                           markdown.size(), meta, site_);
+    ASSERT_TRUE(wh.has_value());
+    ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span(markdown))).has_value());
+    ASSERT_TRUE(wh->close_sync().has_value());
+  }
+
   void RemoveCoded(SentinelId id) {
     ASSERT_TRUE(cache()
                     ->RemoveAlternate(kPath, kHost, "https",
@@ -1989,6 +2006,29 @@ TEST_F(MarkdownCodedCopiesTest, AReDeriveLeavesNoBoundCopyOfTheOldBytes) {
   }
 }
 
+TEST_F(MarkdownCodedCopiesTest,
+       APlainCopyChangedBetweenWritesStopsTheCodedOnes) {
+  // The plain copy changes after the first coded copy's checks: the second
+  // coded copy is not written for bytes that are no longer the plain copy.
+  std::atomic<int> calls{0};
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    worker.test_hook_markdown_coded_before_write_ = [&](AlternateId) {
+      if (calls.fetch_add(1) == 0) {
+        RewritePlain(kModuleRichPage, "# Rewritten\n\nOther Markdown bytes.\n");
+      }
+    };
+  }));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  EXPECT_EQ(calls.load(), 1) << "a coded copy was written after the change";
+  EXPECT_FALSE(Read(kGz).has_value());
+  auto br = Read(kBr);
+  ASSERT_TRUE(br.has_value()) << "the first write passed its checks";
+  EXPECT_NE(br->metadata.render_source_hash,
+            Sha256Of(Read(SentinelId::kAgentMarkdown)->content))
+      << "and is not bound to the plain copy stored now";
+}
+
 // ---- backfill ----------------------------------------------------------------
 
 TEST_F(MarkdownCodedCopiesTest, ABoundPlainCopyGetsCodedCopiesFromOneDemand) {
@@ -2121,6 +2161,57 @@ TEST_F(MarkdownCodedCopiesTest, TheTaskWritesNothingForACopyNoLongerBound) {
   EXPECT_FALSE(Read(kGz).has_value());
   EXPECT_EQ(stats().agent_markdown_encoded_written_br.load(), 1u)
       << "only the derive's own write";
+}
+
+TEST_F(MarkdownCodedCopiesTest,
+       TheTaskStopsWhenThePlainCopyChangesBetweenWrites) {
+  std::atomic<bool> armed{false};
+  std::atomic<int> calls{0};
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    worker.test_hook_markdown_coded_before_write_ = [&](AlternateId) {
+      if (armed && calls.fetch_add(1) == 0) {
+        RewritePlain(kModuleRichPage, "# Rewritten\n\nOther Markdown bytes.\n");
+      }
+    };
+  }));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kBr));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kGz));
+  armed = true;
+  EXPECT_EQ(worker_->DemandMarkdownCompress(kPath, kHost, "https", site_),
+            Worker::MarkdownCompressDemand::kQueued);
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(calls.load(), 1);
+  EXPECT_FALSE(Read(kGz).has_value())
+      << "the task wrote a copy of bytes that are no longer the plain copy";
+}
+
+TEST_F(MarkdownCodedCopiesTest, APurgeBetweenTheTasksWritesLeavesNoCodedCopy) {
+  std::atomic<bool> armed{false};
+  std::atomic<int> calls{0};
+  Worker* raw = nullptr;
+  ASSERT_NO_FATAL_FAILURE(Start(Config(), [&](Worker& worker) {
+    raw = &worker;
+    worker.test_hook_markdown_coded_before_write_ = [&](AlternateId) {
+      if (armed && calls.fetch_add(1) == 0) {
+        raw->PurgeUrlForTesting(kPath, kHost, "https", site_);
+      }
+    };
+  }));
+  ASSERT_NO_FATAL_FAILURE(Store(kModuleRichPage));
+  ASSERT_NO_FATAL_FAILURE(Send(Frame(/*agent_request=*/true)));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kBr));
+  ASSERT_NO_FATAL_FAILURE(RemoveCoded(kGz));
+  const uint64_t fenced = stats().alternate_writes_fenced.load();
+  armed = true;
+  EXPECT_EQ(worker_->DemandMarkdownCompress(kPath, kHost, "https", site_),
+            Worker::MarkdownCompressDemand::kQueued);
+  ASSERT_NO_FATAL_FAILURE(Idle());
+  EXPECT_EQ(calls.load(), 1) << "no write after the purge";
+  EXPECT_FALSE(Read(kBr).has_value());
+  EXPECT_FALSE(Read(kGz).has_value());
+  EXPECT_GT(stats().alternate_writes_fenced.load(), fenced);
 }
 
 TEST_F(MarkdownCodedCopiesTest, ACompressDemandNeedsAWorkerThatDerivesCopies) {

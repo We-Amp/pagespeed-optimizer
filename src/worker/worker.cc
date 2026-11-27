@@ -27,6 +27,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
@@ -1533,7 +1534,9 @@ bool Worker::Initialize() {
     shared.cache_dir_generation = kCacheDirGeneration;
     shared.html_mode = config_.html_mode;
     shared.markdown_codings =
-        MarkdownCodingsForLevels(config_.gzip_level, config_.brotli_level);
+        PublishedMarkdownCodings(HtmlModeIsMarkdown(config_.html_mode) &&
+                                     config_.browser_analysis.agent_optimize,
+                                 config_.gzip_level, config_.brotli_level);
     // agent_optimize: the serve-side
     // toggle nginx reads to gate the markdown variant is simply the operator's
     // opt-in flag.  The wire key keeps its historical name.
@@ -5571,6 +5574,8 @@ void Worker::WriteMarkdownCodedCopies(
       test_hook_markdown_coded_bytes_(MarkdownCopyId(coding), &coded);
     }
     if (coded.empty()) {
+      // The slot stays missing, so the next demand asks again; a compressor
+      // that fails for these bytes every time costs one task per demand.
       stats_.errors.fetch_add(1, std::memory_order_relaxed);
       LogWarning("Compressing the Markdown copy of %s failed", url.c_str());
       continue;
@@ -5702,14 +5707,23 @@ Worker::MarkdownCompressDemand Worker::DemandMarkdownCompress(
         1, std::memory_order_relaxed);
     return MarkdownCompressDemand::kDropped;
   }
+  // The thread first: if it cannot start, nothing is recorded for the key,
+  // so a later demand is not counted as a duplicate of a task that never
+  // runs.
+  if (!compress_thread_.joinable()) {
+    try {
+      compress_thread_ = std::thread([this] { MarkdownCompressLoop(); });
+    } catch (const std::system_error& e) {
+      stats_.errors.fetch_add(1, std::memory_order_relaxed);
+      LogWarning("Compress thread did not start: %s", e.what());
+      return MarkdownCompressDemand::kDropped;
+    }
+  }
   compress_keys_.insert(key);
   compress_queue_.push_back(
       MarkdownCompressTask{url, host, scheme, site, std::move(key)});
   stats_.agent_markdown_compress_tasks_queued.fetch_add(
       1, std::memory_order_relaxed);
-  if (!compress_thread_.joinable()) {
-    compress_thread_ = std::thread([this] { MarkdownCompressLoop(); });
-  }
   compress_cv_.notify_all();
   return MarkdownCompressDemand::kQueued;
 }
@@ -5729,6 +5743,9 @@ void Worker::MarkdownCompressLoop() {
     } catch (const std::exception& e) {
       stats_.errors.fetch_add(1, std::memory_order_relaxed);
       LogWarning("Compress task for %s failed: %s", task.url.c_str(), e.what());
+    } catch (...) {
+      stats_.errors.fetch_add(1, std::memory_order_relaxed);
+      LogWarning("Compress task for %s failed", task.url.c_str());
     }
     lock.lock();
     compress_running_ = false;
@@ -5829,16 +5846,30 @@ void Worker::RunMarkdownCompressTask(const MarkdownCompressTask& task) {
     return;
   }
   const std::function<bool()> still_bound = [this, &url, &host, &scheme, &site,
-                                             &stamp, &plain_hash] {
+                                             &stamp, &plain_hash, &cfg] {
     constexpr auto kPage =
         static_cast<AlternateId>(SentinelId::kOriginalContent);
     cache_->EvictAlternateFromRamCache(url, host, scheme, kPage, site);
     auto now = cache_->ReadOriginalAlternate(url, host, scheme, site);
-    return now.has_value() &&
-           ModuleStoredEntryRefusal(now->metadata) == nullptr &&
-           now->metadata.origin_html_hash == stamp &&
-           PlainMarkdownCopyStillBound(cache_.get(), url, host, scheme, site,
-                                       stamp, plain_hash);
+    if (!now.has_value() ||
+        ModuleStoredEntryRefusal(now->metadata) != nullptr ||
+        now->metadata.origin_html_hash != stamp ||
+        !PlainMarkdownCopyStillBound(cache_.get(), url, host, scheme, site,
+                                     stamp, plain_hash)) {
+      return false;
+    }
+    // A withhold that landed since the task started keeps the page free of
+    // coded copies.
+    constexpr auto kMarker =
+        static_cast<AlternateId>(SentinelId::kAgentMarkdownWithheld);
+    cache_->EvictAlternateFromRamCache(url, host, scheme, kMarker, site);
+    auto marker = cache_->ReadAlternate(url, host, scheme, kMarker, site);
+    if (!marker.has_value()) return true;
+    const auto payload = marker->content();
+    return !HtmlWithheldMarkerBlocksDerivation(
+        std::span<const uint8_t>(
+            reinterpret_cast<const uint8_t*>(payload.data()), payload.size()),
+        AsBytes(stamp), cfg->max_html_size);
   };
   WriteMarkdownCodedCopies(url, host, scheme, site, stamp, markdown, plain_hash,
                            *cfg, purged, still_bound,

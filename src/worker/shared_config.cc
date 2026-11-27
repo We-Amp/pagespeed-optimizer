@@ -194,7 +194,9 @@ SharedConfig ParseSharedConfig(std::string_view content) {
         html_mode = mode;
       }
     } else if (key == "markdown_codings") {
-      // A value that does not parse whole leaves the key unpublished.
+      // An empty value or an empty token leaves the key unpublished.  A
+      // coding name this build does not know (one a later worker adds) is
+      // skipped and the known ones are kept.
       int codings = 0;
       bool ok = !value.empty();
       if (value != "none") {
@@ -206,7 +208,7 @@ SharedConfig ParseSharedConfig(std::string_view content) {
             codings |= 1 << 1;
           } else if (token == "br") {
             codings |= 1 << 2;
-          } else {
+          } else if (token.empty()) {
             ok = false;
           }
           if (comma == std::string_view::npos) break;

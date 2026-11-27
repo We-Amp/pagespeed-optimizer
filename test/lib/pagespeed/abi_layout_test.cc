@@ -282,6 +282,8 @@ static_assert(offsetof(ps_html_serve_verdict_t, not_modified) == 28);
 static_assert(offsetof(ps_html_serve_verdict_t, etag) == 32);
 // --- appended at 1.16; nothing above may move ---
 static_assert(offsetof(ps_html_serve_verdict_t, markdown_encoding) == 64);
+static_assert(offsetof(ps_html_serve_verdict_t, reserved_1_16) == 68);
+// No implicit tail padding: the next append starts at 72.
 
 // ---------------------------------------------------------------------------
 // HTML request policy structs (new at 1.15). Each carries struct_size; fields

@@ -1571,6 +1571,9 @@ static_assert(sizeof(size_t) != 8 || kServeVerdictSizeV1_15 == 64,
               "ps_html_serve_verdict_t was 64 bytes at 1.15 on 64-bit targets");
 static_assert(sizeof(ps_html_serve_verdict_t) == 72 || sizeof(size_t) != 8,
               "ps_html_serve_verdict_t is 72 bytes on 64-bit targets");
+static_assert(offsetof(ps_html_serve_verdict_t, reserved_1_16) + sizeof(int) ==
+                  sizeof(ps_html_serve_verdict_t),
+              "the verdict has no implicit tail padding");
 static_assert(offsetof(ps_html_serve_request_t, markdown_encoding) ==
                       offsetof(ps_html_serve_request_t, reserved) &&
                   sizeof(ps_html_serve_request_t::markdown_encoding) ==

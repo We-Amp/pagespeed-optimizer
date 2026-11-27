@@ -124,14 +124,16 @@ class AbiMarkdownCodingTest : public ::testing::Test {
   }
 
   // The plain copy, as the optimizer writes it.
-  void StorePlain() {
+  // With `hashed` false, as the browser render path writes it: without its
+  // own content hash.
+  void StorePlain(bool hashed = true) {
     pagespeed::AlternateMetadata meta;
     meta.full_mask = 0x7C;
     meta.content_type = pagespeed::ContentType::kOther;
     meta.origin_content_type = "text/markdown";
     meta.flags = PS_FLAG_WORKER_PROCESSED;
     meta.origin_html_hash = Sha(kPage);
-    meta.render_source_hash = Sha(kPlain);
+    if (hashed) meta.render_source_hash = Sha(kPlain);
     ASSERT_TRUE(
         Fill(writer_->WriteAgentAlternate(kUrl, kHost, kScheme,
                                           std::strlen(kPlain), meta, kSite),
@@ -381,6 +383,31 @@ TEST_F(AbiMarkdownCodingTest, ACopyBehindAnUnboundPlainCopyIsNotSent) {
     EXPECT_EQ(facts.flags & BoundBit(coding), 0u);
     const ps_html_serve_verdict_t v = Classify(Request(coding, 0), facts);
     EXPECT_STREQ(ps_html_serve_reason_name(v.reason), "binding_stale");
+  }
+}
+
+TEST_F(AbiMarkdownCodingTest, APlainCopyWithoutAHashBindsNoCodedCopy) {
+  // A plain copy written without its own hash, beside a coded copy whose
+  // metadata names the page and the same (zero) hash: two equal zero hashes
+  // are not a binding, so the coded copy is never sent.
+  StorePage();
+  StorePlain(/*hashed=*/false);
+  for (int coding : kCodings) {
+    SCOPED_TRACE(coding);
+    Coded zero;
+    zero.source = Hash{};
+    StoreCoded(coding, zero);
+    const ps_html_stored_facts_t facts = Facts(coding);
+    EXPECT_NE(facts.flags & PS_HTML_FACTS_BINDING_LIVE, 0u);
+    EXPECT_EQ(facts.flags & (BoundBit(coding) | NotSmallerBit(coding)), 0u);
+    const ps_html_serve_verdict_t with =
+        Classify(Request(coding, PS_HTML_SERVE_REQUEST_IDENTITY_OK), facts);
+    EXPECT_EQ(with.action, PS_HTML_SERVE_ACTION_SERVE_MARKDOWN);
+    EXPECT_EQ(with.markdown_encoding, PS_MARKDOWN_ENCODING_IDENTITY);
+    EXPECT_STREQ(with.etag, "") << "no hash, no tag";
+    const ps_html_serve_verdict_t without = Classify(Request(coding, 0), facts);
+    EXPECT_STREQ(ps_html_serve_reason_name(without.reason),
+                 "no_acceptable_encoding");
   }
 }
 
@@ -676,13 +703,19 @@ TEST(AbiMarkdownCodingConfig, TheWorkerPublishesItsCodings) {
               c.want)
         << c.gzip_level << "/" << c.brotli_level;
   }
+  // A worker whose mode derives no Markdown copies publishes none, so no
+  // front end sends it a compress demand it would refuse.
+  sc.markdown_codings = pagespeed::PublishedMarkdownCodings(false, 6, 6);
+  ASSERT_TRUE(pagespeed::WriteSharedConfigFile(conf, sc));
+  EXPECT_EQ(ps_read_shared_config_markdown_codings(cache_path.c_str()), -1);
+  EXPECT_EQ(pagespeed::PublishedMarkdownCodings(true, 6, 0), 2);
   EXPECT_EQ(1 << PS_MARKDOWN_ENCODING_GZIP, 2);
   EXPECT_EQ(1 << PS_MARKDOWN_ENCODING_BR, 4);
   std::filesystem::remove_all(dir);
 }
 
 TEST(AbiMarkdownCodingConfig, AMalformedValueIsNotPublished) {
-  for (const char* value : {"bogus", "br,", "", "br,zstd"}) {
+  for (const char* value : {"br,", "", ",gzip", "br,,gzip"}) {
     const pagespeed::SharedConfig sc = pagespeed::ParseSharedConfig(
         std::string("version=1\nmarkdown_codings=") + value + "\n");
     EXPECT_EQ(sc.markdown_codings, -1) << value;
@@ -692,6 +725,16 @@ TEST(AbiMarkdownCodingConfig, AMalformedValueIsNotPublished) {
             6);
   EXPECT_EQ(
       pagespeed::ParseSharedConfig("markdown_codings=none\n").markdown_codings,
+      0);
+  // A coding a later worker adds is skipped; the known ones are kept.
+  EXPECT_EQ(pagespeed::ParseSharedConfig("markdown_codings=br,zstd\n")
+                .markdown_codings,
+            4);
+  EXPECT_EQ(pagespeed::ParseSharedConfig("markdown_codings=zstd,gzip,br\n")
+                .markdown_codings,
+            6);
+  EXPECT_EQ(
+      pagespeed::ParseSharedConfig("markdown_codings=zstd\n").markdown_codings,
       0);
 }
 

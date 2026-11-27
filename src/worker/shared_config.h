@@ -103,6 +103,17 @@ inline constexpr int MarkdownCodingsForLevels(int gzip_level,
   return (gzip_level > 0 ? 1 << 1 : 0) | (brotli_level > 0 ? 1 << 2 : 0);
 }
 
+// What the worker publishes: its codings only while it derives Markdown
+// copies of stored pages (a markdown-* html_mode with agent_optimize on),
+// the condition under which it accepts a compress demand; -1 (unpublished)
+// otherwise.
+inline constexpr int PublishedMarkdownCodings(bool derives_markdown,
+                                              int gzip_level,
+                                              int brotli_level) {
+  return derives_markdown ? MarkdownCodingsForLevels(gzip_level, brotli_level)
+                          : -1;
+}
+
 // Keep in sync with inline SharedConfig in src/nginx/ngx_pagespeed_module.cc.
 struct SharedConfig {
   // Reader-side fallback when no shared config was read; matches the

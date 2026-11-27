@@ -91,7 +91,12 @@ extern "C" {
  * the PS_HTML_FACTS_*_COPY_BOUND and *_NOT_SMALLER bits,
  * ps_html_stored_facts_from_reads_coded, ps_html_markdown_etag_coded,
  * PS_NOTIFY_FLAG_MARKDOWN_COMPRESS and ps_read_shared_config_markdown_codings.
- * It also narrows ps_cache_write_sentinel: it now refuses the two new ids.
+ * It also narrows the two new ids for an embedder: ps_cache_write_sentinel
+ * refuses them, and an exact-id read of either returns PS_ERR_NOT_FOUND
+ * unless the entry carries entry metadata (data an embedder stored there is
+ * no longer readable and may be replaced). From 1.16 the header needs C11
+ * (anonymous unions) or any C++; a C99 compiler needs anonymous-union
+ * support as an extension.
  *
  * A published constant is ABI surface too (see ABI.md), so a minor that adds
  * only one still moves the number: it is what a consumer compiles against to
@@ -950,9 +955,12 @@ ps_cache_write_begin(ps_cache_t* cache, const char* url, const char* hostname,
  * PS_SENTINEL_MARKDOWN_GZIP, which only the optimizer writes).
  * Sentinel-shaped ids that name no class at all stay
  * writable: a free slot is yours to use, a claimed one is not. PS_API 1.16
- * claimed 0xDC and 0xEC, which were free before: bytes an embedder wrote
- * there under an earlier library are never read as a Markdown copy (see
- * ps_html_stored_facts_from_reads_coded). The ids
+ * claimed 0xDC and 0xEC, which were free before: an exact-id read of
+ * either now returns PS_ERR_NOT_FOUND for an entry without entry metadata,
+ * so data an embedder stored there under an earlier library is no longer
+ * readable, is never read as a Markdown copy (see
+ * ps_html_stored_facts_from_reads_coded), and may be replaced by the
+ * optimizer. The ids
  * writable here are PS_SENTINEL_EARLY_HINTS, PS_SENTINEL_WARMUP,
  * PS_SENTINEL_CONTENT_HASH, PS_SENTINEL_SUBRESOURCE and
  * PS_SENTINEL_BROWSER_PROFILE.
@@ -1796,6 +1804,9 @@ typedef struct {
    * whose struct_size ends before this field never has it written, and is
    * only ever sent identity. */
   int markdown_encoding;
+  /* PS_API 1.16. Zero; makes the struct's tail explicit, so it has no
+   * padding. The next field appended to this struct starts at byte 72. */
+  int reserved_1_16;
 } ps_html_serve_verdict_t;
 
 /* Decide whether a stored HTML page, or its Markdown copy, answers a request.
@@ -1861,7 +1872,10 @@ typedef struct {
  *      (`no_acceptable_encoding`). The verdict's markdown_encoding names the
  *      coding to send. A caller whose verdict struct ends before that field
  *      is always answered in identity. The coding never changes which
- *      representation is sent, only how its bytes are coded.
+ *      representation is sent, only how its bytes are coded. The verdict
+ *      speaks for the one coding asked for: when it falls through with
+ *      `no_acceptable_encoding` or falls back to identity and another coded
+ *      coding is in the order, read that copy and ask again with it.
  *
  * HEAD gets exactly the verdict GET would get, entity tag included, and the
  * caller sends no body; a HEAD whose If-None-Match matches may be answered
@@ -2259,9 +2273,11 @@ PS_EXPORT int ps_read_shared_config_html_mode(const char* cache_path);
  * Returns a bit set: (1 << PS_MARKDOWN_ENCODING_GZIP) when it writes gzip
  * copies, (1 << PS_MARKDOWN_ENCODING_BR) when it writes brotli copies; 0
  * when it writes neither (both levels 0). -1 when the worker publishes no
- * codings (a worker built before PS_API 1.16, or a missing or unreadable
- * config) or for a NULL cache_path: such a worker writes no coded copies and
- * refuses PS_NOTIFY_FLAG_MARKDOWN_COMPRESS. A front end reads it on a timer,
+ * codings (a worker built before PS_API 1.16, one whose HTML mode derives no
+ * Markdown copies, or a missing or unreadable config) or for a NULL
+ * cache_path: such a worker writes no coded copies and refuses
+ * PS_NOTIFY_FLAG_MARKDOWN_COMPRESS. A coding name this library does not know
+ * (one a later worker adds) is skipped and the known ones are kept. A front end reads it on a timer,
  * not per request (it reads a file). Available from PS_API 1.16. */
 PS_EXPORT int ps_read_shared_config_markdown_codings(const char* cache_path);
 
@@ -2833,10 +2849,11 @@ typedef struct {
  * with PS_NOTIFY_FLAG_FROM_MODULE, PS_NOTIFY_FLAG_HOST_VOUCHED,
  * PS_NOTIFY_FLAG_HTML_STORED and PS_CONTENT_HTML; anywhere else it is
  * PS_ERR_INVALID_ARG. A worker built before this flag refuses a
- * notification carrying it, so send it only to a worker that publishes its
- * Markdown codings (ps_read_shared_config_markdown_codings returns 0 or
- * more), and not for a coding that is disabled there or reported not smaller
- * (PS_HTML_FACTS_*_NOT_SMALLER). */
+ * notification carrying it, so send it only to a worker for which BOTH
+ * ps_read_shared_config_markdown_codings returns 0 or more AND
+ * ps_read_shared_config_html_mode returns a PS_HTML_MODE_MARKDOWN_* value
+ * (the HTML-stored flag it rides with needs that), and not for a coding that
+ * is disabled there or reported not smaller (PS_HTML_FACTS_*_NOT_SMALLER). */
 #define PS_NOTIFY_FLAG_MARKDOWN_COMPRESS 0x10u
 
 /* Zero `size` bytes at `params` and stamp struct_size = size. Always pass

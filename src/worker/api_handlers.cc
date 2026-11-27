@@ -1387,7 +1387,9 @@ static int WriteSharedConfigFor(const WorkerConfig& updated) {
   shared.socket_path = updated.socket_path;
   shared.html_mode = updated.html_mode;
   shared.markdown_codings =
-      MarkdownCodingsForLevels(updated.gzip_level, updated.brotli_level);
+      PublishedMarkdownCodings(HtmlModeIsMarkdown(updated.html_mode) &&
+                                   updated.browser_analysis.agent_optimize,
+                               updated.gzip_level, updated.brotli_level);
   // agent_optimize: the serve-side toggle is the operator flag.
   // agent_optimize is a startup flag (not PATCH-able), so this carries it
   // forward unchanged.
