@@ -495,6 +495,7 @@ void MarkdownExtractorFilter::StartDocument() {
   lists_.clear();
   row_cells_.clear();
   fm_date_.clear();
+  fm_chrome_date_.clear();
   anchor_text_start_ = 0;
   blockquote_depth_ = 0;
   pre_depth_ = 0;
@@ -691,11 +692,12 @@ bool MarkdownExtractorFilter::TrimLinkText(std::string* o, std::size_t open) {
   return trailing;
 }
 
-void MarkdownExtractorFilter::CaptureFrontMatterDate(HtmlElement* element) {
-  if (!fm_date_.empty()) return;
+void MarkdownExtractorFilter::CaptureFrontMatterDate(HtmlElement* element,
+                                                     std::string* date) {
+  if (!date->empty()) return;
   const HtmlElement::Attribute* dt = element->FindAttribute("datetime");
   const char* v = dt != nullptr ? dt->DecodedValueOrNull() : nullptr;
-  if (v != nullptr && *v != '\0') fm_date_.assign(v);
+  if (v != nullptr && *v != '\0') date->assign(v);
 }
 
 void MarkdownExtractorFilter::PreLineBreak() {
@@ -740,9 +742,10 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       ++hard_skip_depth_;
     } else if (element->keyword() == HtmlName::kTime) {
       // A "Last updated <time>" line in a <footer> inside <main> is page
-      // chrome; its date is still the page's date for the front matter.
+      // chrome; its date is the page's date only when the content itself
+      // carries none (see PrependFrontMatter).
       if (hard_skip_depth_ == 0 && content_root_depth_ > 0) {
-        CaptureFrontMatterDate(element);
+        CaptureFrontMatterDate(element, &fm_chrome_date_);
       }
       ++time_depth_;  // each <time> tracks its own counter (balanced nesting)
     } else if (strip_soft_chrome_ && IsSoftStripKeyword(element->keyword())) {
@@ -787,7 +790,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
   // Issue F (3): capture the first <time datetime> as the front-matter date and
   // SUPPRESS its visible text (a timestamp is metadata, not citation body).
   if (kw == HtmlName::kTime) {
-    CaptureFrontMatterDate(element);
+    CaptureFrontMatterDate(element, &fm_date_);
     ++time_depth_;  // drop the visible stamp text (Skipping covers descendants)
     return;
   }
@@ -1347,7 +1350,10 @@ void MarkdownExtractorFilter::PrependFrontMatter() {
   if (!fm_description_.empty()) {
     fm += "description: " + YamlScalar(fm_description_) + "\n";
   }
-  if (!fm_date_.empty()) fm += "date: " + YamlScalar(fm_date_) + "\n";
+  // A date from the content wins; one from chrome inside the content root is
+  // the fallback.
+  const std::string& date = fm_date_.empty() ? fm_chrome_date_ : fm_date_;
+  if (!date.empty()) fm += "date: " + YamlScalar(date) + "\n";
   if (!fm_canonical_.empty()) {
     fm += "canonical: " + YamlScalar(fm_canonical_) + "\n";
   }

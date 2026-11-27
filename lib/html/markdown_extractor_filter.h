@@ -131,8 +131,8 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   // leading whitespace moves before the link, and the return value says
   // whether trailing whitespace was removed (it then goes after the link).
   static bool TrimLinkText(std::string* o, std::size_t open);
-  // Record the first <time datetime> value as the front-matter date.
-  void CaptureFrontMatterDate(HtmlElement* element);
+  // Record the first <time datetime> value seen into *date.
+  static void CaptureFrontMatterDate(HtmlElement* element, std::string* date);
   // Inside <pre>: end the current line (dropping trailing blanks) so a block
   // child of the <pre> starts on a line of its own.
   void PreLineBreak();
@@ -158,6 +158,9 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   std::string fm_canonical_;
   const HtmlParse* parser_ = nullptr;
   std::string fm_date_;
+  // First <time datetime> in skipped chrome inside the content root (a "Last
+  // updated" footer): the front-matter date only when fm_date_ is empty.
+  std::string fm_chrome_date_;
   // Block-in-anchor (Issue F (5)): byte offset in cur_ where the open anchor's
   // link text begins, so a wrapped <h2>/<p> flattens to one '[text](href)'.
   std::size_t anchor_text_start_ = 0;

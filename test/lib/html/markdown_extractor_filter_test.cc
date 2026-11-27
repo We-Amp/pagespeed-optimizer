@@ -1051,6 +1051,12 @@ TEST_F(MarkdownExtractorFilterTest, DateFromChromeInsideMainIsKept) {
                "datetime=\"2026-10-22\">Oct 22</time></footer>"
                "</main></body></html>"),
             "---\ntitle: T\ndate: 2026-10-22\n---\n\nBody.");
+  // A date in the content wins over one in chrome that comes first.
+  EXPECT_EQ(Md("<html><head><title>T</title></head><body><main>"
+               "<nav><time datetime=\"2020-01-01\">old</time></nav>"
+               "<article><h1>T</h1><time datetime=\"2026-11-01\">Nov 1"
+               "</time><p>Body.</p></article></main></body></html>"),
+            "---\ntitle: T\ndate: 2026-11-01\n---\n\n# T\n\nBody.");
   // A page-level footer's date (outside <main>) is not taken.
   EXPECT_EQ(Md("<html><head><title>T</title></head><body><main>"
                "<p>Body.</p></main><footer><time datetime=\"2020-01-01\">"
