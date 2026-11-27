@@ -784,6 +784,249 @@
       }
     },
     {
+      "id": "store-surrogate-control-private",
+      "runners": ["policy"],
+      "why": "store: Surrogate-Control private refuses",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["Surrogate-Control", "private"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "private", "detail": "surrogate-control"}
+      }
+    },
+    {
+      "id": "store-surrogate-control-no-store",
+      "runners": ["policy"],
+      "why": "store: Surrogate-Control no-store refuses",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["Surrogate-Control", "no-store"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "no_store", "detail": "surrogate-control"}
+      }
+    },
+    {
+      "id": "store-surrogate-control-targeted-no-store",
+      "runners": ["policy"],
+      "why": "store: a targeted Surrogate-Control no-store refuses",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["Surrogate-Control", "max-age=600, no-store;edge"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "no_store", "detail": "surrogate-control"}
+      }
+    },
+    {
+      "id": "store-surrogate-control-no-store-report-only",
+      "runners": ["policy"],
+      "why": "mode: a Surrogate-Control refusal stays a refusal in report-only",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "report-only",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["Surrogate-Control", "no-store"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "no_store", "detail": "surrogate-control"}
+      }
+    },
+    {
+      "id": "store-cdn-cache-control-private",
+      "runners": ["policy"],
+      "why": "store: CDN-Cache-Control private refuses (RFC 9213)",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["CDN-Cache-Control", "private"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "private", "detail": "cdn-cache-control"}
+      }
+    },
+    {
+      "id": "store-cdn-cache-control-no-store",
+      "runners": ["policy"],
+      "why": "store: CDN-Cache-Control no-store refuses (RFC 9213)",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["CDN-Cache-Control", "no-store"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "no_store", "detail": "cdn-cache-control"}
+      }
+    },
+    {
+      "id": "store-cdn-cache-control-case-insensitive",
+      "runners": ["policy"],
+      "why": "store: CDN-Cache-Control names and directives are case-insensitive",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["cdn-cache-control", "max-age=600, No-Store"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "no_store", "detail": "cdn-cache-control"}
+      }
+    },
+    {
+      "id": "store-surrogate-control-harmless-not-carried",
+      "runners": ["policy"],
+      "why": "store: other Surrogate-Control values do not refuse as policy; the line is not carried",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["Surrogate-Control", "max-age=600, content=\"ESI/1.0\""]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "headers", "detail": "surrogate-control"}
+      }
+    },
+    {
+      "id": "store-cdn-cache-control-harmless-not-carried",
+      "runners": ["policy"],
+      "why": "store: other CDN-Cache-Control values do not refuse as policy; the line is not carried",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-variants",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            ["Content-Type", "text/html; charset=utf-8"],
+            ["Date", "Sun, 15 Nov 2026 12:00:00 GMT"],
+            ["Cache-Control", "max-age=300"],
+            ["ETag", "\"v1\""],
+            ["CDN-Cache-Control", "max-age=600"]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000
+        },
+        "expect": {"action": "refuse", "reason": "headers", "detail": "cdn-cache-control"}
+      }
+    },
+    {
       "id": "store-no-lifetime-no-validators",
       "runners": ["policy"],
       "why": "store: no explicit lifetime and no validator",
