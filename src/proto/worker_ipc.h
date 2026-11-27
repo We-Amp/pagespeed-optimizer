@@ -76,7 +76,7 @@ inline constexpr size_t kSiteIdChars = 64;
 // True for exactly kSiteIdChars characters of [0-9a-f].  False for empty.
 bool IsSiteId(std::string_view site);
 
-// Notification flags byte (v6).  Bits 4-7 are reserved and must be zero.
+// Notification flags byte (v6).  Bits 5-7 are reserved and must be zero.
 inline constexpr uint8_t kNotifyFlagHostVouched = 0x01;
 inline constexpr uint8_t kNotifyFlagFromModule = 0x02;
 // Set only by libpagespeed, on a frame from a caller whose
@@ -89,9 +89,16 @@ inline constexpr uint8_t kNotifyFlagLegacyExCaller = 0x04;
 // (HtmlStoredShapeValid); any other frame carrying it is malformed, on the
 // way out and on the way in.
 inline constexpr uint8_t kNotifyFlagHtmlStored = 0x08;
+// Compress the stored Markdown copy of the page the frame names (C API
+// 1.16): the front end served the plain copy because a coded copy was
+// missing or not bound.  Added without a version bump, as kNotifyFlagHtmlStored
+// was; an older reader rejects only the frames that carry it.  Valid only on
+// a frame of the stored-page shape that also carries kNotifyFlagHtmlStored
+// (MarkdownCompressShapeValid).
+inline constexpr uint8_t kNotifyFlagMarkdownCompress = 0x10;
 inline constexpr uint8_t kNotifyFlagsKnown =
     kNotifyFlagHostVouched | kNotifyFlagFromModule | kNotifyFlagLegacyExCaller |
-    kNotifyFlagHtmlStored;
+    kNotifyFlagHtmlStored | kNotifyFlagMarkdownCompress;
 
 // True unless `html_stored` is set on a frame that is not from the module,
 // not host-vouched, unsited, or not HTML.
@@ -99,6 +106,13 @@ inline constexpr bool HtmlStoredShapeValid(bool html_stored, bool from_module,
                                            bool host_vouched, bool sited,
                                            bool is_html) {
   return !html_stored || (from_module && host_vouched && sited && is_html);
+}
+
+// True unless `markdown_compress` is set on a frame without `html_stored`
+// (whose own shape HtmlStoredShapeValid checks).
+inline constexpr bool MarkdownCompressShapeValid(bool markdown_compress,
+                                                 bool html_stored) {
+  return !markdown_compress || html_stored;
 }
 
 // Why a notification was refused.  Deliberately distinguishes skew from
@@ -182,10 +196,12 @@ struct CacheNotification {
   //   legacy_ex_caller: libpagespeed built this frame for a caller whose
   //     parameters predate the site fields.
   //   html_stored: the module's HTML store wrote the entry this frame names.
+  //   markdown_compress: compress the stored Markdown copy of that entry.
   bool host_vouched = false;
   bool from_module = false;
   bool legacy_ex_caller = false;
   bool html_stored = false;
+  bool markdown_compress = false;
 
   // Serialize to binary format (v6).
   // Returns empty vector if validation fails.

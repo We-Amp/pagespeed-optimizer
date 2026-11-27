@@ -526,7 +526,8 @@ std::string_view HtmlServeReasonName(HtmlServeReason reason) {
        "legacy_entry",
        "policy_mismatch",
        "request_header",
-       "path"};
+       "path",
+       "no_acceptable_encoding"};
   const auto index = static_cast<size_t>(reason);
   return index < kNames.size() ? kNames[index] : "unknown";
 }
@@ -1136,6 +1137,28 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
         validated ? static_cast<int64_t>(stored.render_ttl_s)
                   : std::min<int64_t>(lifetime, stored.render_ttl_s);
     if (age >= bound) return done(kFall, HtmlServeReason::kParentStale);
+    // 9a. The coding.  The requested coding when its copy is bound to this
+    // page and to the plain copy; else the plain copy when the request
+    // accepts identity; else nothing this request accepts exists.  Asking
+    // for identity is accepting it.  A coding never changes which
+    // representation is sent, only how its bytes are coded.
+    if (request.no_acceptable_coding) {
+      return done(kFall, HtmlServeReason::kNoAcceptableEncoding);
+    }
+    const bool coded_bound =
+        (request.markdown_coding == MarkdownCoding::kGzip &&
+         stored.gzip_copy_bound) ||
+        (request.markdown_coding == MarkdownCoding::kBrotli &&
+         stored.brotli_copy_bound);
+    if (request.markdown_coding == MarkdownCoding::kIdentity) {
+      v.markdown_coding = MarkdownCoding::kIdentity;
+    } else if (coded_bound) {
+      v.markdown_coding = request.markdown_coding;
+    } else if (request.identity_ok) {
+      v.markdown_coding = MarkdownCoding::kIdentity;
+    } else {
+      return done(kFall, HtmlServeReason::kNoAcceptableEncoding);
+    }
     return done(HtmlServeAction::kServeMarkdown, HtmlServeReason::kFresh);
   }
 

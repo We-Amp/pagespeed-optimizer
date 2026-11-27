@@ -379,6 +379,58 @@ without a version bump: a worker that predates it refuses the frames that
 carry it, and only those, which is why a front end sends it only to a worker
 that publishes a Markdown HTML mode.
 
+**Compressed Markdown copies (PS_API 1.16).** The optimizer stores a brotli
+and a gzip copy of each Markdown copy, compressed once from the same bytes,
+under two new ids, `PS_SENTINEL_MARKDOWN_BR` (0xDC) and
+`PS_SENTINEL_MARKDOWN_GZIP` (0xEC). Each carries entry metadata that binds it
+to the stored page (`origin_html_hash`) and to the plain copy it was
+compressed from (`render_source_hash`, the SHA-256 of the plain Markdown
+bytes). The binding is checked in the library, inside
+`ps_html_stored_facts_from_reads_coded`, never by a front end; an entry that
+does not parse, names another id or type, or holds another binding is treated
+as missing. An entry with that metadata and no bytes is the optimizer's record
+that the coding is not smaller than the plain copy.
+
+The ids were free sentinel slots, which `ps_cache_write_sentinel` promised to
+an embedder. Claiming them narrows that promise on both sides: the call now
+refuses both, and an exact-id read of either (`ps_cache_read_alternate`,
+`ps_cache_read_alternate_site`) returns not-found for an entry without entry
+metadata. Data an embedder stored there under an earlier library is therefore
+no longer readable, is never read as a Markdown copy, and may be replaced by
+the optimizer. No other free id changes.
+
+The serve request names the coding asked for in the word 1.15 reserved,
+renamed `markdown_encoding` (both names stay, as an anonymous union, so the
+golden keeps `reserved` at offset 76 and the request stays 88 bytes). A 1.15
+caller's zero is identity, the plain copy, exactly as before; a value above 2
+reads as identity. The verdict grows from 64 to 72 bytes with an appended
+`markdown_encoding` that names the coding to send, followed by an explicit
+zero `reserved_1_16` at 68, so the struct has no implicit tail padding and the
+next verdict append starts at 72; a caller whose verdict
+`struct_size` ends before it never has it written, and the library then
+answers that caller in identity whatever it asked for, so no caller is sent
+bytes it cannot label. The coding never changes which representation is sent,
+only how its bytes are coded: the copy must pass every rule it passed before,
+and a request that accepts no stored coding falls through
+(`no_acceptable_encoding`). Each coding has its own entity tag of the same
+form and length; the identity tag is the 1.14 tag unchanged, so stored client
+tags still match.
+
+`PS_NOTIFY_FLAG_MARKDOWN_COMPRESS` (0x10) joins the wire's flags byte the same
+way the HTML-stored flag did, valid only beside it: a worker that predates it
+refuses those frames, which is why a front end sends it only to a worker that
+publishes its codings (`ps_read_shared_config_markdown_codings`). A worker
+that predates the flag counts such a frame as malformed, not as version skew;
+that happens only while a front end's timer-read advertisement is stale after
+a worker downgrade. A library below 1.16 knows none of this, so a front end
+that sees minor 15 or less serves the plain copy.
+
+**Language floor.** The anonymous union makes the header need C11 (or any
+C++) from 1.16; a C99 compiler needs anonymous-union support as an extension.
+`//test/lib/pagespeed:c_header_test` compiles the header as C11 with
+`-pedantic-errors -Werror`, so a construct that is valid only in C++ fails the
+build.
+
 ## The gate
 
 `tools/ci/check_abi.py`, run by the `abi-compat` CI job. It is checkout-only:

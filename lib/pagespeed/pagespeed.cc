@@ -34,6 +34,7 @@
 #include "lib/cache/html_cache_policy.h"
 #include "lib/cache/html_request_policy.h"
 #include "lib/cache/html_withheld_marker.h"
+#include "lib/cache/markdown_coding.h"
 #include "lib/cache/origin_cache_control.h"
 #include "lib/cache/vary_storability.h"
 #include "lib/classify/alternate_id.h"
@@ -689,6 +690,22 @@ extern "C" int ps_read_shared_config_html_mode(const char* cache_path) {
     return PS_HTML_MODE_FULL;
   } catch (...) {
     return PS_HTML_MODE_FULL;
+  }
+}
+
+extern "C" int ps_read_shared_config_markdown_codings(const char* cache_path) {
+  ClearLastError();
+  if (cache_path == nullptr) return -1;
+  try {
+    std::string path = pagespeed::SharedConfigFilePath(cache_path);
+    if (path.empty()) return -1;
+    const pagespeed::SharedConfig sc = pagespeed::ReadSharedConfigFile(path);
+    return sc.markdown_codings;
+  } catch (const std::exception& e) {
+    SetLastError(e.what());
+    return -1;
+  } catch (...) {
+    return -1;
   }
 }
 
@@ -1541,8 +1558,39 @@ static_assert(sizeof(void*) != 8 || sizeof(ps_html_serve_request_t) == 88,
               "ps_html_serve_request_t is 88 bytes on 64-bit targets");
 static_assert(sizeof(ps_html_stored_facts_t) == 104 || sizeof(size_t) != 8,
               "ps_html_stored_facts_t is 104 bytes on 64-bit targets");
-static_assert(sizeof(ps_html_serve_verdict_t) == 64 || sizeof(size_t) != 8,
-              "ps_html_serve_verdict_t is 64 bytes on 64-bit targets");
+// The PS_API 1.15 verdict ends with `etag`; 1.16 appends markdown_encoding.
+constexpr size_t kServeVerdictSizeV1_15 =
+    offsetof(ps_html_serve_verdict_t, etag) +
+    sizeof(ps_html_serve_verdict_t::etag);
+constexpr size_t kServeVerdictSizeV1_16 =
+    offsetof(ps_html_serve_verdict_t, markdown_encoding) + sizeof(int);
+static_assert(offsetof(ps_html_serve_verdict_t, markdown_encoding) >=
+                  kServeVerdictSizeV1_15,
+              "the 1.16 verdict field lies past the 1.15 struct");
+static_assert(sizeof(size_t) != 8 || kServeVerdictSizeV1_15 == 64,
+              "ps_html_serve_verdict_t was 64 bytes at 1.15 on 64-bit targets");
+static_assert(sizeof(ps_html_serve_verdict_t) == 72 || sizeof(size_t) != 8,
+              "ps_html_serve_verdict_t is 72 bytes on 64-bit targets");
+static_assert(offsetof(ps_html_serve_verdict_t, reserved_1_16) + sizeof(int) ==
+                  sizeof(ps_html_serve_verdict_t),
+              "the verdict has no implicit tail padding");
+static_assert(offsetof(ps_html_serve_request_t, markdown_encoding) ==
+                      offsetof(ps_html_serve_request_t, reserved) &&
+                  sizeof(ps_html_serve_request_t::markdown_encoding) ==
+                      sizeof(ps_html_serve_request_t::reserved),
+              "markdown_encoding is the word 1.15 reserved");
+static_assert(PS_MARKDOWN_ENCODING_GZIP ==
+                      static_cast<int>(pagespeed::MarkdownCoding::kGzip) &&
+                  PS_MARKDOWN_ENCODING_BR ==
+                      static_cast<int>(pagespeed::MarkdownCoding::kBrotli) &&
+                  PS_MARKDOWN_ENCODING_IDENTITY ==
+                      static_cast<int>(pagespeed::MarkdownCoding::kIdentity),
+              "the published codings are the library's");
+static_assert(PS_SENTINEL_MARKDOWN_BR ==
+                      static_cast<int>(SentinelId::kAgentMarkdownBrotli) &&
+                  PS_SENTINEL_MARKDOWN_GZIP ==
+                      static_cast<int>(SentinelId::kAgentMarkdownGzip),
+              "the published ids are the registry's");
 
 static_assert(PS_HTML_HASH_BYTES == pagespeed::kHtmlParentHashBytes,
               "the published hash length and the marker's must agree");
@@ -1637,14 +1685,24 @@ bool AllZeroBytes(const uint8_t* p, size_t n) {
 
 // The Markdown entity tag into `out` (PS_HTML_MARKDOWN_ETAG_CHARS bytes plus
 // a NUL).  Both hashes are known to be non-zero.
-void MakeMarkdownEtag(const uint8_t* binding_hash, const uint8_t* markdown_hash,
-                      char* out) {
-  std::array<std::byte, 2 * PS_HTML_HASH_BYTES> input{};
+// For a coded copy the coding's name follows the two hashes in the input, so
+// each coding has its own tag; identity hashes exactly the two hashes, as
+// before 1.16.
+void MakeMarkdownEtag(
+    const uint8_t* binding_hash, const uint8_t* markdown_hash, char* out,
+    pagespeed::MarkdownCoding coding = pagespeed::MarkdownCoding::kIdentity) {
+  std::array<std::byte, 2 * PS_HTML_HASH_BYTES + 8> input{};
   std::memcpy(input.data(), binding_hash, PS_HTML_HASH_BYTES);
   std::memcpy(input.data() + PS_HTML_HASH_BYTES, markdown_hash,
               PS_HTML_HASH_BYTES);
+  size_t input_size = 2 * PS_HTML_HASH_BYTES;
+  if (coding != pagespeed::MarkdownCoding::kIdentity) {
+    const std::string_view name = pagespeed::MarkdownCodingName(coding);
+    std::memcpy(input.data() + input_size, name.data(), name.size());
+    input_size += name.size();
+  }
   const auto digest = cyclone::crypto::SHA256::hash(
-      std::span<const std::byte>(input.data(), input.size()));
+      std::span<const std::byte>(input.data(), input_size));
   static constexpr char kHex[] = "0123456789abcdef";
   std::memcpy(out, "W/\"psm-", 7);
   for (size_t i = 0; i < 8; ++i) {
@@ -1787,6 +1845,20 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
       r.html_fallback = (rf & PS_HTML_SERVE_REQUEST_HTML_FALLBACK) != 0;
       r.conditional = (rf & PS_HTML_SERVE_REQUEST_CONDITIONAL) != 0;
       r.explicit_public = (rf & PS_HTML_SERVE_REQUEST_EXPLICIT_PUBLIC) != 0;
+      // 1.16, in the word 1.15 reserved: a 1.15 caller's zero is identity.
+      // A caller whose verdict cannot carry the coding is only ever answered
+      // in identity, so it is never sent bytes it cannot label.
+      if (out->struct_size >= kServeVerdictSizeV1_16) {
+        const uint32_t enc = request->markdown_encoding;
+        r.markdown_coding = enc == PS_MARKDOWN_ENCODING_GZIP
+                                ? pagespeed::MarkdownCoding::kGzip
+                            : enc == PS_MARKDOWN_ENCODING_BR
+                                ? pagespeed::MarkdownCoding::kBrotli
+                                : pagespeed::MarkdownCoding::kIdentity;
+        r.identity_ok = (rf & PS_HTML_SERVE_REQUEST_IDENTITY_OK) != 0;
+        r.no_acceptable_coding =
+            (rf & PS_HTML_SERVE_REQUEST_ENCODING_NONE) != 0;
+      }
     }
 
     const uint32_t ff = facts->flags;
@@ -1814,6 +1886,8 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
     f.entry_policy_stamp = facts->struct_size >= kStoredFactsSizeV1_15
                                ? facts->entry_policy_stamp
                                : 0;
+    f.gzip_copy_bound = (ff & PS_HTML_FACTS_GZIP_COPY_BOUND) != 0;
+    f.brotli_copy_bound = (ff & PS_HTML_FACTS_BR_COPY_BOUND) != 0;
 
     const pagespeed::HtmlServeVerdict v = pagespeed::ClassifyHtmlForServe(r, f);
 
@@ -1828,10 +1902,16 @@ extern "C" int ps_html_serve_classify(const ps_html_serve_request_t* request,
         r.mode == pagespeed::HtmlCacheMode::kServeCachedHtml && r.html_fallback;
     result.wants_markdown = r.wants_markdown && !html_path ? 1 : 0;
     result.age_s = v.age_s;
+    if (v.action == pagespeed::HtmlServeAction::kServeMarkdown) {
+      result.markdown_encoding = static_cast<int>(v.markdown_coding);
+    }
+    // The tag of the coding the verdict names, and If-None-Match compared
+    // against that tag only.
     if (v.action == pagespeed::HtmlServeAction::kServeMarkdown &&
         !AllZeroBytes(facts->binding_hash, PS_HTML_HASH_BYTES) &&
         !AllZeroBytes(facts->markdown_hash, PS_HTML_HASH_BYTES)) {
-      MakeMarkdownEtag(facts->binding_hash, facts->markdown_hash, result.etag);
+      MakeMarkdownEtag(facts->binding_hash, facts->markdown_hash, result.etag,
+                       v.markdown_coding);
       if (request->if_none_match != nullptr &&
           IfNoneMatchMatchesWeak(request->if_none_match, result.etag) == 1) {
         result.not_modified = 1;
@@ -1940,11 +2020,44 @@ extern "C" int ps_html_store_write_params(
 
 namespace {
 
-int StoredFactsFromReads(const ps_read_result_t* original,
-                         const ps_read_result_t* markdown,
-                         const ps_read_result_t* withheld_marker,
-                         int sidecar_present, uint64_t entry_policy_stamp,
-                         ps_html_stored_facts_t* out) {
+// What one read under a coded id says about the plain copy: the copy itself
+// (bound), the record that this coding is not smaller (not_smaller), or
+// neither.  `binding_hash` and `markdown_hash` are the page's stamp and the
+// plain copy's hash, both known non-zero.
+struct CodedCopyFacts {
+  bool bound = false;
+  bool not_smaller = false;
+};
+
+CodedCopyFacts ClassifyCodedCopy(const ps_read_result_t* coded,
+                                 pagespeed::MarkdownCoding coding,
+                                 const uint8_t* binding_hash,
+                                 const uint8_t* markdown_hash) {
+  CodedCopyFacts f;
+  if (coded == nullptr || !coded->result.has_metadata_prefix()) return f;
+  const AlternateMetadata& m = coded->result.metadata;
+  if ((m.full_mask & 0xFF) != pagespeed::MarkdownCopyId(coding)) return f;
+  if (m.origin_content_type != "text/markdown") return f;
+  if (std::memcmp(m.origin_html_hash.data(), binding_hash,
+                  PS_HTML_HASH_BYTES) != 0 ||
+      std::memcmp(m.render_source_hash.data(), markdown_hash,
+                  PS_HTML_HASH_BYTES) != 0) {
+    return f;
+  }
+  if (coded->result.content_length() == 0) {
+    f.not_smaller = true;
+  } else {
+    f.bound = true;
+  }
+  return f;
+}
+
+int StoredFactsFromReads(
+    const ps_read_result_t* original, const ps_read_result_t* markdown,
+    const ps_read_result_t* withheld_marker, int sidecar_present,
+    uint64_t entry_policy_stamp, ps_html_stored_facts_t* out,
+    const ps_read_result_t* coded = nullptr,
+    pagespeed::MarkdownCoding coding = pagespeed::MarkdownCoding::kIdentity) {
   try {
     if (out == nullptr || out->struct_size < kStoredFactsSizeV1_13) return -1;
     ps_html_stored_facts_t facts{};
@@ -2020,6 +2133,22 @@ int StoredFactsFromReads(const ps_read_result_t* original,
           std::memcpy(facts.markdown_hash,
                       markdown->result.metadata.render_source_hash.data(),
                       PS_HTML_HASH_BYTES);
+          // A coded copy binds only to a plain copy whose hash is known: the
+          // coded copy names the plain bytes it was compressed from.
+          if (coding != pagespeed::MarkdownCoding::kIdentity &&
+              !AllZeroBytes(facts.markdown_hash, PS_HTML_HASH_BYTES)) {
+            const CodedCopyFacts c = ClassifyCodedCopy(
+                coded, coding, facts.binding_hash, facts.markdown_hash);
+            const bool gzip = coding == pagespeed::MarkdownCoding::kGzip;
+            if (c.bound) {
+              flags |= gzip ? PS_HTML_FACTS_GZIP_COPY_BOUND
+                            : PS_HTML_FACTS_BR_COPY_BOUND;
+            }
+            if (c.not_smaller) {
+              flags |= gzip ? PS_HTML_FACTS_GZIP_NOT_SMALLER
+                            : PS_HTML_FACTS_BR_NOT_SMALLER;
+            }
+          }
         }
       }
       facts.flags = flags;
@@ -2039,6 +2168,58 @@ extern "C" int ps_html_stored_facts_from_reads(
     ps_html_stored_facts_t* out) {
   return StoredFactsFromReads(original, markdown, withheld_marker,
                               sidecar_present, 0, out);
+}
+
+extern "C" int ps_html_markdown_etag_coded(const uint8_t* binding_hash,
+                                           const uint8_t* markdown_hash,
+                                           int coding, char* buf,
+                                           size_t capacity, size_t* out_len) {
+  if (coding != PS_MARKDOWN_ENCODING_IDENTITY &&
+      coding != PS_MARKDOWN_ENCODING_GZIP &&
+      coding != PS_MARKDOWN_ENCODING_BR) {
+    return -1;
+  }
+  if (binding_hash == nullptr || markdown_hash == nullptr ||
+      out_len == nullptr || (buf == nullptr && capacity != 0)) {
+    return -1;
+  }
+  if (AllZeroBytes(binding_hash, PS_HTML_HASH_BYTES) ||
+      AllZeroBytes(markdown_hash, PS_HTML_HASH_BYTES)) {
+    return -1;
+  }
+  *out_len = PS_HTML_MARKDOWN_ETAG_CHARS;
+  if (capacity < PS_HTML_MARKDOWN_ETAG_CHARS + 1) {
+    if (capacity != 0) buf[0] = '\0';
+    return -3;
+  }
+  MakeMarkdownEtag(binding_hash, markdown_hash, buf,
+                   static_cast<pagespeed::MarkdownCoding>(coding));
+  return 0;
+}
+
+extern "C" int ps_markdown_select_encoding(
+    const char* const* accept_encoding_lines, size_t count, int* out_order) {
+  if (out_order == nullptr ||
+      (accept_encoding_lines == nullptr && count != 0)) {
+    return -1;
+  }
+  try {
+    std::vector<std::string_view> lines;
+    lines.reserve(count);
+    for (size_t i = 0; i < count; ++i) {
+      if (accept_encoding_lines[i] != nullptr) {
+        lines.emplace_back(accept_encoding_lines[i]);
+      }
+    }
+    const pagespeed::MarkdownCodingOrder order =
+        pagespeed::SelectMarkdownCoding(lines);
+    for (size_t i = 0; i < order.count; ++i) {
+      out_order[i] = static_cast<int>(order.order[i]);
+    }
+    return static_cast<int>(order.count);
+  } catch (...) {
+    return -1;
+  }
 }
 
 extern "C" int ps_html_markdown_etag(const uint8_t* binding_hash,
@@ -2473,6 +2654,26 @@ extern "C" int ps_html_stored_facts_from_reads_ex(
                              : 0;
   return StoredFactsFromReads(original, markdown, withheld_marker,
                               sidecar_present, stamp, out);
+}
+
+extern "C" int ps_html_stored_facts_from_reads_coded(
+    const ps_read_result_t* original, const ps_read_result_t* markdown,
+    const ps_read_result_t* withheld_marker, int sidecar_present,
+    const ps_header_block_t* sidecar, const ps_read_result_t* coded, int coding,
+    ps_html_stored_facts_t* out) {
+  pagespeed::MarkdownCoding c = pagespeed::MarkdownCoding::kIdentity;
+  if (coding == PS_MARKDOWN_ENCODING_GZIP) {
+    c = pagespeed::MarkdownCoding::kGzip;
+  } else if (coding == PS_MARKDOWN_ENCODING_BR) {
+    c = pagespeed::MarkdownCoding::kBrotli;
+  } else if (coded != nullptr) {
+    return -1;
+  }
+  const uint64_t stamp = (sidecar != nullptr && sidecar->has_policy_stamp)
+                             ? sidecar->policy_stamp
+                             : 0;
+  return StoredFactsFromReads(original, markdown, withheld_marker,
+                              sidecar_present, stamp, out, coded, c);
 }
 
 extern "C" ps_error_t ps_cache_write_sentinel(
@@ -3278,6 +3479,9 @@ static_assert(PS_NOTIFY_FLAG_FROM_MODULE == pagespeed::kNotifyFlagFromModule,
               "the published flag and the wire bit must agree");
 static_assert(PS_NOTIFY_FLAG_HTML_STORED == pagespeed::kNotifyFlagHtmlStored,
               "the published flag and the wire bit must agree");
+static_assert(PS_NOTIFY_FLAG_MARKDOWN_COMPRESS ==
+                  pagespeed::kNotifyFlagMarkdownCompress,
+              "the published flag and the wire bit must agree");
 
 namespace {
 
@@ -3294,9 +3498,9 @@ static_assert(sizeof(void*) != 8 || kNotifyParamsSiteSize == 88,
 
 // The flags a caller may set. Bit 0x4 is the library's own (the wire's
 // legacy-caller bit); every other bit is reserved.
-constexpr uint32_t kCallerNotifyFlags = PS_NOTIFY_FLAG_HOST_VOUCHED |
-                                        PS_NOTIFY_FLAG_FROM_MODULE |
-                                        PS_NOTIFY_FLAG_HTML_STORED;
+constexpr uint32_t kCallerNotifyFlags =
+    PS_NOTIFY_FLAG_HOST_VOUCHED | PS_NOTIFY_FLAG_FROM_MODULE |
+    PS_NOTIFY_FLAG_HTML_STORED | PS_NOTIFY_FLAG_MARKDOWN_COMPRESS;
 
 // Once per process: a caller of ps_notify_worker_ex whose parameters predate
 // the site fields. The notification is still sent, unsited and unvouched,
@@ -3405,6 +3609,15 @@ extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
   const bool vouched = (flags & PS_NOTIFY_FLAG_HOST_VOUCHED) != 0;
   const bool html_stored = (flags & PS_NOTIFY_FLAG_HTML_STORED) != 0;
   const bool is_html = params->content_type == PS_CONTENT_HTML;
+  const bool markdown_compress =
+      (flags & PS_NOTIFY_FLAG_MARKDOWN_COMPRESS) != 0;
+  // The compress demand names a page the module's HTML store wrote, so it
+  // rides only on the stored-page shape (checked below with the others).
+  if (markdown_compress && !html_stored) {
+    SetLastError(
+        "the Markdown-compress flag is valid only with the HTML-stored flag");
+    return PS_ERR_INVALID_ARG;
+  }
   // The HTML-stored flag names a page the module's HTML store wrote, so it
   // means nothing on any other notification.
   if (html_stored && (!from_module || !is_html)) {
@@ -3450,6 +3663,7 @@ extern "C" ps_error_t ps_notify_worker_ex(const char* socket_path,
     notif.host_vouched = (flags & PS_NOTIFY_FLAG_HOST_VOUCHED) != 0;
     notif.from_module = (flags & PS_NOTIFY_FLAG_FROM_MODULE) != 0;
     notif.html_stored = html_stored;
+    notif.markdown_compress = markdown_compress;
     notif.legacy_ex_caller = legacy_caller;
     if (context != nullptr) {
       notif.option_context.assign(context, context_length);

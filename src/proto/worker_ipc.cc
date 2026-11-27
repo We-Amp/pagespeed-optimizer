@@ -105,6 +105,9 @@ std::vector<char> CacheNotification::Serialize() const {
                             content_type == ContentType::kHtml)) {
     return {};
   }
+  if (!MarkdownCompressShapeValid(markdown_compress, html_stored)) {
+    return {};
+  }
 
   // total_length covers everything after itself: version + fields.
   size_t total_size = 1 +         // version
@@ -190,6 +193,7 @@ std::vector<char> CacheNotification::Serialize() const {
   if (from_module) flags |= kNotifyFlagFromModule;
   if (legacy_ex_caller) flags |= kNotifyFlagLegacyExCaller;
   if (html_stored) flags |= kNotifyFlagHtmlStored;
+  if (markdown_compress) flags |= kNotifyFlagMarkdownCompress;
   *ptr = static_cast<char>(flags);
 
   return result;
@@ -363,6 +367,11 @@ bool CacheNotification::Deserialize(std::string_view data,
   notification->from_module = (flags & kNotifyFlagFromModule) != 0;
   notification->legacy_ex_caller = (flags & kNotifyFlagLegacyExCaller) != 0;
   notification->html_stored = (flags & kNotifyFlagHtmlStored) != 0;
+  notification->markdown_compress = (flags & kNotifyFlagMarkdownCompress) != 0;
+  if (!MarkdownCompressShapeValid(notification->markdown_compress,
+                                  notification->html_stored)) {
+    return reject(IpcRejectReason::kMalformed, version);
+  }
   // Fail closed: the stored-page bit means nothing outside its one shape, so
   // a frame that carries it in any other is refused whole.
   if (!HtmlStoredShapeValid(

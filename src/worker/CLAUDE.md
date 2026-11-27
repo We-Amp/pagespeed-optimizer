@@ -837,6 +837,9 @@ JSON (`STATS`) only; none has a Prometheus metric.
 | `agent_markdown.module_withheld` | Permanent refusals recorded as a withheld marker (`0xCC`): `below_floor`, `too_large`, `encoded`, `hash_mismatch`, `extract_failed` |
 | `agent_markdown.module_withheld_skips` | Frames that found a current marker for the content and did no derivation |
 | `agent_markdown.below_floor` | Copies not kept because the body after front matter has fewer than 200 non-whitespace bytes, on both the module path and the browser render path |
+| `agent_markdown.encoded_written.{gzip,br}` | Compressed copies of a Markdown copy written (`0xEC` gzip, `0xDC` brotli), at derive time or by the compress task, bound to the page stamp and to the plain copy's hash |
+| `agent_markdown.encoded_not_smaller` | Codings whose compressed bytes were not smaller than the plain copy: recorded as a metadata-only entry in that coding's slot, so neither demand path asks for them again for that plain copy |
+| `agent_markdown.compress_tasks.{queued,deduplicated,dropped,done}` | The "compress the Markdown copy" queue (one thread, bounded at 256, one task per key queued or running): tasks queued, demands for a key already queued or running, demands dropped on a full queue, tasks run. Fed by an agent request for a bound plain copy whose coded copy is missing or unbound, and by the module's compress-demand frame (`PS_NOTIFY_FLAG_MARKDOWN_COMPRESS`) |
 
 The library refuses the frame shapes a module must never send
 (`PS_ERR_INVALID_ARG` from `ps_notify_worker_ex`: HTML or an agent request

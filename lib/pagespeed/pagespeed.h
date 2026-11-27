@@ -82,6 +82,21 @@ extern "C" {
  * ps_html_policy_stamp and ps_html_unsafe_method_invalidates. It also makes
  * the store and serve verdicts for a cookie-bearing request stricter in every
  * serve mode (see ps_html_store_classify).
+ * 1.16 adds compressed Markdown copies: PS_SENTINEL_MARKDOWN_BR and
+ * PS_SENTINEL_MARKDOWN_GZIP, the PS_MARKDOWN_ENCODING_* values,
+ * ps_markdown_select_encoding, the markdown_encoding field of
+ * ps_html_serve_request_t (the former reserved word) with
+ * PS_HTML_SERVE_REQUEST_IDENTITY_OK and _ENCODING_NONE, the markdown_encoding
+ * field of ps_html_serve_verdict_t, the serve reason no_acceptable_encoding,
+ * the PS_HTML_FACTS_*_COPY_BOUND and *_NOT_SMALLER bits,
+ * ps_html_stored_facts_from_reads_coded, ps_html_markdown_etag_coded,
+ * PS_NOTIFY_FLAG_MARKDOWN_COMPRESS and ps_read_shared_config_markdown_codings.
+ * It also narrows the two new ids for an embedder: ps_cache_write_sentinel
+ * refuses them, and an exact-id read of either returns PS_ERR_NOT_FOUND
+ * unless the entry carries entry metadata (data an embedder stored there is
+ * no longer readable and may be replaced). From 1.16 the header needs C11
+ * (anonymous unions) or any C++; a C99 compiler needs anonymous-union
+ * support as an extension.
  *
  * A published constant is ABI surface too (see ABI.md), so a minor that adds
  * only one still moves the number: it is what a consumer compiles against to
@@ -95,7 +110,7 @@ extern "C" {
  * checked-in record of the current surface and is what the gate compares
  * against. */
 #define PS_API_VERSION_MAJOR 1
-#define PS_API_VERSION_MINOR 15
+#define PS_API_VERSION_MINOR 16
 #define PS_API_VERSION_PATCH 0
 
 PS_EXPORT int ps_version_major(void);
@@ -221,6 +236,19 @@ PS_EXPORT int ps_normalize_hostname(const char* hostname, char* out_buf,
  * the key (ps_cache_write_original, ps_cache_write_original_site) removes the
  * key's marker in the same call. Available from PS_API 1.13. */
 #define PS_SENTINEL_MARKDOWN_WITHHELD 0xCC
+
+/* The brotli and the gzip copy of a page's Markdown copy (0x7C): the same
+ * bytes, compressed once by the optimizer when it derives the copy (or later,
+ * on demand, for a copy derived before), never per request. Each carries the
+ * entry metadata of the plain copy's family, binding it to the stored page and
+ * to the plain copy it was compressed from; read one by id with
+ * ps_cache_read_alternate_site and hand it to
+ * ps_html_stored_facts_from_reads_coded, which decides whether it may be
+ * sent. Never selectable: ps_cache_read_best never returns either id. NOT
+ * writable through ps_cache_write_sentinel: the optimizer is their only
+ * writer. Available from PS_API 1.16. */
+#define PS_SENTINEL_MARKDOWN_BR 0xDC
+#define PS_SENTINEL_MARKDOWN_GZIP 0xEC
 
 /* ---------- flags ---------- */
 
@@ -922,9 +950,17 @@ ps_cache_write_begin(ps_cache_t* cache, const char* url, const char* hostname,
  * rules a raw sentinel write would skip (PS_SENTINEL_ORIGINAL: use
  * ps_cache_write_original; PS_SENTINEL_HEADERS_SIDECAR: use
  * ps_cache_write_headers_sidecar, whose rules are the admission gate itself,
- * so a raw write there stores exactly the header blocks the gate refuses).
+ * so a raw write there stores exactly the header blocks the gate refuses;
+ * PS_SENTINEL_MARKDOWN_WITHHELD, PS_SENTINEL_MARKDOWN_BR and
+ * PS_SENTINEL_MARKDOWN_GZIP, which only the optimizer writes).
  * Sentinel-shaped ids that name no class at all stay
- * writable: a free slot is yours to use, a claimed one is not. The ids
+ * writable: a free slot is yours to use, a claimed one is not. PS_API 1.16
+ * claimed 0xDC and 0xEC, which were free before: an exact-id read of
+ * either now returns PS_ERR_NOT_FOUND for an entry without entry metadata,
+ * so data an embedder stored there under an earlier library is no longer
+ * readable, is never read as a Markdown copy (see
+ * ps_html_stored_facts_from_reads_coded), and may be replaced by the
+ * optimizer. The ids
  * writable here are PS_SENTINEL_EARLY_HINTS, PS_SENTINEL_WARMUP,
  * PS_SENTINEL_CONTENT_HASH, PS_SENTINEL_SUBRESOURCE and
  * PS_SENTINEL_BROWSER_PROFILE.
@@ -1583,6 +1619,14 @@ PS_EXPORT const char* ps_html_store_reason_name(int reason);
 #define PS_HTML_SERVE_REQUEST_CONDITIONAL 256u
 /* PS_API 1.15. The operator's credentialed policy is explicit-public. */
 #define PS_HTML_SERVE_REQUEST_EXPLICIT_PUBLIC 512u
+/* PS_API 1.16. The request accepts the plain (identity) Markdown copy: when
+ * the coded copy named by markdown_encoding is not bound, the plain copy is
+ * served instead of falling through. Set it when identity is in the order
+ * ps_markdown_select_encoding returned. */
+#define PS_HTML_SERVE_REQUEST_IDENTITY_OK 1024u
+/* PS_API 1.16. ps_markdown_select_encoding found no acceptable coding: the
+ * Markdown path falls through with no_acceptable_encoding. */
+#define PS_HTML_SERVE_REQUEST_ENCODING_NONE 2048u
 
 /* ps_html_serve_request_t::serve_scope (PS_API 1.15). Any other value reads
  * as PS_HTML_SERVE_SCOPE_AGENTS. */
@@ -1616,7 +1660,15 @@ typedef struct {
   /* The operator's cap on a served HTML entry's age, in seconds; 0 = none.
    * It only shortens the origin's lifetime. The Markdown path ignores it. */
   uint32_t html_max_lifetime_s;
-  uint32_t reserved; /* zero */
+  /* PS_API 1.16, in the word 1.15 reserved (zero): the PS_MARKDOWN_ENCODING_*
+   * coding of the Markdown copy asked for, the first of the order
+   * ps_markdown_select_encoding returned. 0 (a 1.15 caller) is identity, the
+   * plain copy, as before; a value above 2 reads as identity. Both names
+   * refer to the same word. */
+  union {
+    uint32_t markdown_encoding;
+    uint32_t reserved;
+  };
   /* The stamp of the credentialed policy in force (ps_html_policy_stamp);
    * 0 = none. Compared with the entry's own. */
   uint64_t policy_stamp;
@@ -1646,6 +1698,16 @@ typedef struct {
  * PS_FLAG_ANONYMOUS_RECORDED. */
 #define PS_HTML_FACTS_STORE_V2 0x1000u
 #define PS_HTML_FACTS_ANONYMOUS_RECORDED 0x2000u
+/* PS_API 1.16, set by ps_html_stored_facts_from_reads_coded only: the coded
+ * copy it was given parses as a copy of that coding and is bound to the
+ * stored page and to the plain copy (whose binding is live). */
+#define PS_HTML_FACTS_GZIP_COPY_BOUND 0x4000u
+#define PS_HTML_FACTS_BR_COPY_BOUND 0x8000u
+/* PS_API 1.16: the optimizer recorded that this coding of the current plain
+ * copy is not smaller than the plain copy, so no such copy will be written
+ * and none needs to be asked for. */
+#define PS_HTML_FACTS_GZIP_NOT_SMALLER 0x10000u
+#define PS_HTML_FACTS_BR_NOT_SMALLER 0x20000u
 
 /* Why a copy was withheld (ps_html_stored_facts_t::withheld_reason). */
 #define PS_HTML_WITHHELD_BELOW_FLOOR 1   /* too little text to be useful */
@@ -1684,6 +1746,40 @@ typedef struct {
  * closing quote, not counting a terminating NUL. */
 #define PS_HTML_MARKDOWN_ETAG_CHARS 24
 
+/* The content codings a stored Markdown copy exists in (PS_API 1.16): the
+ * plain copy (id 0x7C) and its gzip and brotli copies
+ * (PS_SENTINEL_MARKDOWN_GZIP, PS_SENTINEL_MARKDOWN_BR). */
+#define PS_MARKDOWN_ENCODING_IDENTITY 0
+#define PS_MARKDOWN_ENCODING_GZIP 1
+#define PS_MARKDOWN_ENCODING_BR 2
+
+/* The codings among br, gzip and identity a request accepts for a Markdown
+ * copy, in the order it prefers them. Available from PS_API 1.16.
+ *
+ * `accept_encoding_lines` are the request's Accept-Encoding field lines AS
+ * RECEIVED, `count` of them (0 when the field was absent). `out_order` has
+ * room for 3 values and receives PS_MARKDOWN_ENCODING_* values, most
+ * preferred first: q descending, ties br, then gzip, then identity.
+ *   - coding names compare case-insensitively; x-gzip is gzip;
+ *   - a q-value of 0 (q=0, q=0.0, q=0.000) excludes a coding;
+ *   - `*` gives its q to every coding the field does not name, identity
+ *     included;
+ *   - identity is acceptable unless identity;q=0, or *;q=0 with identity not
+ *     named; identity that nothing names ranks after every coding named;
+ *   - an element whose q-value does not parse is dropped; a coding named
+ *     more than once takes its lowest q;
+ *   - an absent field, or one with no element, means identity only. That is
+ *     stricter than RFC 9110 section 12.5.3, which reads an absent field as
+ *     "any coding", and deliberate: these copies are never compressed on the
+ *     fly, so nothing is lost by sending the plain copy.
+ *
+ * Returns the number of values written (1 to 3), 0 when no coding is
+ * acceptable ("none acceptable": send no Markdown copy, set
+ * PS_HTML_SERVE_REQUEST_ENCODING_NONE), or -1 for a NULL out_order or NULL
+ * lines with a non-zero count. A NULL line is skipped. Pure. */
+PS_EXPORT int ps_markdown_select_encoding(
+    const char* const* accept_encoding_lines, size_t count, int* out_order);
+
 /* The answer. */
 typedef struct {
   size_t struct_size;
@@ -1702,6 +1798,15 @@ typedef struct {
    * empty string. A caller whose struct_size ends inside this field gets
    * only NUL bytes in the part it has, never a partial tag. */
   char etag[PS_HTML_MARKDOWN_ETAG_CHARS + 8];
+  /* PS_API 1.16. With PS_HTML_SERVE_ACTION_SERVE_MARKDOWN, the
+   * PS_MARKDOWN_ENCODING_* coding of the copy to send (its bytes, its length,
+   * Content-Encoding, and `etag` is that copy's tag); 0 otherwise. A caller
+   * whose struct_size ends before this field never has it written, and is
+   * only ever sent identity. */
+  int markdown_encoding;
+  /* PS_API 1.16. Zero; makes the struct's tail explicit, so it has no
+   * padding. The next field appended to this struct starts at byte 72. */
+  int reserved_1_16;
 } ps_html_serve_verdict_t;
 
 /* Decide whether a stored HTML page, or its Markdown copy, answers a request.
@@ -1757,13 +1862,29 @@ typedef struct {
  *      honours it); a request whose Cache-Control carries no-transform does
  *      (`no_transform`), and so does a conditional request (`conditional`):
  *      the origin answers it. wants_markdown is 0 on the HTML path.
+ *   6a. (PS_API 1.16, after rule 6 admits the copy) The coding: with
+ *      PS_HTML_SERVE_REQUEST_ENCODING_NONE the path falls through
+ *      (`no_acceptable_encoding`). Otherwise `markdown_encoding` names the
+ *      coding asked for: identity is served as before; gzip or br is served
+ *      when the facts say that copy is bound (PS_HTML_FACTS_GZIP_COPY_BOUND,
+ *      PS_HTML_FACTS_BR_COPY_BOUND); else the plain copy when the request
+ *      carries PS_HTML_SERVE_REQUEST_IDENTITY_OK; else it falls through
+ *      (`no_acceptable_encoding`). The verdict's markdown_encoding names the
+ *      coding to send. A caller whose verdict struct ends before that field
+ *      is always answered in identity. The coding never changes which
+ *      representation is sent, only how its bytes are coded. The verdict
+ *      speaks for the one coding asked for: when it falls through with
+ *      `no_acceptable_encoding` or falls back to identity and another coded
+ *      coding is in the order, read that copy and ask again with it.
  *
  * HEAD gets exactly the verdict GET would get, entity tag included, and the
  * caller sends no body; a HEAD whose If-None-Match matches may be answered
  * 304 (RFC 9110 section 9.3.2).
  *
  * If-None-Match is compared weakly (ps_if_none_match_matches_weak) against
- * the copy's own tag only. A Markdown tag (W/"psm-...") never confirms HTML,
+ * the copy's own tag only, the tag of the coding the verdict names
+ * (ps_html_markdown_etag_coded): a plain copy's tag never confirms a coded
+ * copy, nor the reverse. A Markdown tag (W/"psm-...") never confirms HTML,
  * and no other tag confirms Markdown.
  *
  * Returns 0 with `*out` written. Returns -1 for a malformed call (NULL
@@ -1780,7 +1901,8 @@ PS_EXPORT int ps_html_serve_classify(const ps_html_serve_request_t* request,
  * parent_stale, method, range, cors, no_transform, withheld, skew; PS_API
  * 1.15 appends scope, capped, conditional, credentialed, legacy_entry,
  * policy_mismatch, request_header and path (the last two decided by
- * ps_html_request_guard, never returned here). New reasons are appended. Returns a static string, or NULL for a value outside
+ * ps_html_request_guard, never returned here); PS_API 1.16 appends
+ * no_acceptable_encoding. New reasons are appended. Returns a static string, or NULL for a value outside
  * the set; a caller must treat a reason it does not know as a fall-through.
  * Available from PS_API 1.14. */
 PS_EXPORT const char* ps_html_serve_reason_name(int reason);
@@ -1875,6 +1997,35 @@ PS_EXPORT int ps_html_stored_facts_from_reads_ex(
     const ps_read_result_t* withheld_marker, int sidecar_present,
     const ps_header_block_t* sidecar, ps_html_stored_facts_t* out);
 
+/* ps_html_stored_facts_from_reads_ex, with the read of one coded Markdown
+ * copy: `coded` is the exact-id read of PS_SENTINEL_MARKDOWN_GZIP (`coding`
+ * PS_MARKDOWN_ENCODING_GZIP) or PS_SENTINEL_MARKDOWN_BR (`coding`
+ * PS_MARKDOWN_ENCODING_BR), NULL when the read missed or was not made.
+ * Everything else is as above. Available from PS_API 1.16.
+ *
+ * PS_HTML_FACTS_GZIP_COPY_BOUND or PS_HTML_FACTS_BR_COPY_BOUND is set only
+ * when the plain copy's binding is live and its hash is known, and the coded
+ * entry carries entry metadata that names exactly that coding's id, the
+ * text/markdown content type, the stored page's content hash and, as the
+ * hash it was compressed from, the plain copy's hash; and it holds bytes.
+ * The bit is the library's answer: a front end never compares the hashes
+ * itself. An entry under either id that does not parse, names another id or
+ * type, or holds another page's or another plain copy's binding is treated
+ * as missing, so bytes another embedder wrote there are never sent. An entry
+ * with entry metadata, those bindings and no bytes is the optimizer's record
+ * that this coding is not smaller than the plain copy: it sets
+ * PS_HTML_FACTS_GZIP_NOT_SMALLER or PS_HTML_FACTS_BR_NOT_SMALLER, and never
+ * the bound bit. To ask about the other coding, call again with that read;
+ * the bits of both codings may be combined.
+ *
+ * Returns as ps_html_stored_facts_from_reads, and also -1 for a non-NULL
+ * `coded` with a `coding` other than gzip or br. */
+PS_EXPORT int ps_html_stored_facts_from_reads_coded(
+    const ps_read_result_t* original, const ps_read_result_t* markdown,
+    const ps_read_result_t* withheld_marker, int sidecar_present,
+    const ps_header_block_t* sidecar, const ps_read_result_t* coded, int coding,
+    ps_html_stored_facts_t* out);
+
 /* The Markdown copy's weak entity tag: W/"psm-" followed by 16 lowercase hex
  * digits, the first 8 bytes of SHA-256(binding_hash || markdown_hash), and a
  * closing quote. Both hashes are PS_HTML_HASH_BYTES long. The tag changes
@@ -1889,6 +2040,20 @@ PS_EXPORT int ps_html_stored_facts_from_reads_ex(
 PS_EXPORT int ps_html_markdown_etag(const uint8_t* binding_hash,
                                     const uint8_t* markdown_hash, char* buf,
                                     size_t capacity, size_t* out_len);
+
+/* The entity tag of the Markdown copy in one coding. For
+ * PS_MARKDOWN_ENCODING_IDENTITY it is exactly ps_html_markdown_etag. For gzip
+ * and br the coding's name ("gzip", "br") is appended to the hash input, so
+ * the three tags of one copy differ and a tag confirms only the coding it was
+ * sent with; the form and length (PS_HTML_MARKDOWN_ETAG_CHARS) are the same.
+ * Available from PS_API 1.16.
+ *
+ * Returns as ps_html_markdown_etag, and also -1 for a coding outside the
+ * PS_MARKDOWN_ENCODING_* values. */
+PS_EXPORT int ps_html_markdown_etag_coded(const uint8_t* binding_hash,
+                                          const uint8_t* markdown_hash,
+                                          int coding, char* buf,
+                                          size_t capacity, size_t* out_len);
 
 /* Does an If-None-Match field value match `etag` under the weak comparison
  * (RFC 9110 sections 8.8.3.2 and 13.1.2)? `if_none_match` is the field's lines
@@ -2102,6 +2267,19 @@ PS_EXPORT int ps_html_unsafe_method_invalidates(const char* method, int status);
  * gates its store and notify on it, reading it on a timer rather than per
  * request (it reads a file). Available from PS_API 1.14. */
 PS_EXPORT int ps_read_shared_config_html_mode(const char* cache_path);
+
+/* The codings the worker writes compressed Markdown copies in, as published
+ * in the shared config under cache_path (as for ps_read_shared_config_html_mode).
+ * Returns a bit set: (1 << PS_MARKDOWN_ENCODING_GZIP) when it writes gzip
+ * copies, (1 << PS_MARKDOWN_ENCODING_BR) when it writes brotli copies; 0
+ * when it writes neither (both levels 0). -1 when the worker publishes no
+ * codings (a worker built before PS_API 1.16, one whose HTML mode derives no
+ * Markdown copies, or a missing or unreadable config) or for a NULL
+ * cache_path: such a worker writes no coded copies and refuses
+ * PS_NOTIFY_FLAG_MARKDOWN_COMPRESS. A coding name this library does not know
+ * (one a later worker adds) is skipped and the known ones are kept. A front end reads it on a timer,
+ * not per request (it reads a file). Available from PS_API 1.16. */
+PS_EXPORT int ps_read_shared_config_markdown_codings(const char* cache_path);
 
 PS_EXPORT PS_NODISCARD ps_error_t ps_write_data(ps_write_handle_t* handle,
                                                 const void* data,
@@ -2662,6 +2840,21 @@ typedef struct {
  * notification carrying it, so send it only to a worker that publishes a
  * Markdown HTML mode (ps_read_shared_config_html_mode). */
 #define PS_NOTIFY_FLAG_HTML_STORED 0x8u
+
+/* PS_API 1.16. Ask the optimizer to compress the stored Markdown copy of the
+ * page this notification names: the front end served the plain copy because
+ * a coded copy was missing or not bound. The optimizer checks that the plain
+ * copy is still bound to the stored page and writes whichever coded copies
+ * are missing, once per key however often it is asked. Valid only together
+ * with PS_NOTIFY_FLAG_FROM_MODULE, PS_NOTIFY_FLAG_HOST_VOUCHED,
+ * PS_NOTIFY_FLAG_HTML_STORED and PS_CONTENT_HTML; anywhere else it is
+ * PS_ERR_INVALID_ARG. A worker built before this flag refuses a
+ * notification carrying it, so send it only to a worker for which BOTH
+ * ps_read_shared_config_markdown_codings returns 0 or more AND
+ * ps_read_shared_config_html_mode returns a PS_HTML_MODE_MARKDOWN_* value
+ * (the HTML-stored flag it rides with needs that), and not for a coding that
+ * is disabled there or reported not smaller (PS_HTML_FACTS_*_NOT_SMALLER). */
+#define PS_NOTIFY_FLAG_MARKDOWN_COMPRESS 0x10u
 
 /* Zero `size` bytes at `params` and stamp struct_size = size. Always pass
  * sizeof(ps_notify_params_t) as YOUR build sees it — use the _auto spelling

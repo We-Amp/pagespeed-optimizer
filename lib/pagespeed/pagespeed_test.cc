@@ -7018,7 +7018,9 @@ TEST(PageSpeedCApiPolicy, ServeReasonNamesAreAClosedSet) {
       "method", "range", "cors", "no_transform", "withheld", "skew",
       // PS_API 1.15.
       "scope", "capped", "conditional", "credentialed", "legacy_entry",
-      "policy_mismatch", "request_header", "path"};
+      "policy_mismatch", "request_header", "path",
+      // PS_API 1.16.
+      "no_acceptable_encoding"};
   for (int i = 0; i < static_cast<int>(std::size(names)); ++i) {
     EXPECT_STREQ(ps_html_serve_reason_name(i), names[i]) << i;
   }

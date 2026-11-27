@@ -1103,7 +1103,8 @@ TEST(HtmlCachePolicyTest, NamesAreAClosedSet) {
                                        "legacy_entry",
                                        "policy_mismatch",
                                        "request_header",
-                                       "path"};
+                                       "path",
+                                       "no_acceptable_encoding"};
   ASSERT_EQ(sizeof(serve_reasons) / sizeof(serve_reasons[0]),
             size_t{kHtmlServeReasonCount});
   for (uint8_t i = 0; i < kHtmlServeReasonCount; ++i) {
@@ -2145,6 +2146,55 @@ TEST(HtmlServePolicy113Test, RequestShapeFallsThroughBeforeTheEntry) {
   // In a mode that does not serve, the mode is the reason.
   r.mode = HtmlCacheMode::kReportOnly;
   EXPECT_EQ(ClassifyHtmlForServe(r, LiveCopy()).reason, HtmlServeReason::kMode);
+}
+
+// Rule 9a (C API 1.16): the coding of the copy, chosen only after the copy
+// itself is admitted.
+TEST(HtmlServePolicy116Test, TheCodingNeverChangesWhetherTheCopyIsServed) {
+  for (MarkdownCoding coding :
+       {MarkdownCoding::kGzip, MarkdownCoding::kBrotli}) {
+    SCOPED_TRACE(std::string(MarkdownCodingName(coding)));
+    HtmlServeRequest r = FreshMarkdownRequest();
+    r.markdown_coding = coding;
+    StoredHtmlFacts f = LiveCopy();
+    // Not bound: no_acceptable_encoding, or the plain copy with identity_ok.
+    HtmlServeVerdict v = ClassifyHtmlForServe(r, f);
+    EXPECT_EQ(v.reason, HtmlServeReason::kNoAcceptableEncoding);
+    EXPECT_EQ(v.action, HtmlServeAction::kFallThrough);
+    r.identity_ok = true;
+    v = ClassifyHtmlForServe(r, f);
+    EXPECT_EQ(v.action, HtmlServeAction::kServeMarkdown);
+    EXPECT_EQ(v.markdown_coding, MarkdownCoding::kIdentity);
+    // Bound: that coding.
+    (coding == MarkdownCoding::kGzip ? f.gzip_copy_bound
+                                     : f.brotli_copy_bound) = true;
+    v = ClassifyHtmlForServe(r, f);
+    EXPECT_EQ(v.action, HtmlServeAction::kServeMarkdown);
+    EXPECT_EQ(v.markdown_coding, coding);
+    // The other coding's bit does not serve this one.
+    StoredHtmlFacts other = LiveCopy();
+    (coding == MarkdownCoding::kGzip ? other.brotli_copy_bound
+                                     : other.gzip_copy_bound) = true;
+    r.identity_ok = false;
+    EXPECT_EQ(ClassifyHtmlForServe(r, other).reason,
+              HtmlServeReason::kNoAcceptableEncoding);
+    // A copy refused for any earlier reason keeps that reason.
+    f.binding_live = false;
+    EXPECT_EQ(ClassifyHtmlForServe(r, f).reason,
+              HtmlServeReason::kBindingStale);
+  }
+  HtmlServeRequest none = FreshMarkdownRequest();
+  none.no_acceptable_coding = true;
+  none.identity_ok = true;
+  EXPECT_EQ(ClassifyHtmlForServe(none, LiveCopy()).reason,
+            HtmlServeReason::kNoAcceptableEncoding);
+  // Identity asked for is identity accepted, whatever the coded bits say.
+  StoredHtmlFacts bound = LiveCopy();
+  bound.brotli_copy_bound = true;
+  const HtmlServeVerdict v =
+      ClassifyHtmlForServe(FreshMarkdownRequest(), bound);
+  EXPECT_EQ(v.action, HtmlServeAction::kServeMarkdown);
+  EXPECT_EQ(v.markdown_coding, MarkdownCoding::kIdentity);
 }
 
 TEST(HtmlServePolicy113Test, FutureDatedEntryIsSkew) {

@@ -272,6 +272,11 @@ gtest_test(
 )
 
 gtest_test(
+    name = "markdown_coding_test",
+    deps = ["//lib/cache:markdown_coding"],
+)
+
+gtest_test(
     name = "html_withheld_marker_test",
     deps = [
         "//lib/cache:html_withheld_marker",
