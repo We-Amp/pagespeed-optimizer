@@ -824,6 +824,79 @@ TEST_F(MarkdownExtractorFilterTest, BannerHeaderAndNavInMainStillStripped) {
             "# Page\n\ntext");
 }
 
+// ---- code keeps its line breaks --------------------------------------------
+
+// A multi-line command in a <code> styled white-space: pre (no <pre>) is a
+// code block: joining its lines would make a different, wrong command.
+TEST_F(MarkdownExtractorFilterTest, MultiLineCodeOutsidePreIsFenced) {
+  EXPECT_EQ(Md("<main><div class=\"install-panel\">"
+               "<code class=\"install-command\">curl -fsSL "
+               "https://example.com/install.sh | sudo sh\n"
+               "sudo apt-get install pagespeed-optimizer\n"
+               "sudo apt-get install nginx-module-pagespeed</code>"
+               "<button aria-label=\"Copy\"><svg></svg></button>"
+               "</div></main>"),
+            "```\ncurl -fsSL https://example.com/install.sh | sudo sh\n"
+            "sudo apt-get install pagespeed-optimizer\n"
+            "sudo apt-get install nginx-module-pagespeed\n```");
+  // Continuation lines keep their backslash and indentation.
+  EXPECT_EQ(Md("<main><div><code>docker run --rm -p 80:80 \\\n"
+               "  --add-host=host.docker.internal:host-gateway \\\n"
+               "  ghcr.io/example/image:latest</code></div></main>"),
+            "```\ndocker run --rm -p 80:80 \\\n"
+            "  --add-host=host.docker.internal:host-gateway \\\n"
+            "  ghcr.io/example/image:latest\n```");
+  // The language class tags the fence.
+  EXPECT_EQ(Md("<div><code class=\"language-bash\">a\nb</code></div>"),
+            "```bash\na\nb\n```");
+}
+
+// A <code> inside a sentence stays an inline span; its line breaks are source
+// formatting and fold to spaces.
+TEST_F(MarkdownExtractorFilterTest, MultiLineCodeInsideSentenceStaysInline) {
+  EXPECT_EQ(Md("<p>Run <code>make\nall</code> now</p>"), "Run `make all` now");
+  EXPECT_EQ(Md("<table><tr><td><code>a\nb</code></td></tr></table>"),
+            "| `a b` |\n| --- |");
+  EXPECT_EQ(Md("<ul><li><code>a\nb</code></li></ul>"), "- `a b`");
+}
+
+// Content with backtick runs gets a longer fence, so it never closes early.
+TEST_F(MarkdownExtractorFilterTest, CodeBlockFenceOutgrowsBackticks) {
+  EXPECT_EQ(Md("<div><code>echo ```\nx</code></div>"),
+            "````\necho ```\nx\n````");
+  EXPECT_EQ(Md("<pre>a\n````\nb</pre>"), "`````\na\n````\nb\n`````");
+}
+
+TEST_F(MarkdownExtractorFilterTest, BrInsidePreIsALineBreak) {
+  EXPECT_EQ(Md("<pre>line1<br>line2<br/>line3</pre>"),
+            "```\nline1\nline2\nline3\n```");
+}
+
+// A diff view renders one <div> per line inside <pre><code>. The lines stay
+// inside one fence (escaped markup in them stays text), the indentation the
+// source formatting adds is removed, and no empty fence follows.
+TEST_F(MarkdownExtractorFilterTest, PreWithBlockLinesStaysOneFence) {
+  EXPECT_EQ(Md("<main><pre><code>\n"
+               "  <div class=\"line\">\n"
+               "      \xE2\x80\xA6 1 unchanged line \xE2\x80\xA6\n"
+               "    </div><div class=\"line\">\n"
+               "        &lt;head&gt;\n"
+               "    </div><div class=\"line del\">\n"
+               "      -     &lt;style&gt;\n"
+               "    </div><div class=\"line add\">\n"
+               "      +     &lt;link rel=stylesheet&gt;\n"
+               "    </div>\n"
+               "</code></pre><p>After.</p></main>"),
+            "```\n"
+            "\xE2\x80\xA6 1 unchanged line \xE2\x80\xA6\n"
+            "  <head>\n"
+            "-     <style>\n"
+            "+     <link rel=stylesheet>\n"
+            "```\n\nAfter.");
+  // Ordinary <pre> text keeps blank lines and indentation as written.
+  EXPECT_EQ(Md("<pre>  a\n\n  b</pre>"), "```\n  a\n\n  b\n```");
+}
+
 // ---- output is always well-formed UTF-8 -----------------------------------
 
 // A literal no-break space (U+00A0, the two bytes C2 A0) reads as a space and

@@ -127,6 +127,12 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   // space (trimming any inter-block whitespace first) so the item reads as one
   // citable line regardless of source formatting.
   void ListItemBlockJoin();
+  // Inside <pre>: end the current line (dropping trailing blanks) so a block
+  // child of the <pre> starts on a line of its own.
+  void PreLineBreak();
+  // True when the inline <code> being closed holds more than one line and
+  // starts a block of its own, so it is emitted as a fenced code block.
+  bool CodeSpanIsBlock() const;
   // Prepend the YAML front-matter block (if any field is set) to markdown_.
   void PrependFrontMatter();
 
@@ -135,7 +141,8 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   std::string cell_;      // current table-cell inline buffer
   std::string code_buf_;  // current inline <code> span (for adaptive fencing)
   std::string pre_language_;  // outermost <pre data-language> label (fence tag)
-  std::string table_;         // current table accumulation
+  std::string inline_code_lang_;  // language-<x> class of the open <code>
+  std::string table_;             // current table accumulation
   std::vector<ListCtx> lists_;
   std::vector<std::string> row_cells_;
   // Front-matter (Issue F (2)): title/description/canonical from the metadata
@@ -177,6 +184,9 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   bool in_table_ = false;
   bool in_cell_ = false;
   bool in_inline_code_ = false;
+  // The outermost open <pre> has block children as its lines (see
+  // TidyBlockLinePre).
+  bool pre_has_block_lines_ = false;
   bool in_dt_ = false;  // inside a <dt> (definition term -> bold block)
   bool table_header_done_ = false;
   bool last_was_list_item_ = false;

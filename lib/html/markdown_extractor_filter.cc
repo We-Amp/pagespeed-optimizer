@@ -380,6 +380,68 @@ std::string EscapeInteriorLineMarkers(std::string_view body) {
   return out;
 }
 
+// A fenced code block around `body`, with a fence longer than any backtick run
+// in it so no content line can close the block early.
+std::string FencedBlock(std::string_view body, std::string_view lang) {
+  const int n = LongestBacktickRun(body);
+  const std::string fence(std::max(3, n + 1), '`');
+  std::string out = fence;
+  out.append(lang);
+  out.push_back('\n');
+  out.append(body);
+  out.push_back('\n');
+  out += fence;
+  return out;
+}
+
+// Tidy a <pre> whose lines are block children (a diff view renders one <div>
+// per line): drop the whitespace-only lines the source indentation leaves
+// between the children, strip trailing blanks, and remove the indentation the
+// remaining lines share.
+std::string TidyBlockLinePre(std::string_view body) {
+  std::vector<std::string_view> lines;
+  std::size_t start = 0;
+  while (start <= body.size()) {
+    std::size_t nl = body.find('\n', start);
+    if (nl == std::string_view::npos) nl = body.size();
+    std::string_view line = body.substr(start, nl - start);
+    while (!line.empty() &&
+           (line.back() == ' ' || line.back() == '\t' || line.back() == '\r')) {
+      line.remove_suffix(1);
+    }
+    if (!line.empty()) lines.push_back(line);
+    start = nl + 1;
+  }
+  std::size_t indent = std::string_view::npos;
+  for (std::string_view line : lines) {
+    std::size_t i = 0;
+    while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+    indent = std::min(indent, i);
+  }
+  std::string out;
+  for (std::string_view line : lines) {
+    if (!out.empty()) out.push_back('\n');
+    out.append(line.substr(indent));
+  }
+  return out;
+}
+
+// Trim leading and trailing whitespace-only lines (and trailing blanks) from a
+// code block's text, keeping the indentation of its first content line.
+std::string TrimCodeLines(std::string_view s) {
+  std::size_t b = 0;
+  for (std::size_t i = 0; i < s.size(); ++i) {
+    if (s[i] == '\n') {
+      b = i + 1;
+    } else if (s[i] != ' ' && s[i] != '\t' && s[i] != '\r') {
+      break;
+    }
+  }
+  std::size_t e = s.size();
+  while (e > b && IsAsciiWs(s[e - 1])) --e;
+  return std::string(s.substr(b, e - b));
+}
+
 }  // namespace
 
 MarkdownExtractorFilter::MarkdownExtractorFilter(bool strip_soft_chrome,
@@ -394,6 +456,8 @@ void MarkdownExtractorFilter::StartDocument() {
   cell_.clear();
   code_buf_.clear();
   pre_language_.clear();
+  inline_code_lang_.clear();
+  pre_has_block_lines_ = false;
   table_.clear();
   lists_.clear();
   row_cells_.clear();
@@ -561,6 +625,22 @@ void MarkdownExtractorFilter::AnchorBlockJoin() {
   o->append(": ");
 }
 
+void MarkdownExtractorFilter::PreLineBreak() {
+  std::string* o = Out();
+  while (!o->empty() && (o->back() == ' ' || o->back() == '\t')) o->pop_back();
+  if (!o->empty() && o->back() != '\n') o->push_back('\n');
+}
+
+bool MarkdownExtractorFilter::CodeSpanIsBlock() const {
+  if (in_cell_ || anchor_depth_ > 0 || heading_level_ > 0 || item_open_ ||
+      blockquote_depth_ > 0 || in_dt_) {
+    return false;
+  }
+  if (HasVisibleText(cur_)) return false;  // text before it: an inline span
+  const std::string body = TrimCodeLines(code_buf_);
+  return body.find('\n') != std::string::npos;
+}
+
 void MarkdownExtractorFilter::ListItemBlockJoin() {
   std::string* o = Out();
   // Separate folded block segments by exactly one space. Trim any trailing
@@ -653,6 +733,16 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
     return;
   }
 
+  // Inside <pre>, a block child (a <div> per line in a diff view, a <p>) is a
+  // line of the preformatted text, not a Markdown block: it only starts a new
+  // line, so the fence stays whole.
+  if (pre_depth_ > 0 && kw != HtmlName::kPre &&
+      (IsBlockKeyword(kw) || is_summary)) {
+    PreLineBreak();
+    pre_has_block_lines_ = true;
+    return;
+  }
+
   // A <details>/<summary> disclosure (the FAQ pattern on pricing/features/1.1):
   // the <summary> is the question label — emit it as a heading so each Q is a
   // citable anchor, not a bare paragraph indistinguishable from its answer.
@@ -712,6 +802,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       // The label is an ASCII token, so the decoded attribute path is safe.
       if (pre_depth_ == 0) {
         pre_language_.clear();
+        pre_has_block_lines_ = false;
         const HtmlElement::Attribute* lang =
             element->FindAttribute("data-language");
         const char* v = lang != nullptr ? lang->DecodedValueOrNull() : nullptr;
@@ -752,7 +843,8 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       break;
     // ---- inline (markers suppressed inside <pre>) ----
     case HtmlName::kBr:
-      if (pre_depth_ == 0) Out()->append("  \n");
+      // A <br> inside <pre> is a line break of the preformatted text.
+      Out()->append(pre_depth_ == 0 ? "  \n" : "\n");
       break;
     case HtmlName::kStrong:
     case HtmlName::kB:
@@ -766,6 +858,8 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       if (pre_depth_ == 0) {  // start buffering an inline code span (MF-4/SF-2)
         in_inline_code_ = true;
         code_buf_.clear();
+        inline_code_lang_ =
+            LanguageFromCodeClass(element->AttributeValue(HtmlName::kClass));
       } else if (pre_language_.empty()) {
         // Hand-authored <pre><code class="language-bash"> blocks carry the fence
         // language on the <code> class, not a <pre data-language> attribute
@@ -829,6 +923,24 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
   // backtick fence so a backtick in the content cannot close the span early.
   if (in_inline_code_) {
     if (element->keyword() == HtmlName::kCode && pre_depth_ == 0) {
+      // A multi-line <code> that starts its own block (a command shown with
+      // white-space: pre outside any <pre>) is a code block: its line breaks
+      // are part of the command, so it becomes a fenced block instead of a
+      // span that would join the lines.
+      if (CodeSpanIsBlock()) {
+        const std::string body = TrimCodeLines(code_buf_);
+        FlushBlock();
+        AppendBlock(FencedBlock(body, inline_code_lang_));
+        code_buf_.clear();
+        in_inline_code_ = false;
+        return;
+      }
+      // An inline span is single-line: fold CR/LF to a space so a newline
+      // cannot end the paragraph and let the text after the orphaned
+      // backtick forge a heading or list.
+      for (char& c : code_buf_) {
+        if (c == '\n' || c == '\r') c = ' ';
+      }
       int n = LongestBacktickRun(code_buf_);
       std::string fence(std::max(1, n + 1), '`');
       bool pad = !code_buf_.empty() &&
@@ -871,6 +983,17 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
   const bool is_summary = StringCaseEqual(element->name_str(), "summary");
   if (InAnchorBlock() && (IsBlockKeyword(kw) || is_summary) &&
       kw != HtmlName::kA) {
+    if (closing_content_root && content_root_depth_ > 0) --content_root_depth_;
+    if (closing_article_root && article_depth_ > 0) --article_depth_;
+    if (closing_sectioning && sectioning_depth_ > 0) --sectioning_depth_;
+    return;
+  }
+
+  // A block child inside <pre> ends a line of the preformatted text
+  // (symmetric with StartElement); it emits no Markdown block boundary.
+  if (pre_depth_ > 0 && kw != HtmlName::kPre &&
+      (IsBlockKeyword(kw) || is_summary)) {
+    PreLineBreak();
     if (closing_content_root && content_root_depth_ > 0) --content_root_depth_;
     if (closing_article_root && article_depth_ > 0) --article_depth_;
     if (closing_sectioning && sectioning_depth_ > 0) --sectioning_depth_;
@@ -940,12 +1063,11 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
       if (pre_depth_ == 0) {
         lang = SanitizeFenceLanguage(pre_language_);
         pre_language_.clear();
+        if (pre_has_block_lines_) body = TidyBlockLinePre(body);
+        pre_has_block_lines_ = false;
       }
-      if (!body.empty()) {  // MF-4: fence longer than any backtick run in body
-        int n = LongestBacktickRun(body);
-        std::string fence(std::max(3, n + 1), '`');
-        AppendBlock(fence + lang + "\n" + body + "\n" + fence);
-      }
+      // MF-4: fence longer than any backtick run in body.
+      if (!body.empty()) AppendBlock(FencedBlock(body, lang));
       break;
     }
     case HtmlName::kLi:
@@ -1053,15 +1175,9 @@ void MarkdownExtractorFilter::Characters(HtmlCharactersNode* characters) {
     // Issue F decoded body text in AppendText but this code-span path bypasses
     // it; decode here too via the same UTF-8-safe helper (a decoded backtick is
     // handled by LongestBacktickRun's adaptive fence at </code>).
+    // Line breaks are kept until </code>, which either emits a fenced block
+    // (a multi-line command) or folds them to spaces for an inline span.
     std::string t = SafeDecodeHtmlEntities(characters->contents());
-    // An inline <code> span is single-line by contract; fold CR/LF to a space
-    // so a decoded numeric newline ('&#10;') cannot end the paragraph and let
-    // the text after the now-orphaned backtick forge a heading/list. Mirrors the
-    // EscapeCell table-cell fold and the structure-forgery hardening the rest of
-    // the filter applies (SanitizeUrl, EscapeLeadingMarker, SanitizeFenceLanguage).
-    for (char& c : t) {
-      if (c == '\n' || c == '\r') c = ' ';
-    }
     std::size_t room = kMaxMarkdownBytes - code_buf_.size();
     if (t.size() > room) {
       code_buf_.append(t.substr(0, room));
