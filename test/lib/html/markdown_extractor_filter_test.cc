@@ -985,27 +985,28 @@ TEST_F(MarkdownExtractorFilterTest, BrInsideHeadingKeepsOneLine) {
   EXPECT_EQ(Md("<h2>a<br>b</h2>"), "## a b");
 }
 
-// Docs pages mark their menu, table of contents and edit links with
-// data-pagefind-ignore; that content is left out.
-TEST_F(MarkdownExtractorFilterTest, PagefindIgnoredContentIsLeftOut) {
-  EXPECT_EQ(
-      Md("<main><div data-pagefind-ignore><h3>Docs menu</h3>"
-         "<ul><li><a href=\"/a\">A</a></li></ul></div>"
-         "<aside data-pagefind-ignore=\"all\"><h3>On this page</h3></aside>"
-         "<h1>Title</h1><p>Body.</p>"
-         "<div data-pagefind-ignore>Last updated "
-         "<a href=\"/edit\">Edit this page</a></div></main>"),
-      "# Title\n\nBody.");
-  // The date of a marked "Last updated" line is still the page's date.
+// data-pagefind-ignore only keeps text out of a search index; sites set it on
+// related-links lists and other real content, so the copy keeps that text.
+TEST_F(MarkdownExtractorFilterTest, PagefindIgnoredContentIsKept) {
+  EXPECT_EQ(Md("<main><h1>Title</h1><p>Body.</p>"
+               "<div data-pagefind-ignore><h2>Related filters</h2>"
+               "<ul><li><a href=\"/a\">combine_css</a></li></ul></div></main>"),
+            "# Title\n\nBody.\n\n## Related filters\n\n- [combine_css](/a)");
+}
+
+// The date of a "Last updated" line in a footer inside <main> (chrome, so
+// left out) is still the page's date.
+TEST_F(MarkdownExtractorFilterTest, DateFromChromeInsideMainIsKept) {
   EXPECT_EQ(Md("<html><head><title>T</title></head><body><main>"
-               "<div data-pagefind-ignore>Last updated <time "
-               "datetime=\"2026-10-22\">Oct 22</time></div><p>Body.</p>"
+               "<p>Body.</p><footer>Last updated <time "
+               "datetime=\"2026-10-22\">Oct 22</time></footer>"
                "</main></body></html>"),
             "---\ntitle: T\ndate: 2026-10-22\n---\n\nBody.");
-  // A content root carrying the marker, or inside a marked element, is kept.
-  EXPECT_EQ(Md("<main data-pagefind-ignore><p>kept</p></main>"), "kept");
-  EXPECT_EQ(Md("<div data-pagefind-ignore><main><p>inside</p></main></div>"),
-            "inside");
+  // A page-level footer's date (outside <main>) is not taken.
+  EXPECT_EQ(Md("<html><head><title>T</title></head><body><main>"
+               "<p>Body.</p></main><footer><time datetime=\"2020-01-01\">"
+               "x</time></footer></body></html>"),
+            "---\ntitle: T\n---\n\nBody.");
 }
 
 // Card links (an <a> wrapping a heading and a description) each make one

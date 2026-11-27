@@ -109,21 +109,6 @@ bool IsContentRoot(HtmlElement* el) {
          RoleIs(el, "main") || RoleIs(el, "article");
 }
 
-// An element the page itself marks as not part of its content: the
-// search-index exclusion marker (data-pagefind-ignore) that docs sites set on
-// menus, the "On this page" table of contents and edit links. Handled as soft
-// chrome, so a content root inside one is still recovered by the fail-open
-// pass; a content root carrying the marker is never dropped.
-bool IsMarkedNonContent(HtmlElement* el) {
-  return el->FindAttribute("data-pagefind-ignore") != nullptr &&
-         !IsContentRoot(el);
-}
-
-// Soft chrome by element: the nav/header/footer keywords or the marker above.
-bool IsSoftStripElement(HtmlElement* el) {
-  return IsSoftStripKeyword(el->keyword()) || IsMarkedNonContent(el);
-}
-
 // <article> or role=article — an <article>-scoped <header>/<footer> is content
 // (blog title/date/byline), not chrome, so the soft-strip must not drop it
 // (Issue F (3)).
@@ -750,13 +735,13 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
         IsHardStripByName(element)) {
       ++hard_skip_depth_;
     } else if (element->keyword() == HtmlName::kTime) {
-      // A "Last updated <time>" line inside <main> is often page chrome; its
-      // date is still the page's date for the front matter.
+      // A "Last updated <time>" line in a <footer> inside <main> is page
+      // chrome; its date is still the page's date for the front matter.
       if (hard_skip_depth_ == 0 && content_root_depth_ > 0) {
         CaptureFrontMatterDate(element);
       }
       ++time_depth_;  // each <time> tracks its own counter (balanced nesting)
-    } else if (strip_soft_chrome_ && IsSoftStripElement(element)) {
+    } else if (strip_soft_chrome_ && IsSoftStripKeyword(element->keyword())) {
       ++soft_skip_depth_;
     }
     return;
@@ -783,9 +768,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       (article_depth_ > 0 &&
        (kw == HtmlName::kHeader || kw == HtmlName::kFooter)) ||
       (sectioning_depth_ > 0 && kw == HtmlName::kHeader);
-  if (strip_soft_chrome_ &&
-      ((IsSoftStripKeyword(kw) && !article_scoped_chrome) ||
-       IsMarkedNonContent(element))) {
+  if (strip_soft_chrome_ && IsSoftStripKeyword(kw) && !article_scoped_chrome) {
     ++soft_skip_depth_;
     return;
   }
@@ -1007,7 +990,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
       if (hard_skip_depth_ > 0) --hard_skip_depth_;
     } else if (element->keyword() == HtmlName::kTime) {
       if (time_depth_ > 0) --time_depth_;
-    } else if (strip_soft_chrome_ && IsSoftStripElement(element)) {
+    } else if (strip_soft_chrome_ && IsSoftStripKeyword(element->keyword())) {
       if (soft_skip_depth_ > 0) --soft_skip_depth_;
     }
     return;
