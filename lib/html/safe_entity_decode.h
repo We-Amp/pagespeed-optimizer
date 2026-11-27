@@ -29,15 +29,25 @@ namespace net_instaweb {
 // sequences, surrogates, and out-of-range code points.
 bool IsWellFormedUtf8(std::string_view s);
 
+// `s` with every byte that does not start a well-formed UTF-8 sequence replaced
+// by U+FFFD, except that an incomplete sequence at the very end (a value cut by
+// a byte cap) is dropped. Deterministic; well-formed input is returned as is.
+std::string ToWellFormedUtf8(std::string_view s);
+
+// Fold every UTF-8 no-break space (U+00A0, the bytes C2 A0) to one ASCII
+// space, in place. Both bytes are replaced together, so a multi-byte sequence
+// is never split.
+void FoldNbsp(std::string* s);
+
 // Fold every Latin-1 NBSP (0xA0) — the one non-ASCII byte HtmlKeywords::Unescape
-// emits for &nbsp; — to an ASCII space, in place. A lone 0xA0 is invalid UTF-8,
-// so it must never reach the agent feed raw.
+// emits for &nbsp; — to an ASCII space, in place. Only for that decoder's
+// output: applied to UTF-8 text it would split C2 A0 and other sequences.
 void FoldLatin1Nbsp(std::string* s);
 
 // Entity-decode `s` for an agent-facing feed:
-//   1. Fast path: no '&' -> return the input verbatim (preserves pure UTF-8,
-//      and avoids the Unescape scan).
-//   2. On decoding_error -> return the ORIGINAL input verbatim (never the empty
+//   1. Fast path: no '&' -> return the input (preserves pure UTF-8, and avoids
+//      the Unescape scan).
+//   2. On decoding_error -> return the ORIGINAL input (never the empty
 //      Unescape result), preserving the original UTF-8 bytes.
 //   3. On success -> fold 0xA0 (NBSP) to a space, then require the result to be
 //      well-formed UTF-8. A named/numeric entity that decodes to a single
@@ -45,8 +55,9 @@ void FoldLatin1Nbsp(std::string* s);
 //      lone invalid byte; in that case fall back to the original entity text
 //      rather than ship an invalid byte. Otherwise return the decoded string.
 //
-// The result is always well-formed UTF-8 (or the verbatim original input, which
-// the callers treat as already-UTF-8 rendered DOM). Decoding is intentionally
+// The result is always well-formed UTF-8: input bytes that are not UTF-8 are
+// replaced as by ToWellFormedUtf8, and every no-break space (decoded or
+// literal) is folded to an ASCII space. Decoding is intentionally
 // done BEFORE any markdown-structural escaping so a decoded '<script>' stays
 // inert text downstream.
 std::string SafeDecodeHtmlEntities(std::string_view s);

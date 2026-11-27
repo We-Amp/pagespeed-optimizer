@@ -7,6 +7,8 @@
 
 #include "lib/html/markdown_extractor_filter.h"
 
+#include <iterator>
+#include <random>
 #include <string>
 #include <string_view>
 
@@ -784,6 +786,141 @@ TEST_F(MarkdownExtractorFilterTest,
   EXPECT_EQ(md.find("secret"), std::string::npos) << md;
   EXPECT_EQ(md.find("tok123"), std::string::npos) << md;
   EXPECT_EQ(md.find("hidden note"), std::string::npos) << md;
+}
+
+// ---- output is always well-formed UTF-8 -----------------------------------
+
+// A literal no-break space (U+00A0, the two bytes C2 A0) reads as a space and
+// never leaves half of its encoding behind.
+TEST_F(MarkdownExtractorFilterTest, LiteralNbspFoldsToOneSpace) {
+  EXPECT_EQ(Md("<main><p>of at least 16\xC2\xA0KB with no Range</p></main>"),
+            "of at least 16 KB with no Range");
+  EXPECT_EQ(Md("<main><p>Debian\xC2\xA0\x31\x32/13</p></main>"),
+            "Debian 12/13");
+  EXPECT_EQ(Md("<main><p>270,659\xC2\xA0\x42</p></main>"), "270,659 B");
+  // A run of no-break spaces and ordinary spaces is one space.
+  EXPECT_EQ(Md("<main><p>a \xC2\xA0\xC2\xA0 b</p></main>"), "a b");
+  // A Latin-1 letter whose second byte is also 0xA0 is not whitespace.
+  EXPECT_EQ(Md("<main><p>\xC3\xA0 la carte</p></main>"), "\xC3\xA0 la carte");
+}
+
+TEST_F(MarkdownExtractorFilterTest, LiteralNbspInPreAndCodeStaysValid) {
+  const std::string pre = Md("<main><pre>a\xC2\xA0\x62</pre></main>");
+  EXPECT_TRUE(MarkdownIsValidUtf8(pre)) << pre;
+  EXPECT_EQ(pre, "```\na b\n```");
+  const std::string code = Md("<main><p><code>a\xC2\xA0\x62</code></p></main>");
+  EXPECT_TRUE(MarkdownIsValidUtf8(code)) << code;
+  EXPECT_EQ(code, "`a b`");
+  const std::string alt =
+      Md("<main><p><img src=\"/i.png\" alt=\"a\xC2\xA0\x62\"></p></main>");
+  EXPECT_TRUE(MarkdownIsValidUtf8(alt)) << alt;
+  EXPECT_EQ(alt, "![a b](/i.png)");
+}
+
+// Image alt text keeps its non-ASCII letters and decodes its references.
+TEST_F(MarkdownExtractorFilterTest, ImageAltKeepsUtf8) {
+  EXPECT_EQ(Md("<main><p><img src=\"/c.png\" alt=\"caf\xC3\xA9\"></p></main>"),
+            "![caf\xC3\xA9](/c.png)");
+  const std::string md =
+      Md("<main><p><img src=\"/c.png\" alt=\"a&nbsp;b\"></p></main>");
+  EXPECT_TRUE(MarkdownIsValidUtf8(md)) << md;
+  EXPECT_EQ(md, "![a b](/c.png)");
+}
+
+// Input that is not valid UTF-8 (a Latin-1 page, stray bytes) gives valid
+// UTF-8 output: each invalid sequence becomes U+FFFD, deterministically.
+TEST_F(MarkdownExtractorFilterTest, InvalidInputBytesAreReplaced) {
+  EXPECT_EQ(Md("<main><p>caf\xE9 au lait</p></main>"),
+            "caf\xEF\xBF\xBD au lait");
+  EXPECT_EQ(Md("<main><p>a\x80\x62</p></main>"), "a\xEF\xBF\xBD\x62");
+  EXPECT_EQ(Md("<main><pre>x\xFFy</pre></main>"), "```\nx\xEF\xBF\xBDy\n```");
+  EXPECT_EQ(Md("<main><p><code>q\xC2</code></p></main>"), "`q`");
+}
+
+namespace {
+
+// Pieces a random page is assembled from: markup, entities, valid multi-byte
+// characters (including C2 A0 and letters whose last byte is 0xA0) and, for the
+// invalid-input property, lone and truncated bytes.
+constexpr std::string_view kValidPieces[] = {
+    "<p>",
+    "</p>",
+    "<pre>",
+    "</pre>",
+    "<code>",
+    "</code>",
+    "<h2>",
+    "</h2>",
+    "<a href=/x>",
+    "</a>",
+    "<td>",
+    "<table><tr>",
+    "</table>",
+    "<li>",
+    "<ul>",
+    "</ul>",
+    "<br>",
+    "<header>",
+    "</header>",
+    "<img src=/i alt=\"",
+    "\">",
+    "text",
+    " ",
+    "\n",
+    "&amp;",
+    "&nbsp;",
+    "&lt;b&gt;",
+    "&mdash;",
+    "&#x2014;",
+    "&#160;",
+    "&rarr;",
+    "`",
+    "\xC2\xA0",
+    "\xC3\xA0",
+    "\xE2\x80\x94",
+    "\xF0\x9F\x98\x80",
+    "caf\xC3\xA9",
+    "\xE4\xB8\xAD",
+    "#",
+    "-",
+};
+constexpr std::string_view kInvalidPieces[] = {
+    "\xA0", "\xC2", "\xE2\x80", "\xFF", "\x80", "\xED\xA0\x80", "\xC0\xAF",
+};
+
+std::string RandomPage(std::mt19937* rng, bool with_invalid) {
+  std::string html = "<html><body><main>";
+  std::uniform_int_distribution<int> len(1, 80);
+  const int n = len(*rng);
+  for (int i = 0; i < n; ++i) {
+    if (with_invalid && (*rng)() % 6 == 0) {
+      html += kInvalidPieces[(*rng)() % std::size(kInvalidPieces)];
+    } else {
+      html += kValidPieces[(*rng)() % std::size(kValidPieces)];
+    }
+  }
+  html += "</main></body></html>";
+  return html;
+}
+
+}  // namespace
+
+// Property: for any valid UTF-8 page the copy is valid UTF-8 and introduces no
+// replacement character; for any page at all the copy is valid UTF-8.
+TEST_F(MarkdownExtractorFilterTest, OutputIsAlwaysWellFormedUtf8) {
+  std::mt19937 rng(20261127);
+  for (int i = 0; i < 3000; ++i) {
+    const std::string html = RandomPage(&rng, /*with_invalid=*/false);
+    const std::string md = Md(html);
+    ASSERT_TRUE(MarkdownIsValidUtf8(md)) << "input: " << html;
+    ASSERT_EQ(md.find("\xEF\xBF\xBD"), std::string::npos) << "input: " << html;
+  }
+  for (int i = 0; i < 3000; ++i) {
+    const std::string html = RandomPage(&rng, /*with_invalid=*/true);
+    const std::string md = Md(html);
+    ASSERT_TRUE(MarkdownIsValidUtf8(md)) << "input: " << html;
+    ASSERT_EQ(md, Md(html)) << "not deterministic for: " << html;
+  }
 }
 
 }  // namespace

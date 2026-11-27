@@ -59,10 +59,83 @@ std::size_t WellFormedUtf8PrefixLen(std::string_view s) {
   return n;
 }
 
+// Length of the well-formed UTF-8 sequence starting at s[i], 0 when s[i]
+// does not start one. *truncated is set when the bytes from s[i] to the end
+// are a correct but incomplete start of a sequence.
+std::size_t Utf8SequenceLen(std::string_view s, std::size_t i,
+                            bool* truncated) {
+  *truncated = false;
+  const unsigned char c = static_cast<unsigned char>(s[i]);
+  if (c < 0x80) return 1;
+  std::size_t cont;
+  unsigned int lo = 0x80;  // allowed range of the first continuation byte
+  unsigned int hi = 0xBF;
+  if (c >= 0xC2 && c <= 0xDF) {
+    cont = 1;
+  } else if (c >= 0xE0 && c <= 0xEF) {
+    cont = 2;
+    if (c == 0xE0) lo = 0xA0;  // no overlong form
+    if (c == 0xED) hi = 0x9F;  // no UTF-16 surrogate
+  } else if (c >= 0xF0 && c <= 0xF4) {
+    cont = 3;
+    if (c == 0xF0) lo = 0x90;  // no overlong form
+    if (c == 0xF4) hi = 0x8F;  // nothing above U+10FFFF
+  } else {
+    return 0;  // continuation byte, C0/C1 or F5..FF: never a lead byte
+  }
+  for (std::size_t k = 1; k <= cont; ++k) {
+    if (i + k >= s.size()) {
+      *truncated = true;
+      return 0;
+    }
+    const unsigned int cc = static_cast<unsigned char>(s[i + k]);
+    const unsigned int min = k == 1 ? lo : 0x80;
+    const unsigned int max = k == 1 ? hi : 0xBF;
+    if (cc < min || cc > max) return 0;
+  }
+  return cont + 1;
+}
+
 }  // namespace
 
 bool IsWellFormedUtf8(std::string_view s) {
   return WellFormedUtf8PrefixLen(s) == s.size();
+}
+
+std::string ToWellFormedUtf8(std::string_view s) {
+  if (IsWellFormedUtf8(s)) return std::string(s);
+  std::string out;
+  out.reserve(s.size() + 8);
+  std::size_t i = 0;
+  while (i < s.size()) {
+    bool truncated = false;
+    const std::size_t len = Utf8SequenceLen(s, i, &truncated);
+    if (len > 0) {
+      out.append(s.substr(i, len));
+      i += len;
+    } else if (truncated) {
+      break;  // a sequence cut off at the end (a byte cap): dropped
+    } else {
+      out.append("\xEF\xBF\xBD");  // U+FFFD REPLACEMENT CHARACTER
+      ++i;
+    }
+  }
+  return out;
+}
+
+void FoldNbsp(std::string* s) {
+  std::size_t w = 0;
+  for (std::size_t r = 0; r < s->size(); ++r) {
+    const unsigned char c = static_cast<unsigned char>((*s)[r]);
+    if (c == 0xC2 && r + 1 < s->size() &&
+        static_cast<unsigned char>((*s)[r + 1]) == 0xA0) {
+      (*s)[w++] = ' ';
+      ++r;
+    } else {
+      (*s)[w++] = static_cast<char>(c);
+    }
+  }
+  s->resize(w);
 }
 
 void FoldLatin1Nbsp(std::string* s) {
@@ -77,23 +150,27 @@ std::string SafeDecodeHtmlEntities(std::string_view s) {
   //    raw value BEFORE this decode (e.g. ExtractHtmlMetadata's kMaxFieldBytes),
   //    which can split a trailing multibyte sequence; trim that incomplete tail
   //    so a lone invalid byte never ships to the agent feed / llms.txt.
-  if (s.find('&') == std::string_view::npos) {
-    return std::string(s.substr(0, WellFormedUtf8PrefixLen(s)));
-  }
+  // Every result is well-formed UTF-8 with each no-break space folded to an
+  //    ASCII space.
+  const auto clean = [](std::string_view v) {
+    std::string r = ToWellFormedUtf8(v);
+    FoldNbsp(&r);
+    return r;
+  };
+  if (s.find('&') == std::string_view::npos) return clean(s);
   std::string buf;
   bool decoding_error = false;
   std::string_view out = HtmlKeywords::Unescape(s, &buf, &decoding_error);
   // 2. Decode failed (non-ASCII byte / multi-byte entity): keep the original.
-  if (decoding_error) {
-    return std::string(s);
-  }
-  // 3. Decode succeeded: fold NBSP, then validate UTF-8.
+  if (decoding_error) return clean(s);
+  // 3. Decode succeeded (the input was ASCII): fold the Latin-1 NBSP the
+  //    decoder emits for &nbsp;, then validate UTF-8.
   std::string decoded(out);
   FoldLatin1Nbsp(&decoded);
   if (!IsWellFormedUtf8(decoded)) {
     // A lone Latin-1 byte (e.g. &middot; -> 0xB7) survived the decode. Never
     // ship an invalid byte: fall back to the original entity text.
-    return std::string(s);
+    return clean(s);
   }
   return decoded;
 }

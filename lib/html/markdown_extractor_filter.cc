@@ -22,21 +22,19 @@ namespace net_instaweb {
 
 namespace {
 
+// ASCII whitespace only. Text reaching the collapse loop has been through
+// SafeDecodeHtmlEntities, which already folded every no-break space (decoded
+// or the literal UTF-8 C2 A0) to ' ', so no non-ASCII byte is ever treated as
+// whitespace here: doing so would split a multi-byte sequence.
 bool IsAsciiWs(char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' ||
-         c == '\v' ||
-         // &nbsp; decodes to a Latin-1 0xA0 (a lone, invalid UTF-8 byte): treat
-         // it as collapsible whitespace so the agent feed never ships it raw
-         // (Issue F (1) — NBSP fold).
-         static_cast<unsigned char>(c) == 0xA0;
+         c == '\v';
 }
 
-// Entity decode (SafeDecodeHtmlEntities) and the NBSP fold (FoldLatin1Nbsp) now
-// live in lib/html/safe_entity_decode.h — the single source of truth shared by
-// the body-text path here and the <meta description> path in
-// html_metadata_extractor.cc (the v2.0.27 audit found the same non-ASCII trap
-// fixed in one path but not the others). IsAsciiWs's 0xA0 fold stays here: it is
-// this filter's whitespace-collapse rule, not a decode concern.
+// Entity decode, UTF-8 repair and the NBSP fold live in
+// lib/html/safe_entity_decode.h, the single source of truth shared by the
+// body-text path here and the <meta description> path in
+// html_metadata_extractor.cc.
 
 std::string Trim(std::string_view s) {
   size_t b = 0;
@@ -255,17 +253,12 @@ std::string SanitizeUrl(const char* url) {
 }
 
 // Backslash-escape link/image structural chars in attacker text (alt text, etc.)
-// and fold CR/LF to a space. Also fold a decoded
-// Latin-1 NBSP (0xA0) to a space so the img-alt path never ships a lone invalid
-// UTF-8 byte (Issue F NBSP-bypass fix).
+// and fold CR/LF to a space. The caller passes text already decoded by
+// SafeDecodeHtmlEntities (well-formed UTF-8, no-break spaces folded).
 std::string EscapeLinkText(std::string_view s) {
   std::string out;
   out.reserve(s.size());
   for (char c : s) {
-    if (static_cast<unsigned char>(c) == 0xA0) {
-      out.push_back(' ');
-      continue;
-    }
     switch (c) {
       case '[':
       case ']':
@@ -455,12 +448,10 @@ void MarkdownExtractorFilter::AppendText(std::string_view raw_text) {
   }
   if (pre_depth_ > 0) {  // preformatted: preserve verbatim (bounded)
     std::size_t room = kMaxMarkdownBytes - o->size();
-    // The verbatim branch bypasses the whitespace pass that folds 0xA0 (NBSP)
-    // elsewhere, so a decoded &nbsp; would ship a lone invalid byte here. Fold
-    // it to a space before appending (Issue F NBSP-bypass fix).
-    std::string chunk(text.substr(0, std::min(text.size(), room)));
-    FoldLatin1Nbsp(&chunk);
-    o->append(chunk);
+    // The decoded text is well-formed UTF-8 with no-break spaces already
+    // folded, so it is appended verbatim; a cut at the cap is repaired once in
+    // EndDocument.
+    o->append(text.substr(0, std::min(text.size(), room)));
     if (text.size() > room) truncated_ = true;
     return;
   }
@@ -785,11 +776,17 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       if (pre_depth_ != 0) break;
       const char* src = element->AttributeValue(HtmlName::kSrc);
       if (src != nullptr && *src != '\0') {
-        const char* alt = element->AttributeValue(HtmlName::kAlt);
+        // Decode the alt text from its source form: the parser's own decoded
+        // value is Latin-1 and is absent for any non-ASCII alt text.
+        const HtmlElement::Attribute* alt =
+            element->FindAttribute(HtmlName::kAlt);
         std::string* o = Out();
         MarkAnchorText();
         o->append("![");
-        if (alt != nullptr) o->append(EscapeLinkText(alt));
+        if (alt != nullptr && alt->escaped_value() != nullptr) {
+          o->append(
+              EscapeLinkText(SafeDecodeHtmlEntities(alt->escaped_value())));
+        }
         o->append("](");
         o->append(SanitizeUrl(src));
         o->append(")");
@@ -1129,6 +1126,10 @@ void MarkdownExtractorFilter::EndDocument() {
   while (!markdown_.empty() && IsAsciiWs(markdown_.back()))
     markdown_.pop_back();
   PrependFrontMatter();
+  // Every piece is well-formed UTF-8 already; a cut at the output cap or a
+  // URL or date byte from a non-UTF-8 page is the remaining way to break
+  // that, so the whole copy is checked once and repaired if needed.
+  if (!IsWellFormedUtf8(markdown_)) markdown_ = ToWellFormedUtf8(markdown_);
 }
 
 namespace {

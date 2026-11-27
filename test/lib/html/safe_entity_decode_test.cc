@@ -79,5 +79,41 @@ TEST_F(SafeEntityDecodeTest, FoldLatin1NbspInPlace) {
   EXPECT_EQ(s, "a b");
 }
 
+// The UTF-8 no-break space is two bytes; both fold together, and a letter whose
+// second byte is 0xA0 (U+00E0) is left alone.
+TEST_F(SafeEntityDecodeTest, FoldNbspKeepsSequencesWhole) {
+  std::string s = "16\xC2\xA0KB \xC3\xA0";
+  FoldNbsp(&s);
+  EXPECT_EQ(s, "16 KB \xC3\xA0");
+  EXPECT_TRUE(IsWellFormedUtf8(s));
+}
+
+TEST_F(SafeEntityDecodeTest, LiteralNbspFoldedOnEveryPath) {
+  EXPECT_EQ(SafeDecodeHtmlEntities("16\xC2\xA0KB"), "16 KB");
+  EXPECT_EQ(SafeDecodeHtmlEntities("a\xC2\xA0\xC2\xA0\x62"), "a  b");
+}
+
+TEST_F(SafeEntityDecodeTest, ToWellFormedUtf8ReplacesInvalidBytes) {
+  EXPECT_EQ(ToWellFormedUtf8("ok \xE2\x80\x94"), "ok \xE2\x80\x94");
+  EXPECT_EQ(ToWellFormedUtf8("caf\xE9!"), "caf\xEF\xBF\xBD!");
+  EXPECT_EQ(ToWellFormedUtf8("a\x80\x62"), "a\xEF\xBF\xBD\x62");
+  EXPECT_EQ(ToWellFormedUtf8("\xC0\xAF"), "\xEF\xBF\xBD\xEF\xBF\xBD");
+  EXPECT_EQ(ToWellFormedUtf8("\xED\xA0\x80"),
+            "\xEF\xBF\xBD\xEF\xBF\xBD\xEF\xBF\xBD");
+  // An incomplete sequence at the very end is dropped (a byte-cap cut).
+  EXPECT_EQ(ToWellFormedUtf8("caf\xE2\x80"), "caf");
+  // The same bytes in the middle are invalid, so they are replaced.
+  EXPECT_EQ(ToWellFormedUtf8("\xE2\x80x"), "\xEF\xBF\xBD\xEF\xBF\xBDx");
+  for (const char* in : {"\xFF", "a\xC2", "\xF4\x90\x80\x80", "\xA0\xA0"}) {
+    EXPECT_TRUE(IsWellFormedUtf8(ToWellFormedUtf8(in))) << in;
+  }
+}
+
+TEST_F(SafeEntityDecodeTest, DecodeNeverReturnsInvalidUtf8) {
+  EXPECT_EQ(SafeDecodeHtmlEntities("caf\xE9 au lait"),
+            "caf\xEF\xBF\xBD au lait");
+  EXPECT_TRUE(IsWellFormedUtf8(SafeDecodeHtmlEntities("caf\xE9 &lt;")));
+}
+
 }  // namespace
 }  // namespace net_instaweb
