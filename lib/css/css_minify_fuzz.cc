@@ -114,9 +114,13 @@ namespace {
 // Valid-CSS-biased seed set (audit PR-C §4.4/§5): url tokens with
 // ';{}' content, custom values with braces/parens/decimals, escaped
 // idents, and an @layer/:where Tailwind-v4-style snippet (per
-// lib/css/CLAUDE.md's testing advice).  Replayed through BOTH oracles
-// at the start of every deterministic main() run; also usable as the
-// libFuzzer seed corpus (write to a corpus dir and pass it).
+// lib/css/CLAUDE.md's testing advice).  It also holds regression
+// artifacts from fixed fuzz findings, some of them garbage-input (stray
+// escapes, tabs, CR, unbalanced brackets) rather than valid CSS, so the
+// replay floor keeps checking the exact inputs that once failed.
+// Replayed through BOTH oracles at the start of every deterministic
+// main() run; also usable as the libFuzzer seed corpus (write to a
+// corpus dir and pass it).
 const char* const kValidCssSeeds[] = {
     "a{background:url(x;}y)}",
     // Parenthesized: adjacent literals in an array initializer trip

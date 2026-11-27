@@ -2630,6 +2630,7 @@ TEST(CssMinifyTest, EscapedCustomPropertyNameKeepsValueBraceGroup) {
   ExpectMinify("a{--\\>p:{;b;}}", "a{--\\>p:{;b;}}");
   ExpectMinify("a{--a\\:b:{;b;}}", "a{--a\\:b:{;b;}}");
   ExpectMinify("a{--a\\{b:{;b;}}", "a{--a\\{b:{;b;}}");
+  ExpectMinify("a{--a\\}b:{;b;}}", "a{--a\\}b:{;b;}}");
   ExpectMinify("a{--\\.p:x {;b;} y}", "a{--\\.p:x {;b;} y}");
   ExpectMinify(("a{--\\>p:{padding-top:1px;padding-right:1px;"
                 "padding-bottom:1px;padding-left:1px}}"),
@@ -2638,6 +2639,11 @@ TEST(CssMinifyTest, EscapedCustomPropertyNameKeepsValueBraceGroup) {
   // Hex escapes and unescaped names were already handled; unchanged.
   ExpectMinify("a{--a\\3e b:{;b;}}", "a{--a\\3e b:{;b;}}");
   ExpectMinify("a{--p:{;b;}}", "a{--p:{;b;}}");
+  // A nested-selector-shaped prelude with an escaped char before a ':'
+  // reads as a declaration name too, so its brace group is kept as
+  // written (the conservative reading: never rewrite what might be a
+  // value).
+  ExpectMinify("a{b\\>c:hover{;d:e;}}", "a{b\\>c:hover{;d:e;}}");
   // An escaped backslash does not escape the char after it: a real
   // nested rule block still collapses.
   ExpectMinify("a{b\\\\>c{;d:e;}}", "a{b\\\\>c{d:e}}");
