@@ -178,6 +178,7 @@ class MarkdownExtractorFilter : public EmptyHtmlFilter {
   struct OpenAnchor {
     std::size_t pos;
     bool has_text;
+    bool has_block;  // wraps block elements (a card link)
   };
   std::vector<OpenAnchor> anchor_open_pos_;
   void MarkAnchorText() {

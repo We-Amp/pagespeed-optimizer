@@ -975,6 +975,50 @@ TEST_F(MarkdownExtractorFilterTest, InlineCodeIsTrimmed) {
   EXPECT_EQ(Md("<p>a<code>   </code>b</p>"), "ab");
 }
 
+// ---- headings, explicit non-content markers, card links ----------------------
+
+// An ATX heading is one line: a <br> in it is a space.
+TEST_F(MarkdownExtractorFilterTest, BrInsideHeadingKeepsOneLine) {
+  EXPECT_EQ(Md("<main><h1>Server-side image optimization:\n<br>\n"
+               "<span>WebP, AVIF, and critical CSS.</span></h1></main>"),
+            "# Server-side image optimization: WebP, AVIF, and critical CSS.");
+  EXPECT_EQ(Md("<h2>a<br>b</h2>"), "## a b");
+}
+
+// Docs pages mark their menu, table of contents and edit links with
+// data-pagefind-ignore; that content is left out.
+TEST_F(MarkdownExtractorFilterTest, PagefindIgnoredContentIsLeftOut) {
+  EXPECT_EQ(
+      Md("<main><div data-pagefind-ignore><h3>Docs menu</h3>"
+         "<ul><li><a href=\"/a\">A</a></li></ul></div>"
+         "<aside data-pagefind-ignore=\"all\"><h3>On this page</h3></aside>"
+         "<h1>Title</h1><p>Body.</p>"
+         "<div data-pagefind-ignore>Last updated "
+         "<a href=\"/edit\">Edit this page</a></div></main>"),
+      "# Title\n\nBody.");
+  // A content root carrying the marker, or inside a marked element, is kept.
+  EXPECT_EQ(Md("<main data-pagefind-ignore><p>kept</p></main>"), "kept");
+  EXPECT_EQ(Md("<div data-pagefind-ignore><main><p>inside</p></main></div>"),
+            "inside");
+}
+
+// Card links (an <a> wrapping a heading and a description) each make one
+// link, with the heading and description joined, and stay apart.
+TEST_F(MarkdownExtractorFilterTest, CardLinksKeepSeparators) {
+  EXPECT_EQ(Md("<main><div><a href=\"/docs/image-filters/\">\n"
+               "<h3>Image filters\n<span>34 filters</span>\n</h3>\n"
+               "<p>Recompression and resizing.</p>\n</a>"
+               "<a href=\"/docs/css-filters/\">\n<h3>CSS filters\n"
+               "<span>15 filters</span>\n</h3>\n<p>Minify.</p>\n</a>"
+               "</div></main>"),
+            "[Image filters 34 filters: Recompression and resizing.]"
+            "(/docs/image-filters/)\n\n"
+            "[CSS filters 15 filters: Minify.](/docs/css-filters/)");
+  // Plain inline links in a sentence are unchanged.
+  EXPECT_EQ(Md("<p><a href=\"/a\">a</a><a href=\"/b\">b</a></p>"),
+            "[a](/a)[b](/b)");
+}
+
 // ---- output is always well-formed UTF-8 -----------------------------------
 
 // A literal no-break space (U+00A0, the two bytes C2 A0) reads as a space and

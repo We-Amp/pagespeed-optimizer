@@ -109,6 +109,21 @@ bool IsContentRoot(HtmlElement* el) {
          RoleIs(el, "main") || RoleIs(el, "article");
 }
 
+// An element the page itself marks as not part of its content: the
+// search-index exclusion marker (data-pagefind-ignore) that docs sites set on
+// menus, the "On this page" table of contents and edit links. Handled as soft
+// chrome, so a content root inside one is still recovered by the fail-open
+// pass; a content root carrying the marker is never dropped.
+bool IsMarkedNonContent(HtmlElement* el) {
+  return el->FindAttribute("data-pagefind-ignore") != nullptr &&
+         !IsContentRoot(el);
+}
+
+// Soft chrome by element: the nav/header/footer keywords or the marker above.
+bool IsSoftStripElement(HtmlElement* el) {
+  return IsSoftStripKeyword(el->keyword()) || IsMarkedNonContent(el);
+}
+
 // <article> or role=article — an <article>-scoped <header>/<footer> is content
 // (blog title/date/byline), not chrome, so the soft-strip must not drop it
 // (Issue F (3)).
@@ -658,9 +673,14 @@ void MarkdownExtractorFilter::AnchorBlockJoin() {
   // <a>, but only once content already follows the '[' (so the first block does
   // not get a leading joiner), and never doubling an existing separator.
   std::string* o = Out();
+  // Mark the open anchors as cards (block content), so each one ends its own
+  // block at </a> and consecutive cards stay apart.
+  for (OpenAnchor& a : anchor_open_pos_) a.has_block = true;
+  // Source whitespace between the blocks is not a separator: drop it so the
+  // joiner is applied consistently ("Title 34 filters: description").
+  while (o->size() > anchor_text_start_ && o->back() == ' ') o->pop_back();
   if (o->size() <= anchor_text_start_) return;  // nothing emitted yet
-  char back = o->back();
-  if (back == ' ' || back == ':') return;  // already separated
+  if (o->back() == ':') return;                 // already separated
   o->append(": ");
 }
 
@@ -724,7 +744,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       ++hard_skip_depth_;
     } else if (element->keyword() == HtmlName::kTime) {
       ++time_depth_;  // each <time> tracks its own counter (balanced nesting)
-    } else if (strip_soft_chrome_ && IsSoftStripKeyword(element->keyword())) {
+    } else if (strip_soft_chrome_ && IsSoftStripElement(element)) {
       ++soft_skip_depth_;
     }
     return;
@@ -751,7 +771,9 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       (article_depth_ > 0 &&
        (kw == HtmlName::kHeader || kw == HtmlName::kFooter)) ||
       (sectioning_depth_ > 0 && kw == HtmlName::kHeader);
-  if (strip_soft_chrome_ && IsSoftStripKeyword(kw) && !article_scoped_chrome) {
+  if (strip_soft_chrome_ &&
+      ((IsSoftStripKeyword(kw) && !article_scoped_chrome) ||
+       IsMarkedNonContent(element))) {
     ++soft_skip_depth_;
     return;
   }
@@ -900,8 +922,15 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
       break;
     // ---- inline (markers suppressed inside <pre>) ----
     case HtmlName::kBr:
-      // A <br> inside <pre> is a line break of the preformatted text.
-      Out()->append(pre_depth_ == 0 ? "  \n" : "\n");
+      // A <br> inside <pre> is a line break of the preformatted text; inside
+      // a heading it is a space, since an ATX heading is one line.
+      if (pre_depth_ > 0) {
+        Out()->append("\n");
+      } else if (heading_level_ > 0) {
+        if (!Out()->empty() && Out()->back() != ' ') Out()->push_back(' ');
+      } else {
+        Out()->append("  \n");
+      }
       break;
     case HtmlName::kStrong:
     case HtmlName::kB:
@@ -928,7 +957,7 @@ void MarkdownExtractorFilter::StartElement(HtmlElement* element) {
     case HtmlName::kA:
       if (pre_depth_ == 0) {
         std::string* o = Out();
-        anchor_open_pos_.push_back({o->size(), false});
+        anchor_open_pos_.push_back({o->size(), false, false});
         o->append("[");
         // Issue F (5): record where the link text begins so a block element
         // wrapped in this anchor can be flattened into one '[text](href)'. Only
@@ -970,7 +999,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
       if (hard_skip_depth_ > 0) --hard_skip_depth_;
     } else if (element->keyword() == HtmlName::kTime) {
       if (time_depth_ > 0) --time_depth_;
-    } else if (strip_soft_chrome_ && IsSoftStripKeyword(element->keyword())) {
+    } else if (strip_soft_chrome_ && IsSoftStripElement(element)) {
       if (soft_skip_depth_ > 0) --soft_skip_depth_;
     }
     return;
@@ -1195,6 +1224,7 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
         // An
         // image inside the link counts as content, so image links are kept.
         bool space_after = false;
+        bool card = false;
         if (!anchor_open_pos_.empty()) {
           const OpenAnchor open = anchor_open_pos_.back();
           anchor_open_pos_.pop_back();
@@ -1205,11 +1235,17 @@ void MarkdownExtractorFilter::EndElement(HtmlElement* element) {
           if (open.pos < o->size() && (*o)[open.pos] == '[') {
             space_after = TrimLinkText(o, open.pos);
           }
+          card = open.has_block;
         }
         o->append("](");
         if (href != nullptr) o->append(SanitizeUrl(href));
         o->append(")");
         if (space_after) o->push_back(' ');
+        // A card link (an <a> wrapping blocks) is a block of its own, so the
+        // next card does not run into it.
+        if (card && anchor_depth_ == 0 && !in_cell_ && heading_level_ == 0) {
+          FlushBlock();
+        }
       }
       break;
     default:
