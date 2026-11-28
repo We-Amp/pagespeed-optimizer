@@ -56,6 +56,8 @@ TEST(HtmlRequestPolicyTest, OriginalUrlPassesOnlyAsTheRequestTarget) {
   EXPECT_EQ(
       guard("/p", {{"X-Original-URL", "/p"}, {"X-Original-URL", "/p"}}).reason,
       HtmlGuardReason::kNone);
+  EXPECT_EQ(guard("/a?x=//", {{"X-Original-URL", "/a?x=//"}}).reason,
+            HtmlGuardReason::kNone);
   // Anything else names another URL.
   for (const auto& [target, value] :
        std::vector<std::pair<std::string_view, std::string_view>>{
@@ -69,6 +71,13 @@ TEST(HtmlRequestPolicyTest, OriginalUrlPassesOnlyAsTheRequestTarget) {
            {"/a%20b", "/a b"},
            {"/page", "https://a.example/page"},
            {"/page", "/page, /page"},
+           {"/page", "/page#top"},
+           {"/page", "\v/page"},
+           {"/a%20b", "/a+b"},
+           {"/p?a=1&b=2", "/p?b=2&a=1"},
+           {"//a/b", "//a/b"},
+           {"/a//b", "/a//b"},
+           {"", ""},
            {"/", ""}}) {
     const HtmlGuardVerdict v = guard(target, {{"X-Original-URL", value}});
     EXPECT_EQ(v.reason, HtmlGuardReason::kRequestHeader) << value;

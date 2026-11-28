@@ -271,11 +271,13 @@ HtmlGuardVerdict HtmlRequestGuard(std::string_view raw_path,
     }
     // X-Original-URL that repeats the keyed target byte for byte names the
     // URL the page is stored under, so an origin that builds the page from
-    // it builds that URL's page.  Only the `-` spelling: an `_` line may
-    // reach the origin's variable in its place.
+    // it builds that URL's page.  Only the `-` spelling, and never a path
+    // with an empty segment, which origins read in more than one way.
     if (refused && HeaderNameIs(name, "x-original-url") &&
         name.find('_') == std::string_view::npos && !value.empty() &&
-        value == raw_path) {
+        value == raw_path &&
+        value.substr(0, value.find('?')).find("//") ==
+            std::string_view::npos) {
       refused = false;
     }
     // A keyed scheme other than http or https matches no value.

@@ -378,7 +378,9 @@ HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
     while (!v.empty() && (v.back() == ' ' || v.back() == '\t')) {
       v.remove_suffix(1);
     }
-    if (h.name.find('_') != std::string_view::npos || v != parsed.path) {
+    if (h.name.find('_') != std::string_view::npos || v.empty() ||
+        v != parsed.path ||
+        v.substr(0, v.find('?')).find("//") != std::string_view::npos) {
       Violation("an X-Original-URL other than the target passed the guard");
     }
   }
@@ -955,6 +957,14 @@ std::vector<std::string> BuildSeeds() {
             ":req-header: X-Requested-With: XMLHttpRequest", kType, kAge}));
   seeds.push_back(Blob({":path: /a?b=1", ":req-header: X-Original-URL: /a?b=1",
                         ":req-header: X-Original-URL: /a?b=2", kType, kAge}));
+  seeds.push_back(
+      Blob({":path: /a/b", ":req-header: X-Original-URL: /a/b/c", kType, kAge}));
+  seeds.push_back(
+      Blob({":path: /a/b", ":req-header: X-Original-URL: /A/b", kType, kAge}));
+  seeds.push_back(Blob(
+      {":path: /a%20b", ":req-header: X-Original-URL: /a%2520b", kType, kAge}));
+  seeds.push_back(
+      Blob({":path: /a//b", ":req-header: X-Original-URL: /a//b", kType, kAge}));
   seeds.push_back(Blob({":path: /a/%2e%2e/b.css", kType, kAge}));
   seeds.push_back(Blob({":path: /a\\b", kType, kAge}));
   seeds.push_back(
