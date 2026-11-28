@@ -2102,18 +2102,25 @@ typedef struct {
  * the store and a fall-through for the serve.
  *
  * `raw_path` is the request target as received (path and query, not
- * normalised). `names[i]` / `values[i]` are every request header line as
- * received, one entry per line. `keyed_scheme` is the scheme the cache key
- * uses ("http" or "https").
+ * normalised); the caller passes the target its cache key is built from, and
+ * the X-Original-URL exception below is sound only when that holds (a caller
+ * whose key is built from a normalised reading of the target refuses a
+ * request carrying X-Original-URL itself when the two differ).
+ * `names[i]` / `values[i]` are every request header line as received, one
+ * entry per line.
+ * `keyed_scheme` is the scheme the cache key uses ("http" or "https").
  *
  * Refused, `request_header`: X-Forwarded-Host, X-Host, X-Original-Host,
  * X-Original-URL, X-Rewrite-URL, X-Forwarded-Port, X-Forwarded-Scheme,
  * X-Forwarded-Prefix, X-HTTP-Method-Override, X-Method-Override, Forwarded,
  * X-Forwarded-Ssl, Front-End-Https, X-HTTP-Method, X-Forwarded-Protocol,
  * X-Url-Scheme, X-Forwarded-Server, X-Original-URI and X-Forwarded-Uri, with
- * any value; an X-Forwarded-Proto line whose trimmed value is not the keyed
- * scheme (case-insensitively; any line when the keyed scheme is neither http
- * nor https); X-Requested-With whose value contains XMLHttpRequest (any
+ * any value, except X-Original-URL when every line of it holds `raw_path`
+ * byte for byte once trimmed and the value has no empty path segment (the
+ * `_` spelling is always refused); an
+ * X-Forwarded-Proto line whose trimmed value is not the keyed scheme
+ * (case-insensitively; any line when the keyed scheme is neither http nor
+ * https); X-Requested-With whose value contains XMLHttpRequest (any
  * case); X-MicrosoftAjax or X-Prototype-Version with a non-empty
  * value. X-Forwarded-For and X-Real-IP are allowed. Every name is compared
  * case-insensitively with `_` read as `-`: CGI-style origins map both

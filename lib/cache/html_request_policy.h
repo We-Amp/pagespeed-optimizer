@@ -64,7 +64,10 @@ struct HtmlGuardVerdict {
 //   X-Forwarded-Server, X-Original-URI, X-Forwarded-Uri
 // (any value, an empty one included).  Every name here and below is compared
 // case-insensitively with `_` read as `-`, because CGI-style origins map both
-// spellings to one variable.  X-Forwarded-Proto is refused only when a
+// spellings to one variable.  X-Original-URL is allowed when every line of it
+// is spelled with `-` and its value, trimmed, equals `raw_path` byte for byte
+// (an empty value, another path or query, another case or percent-encoding,
+// a list, or a value with an empty path segment is refused).  X-Forwarded-Proto is refused only when a
 // line's value, trimmed and compared case-insensitively, is not exactly the
 // keyed scheme (a list, an empty value, a second line that disagrees, or a
 // keyed scheme other than http or https is refused).  X-Forwarded-For and
@@ -75,6 +78,11 @@ struct HtmlGuardVerdict {
 // the page: X-Requested-With whose value contains XMLHttpRequest (any case,
 // as frameworks test it), and
 // X-MicrosoftAjax or X-Prototype-Version with a non-empty value.
+//
+// The caller passes as `raw_path` the request target its cache key is built
+// from; the X-Original-URL exception is sound only when that holds.  A caller
+// whose key is built from a normalised reading of the target refuses a
+// request carrying X-Original-URL itself when the two differ.
 //
 // CACHE-DECEPTION PATHS.  `raw_path` is the request target as received; a
 // query (from the first `?`) is not examined except as said below.  Refused:

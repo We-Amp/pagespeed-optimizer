@@ -15775,6 +15775,1011 @@
       }
     },
     {
+      "id": "m2-request-header-x-original-url-equal-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-equal-with-query-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?a=1&b=%C3%A9",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page?a=1&b=%C3%A9"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-equal-trailing-slash-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/dir/",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/dir/"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-equal-name-case-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "x-original-url",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-equal-twice-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?a=1",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page?a=1"
+            ],
+            [
+              "X-Original-URL",
+              "/page?a=1"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-other-path-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/other"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-path-prefix-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page/x"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-other-query-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?a=1",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page?a=2"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-query-added-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page?a=1"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-query-dropped-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?a=1",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-empty-query-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page?",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-path-case-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/Page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-escape-case-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/caf%C3%A9",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/caf%c3%a9"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-decoded-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a%20b",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/a b"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-encoded-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/ab",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/%61b"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-merged-slash-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a//b",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/a/b"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-absolute-form-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "https://a.example/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-empty-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/",
+          "headers": [
+            [
+              "X-Original-URL",
+              ""
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-second-differs-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page"
+            ],
+            [
+              "X-Original-URL",
+              "/admin"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 1
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-first-differs-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/admin"
+            ],
+            [
+              "X-Original-URL",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-list-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page, /page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-underscore-equal-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Original-URL is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X_Original_URL",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-underscore-beside-equal-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: underscore spelling of X-Original-URL is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page"
+            ],
+            [
+              "x_original_url",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 1
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-equal-other-unkeyed-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal, another unkeyed header refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page"
+            ],
+            [
+              "X-Rewrite-URL",
+              "/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 1
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-original-url-equal-store",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "store",
+        "input": {
+          "mode": "serve-cached-html",
+          "credentialed": "anonymous-only",
+          "method": "GET",
+          "url_path": "/page",
+          "request": [],
+          "status": 200,
+          "headers": [
+            [
+              "Content-Type",
+              "text/html; charset=utf-8"
+            ],
+            [
+              "Date",
+              "Sun, 15 Nov 2026 12:00:00 GMT"
+            ],
+            [
+              "Cache-Control",
+              "max-age=300"
+            ]
+          ],
+          "body": "<!doctype html><html><head><title>Fixture page</title></head><body><main><h1>Fixture page</h1><p>Plain text for the policy cases.</p></main></body></html>",
+          "body_complete": true,
+          "max_body_bytes": 5242880,
+          "now_s": 1794744000,
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              [
+                "X-Original-URL",
+                "/page"
+              ]
+            ],
+            "keyed_scheme": "https"
+          }
+        },
+        "expect": {
+          "action": "store",
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-original-url-equal-serve-html",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 3,
+          "request_flags": [
+            "fresh_only"
+          ],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              [
+                "X-Original-URL",
+                "/page"
+              ]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": [
+              "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8"
+            ],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "serve_html",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": false,
+          "age_s": 300
+        }
+      }
+    },
+    {
+      "id": "m2-request-header-x-original-url-equal-serve-markdown",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "serve",
+        "input": {
+          "mode": "serve-cached-html",
+          "serve_scope": "agents",
+          "agent_class": 0,
+          "request_flags": [
+            "fresh_only"
+          ],
+          "request_guard": {
+            "raw_path": "/page",
+            "headers": [
+              [
+                "X-Original-URL",
+                "/page"
+              ]
+            ],
+            "keyed_scheme": "https"
+          },
+          "request": {
+            "method": "GET",
+            "accept": [
+              "text/markdown"
+            ],
+            "now_s": 1790000300
+          },
+          "stored": {
+            "present": true,
+            "stored_at": 1790000000,
+            "age_at_store": 0,
+            "lifetime_s": 3600,
+            "needs_validation": false,
+            "explicit_shared": false,
+            "headers_not_reproducible": false,
+            "sidecar_required": false,
+            "sidecar_present": false,
+            "purged": false,
+            "cc_flags": [],
+            "variant_present": true,
+            "binding_live": true,
+            "withheld": false,
+            "render_ttl_s": 86400,
+            "binding_hash": "79d58b741cf7cd8208244aa41115a070a4a3c509571d4424c904e29188966c32",
+            "markdown_hash": "558f11876c6b1b24ef8133ddceb169bc51e941da83cf589d2bdc88ef8724b41a",
+            "store_v2": true,
+            "anonymous_recorded": true
+          }
+        },
+        "expect": {
+          "action": "serve_markdown",
+          "reason": "fresh",
+          "enforce": true,
+          "wants_markdown": true,
+          "age_s": 300
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-empty-segment-leading-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL with an empty path segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "//a/b",
+          "headers": [
+            [
+              "X-Original-URL",
+              "//a/b"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-empty-segment-inner-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL with an empty path segment is refused",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a//b",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/a//b"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-slashes-in-query-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a?x=//",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/a?x=//"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-equal-trimmed-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL equal to the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              " /page\t"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "none"
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-empty-target-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "",
+          "headers": [
+            [
+              "X-Original-URL",
+              ""
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-vertical-tab-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "\u000b/page"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-form-feed-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page\f"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-plus-for-space-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/a%20b",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/a+b"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-query-reordered-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/p?a=1&b=2",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/p?b=2&a=1"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
+      "id": "m2-x-original-url-fragment-guard",
+      "runners": [
+        "policy"
+      ],
+      "why": "unkeyed header: X-Original-URL other than the request target",
+      "policy": {
+        "call": "guard",
+        "input": {
+          "raw_path": "/page",
+          "headers": [
+            [
+              "X-Original-URL",
+              "/page#top"
+            ]
+          ],
+          "keyed_scheme": "https"
+        },
+        "expect": {
+          "reason": "request_header",
+          "header_index": 0
+        }
+      }
+    },
+    {
       "id": "m2-request-header-x-rewrite-url-guard",
       "runners": ["policy"],
       "why": "unkeyed header: X-Rewrite-URL is refused",

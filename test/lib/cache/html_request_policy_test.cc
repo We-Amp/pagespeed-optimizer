@@ -13,6 +13,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace pagespeed {
@@ -40,6 +41,58 @@ TEST(HtmlRequestPolicyTest, GuardReportsTheFirstRefusedLine) {
   EXPECT_EQ(v.header_index, 1);
   EXPECT_TRUE(v.xfp);
   EXPECT_EQ(HtmlRequestGuard("/page", h, "http").header_index, 2);
+}
+
+TEST(HtmlRequestPolicyTest, OriginalUrlPassesOnlyAsTheRequestTarget) {
+  const auto guard = [](std::string_view raw_path,
+                        std::vector<HeaderField> lines) {
+    return HtmlRequestGuard(raw_path, lines, "https");
+  };
+  // Equal to the target, path and query, on every line.
+  EXPECT_EQ(guard("/page?a=1", {{"X-Original-URL", "/page?a=1"}}).reason,
+            HtmlGuardReason::kNone);
+  EXPECT_EQ(guard("/page", {{"X-ORIGINAL-URL", " /page\t"}}).reason,
+            HtmlGuardReason::kNone);
+  EXPECT_EQ(
+      guard("/p", {{"X-Original-URL", "/p"}, {"X-Original-URL", "/p"}}).reason,
+      HtmlGuardReason::kNone);
+  EXPECT_EQ(guard("/a?x=//", {{"X-Original-URL", "/a?x=//"}}).reason,
+            HtmlGuardReason::kNone);
+  // Anything else names another URL.
+  for (const auto& [target, value] :
+       std::vector<std::pair<std::string_view, std::string_view>>{
+           {"/page", "/other"},
+           {"/page", "/page/"},
+           {"/page", "/page?a=1"},
+           {"/page?a=1", "/page"},
+           {"/page?a=1", "/page?a=2"},
+           {"/page", "/Page"},
+           {"/caf%C3%A9", "/caf%c3%a9"},
+           {"/a%20b", "/a b"},
+           {"/page", "https://a.example/page"},
+           {"/page", "/page, /page"},
+           {"/page", "/page#top"},
+           {"/page", "\v/page"},
+           {"/a%20b", "/a+b"},
+           {"/p?a=1&b=2", "/p?b=2&a=1"},
+           {"//a/b", "//a/b"},
+           {"/a//b", "/a//b"},
+           {"", ""},
+           {"/", ""}}) {
+    const HtmlGuardVerdict v = guard(target, {{"X-Original-URL", value}});
+    EXPECT_EQ(v.reason, HtmlGuardReason::kRequestHeader) << value;
+    EXPECT_EQ(v.header_index, 0) << value;
+    EXPECT_FALSE(v.xfp) << value;
+  }
+  // A second line that differs, and the underscore spelling, are refused.
+  EXPECT_EQ(guard("/p", {{"X-Original-URL", "/p"}, {"X-Original-URL", "/q"}})
+                .header_index,
+            1);
+  EXPECT_EQ(guard("/p", {{"X_Original_URL", "/p"}}).reason,
+            HtmlGuardReason::kRequestHeader);
+  EXPECT_EQ(guard("/p", {{"X-Original-URL", "/p"}, {"x_original-url", "/p"}})
+                .header_index,
+            1);
 }
 
 TEST(HtmlRequestPolicyTest, GuardDecodesTheLastSegmentForItsExtension) {

@@ -363,6 +363,27 @@ HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
                          : HtmlStoreReason::kRequestHeader;
     return refused;
   }
+  // A passed request's X-Original-URL names the keyed target itself.
+  for (const HeaderField& h : request_headers) {
+    std::string folded(h.name);
+    for (char& c : folded) {
+      if (c >= 'A' && c <= 'Z') c = static_cast<char>(c | 0x20);
+      if (c == '_') c = '-';
+    }
+    if (folded != "x-original-url") continue;
+    std::string_view v = h.value;
+    while (!v.empty() && (v.front() == ' ' || v.front() == '\t')) {
+      v.remove_prefix(1);
+    }
+    while (!v.empty() && (v.back() == ' ' || v.back() == '\t')) {
+      v.remove_suffix(1);
+    }
+    if (h.name.find('_') != std::string_view::npos || v.empty() ||
+        v != parsed.path ||
+        v.substr(0, v.find('?')).find("//") != std::string_view::npos) {
+      Violation("an X-Original-URL other than the target passed the guard");
+    }
+  }
   {
     const bool safe = parsed.method == "GET" || parsed.method == "HEAD" ||
                       parsed.method == "OPTIONS" || parsed.method == "TRACE";
@@ -934,6 +955,16 @@ std::vector<std::string> BuildSeeds() {
   seeds.push_back(
       Blob({":req-header: X-Forwarded-Proto: http",
             ":req-header: X-Requested-With: XMLHttpRequest", kType, kAge}));
+  seeds.push_back(Blob({":path: /a?b=1", ":req-header: X-Original-URL: /a?b=1",
+                        ":req-header: X-Original-URL: /a?b=2", kType, kAge}));
+  seeds.push_back(Blob(
+      {":path: /a/b", ":req-header: X-Original-URL: /a/b/c", kType, kAge}));
+  seeds.push_back(
+      Blob({":path: /a/b", ":req-header: X-Original-URL: /A/b", kType, kAge}));
+  seeds.push_back(Blob(
+      {":path: /a%20b", ":req-header: X-Original-URL: /a%2520b", kType, kAge}));
+  seeds.push_back(Blob(
+      {":path: /a//b", ":req-header: X-Original-URL: /a//b", kType, kAge}));
   seeds.push_back(Blob({":path: /a/%2e%2e/b.css", kType, kAge}));
   seeds.push_back(Blob({":path: /a\\b", kType, kAge}));
   seeds.push_back(
