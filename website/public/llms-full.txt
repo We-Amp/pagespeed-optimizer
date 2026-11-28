@@ -209,7 +209,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
-- [Measuring a server module's CPU cost: start with A/A](https://modpagespeed.com/blog/measure-server-module-cpu-cost/): 2026-11-28. Before you judge what a module, a filter or an upgrade costs your server in CPU, find the smallest change your test can resolve. A new series shows how.
+- [How to benchmark a web server module's CPU cost: A/A first](https://modpagespeed.com/blog/measure-server-module-cpu-cost/): 2026-11-28. Before you judge what an nginx, Apache or IIS module, filter or upgrade costs in CPU, find the smallest change your benchmark can resolve: run A/A first.
 - [PageSpeed for Envoy: what the proxy itself costs in CPU](https://modpagespeed.com/blog/envoy-cpu-series/): 2026-11-26. PageSpeed for Envoy runs inside Envoy, so every request also pays Envoy's own CPU. Findings from our Envoy CPU series and how to reproduce them.
 - [Why our releases have more gates now](https://modpagespeed.com/blog/why-our-releases-have-more-gates/): 2026-11-26. AI agents write, test and review the changes in every mod_pagespeed release. What a release must pass before it ships, and the release behind one gate.
 - [PageSpeed for Envoy: what a PGO and ThinLTO build means](https://modpagespeed.com/blog/envoy-filter-pgo-thinlto/): 2026-11-15. In our proxy benchmarks, PGO and ThinLTO cut stock Envoy's CPU per request by 20% to 40%. What that means for the experimental PageSpeed filter.
