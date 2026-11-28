@@ -276,8 +276,7 @@ HtmlGuardVerdict HtmlRequestGuard(std::string_view raw_path,
     if (refused && HeaderNameIs(name, "x-original-url") &&
         name.find('_') == std::string_view::npos && !value.empty() &&
         value == raw_path &&
-        value.substr(0, value.find('?')).find("//") ==
-            std::string_view::npos) {
+        value.substr(0, value.find('?')).find("//") == std::string_view::npos) {
       refused = false;
     }
     // A keyed scheme other than http or https matches no value.

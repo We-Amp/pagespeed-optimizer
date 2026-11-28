@@ -957,14 +957,14 @@ std::vector<std::string> BuildSeeds() {
             ":req-header: X-Requested-With: XMLHttpRequest", kType, kAge}));
   seeds.push_back(Blob({":path: /a?b=1", ":req-header: X-Original-URL: /a?b=1",
                         ":req-header: X-Original-URL: /a?b=2", kType, kAge}));
-  seeds.push_back(
-      Blob({":path: /a/b", ":req-header: X-Original-URL: /a/b/c", kType, kAge}));
+  seeds.push_back(Blob(
+      {":path: /a/b", ":req-header: X-Original-URL: /a/b/c", kType, kAge}));
   seeds.push_back(
       Blob({":path: /a/b", ":req-header: X-Original-URL: /A/b", kType, kAge}));
   seeds.push_back(Blob(
       {":path: /a%20b", ":req-header: X-Original-URL: /a%2520b", kType, kAge}));
-  seeds.push_back(
-      Blob({":path: /a//b", ":req-header: X-Original-URL: /a//b", kType, kAge}));
+  seeds.push_back(Blob(
+      {":path: /a//b", ":req-header: X-Original-URL: /a//b", kType, kAge}));
   seeds.push_back(Blob({":path: /a/%2e%2e/b.css", kType, kAge}));
   seeds.push_back(Blob({":path: /a\\b", kType, kAge}));
   seeds.push_back(
